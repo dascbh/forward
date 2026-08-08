@@ -1,0 +1,58 @@
+# fde.config.toml - declarativo unico do projeto.
+# Versionado. Diff auditavel. Recompilavel com `fde sync`.
+#
+# NAO existe aqui chave para desligar invariante. Invariantes estao em
+# .fde/spec/invariants.toml e nao tem chave. Peso move rigor para cima ou
+# redistribui enfase; nunca desce abaixo do piso.
+
+[project]
+name = "crm-demo"
+kernel_version = "0.1.0"
+
+[triage]
+data_class = "pessoal"
+reversibility = "irreversivel"
+user_facing = true
+has_agent_loop = true
+
+[stack]
+languages = ["javascript", "typescript"]
+test_runners = []
+test_command = "make test"
+eval_command = "python bin/fde/verify.py --gate eval"
+
+# ---------------------------------------------------------------------------
+# VETOR A - atributos de qualidade. Orcamento FECHADO: soma = 100.
+# Isto e o que o cliente aloca e assina. Registro datado do que ele disse
+# que importava - e a ordem em que o adversarial vai atacar.
+# ---------------------------------------------------------------------------
+[weights]
+functional_correctness = 26
+security_privacy = 14
+reliability_resilience = 12
+observability = 12
+maintainability = 12
+performance_scale = 9
+usability_accessibility = 8
+operational_cost = 7
+
+# ---------------------------------------------------------------------------
+# VETOR B - dominios tecnicos. DERIVADO da stack + triagem.
+# Override em [depths] e upward-only: voce eleva, nunca reduz.
+# ---------------------------------------------------------------------------
+[derived.depths]
+software_architecture = 3
+data_modeling = 3
+api_contract = 2
+design_system = 1
+usability_research = 2
+qa_test_strategy = 1
+platform_delivery = 3
+applied_security = 2
+ai_agents = 2
+
+[depths]
+# ex.: data_modeling = 3   (permitido: >= derivado)
+
+[tooling]
+force = []   # ex.: ["cursor"] para emitir adapter nao detectado

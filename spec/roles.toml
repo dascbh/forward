@@ -1,0 +1,106 @@
+# ============================================================================
+# PAPÉIS
+# ============================================================================
+# Cinco papéis. Não são cargos — cada um existe porque tem ACESSO DIFERENTE
+# (ferramenta, contexto, artefato). Papel que roda o mesmo modelo, no mesmo
+# contexto, com as mesmas ferramentas que outro papel é o mesmo papel de chapéu
+# diferente, e o "arquiteto" aprova o que ele mesmo desenhou.
+#
+# O que produz separação real:
+#   1. denied_tools  — o papel não CONSEGUE fazer o que não é dele
+#   2. isolation     — o papel não VÊ o raciocínio de quem construiu
+#   3. inputs/outputs — handoff por artefato em disco (I7), não por conversa
+#
+# PM, PO, squad lead e tech lead foram deliberadamente colapsados. Eles existem
+# em organograma humano porque humano não tem contexto compartilhado. Agente tem.
+# Mantê-los seria overhead de token e mais um ponto de degradação da intenção.
+# ============================================================================
+
+[meta]
+spec_version = "0.1.0"
+
+# ----------------------------------------------------------------------------
+[[role]]
+id = "spec"
+label = "Especificação"
+purpose = """
+Converter discovery em failure modes enumerados e critério de aceite declarado.
+Este papel produz a medida ANTES de existir código — é o que resolve a ausência
+de golden dataset no dia um.
+"""
+inputs = ["discovery/**", "fde.config.toml"]
+outputs = ["specs/<demand-id>/spec.md", "specs/<demand-id>/failure-modes.toml", "specs/<demand-id>/acceptance.md"]
+write_scope = ["specs/**", "discovery/**"]
+denied_tools = ["Edit", "Write"]           # fora do write_scope; o adapter traduz
+denied_paths = ["src/**", "tests/**", "infra/**"]
+isolation = false
+satisfies = ["I1", "I4"]
+
+# ----------------------------------------------------------------------------
+[[role]]
+id = "architecture"
+label = "Arquitetura"
+purpose = """
+Decidir fronteiras, contratos e trade-offs à luz do vetor de pesos. Produz
+decisão registrada, não código — se puder editar implementação, vira dev com
+prompt diferente e a decisão nunca fica escrita.
+"""
+inputs = ["specs/**", "fde.config.toml", "src/**:read"]
+outputs = ["docs/adr/*.md", "specs/<demand-id>/architecture.md"]
+write_scope = ["docs/adr/**", "specs/**"]
+denied_paths = ["src/**", "tests/**"]
+isolation = false
+satisfies = ["I7"]
+
+# ----------------------------------------------------------------------------
+[[role]]
+id = "implementation"
+label = "Implementação"
+purpose = """
+Construir o artefato e a suíte correspondente. É o único papel com escrita em
+código de produção. Não julga a própria entrega.
+"""
+inputs = ["specs/**", "docs/adr/**"]
+outputs = ["src/**", "tests/**", "evals/**"]
+write_scope = ["src/**", "tests/**", "evals/**", "infra/**"]
+denied_paths = ["specs/**/acceptance.md", "reviews/**"]
+denied_reason = "não pode reescrever o critério pelo qual será julgado, nem o achado contra si"
+isolation = false
+satisfies = ["I1"]
+
+# ----------------------------------------------------------------------------
+[[role]]
+id = "adversarial"
+label = "Revisão adversarial"
+purpose = """
+Tentar quebrar. Recebe artefato + spec, nunca o contexto de quem construiu.
+Sucesso é achado, não aprovação. NÃO pode corrigir o que encontrou — revisor que
+conserta silenciosamente destrói o registro do achado.
+"""
+inputs = ["src/**:read", "specs/**:read", "evals/**:read"]
+outputs = ["reviews/<demand-id>/findings.toml"]
+write_scope = ["reviews/**"]
+denied_tools = ["Edit", "Write"]
+denied_paths = ["src/**", "tests/**", "evals/**", "specs/**", "infra/**"]
+isolation = true                            # obrigatório — I2
+isolation_mode = "worktree"
+context_policy = "artifact_only"
+probe_order = "derived_from_vector_A_weights"
+success_metric = "findings_by_severity"
+satisfies = ["I2", "I3"]
+
+# ----------------------------------------------------------------------------
+[[role]]
+id = "promotion"
+label = "Promoção"
+purpose = """
+Avaliar o artefato contra o critério declarado e decidir promoção. Não constrói,
+não revisa: apenas confronta evidência com critério e registra a decisão.
+"""
+inputs = ["specs/**:read", "reviews/**:read", "evals/**:read", "artifacts/gate-report.json"]
+outputs = ["promotions/<demand-id>/decision.md"]
+write_scope = ["promotions/**"]
+denied_paths = ["src/**", "tests/**", "evals/**", "specs/**", "reviews/**"]
+isolation = true
+isolation_mode = "worktree"
+satisfies = ["I4", "I5", "I6"]

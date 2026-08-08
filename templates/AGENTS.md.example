@@ -1,0 +1,70 @@
+<!--
+FDE-KERNEL:GENERATED — não edite à mão.
+Fonte da verdade: fde.config.toml + spec/. Regenere com `fde sync`.
+Edição manual aqui é sobrescrita e detectada como drift.
+-->
+
+# t2
+
+Este repositório opera sob um kernel de entrega com invariantes não negociáveis.
+Instruções aqui valem para qualquer agente de código (Codex, Cursor, Claude Code,
+Copilot, Kiro, Gemini CLI, Windsurf, Aider).
+
+## Comandos
+
+```bash
+pytest -q      # teste
+python bin/fde/verify.py --gate eval   # eval
+python bin/fde/verify.py    # gate completo (o mesmo que o CI roda)
+```
+
+## Invariantes (não configuráveis)
+
+- **I1 eval-precede-merge** — Nenhuma mudança que altere comportamento observável do sistema entra na branch principal sem entrada correspondente na suíte de avaliação.
+- **I2 adversarial-isolation** — A revisão adversarial recebe o artefato e a especificação. Nunca recebe o contexto, o histórico ou o raciocínio de quem construiu o artefato.
+- **I3 adversarial-incentive** — O papel adversarial é medido por falhas encontradas, não por entregas aprovadas. Ele não tem permissão de escrita no código sob revisão — só pode registrar achado. Corrigir é trabalho de outro papel.
+- **I4 promotion-criteria-declared** — Nenhum artefato é promovido a produção sem critério de aceite escrito, versionado e datado, declarado antes do início da construção.
+- **I5 observability-floor** — Todo artefato promovido emite o mínimo necessário para verificar em produção os atributos de qualidade que declarou atender.
+- **I6 client-runnable-gate** — O gate roda no ambiente do cliente, com o runner do cliente, sem nenhum componente do framework no caminho crítico. O entregável inclui a capacidade de executá-lo sem o FDE presente.
+- **I7 artifact-handoff** — Papéis se comunicam por artefato versionado em disco (spec, ADR, suíte, relatório de revisão), nunca por continuidade de conversa.
+
+Não existe chave capaz de desligar um invariante. Se a entrega não cabe nele,
+o escopo encolhe — o padrão não.
+
+## Prioridade acordada (vetor A, orçamento 100)
+
+- functional_correctness: 26
+- security_privacy: 14
+- reliability_resilience: 12
+- observability: 12
+- maintainability: 12
+- performance_scale: 9
+- usability_accessibility: 8
+- operational_cost: 7
+
+Peso ordena o ataque adversarial e dimensiona a suíte. Peso nunca desce abaixo
+do piso do atributo.
+
+## Profundidade por domínio (vetor B, derivado da stack)
+
+- software_architecture: 1
+- qa_test_strategy: 1
+- platform_delivery: 1
+
+Override é upward-only. A natureza do sistema define o mínimo, não a preferência.
+
+## Papéis
+
+- **Especificação** (`fde-spec`) — escreve em `specs/**, discovery/**`
+- **Arquitetura** (`fde-architecture`) — escreve em `docs/adr/**, specs/**`
+- **Implementação** (`fde-implementation`) — escreve em `src/**, tests/**, evals/**, infra/**`
+- **Revisão adversarial** (`fde-adversarial`) — escreve em `reviews/**`
+- **Promoção** (`fde-promotion`) — escreve em `promotions/**`
+
+Handoff é por artefato em disco, nunca por continuidade de conversa.
+
+## Detalhe
+
+Cada etapa tem skill própria em `skills/` (formato Agent Skills, portátil entre
+ferramentas). Este arquivo é deliberadamente fino: o Codex trunca AGENTS.md em
+32 KiB sem avisar.

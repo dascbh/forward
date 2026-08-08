@@ -1,0 +1,153 @@
+# ============================================================================
+# INVARIANTES DO KERNEL
+# ============================================================================
+# Este arquivo NÃO é configuração. Nada aqui é parametrizável por projeto,
+# por stack, por desenvolvedor ou por peso. Não existe chave em fde.config.toml
+# capaz de desligar, relaxar ou pular um invariante.
+#
+# Quem precisa operar sem um destes itens deve fazer fork do framework.
+# O fork é visível; a exceção silenciosa não seria.
+# ============================================================================
+
+[meta]
+kernel_version = "0.1.0"
+mutable = false
+
+# ----------------------------------------------------------------------------
+# I1 — Toda mudança de comportamento tem medida
+# ----------------------------------------------------------------------------
+[[invariant]]
+id = "I1"
+name = "eval-precede-merge"
+statement = """
+Nenhuma mudança que altere comportamento observável do sistema entra na branch
+principal sem entrada correspondente na suíte de avaliação.
+"""
+enforced_by = ["pre-commit", "ci"]
+verifiable_by = "fde verify --gate eval-coverage"
+rationale = """
+Sem medida, mudança de prompt e mudança de código sobem por opinião. É o único
+mecanismo que pega regressão silenciosa quando o modelo muda debaixo do sistema.
+"""
+
+# ----------------------------------------------------------------------------
+# I2 — A revisão adversarial roda isolada
+# ----------------------------------------------------------------------------
+[[invariant]]
+id = "I2"
+name = "adversarial-isolation"
+statement = """
+A revisão adversarial recebe o artefato e a especificação. Nunca recebe o
+contexto, o histórico ou o raciocínio de quem construiu o artefato.
+"""
+enforced_by = ["ci", "adapter-isolation"]
+verifiable_by = "fde verify --gate adversarial-isolation"
+rationale = """
+Revisor que vê o próprio raciocínio que produziu o código concorda com ele
+mesmo. Sem isolamento de contexto, papel adversarial é teatro e o framework
+inteiro degrada para checklist.
+"""
+
+# ----------------------------------------------------------------------------
+# I3 — Sucesso do adversarial é achado, não aprovação
+# ----------------------------------------------------------------------------
+[[invariant]]
+id = "I3"
+name = "adversarial-incentive"
+statement = """
+O papel adversarial é medido por falhas encontradas, não por entregas aprovadas.
+Ele não tem permissão de escrita no código sob revisão — só pode registrar
+achado. Corrigir é trabalho de outro papel.
+"""
+enforced_by = ["role-tool-restriction", "ci"]
+verifiable_by = "fde verify --gate adversarial-incentive"
+rationale = """
+Revisor que pode consertar o que achou conserta silenciosamente, e o achado
+nunca aparece no registro. A separação é o que produz rastro auditável.
+"""
+
+# ----------------------------------------------------------------------------
+# I4 — Promoção tem critério declarado antes da construção
+# ----------------------------------------------------------------------------
+[[invariant]]
+id = "I4"
+name = "promotion-criteria-declared"
+statement = """
+Nenhum artefato é promovido a produção sem critério de aceite escrito,
+versionado e datado, declarado antes do início da construção.
+"""
+enforced_by = ["ci"]
+verifiable_by = "fde verify --gate promotion-criteria"
+rationale = """
+Critério escrito depois da entrega é justificativa, não critério. Declarar antes
+é o que separa entrega de alto padrão de racionalização retroativa.
+"""
+
+# ----------------------------------------------------------------------------
+# I5 — O que não é observável não é verificável
+# ----------------------------------------------------------------------------
+[[invariant]]
+id = "I5"
+name = "observability-floor"
+statement = """
+Todo artefato promovido emite o mínimo necessário para verificar em produção os
+atributos de qualidade que declarou atender.
+"""
+enforced_by = ["ci"]
+verifiable_by = "fde verify --gate observability"
+rationale = """
+É o atributo que todo projeto rebaixa sob pressão e o único cuja ausência torna
+todos os outros inverificáveis depois do deploy.
+"""
+
+# ----------------------------------------------------------------------------
+# I6 — O cliente herda a capacidade de verificar
+# ----------------------------------------------------------------------------
+[[invariant]]
+id = "I6"
+name = "client-runnable-gate"
+statement = """
+O gate roda no ambiente do cliente, com o runner do cliente, sem nenhum
+componente do framework no caminho crítico. O entregável inclui a capacidade de
+executá-lo sem o FDE presente.
+"""
+enforced_by = ["ci", "handoff"]
+verifiable_by = "fde verify --gate portability"
+rationale = """
+Gate que só roda na máquina do consultor é dependência disfarçada de padrão.
+O ativo entregue é a especificação de correção, não o agente.
+"""
+
+# ----------------------------------------------------------------------------
+# I7 — Handoff entre papéis é por artefato em disco
+# ----------------------------------------------------------------------------
+[[invariant]]
+id = "I7"
+name = "artifact-handoff"
+statement = """
+Papéis se comunicam por artefato versionado em disco (spec, ADR, suíte, relatório
+de revisão), nunca por continuidade de conversa.
+"""
+enforced_by = ["ci", "adapter-isolation"]
+verifiable_by = "fde verify --gate artifact-handoff"
+rationale = """
+Handoff por conversa vaza raciocínio entre papéis, colapsa a separação e não
+deixa rastro. Artefato em disco é auditável e sobrevive à sessão.
+"""
+
+# ----------------------------------------------------------------------------
+# PISOS — mínimos que peso não alcança
+# ----------------------------------------------------------------------------
+# Peso move rigor para cima ou redistribui ênfase entre dimensões.
+# Peso nunca desce abaixo do piso. Peso zero não existe.
+[floors]
+# atributos de qualidade (vetor A): piso em unidades de orçamento
+functional_correctness = 20   # piso alto: é a definição de "entregue"
+observability         = 10   # ver I5
+security_privacy      = 8    # piso base; elevado pela triagem, nunca reduzido pelo peso
+# demais atributos
+default_quality_floor = 3
+
+# domínios técnicos (vetor B): piso em profundidade 0..3
+qa_test_strategy      = 1    # profundidade 0 contradiz I1
+default_domain_floor  = 0
