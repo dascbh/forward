@@ -1,4 +1,4 @@
-# fde-kernel
+# FORWRD
 
 Kernel de entrega para forward-deployed engineering. Trata **revisão empírica** e
 **revisão adversarial** como invariantes de gate, não como fases de metodologia.
@@ -8,8 +8,9 @@ Gemini CLI, Windsurf, Aider. A camada de instrução usa padrões governados pel
 Agentic AI Foundation (AGENTS.md, Agent Skills); a camada de enforcement mora no
 repositório, não na IDE.
 
-> `fde-kernel` é nome de trabalho. Trocar exige editar um campo em
-> `.claude-plugin/plugin.json` e o prefixo das skills.
+> FORWRD é o nome do projeto; `fde` segue como prefixo técnico — de
+> forward-deployed engineering — em comandos (`fde doctor`), skills
+> (`fde-review`) e configuração (`fde.config.toml`).
 
 ---
 

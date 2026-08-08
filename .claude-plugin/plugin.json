@@ -1,7 +1,7 @@
 {
-  "name": "fde-kernel",
+  "name": "forwrd",
   "version": "0.1.0",
-  "description": "Kernel de entrega para forward-deployed engineering: revisao empirica e revisao adversarial como invariantes de gate, portavel entre ferramentas agenticas.",
+  "description": "FORWRD - kernel de entrega para forward-deployed engineering: revisao empirica e revisao adversarial como invariantes de gate, portavel entre ferramentas agenticas.",
   "license": "Apache-2.0",
   "keywords": ["fde", "eval-driven", "adversarial-review", "agents-md", "portable"]
 }
