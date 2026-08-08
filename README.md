@@ -1,204 +1,210 @@
-# FORWRD
+# FORWARD
 
-Kernel de entrega para forward-deployed engineering. Trata **revisão empírica** e
-**revisão adversarial** como invariantes de gate, não como fases de metodologia.
+A delivery kernel for forward-deployed engineering. Treats **empirical review**
+and **adversarial review** as gate invariants, not as methodology phases.
 
-Portável entre ferramentas agênticas: Claude Code, Codex, Cursor, Copilot, Kiro,
-Gemini CLI, Windsurf, Aider. A camada de instrução usa padrões governados pela
-Agentic AI Foundation (AGENTS.md, Agent Skills); a camada de enforcement mora no
-repositório, não na IDE.
+Portable across agentic tools: Claude Code, Codex, Cursor, Copilot, Kiro,
+Gemini CLI, Windsurf, Aider. The instruction layer uses standards governed by
+the Agentic AI Foundation (AGENTS.md, Agent Skills); the enforcement layer
+lives in the repository, not in the IDE.
 
-> FORWRD é o nome do projeto; `fde` segue como prefixo técnico — de
-> forward-deployed engineering — em comandos (`fde doctor`), skills
-> (`fde-review`) e configuração (`fde.config.toml`).
-
----
-
-## O problema
-
-O modelo FDE tem análise organizacional densa e **nenhum critério técnico de
-aceite**. O playbook canônico traz sete lições de org-design — contratar
-engenheiro-diplomata, embedar no cliente, entregar no dia um, tratar discovery
-como engenharia, construir ontologia do cliente, rotear feedback pelo FDE,
-recusar o papel de integrador — e zero definição de "pronto para produção".
-
-Sem isso, FDE é venda com PoC rápido, e a crítica de que gera lock-in e
-funcionalidade limitada procede.
-
-Este kernel não afirma pioneirismo em revisão empírica nem em adversarial. Ambas
-têm linhagem: eval-driven development de um lado; debate como supervisão, red
-teaming e arquiteturas challenger/solver do outro. A afirmação é mais estreita e
-defensável: **nenhum framework de FDE hoje trata as duas como gate de entrega, e
-sem isso PoC não vira produção.**
+> FORWARD is the project name; `fde` remains the technical prefix — from
+> forward-deployed engineering — in commands (`fde doctor`), skills
+> (`fde-review`), and configuration (`fde.config.toml`).
 
 ---
 
-## Como o rigor sobrevive à velocidade
+## The problem
 
-"Entregar no dia um" nunca foi "produção no dia um" — era rodar em dado real em
-vez de slide. A regra do kernel:
+The FDE model has dense organizational analysis and **no technical acceptance
+criteria**. The canonical playbook offers seven org-design lessons — hire the
+engineer-diplomat, embed with the client, deliver on day one, treat discovery
+as engineering, build the client's ontology, route feedback through the FDE,
+refuse the integrator role — and zero definition of "production-ready".
 
-> **O rigor é constante. A superfície varia.**
+Without that, FDE is sales with a fast PoC, and the criticism that it produces
+lock-in and limited functionality stands.
 
-No dia um você entrega algo mínimo mas real: roda em dado de produção, tem eval,
-tem observabilidade, poderia ficar de pé indefinidamente. Escopo encolhe; padrão
-nunca. É o que qualifica a demo em vez de sacrificá-la — não "olha o que dá para
-fazer", e sim "isto já funciona no seu ambiente, e aqui está a medida".
-
-Consequência assumida: existem engajamentos que o kernel **recusa**. Cliente sem
-acesso a dado real, sem ambiente onde promover, sem ninguém para receber a
-operação. `fde doctor` e o gate deixam isso visível antes do contrato.
+This kernel claims no pioneering in empirical review nor in adversarial
+review. Both have lineage: eval-driven development on one side; debate as
+supervision, red teaming, and challenger/solver architectures on the other.
+The claim is narrower and defensible: **no FDE framework today treats both as
+delivery gates, and without that a PoC never becomes production.**
 
 ---
 
-## Os sete invariantes
+## How rigor survives speed
 
-Definidos em [`spec/invariants.toml`](spec/invariants.toml). **Não têm chave de
-configuração.** Quem precisa operar sem um deles faz fork — o fork é visível; a
-exceção silenciosa não seria.
+"Deliver on day one" was never "production on day one" — it meant running on
+real data instead of slides. The kernel's rule:
 
-| id | invariante |
+> **Rigor is constant. Surface varies.**
+
+On day one you deliver something minimal but real: it runs on production data,
+has an eval, has observability, could stand indefinitely. Scope shrinks; the
+standard never does. That is what qualifies the demo instead of sacrificing
+it — not "look what we could do", but "this already works in your
+environment, and here is the measurement."
+
+An assumed consequence: there are engagements the kernel **refuses**. A client
+with no access to real data, no environment to promote to, no one to receive
+operations. `fde doctor` and the gate make that visible before the contract.
+
+---
+
+## The seven invariants
+
+Defined in [`spec/invariants.toml`](spec/invariants.toml). **They have no
+configuration key.** Whoever needs to operate without one of them forks the
+framework — the fork is visible; a silent exception would not be.
+
+| id | invariant |
 |---|---|
-| I1 | Mudança de comportamento não entra sem entrada correspondente na suíte de eval |
-| I2 | A revisão adversarial recebe artefato + spec, nunca o raciocínio de quem construiu |
-| I3 | Sucesso do adversarial é achado, não aprovação — e ele não pode corrigir |
-| I4 | Critério de promoção declarado, versionado e datado **antes** da construção |
-| I5 | O que não é observável não é verificável: piso de observabilidade |
-| I6 | O gate roda no ambiente do cliente, sem o FDE presente |
-| I7 | Handoff entre papéis é por artefato em disco, nunca por conversa |
+| I1 | No behavior change lands without a corresponding entry in the eval suite |
+| I2 | Adversarial review receives artifact + spec, never the builder's reasoning |
+| I3 | Adversarial success is findings, not approval — and it cannot fix |
+| I4 | Promotion criteria declared, versioned, and dated **before** construction |
+| I5 | What is not observable is not verifiable: an observability floor |
+| I6 | The gate runs in the client's environment, without the FDE present |
+| I7 | Handoff between roles is by artifact on disk, never by conversation |
 
 ---
 
-## Os dois vetores
+## The two vectors
 
-Atributo de qualidade e domínio técnico são coisas diferentes e não compartilham
-orçamento. Misturá-los faria "peso baixo em QA" significar menos teste, o que
-colide com I1.
+Quality attributes and technical domains are different things and do not share
+a budget. Mixing them would make "low weight on QA" mean less testing, which
+collides with I1.
 
-**Vetor A — atributos de qualidade.** Orçamento **fechado** de 100 pontos. É o
-que o cliente aloca e assina; vira registro datado do que ele disse que
-importava. Se tudo pudesse ser alto, ninguém escolheu nada.
+**Vector A — quality attributes.** A **closed** budget of 100 points. It is
+what the client allocates and signs; it becomes a dated record of what they
+said mattered. If everything could be high, nobody chose anything.
 
-Governa: ordem de ataque adversarial, rodadas por dimensão, dimensionamento da
-suíte, o que trava merge acima do piso.
+It governs: adversarial attack order, rounds per dimension, suite sizing, and
+what blocks merge above the floor.
 
-**Vetor B — domínios técnicos.** Profundidade 0–3, **derivada** da stack +
-triagem. Override é *upward-only*: o cliente eleva, nunca reduz. Peso baixo em
-modelagem de dados num sistema data-heavy não é preferência, é erro — e o
-framework não deve permitir errar por configuração.
+**Vector B — technical domains.** Depth 0–3, **derived** from the stack +
+triage. Override is *upward-only*: the client can raise, never reduce. Low
+weight on data modeling in a data-heavy system is not a preference, it is an
+error — and the framework must not allow erring by configuration.
 
-Segurança aparece nos dois de propósito: no A é o que a entrega **garante**; no B
-é **quanto trabalho de especialista** entra.
+Security appears in both on purpose: in A it is what the delivery
+**guarantees**; in B it is **how much specialist work** goes in.
 
-### Pisos
+### Floors
 
-Peso move rigor para cima ou redistribui ênfase. Nunca desce abaixo do piso, e
-peso zero não existe. Três pisos são altos: correção funcional (é a definição de
-entregue), observabilidade (sem ela nada mais é verificável depois do deploy), e
-segurança — cujo piso é **escalado pela classe de dado** na triagem e não desce
-por peso. No vetor B, QA nunca é 0.
-
----
-
-## Os cinco papéis
-
-Papel não é cargo. `spec/roles.toml` define cinco porque cada um tem **acesso
-diferente** — ferramenta, contexto, artefato. Papel que roda o mesmo modelo, no
-mesmo contexto, com as mesmas ferramentas que outro é o mesmo papel de chapéu
-diferente, e o "arquiteto" aprova o que ele mesmo desenhou.
-
-O que produz separação real: `denied_tools` (o papel não consegue), `isolation`
-(o papel não vê), handoff por artefato (I7).
-
-PM, PO, squad lead e tech lead foram colapsados. Existem em organograma humano
-porque humano não tem contexto compartilhado. Agente tem.
+Weight moves rigor upward or redistributes emphasis. It never goes below the
+floor, and weight zero does not exist. Three floors are high: functional
+correctness (it is the definition of delivered), observability (without it
+nothing else is verifiable after deploy), and security — whose floor is
+**escalated by the data class** set at triage and never lowered by weight. In
+vector B, QA is never 0.
 
 ---
 
-## Enforcement: três tiers, declarados
+## The five roles
 
-A camada de instrução é agnóstica. A de enforcement não é e nunca vai ser — hook,
-restrição de ferramenta e worktree são implementação de cada ferramenta, com
-capacidade desigual. Por isso **o invariante mora no repositório**: git hook + CI
-funcionam com qualquer agente, com dev humano, e continuam funcionando depois que
-o FDE sai (I6).
+A role is not a job title. `spec/roles.toml` defines five because each one has
+**different access** — tools, context, artifacts. A role running the same
+model, in the same context, with the same tools as another is the same role in
+a different hat, and the "architect" approves what they themselves designed.
 
-| tier | significa |
+What produces real separation: `denied_tools` (the role cannot), `isolation`
+(the role does not see), artifact handoff (I7).
+
+PM, PO, squad lead, and tech lead were deliberately collapsed. They exist in
+human org charts because humans lack shared context. Agents have it.
+
+---
+
+## Enforcement: three tiers, declared
+
+The instruction layer is agnostic. The enforcement layer is not and never will
+be — hooks, tool restrictions, and worktrees are per-tool implementation with
+unequal capability. That is why **the invariant lives in the repository**: git
+hook + CI work with any agent, with human devs, and keep working after the FDE
+leaves (I6).
+
+| tier | meaning |
 |---|---|
-| `loop` | hook + restrição por papel. Bloqueia antes da escrita. |
-| `commit` | sem hook, mas há subagente/worktree. Papéis reais, gate no git. |
-| `advisory` | só instrução. Papéis são convenção, gate é o CI. |
+| `loop` | hook + per-role restriction. Blocks before the write. |
+| `commit` | no hook, but subagents/worktrees exist. Real roles, gate in git. |
+| `advisory` | instruction only. Roles are convention, the gate is CI. |
 
-`fde doctor` declara o tier e separa o que está **enforçado** do que é apenas
-**sugerido**. Prometer paridade e entregar teatro em três de cinco ferramentas é
-o que queima framework aberto.
+`fde doctor` declares the tier and separates what is actually **enforced**
+from what is merely **suggested**. Promising parity and delivering theater in
+three out of five tools is what burns an open framework.
 
 ---
 
-## Uso
+## Usage
 
-Zero dependência externa. Python 3.11+ (`tomllib` é stdlib). Roda no repo do
-cliente sem instalar nada.
+Zero external dependencies. Python 3.11+ (`tomllib` is stdlib). Runs in the
+client's repo with nothing to install.
 
 ```bash
-# 1. parametrizar (detecta a stack; pergunta só o que não dá para inferir)
+# 1. parameterize (detects the stack; asks only what cannot be inferred)
 python bin/init.py
-#    ou não-interativo:
+#    or non-interactive:
 python bin/init.py --yes --data-class pessoal --reversibility irreversivel
 
-# 2. compilar os artefatos nativos da ferramenta em uso
+# 2. compile the native artifacts for the tool in use
 python bin/compile.py
 git config core.hooksPath .githooks
 
-# 3. ver o que está de fato enforçado
+# 3. see what is actually enforced
 python bin/fde/doctor.py
 
-# 4. por demanda
-python bin/triage.py --surfaces 2 --loc 120     # dimensiona
-python bin/review.py DEM-001 --isolate          # adversarial isolado
-python bin/fde/verify.py --all                  # gate (o mesmo do CI)
+# 4. on demand
+python bin/triage.py --surfaces 2 --loc 120     # sizing
+python bin/review.py DEM-001 --isolate          # isolated adversarial review
+python bin/fde/verify.py --all                  # the gate (same one CI runs)
 ```
 
-### Comandos como skills
+### Commands as skills
 
-Cada comando tem skill correspondente em `skills/` no formato Agent Skills —
-portátil, lida por ~30 ferramentas. `commands/` não é usado: é formato legado no
-Claude Code e não é padrão aberto.
+Each command has a corresponding skill in `skills/` in the Agent Skills
+format — portable, read by ~30 tools. `commands/` is not used: it is a legacy
+Claude Code format, not an open standard.
 
-A lógica vive em `bin/` como script determinístico, nunca em prompt. Três razões:
-roda no CI sem agente nenhum, não varia entre ferramentas nem entre execuções do
-mesmo modelo, e é testável. Detecção de stack dentro de prompt é diferente toda
-terça.
-
----
-
-## Configuração
-
-`fde.config.toml` é o declarativo único, versionado. Diff auditável,
-recompilação idempotente, projeto novo parametrizado por cópia, modo
-não-interativo para CI.
-
-Duas naturezas, deliberadamente separadas: **parametrizável** (comandos de build
-e teste, caminhos, classe de dado, pesos, profundidade) e **fixo** (os
-invariantes). Fixo não é campo do arquivo — não existe chave.
-
-Arquivo gerado leva `FDE-KERNEL:GENERATED` no topo. Editar à mão é perda
-garantida no próximo `sync`; o conserto é na fonte.
+The logic lives in `bin/` as deterministic scripts, never in prompts. Three
+reasons: it runs in CI with no agent at all, it does not vary across tools or
+across runs of the same model, and it is testable. Stack detection inside a
+prompt is different every Tuesday.
 
 ---
 
-## Limites conhecidos
+## Configuration
 
-- `evals/` é a interface esperada, mas o kernel não impõe framework de eval.
-  Inspect AI, promptfoo, DeepEval e suíte caseira funcionam igual.
-- No tier `advisory` os papéis são convenção. O gate ainda vale, no commit e no CI.
-- `git worktree` é requisito para o isolamento forçado fora do tier `loop`.
-- Adapters cobertos: Claude Code (`loop`), Codex e Cursor (`commit`). Copilot,
-  Kiro, Gemini CLI e Windsurf funcionam via AGENTS.md em `advisory` até ganharem
-  adapter próprio.
-- "Adversarial" em ML já significa adversarial examples e GANs. Aqui significa
-  contraditório de processo. Vale desambiguar na primeira menção a quem vem de ML.
+`fde.config.toml` is the single declarative source, versioned. Auditable
+diffs, idempotent recompilation, new projects parameterized by copy,
+non-interactive mode for CI.
 
-## Licença
+Two natures, deliberately separated: **parameterizable** (build and test
+commands, paths, data class, weights, depths) and **fixed** (the invariants).
+Fixed is not a field in the file — the key does not exist.
+
+Generated files carry `FDE-KERNEL:GENERATED` at the top. Editing them by hand
+is guaranteed loss on the next `sync`; the fix belongs at the source.
+
+---
+
+## Known limits
+
+- `evals/` is the expected interface, but the kernel does not impose an eval
+  framework. Inspect AI, promptfoo, DeepEval, and a homegrown suite all work
+  the same.
+- In the `advisory` tier, roles are convention. The gate still holds, at
+  commit and in CI.
+- `git worktree` is a requirement for forced isolation outside the `loop`
+  tier.
+- Adapters covered: Claude Code (`loop`), Codex and Cursor (`commit`).
+  Copilot, Kiro, Gemini CLI, and Windsurf work via AGENTS.md in `advisory`
+  until they get their own adapter.
+- "Adversarial" in ML already means adversarial examples and GANs. Here it
+  means process-level adversarial review. Worth disambiguating on first
+  mention to anyone coming from ML.
+
+## License
 
 Apache-2.0.
