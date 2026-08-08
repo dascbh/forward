@@ -1,12 +1,13 @@
 """
-Adapter Claude Code — tier `loop`, maior fidelidade disponível.
+Claude Code adapter — `loop` tier, highest fidelity available.
 
-Usa: agents/ com denied_tools e isolation:worktree, hooks PreToolUse para
-bloqueio antes da escrita, CLAUDE.md com @AGENTS.md como ponte.
+Uses: agents/ with denied_tools and isolation:worktree, PreToolUse hooks for
+blocking before the write, CLAUDE.md with @AGENTS.md as the bridge.
 
-Ponte AGENTS.md → CLAUDE.md: o import `@AGENTS.md` na primeira linha é a opção
-recomendada e segura no Windows (symlink quebra lá). Fontes divergem sobre se o
-Claude Code já lê AGENTS.md nativamente; o import funciona nos dois casos.
+AGENTS.md → CLAUDE.md bridge: the `@AGENTS.md` import on the first line is the
+recommended option and safe on Windows (symlinks break there). Sources diverge
+on whether Claude Code already reads AGENTS.md natively; the import works
+either way.
 """
 
 from __future__ import annotations
@@ -30,18 +31,18 @@ class ClaudeCodeAdapter(Adapter):
             tool=self.tool,
             tier="loop",
             enforced=[
-                "denied_tools por papel (agents/ frontmatter)",
-                "isolation: worktree no papel adversarial",
-                "PreToolUse hook: bloqueio antes da escrita",
-                "gate no pre-commit e no CI",
+                "denied_tools per role (agents/ frontmatter)",
+                "isolation: worktree on the adversarial role",
+                "PreToolUse hook: blocks before the write",
+                "gate at pre-commit and in CI",
             ],
             advisory=[
-                "ordem de sondagem do adversarial (derivada do vetor A, instruída via prompt)",
+                "adversarial probe order (derived from vector A, instructed via prompt)",
             ],
             notes=[
-                "agentes de plugin não suportam hooks/mcpServers/permissionMode "
-                "(restrição de segurança) — hooks vão no nível de projeto",
-                "único valor válido de isolation é 'worktree'",
+                "plugin agents do not support hooks/mcpServers/permissionMode "
+                "(security restriction) — hooks go at the project level",
+                "the only valid isolation value is 'worktree'",
             ],
         )
 
@@ -49,18 +50,18 @@ class ClaudeCodeAdapter(Adapter):
         written: list[Path] = []
         p = ctx.project
 
-        # 1. ponte para o AGENTS.md agnóstico
+        # 1. bridge to the agnostic AGENTS.md
         written.append(self.write(
             p / "CLAUDE.md",
             "@AGENTS.md\n\n"
-            "## Camada específica do Claude Code\n\n"
-            "Os papéis deste projeto estão em `.claude/agents/`. Cada um tem escopo de\n"
-            "escrita restrito por design — se um papel não consegue editar um caminho,\n"
-            "isso é intencional, não impedimento a contornar.\n\n"
-            "Antes de qualquer commit: `python bin/fde/verify.py`.\n",
+            "## Claude Code-specific layer\n\n"
+            "This project's roles live in `.claude/agents/`. Each one has a write\n"
+            "scope restricted by design — if a role cannot edit a path, that is\n"
+            "intentional, not an impediment to work around.\n\n"
+            "Before any commit: `python bin/fde/verify.py`.\n",
         ))
 
-        # 2. um subagente por papel, com restrição real
+        # 2. one subagent per role, with real restrictions
         for role in ctx.spec.roles["role"]:
             fm = [
                 "---",
@@ -80,37 +81,37 @@ class ClaudeCodeAdapter(Adapter):
                 "",
                 role["purpose"].strip(),
                 "",
-                "## Entradas (leia; não invente contexto fora daqui)",
+                "## Inputs (read these; do not invent context beyond them)",
                 *[f"- `{i}`" for i in role.get("inputs", [])],
                 "",
-                "## Saídas (escreva só aqui)",
+                "## Outputs (write only here)",
                 *[f"- `{o}`" for o in role.get("outputs", [])],
                 "",
-                "## Caminhos negados",
+                "## Denied paths",
                 *[f"- `{d}`" for d in role.get("denied_paths", [])],
                 "",
-                f"Invariantes que este papel sustenta: {', '.join(role.get('satisfies', []))}",
+                f"Invariants this role upholds: {', '.join(role.get('satisfies', []))}",
             ]
 
             if role["id"] == "adversarial":
                 body += [
                     "",
-                    "## Ordem de sondagem",
-                    "Derivada dos pesos do vetor A. Não reordene por conveniência.",
+                    "## Probe order",
+                    "Derived from vector A weights. Do not reorder for convenience.",
                     "",
                 ]
                 for step in ctx.probe_plan:
-                    flag = "TRAVA MERGE" if step["blocking"] else "registra achado"
-                    body.append(f"### {step['label']} — peso {step['weight']}, "
-                                f"{step['rounds']} rodada(s) — {flag}")
+                    flag = "BLOCKS MERGE" if step["blocking"] else "records finding"
+                    body.append(f"### {step['label']} — weight {step['weight']}, "
+                                f"{step['rounds']} round(s) — {flag}")
                     body += [f"- {pr}" for pr in step["probes"]]
                     body.append("")
                 body += [
-                    "## Regra de conduta",
-                    "Você recebeu artefato e especificação. Você NÃO recebeu o raciocínio de",
-                    "quem construiu — se achar que precisa dele, isso é o achado.",
-                    "Você não corrige. Registra em `reviews/<demand-id>/findings.toml`.",
-                    "Seu sucesso é medido em falhas encontradas, não em aprovações dadas.",
+                    "## Rules of conduct",
+                    "You received the artifact and the specification. You did NOT receive the",
+                    "builder's reasoning — if you feel you need it, that is the finding.",
+                    "You do not fix. You record in `reviews/<demand-id>/findings.toml`.",
+                    "Your success is measured in failures found, not approvals given.",
                 ]
 
             written.append(self.write(
@@ -119,7 +120,7 @@ class ClaudeCodeAdapter(Adapter):
                 comment="<!--",
             ))
 
-        # 3. hook de bloqueio antes da escrita
+        # 3. blocking hook before the write
         hook = {
             "hooks": {
                 "PreToolUse": [

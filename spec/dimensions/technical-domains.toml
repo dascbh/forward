@@ -1,21 +1,22 @@
 # ============================================================================
-# VETOR B — DOMÍNIOS TÉCNICOS
+# VECTOR B — TECHNICAL DOMAINS
 # ============================================================================
-# DISCIPLINAS. Trabalho que alguém faz, não propriedade da entrega.
+# DISCIPLINES. Work someone does, not a property of the delivery.
 #
-# Não é orçamento fechado — é PROFUNDIDADE (0..3), e a profundidade é DERIVADA
-# da detecção de stack + triagem, não escolhida pelo cliente.
+# Not a closed budget — it is DEPTH (0..3), and depth is DERIVED from stack
+# detection + triage, not chosen by the client.
 #
-# Override existe, mas só PARA CIMA. O cliente pode pedir mais profundidade em
-# modelagem de dados; não pode pedir menos do que a natureza do sistema exige.
-# Motivo: peso baixo em modelagem de dados num sistema data-heavy não é
-# preferência, é erro — e o framework não deve permitir errar por configuração.
+# Override exists, but only UPWARD. The client can ask for more depth in data
+# modeling; they cannot ask for less than the nature of the system demands.
+# Reason: low weight on data modeling in a data-heavy system is not a
+# preference, it is an error — and the framework must not allow erring by
+# configuration.
 #
-# Profundidade:
-#   0 = não se aplica a este sistema
-#   1 = coberto pelo papel de implementação, sem especialista
-#   2 = especialista revisa; artefato próprio exigido
-#   3 = especialista conduz; decisões registradas em ADR
+# Depth:
+#   0 = does not apply to this system
+#   1 = covered by the implementation role, no specialist
+#   2 = specialist reviews; dedicated artifact required
+#   3 = specialist leads; decisions recorded in ADRs
 # ============================================================================
 
 [meta]
@@ -26,67 +27,67 @@ override = "upward_only"
 
 [[domain]]
 id = "software_architecture"
-label = "Arquitetura de software"
-artifacts = ["ADR", "fronteiras de módulo", "contrato entre componentes"]
+label = "Software architecture"
+artifacts = ["ADR", "module boundaries", "contracts between components"]
 derived_from = ["surface_count", "integration_count", "reversibility"]
-min_depth_when = "sempre >= 1"
+min_depth_when = "always >= 1"
 
 [[domain]]
 id = "data_modeling"
-label = "Modelagem de dados e persistência"
-artifacts = ["modelo lógico", "estratégia de migração", "política de retenção"]
+label = "Data modeling & persistence"
+artifacts = ["logical model", "migration strategy", "retention policy"]
 derived_from = ["has_database", "has_migrations", "data_class"]
 min_depth_when = "has_database => >= 2"
 
 [[domain]]
 id = "api_contract"
-label = "Contrato de API e integração"
-artifacts = ["spec de contrato", "versionamento", "compatibilidade retroativa"]
+label = "API contract & integration"
+artifacts = ["contract spec", "versioning", "backward compatibility"]
 derived_from = ["exposes_api", "consumes_external_api"]
 min_depth_when = "exposes_api => >= 2"
 
 [[domain]]
 id = "design_system"
-label = "Design system e UI"
-artifacts = ["tokens", "inventário de componente", "estado vazio/erro/carregando"]
+label = "Design system & UI"
+artifacts = ["tokens", "component inventory", "empty/error/loading states"]
 derived_from = ["has_frontend", "component_count"]
 min_depth_when = "has_frontend => >= 1"
 
 [[domain]]
 id = "usability_research"
-label = "Usabilidade e research"
-artifacts = ["fluxo principal mapeado", "critério de sucesso do usuário"]
+label = "Usability & research"
+artifacts = ["main flow mapped", "user success criteria"]
 derived_from = ["has_frontend", "user_facing"]
 
 [[domain]]
 id = "qa_test_strategy"
-label = "QA e estratégia de teste"
-artifacts = ["failure modes enumerados", "suíte de eval", "golden dataset"]
-derived_from = ["sempre"]
-min_depth_when = "sempre >= 1   # profundidade 0 contradiz I1"
+label = "QA & test strategy"
+artifacts = ["enumerated failure modes", "eval suite", "golden dataset"]
+derived_from = ["always"]
+min_depth_when = "always >= 1   # depth 0 contradicts I1"
 
 [[domain]]
 id = "platform_delivery"
-label = "Plataforma, entrega e operação"
-artifacts = ["pipeline", "runbook", "estratégia de rollback"]
+label = "Platform, delivery & operations"
+artifacts = ["pipeline", "runbook", "rollback strategy"]
 derived_from = ["has_ci", "deploy_target", "reversibility"]
-min_depth_when = "promove para produção => >= 2"
+min_depth_when = "promotes to production => >= 2"
 
 [[domain]]
 id = "applied_security"
-label = "Segurança aplicada (AppSec)"
-artifacts = ["modelo de ameaça", "revisão de dependência", "gestão de segredo"]
+label = "Applied security (AppSec)"
+artifacts = ["threat model", "dependency review", "secret management"]
 derived_from = ["data_class", "exposes_api", "auth_present"]
-min_depth_when = "data_class in [pessoal, financeiro, saúde] => >= 2"
+min_depth_when = "data_class in [personal, financial, health] => >= 2"
 note = """
-Segurança aparece nos dois vetores de propósito. No vetor A é o que a entrega
-GARANTE (propriedade verificável). Aqui é QUANTO TRABALHO de especialista entra
-(disciplina). Não é redundância.
+Security appears in both vectors on purpose. In vector A it is what the
+delivery GUARANTEES (verifiable property). Here it is HOW MUCH specialist WORK
+goes in (discipline). It is not redundancy.
 """
 
 [[domain]]
 id = "ai_agents"
-label = "IA e agentes"
-artifacts = ["spec de comportamento", "suíte de eval de agente", "limites de ação"]
+label = "AI & agents"
+artifacts = ["behavior spec", "agent eval suite", "action limits"]
 derived_from = ["embeds_model", "has_agent_loop", "has_tool_use"]
 min_depth_when = "has_agent_loop => >= 2"

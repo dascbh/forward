@@ -1,19 +1,22 @@
 # ============================================================================
-# VETOR A — ATRIBUTOS DE QUALIDADE
+# VECTOR A — QUALITY ATTRIBUTES
 # ============================================================================
-# Propriedades da ENTREGA. O artefato tem ou não tem, em grau mensurável.
+# Properties of the DELIVERY. The artifact has them or not, in measurable
+# degree.
 #
-# Orçamento FECHADO: a soma dos pesos deve dar exatamente `budget`.
-# Isso é deliberado — se tudo pode ser 1.0, ninguém escolheu nada e o vetor não
-# informa. Alocação forçada transforma preferência em decisão registrada.
+# CLOSED budget: the weights must sum to exactly `budget`.
+# This is deliberate — if everything can be 1.0, nobody chose anything and the
+# vector carries no information. Forced allocation turns preference into a
+# recorded decision.
 #
-# O peso governa:
-#   - ordem de ataque da revisão adversarial e rodadas gastas por dimensão
-#   - dimensionamento da suíte (failure modes e cobertura por dimensão)
-#   - o que trava merge vs. o que apenas registra achado (acima do piso)
-#   - ordem de trabalho quando dimensões conflitam
+# Weight governs:
+#   - adversarial attack order and rounds spent per dimension
+#   - suite sizing (failure modes and coverage per dimension)
+#   - what blocks merge vs. what only records a finding (above the floor)
+#   - work order when dimensions conflict
 #
-# O peso NÃO governa: nada abaixo do piso definido em spec/invariants.toml.
+# Weight does NOT govern: anything below the floor defined in
+# spec/invariants.toml.
 # ============================================================================
 
 [meta]
@@ -24,96 +27,96 @@ weight_unit = "points"
 
 [[attribute]]
 id = "functional_correctness"
-label = "Correção funcional"
-question = "O sistema faz o que a especificação diz que faz?"
+label = "Functional correctness"
+question = "Does the system do what the specification says it does?"
 floor = 20
-evidence = ["suíte de eval verde", "cobertura de failure modes declarados"]
+evidence = ["green eval suite", "coverage of declared failure modes"]
 adversarial_probes = [
-  "entrada válida em fronteira de domínio",
-  "caso que a spec não cobre e o código aceita silenciosamente",
-  "regressão em comportamento previamente aceito",
+  "valid input at domain boundaries",
+  "case the spec does not cover and the code silently accepts",
+  "regression in previously accepted behavior",
 ]
 
 [[attribute]]
 id = "security_privacy"
-label = "Segurança e privacidade"
-question = "O sistema resiste a uso malicioso e protege dado de terceiro?"
+label = "Security & privacy"
+question = "Does the system resist malicious use and protect third-party data?"
 floor = 8
 floor_escalated_by = "triage.data_class"
-evidence = ["superfície de entrada enumerada", "trilha de acesso a dado sensível"]
+evidence = ["enumerated input surface", "access trail for sensitive data"]
 adversarial_probes = [
-  "injeção via conteúdo observado (prompt, documento, página)",
-  "escalada de permissão por confusão de papel",
-  "vazamento de dado sensível em log, erro ou URL",
-  "autorização ausente em caminho não óbvio",
+  "injection via observed content (prompt, document, page)",
+  "permission escalation through role confusion",
+  "sensitive data leaking into logs, errors, or URLs",
+  "missing authorization on a non-obvious path",
 ]
 
 [[attribute]]
 id = "reliability_resilience"
-label = "Confiabilidade e resiliência"
-question = "O sistema degrada de forma previsível quando algo falha?"
+label = "Reliability & resilience"
+question = "Does the system degrade predictably when something fails?"
 floor = 3
-evidence = ["comportamento sob falha de dependência", "idempotência em retry"]
+evidence = ["behavior under dependency failure", "idempotency on retry"]
 adversarial_probes = [
-  "dependência externa lenta, intermitente e indisponível",
-  "retry que duplica efeito colateral",
-  "falha parcial em operação multi-etapa",
+  "external dependency slow, intermittent, and unavailable",
+  "retry that duplicates a side effect",
+  "partial failure in a multi-step operation",
 ]
 
 [[attribute]]
 id = "performance_scale"
-label = "Performance e escala"
-question = "O sistema sustenta a carga real declarada, não a carga do demo?"
+label = "Performance & scale"
+question = "Does the system sustain the declared real load, not the demo load?"
 floor = 3
-evidence = ["medida sob volume representativo", "custo por unidade de trabalho"]
+evidence = ["measurement under representative volume", "cost per unit of work"]
 adversarial_probes = [
-  "volume 10x o do dado de desenvolvimento",
-  "consulta patológica / N+1 escondido",
-  "concorrência no caminho de escrita",
+  "volume 10x the development data",
+  "pathological query / hidden N+1",
+  "concurrency on the write path",
 ]
 
 [[attribute]]
 id = "operational_cost"
-label = "Custo operacional"
-question = "O custo por unidade de valor é conhecido e sustentável?"
+label = "Operational cost"
+question = "Is the cost per unit of value known and sustainable?"
 floor = 3
-evidence = ["custo por requisição/token/execução medido", "teto configurado"]
+evidence = ["measured cost per request/token/run", "configured ceiling"]
 adversarial_probes = [
-  "loop de agente sem limite de passo ou orçamento",
-  "custo que cresce superlinear com o uso",
+  "agent loop with no step or budget limit",
+  "cost that grows superlinearly with usage",
 ]
 
 [[attribute]]
 id = "maintainability"
-label = "Manutenibilidade e evolutibilidade"
-question = "A equipe do cliente consegue mudar isso sem o FDE?"
+label = "Maintainability & evolvability"
+question = "Can the client's team change this without the FDE?"
 floor = 3
-evidence = ["decisões registradas em ADR", "onboarding executável"]
+evidence = ["decisions recorded in ADRs", "runnable onboarding"]
 adversarial_probes = [
-  "mudança plausível de requisito que exige reescrita",
-  "acoplamento a detalhe de fornecedor sem camada de troca",
-  "conhecimento que só existe na cabeça de quem construiu",
+  "plausible requirement change that forces a rewrite",
+  "coupling to a vendor detail with no swap layer",
+  "knowledge that only exists in the builder's head",
 ]
 
 [[attribute]]
 id = "observability"
-label = "Observabilidade e diagnosticabilidade"
-question = "É possível verificar em produção o que foi prometido?"
+label = "Observability & diagnosability"
+question = "Can what was promised be verified in production?"
 floor = 10
-evidence = ["sinal por atributo declarado", "trilha de execução reconstruível"]
+evidence = ["a signal per declared attribute", "reconstructible execution trail"]
 adversarial_probes = [
-  "falha em produção que não deixa rastro suficiente para diagnóstico",
-  "atributo declarado sem sinal correspondente",
+  "production failure that leaves too little trail to diagnose",
+  "declared attribute with no corresponding signal",
 ]
 
 [[attribute]]
 id = "usability_accessibility"
-label = "Usabilidade e acessibilidade"
-question = "A pessoa que precisa usar isso consegue, incluindo com deficiência?"
+label = "Usability & accessibility"
+question = "Can the person who needs to use this actually use it, including with a disability?"
 floor = 3
-evidence = ["fluxo principal percorrido por usuário real", "critério de acessibilidade declarado"]
+evidence = ["main flow walked by a real user", "declared accessibility criteria"]
 adversarial_probes = [
-  "caminho de erro sem saída clara",
-  "navegação por teclado e leitor de tela no fluxo principal",
-  "estado de carregamento e falha visíveis ao usuário",
+  "error path with no clear way out",
+  "keyboard navigation and screen reader on the main flow",
+  "loading and failure states visible to the user",
 ]

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-review - dispara a revisao adversarial em contexto isolado.
+review - triggers the adversarial review in an isolated context.
 
-O isolamento e o ponto. Sem worktree separada, o revisor ve o thread que produziu
-o codigo e concorda com ele mesmo - modo de falha mais provavel do framework
-inteiro. Nas ferramentas que nao tem isolamento nativo, este comando FORCA por
-git worktree, do lado de fora.
+Isolation is the point. Without a separate worktree, the reviewer sees the
+thread that produced the code and agrees with itself - the most likely failure
+mode of the whole framework. In tools without native isolation, this command
+FORCES it via git worktree, from the outside.
 
-Ordem de ataque derivada do vetor A. Nao reordenavel por conveniencia.
+Attack order derived from vector A. Not reorderable for convenience.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("demand_id")
     ap.add_argument("--isolate", action="store_true",
-                    help="cria git worktree limpa (obrigatorio fora do tier loop)")
+                    help="creates a clean git worktree (mandatory outside the loop tier)")
     ap.add_argument("--plan-only", action="store_true")
     args = ap.parse_args()
 
@@ -34,12 +34,12 @@ def main() -> int:
     cfg = Config.load(project)
     plan = probe_plan(cfg, spec)
 
-    print(f"\nplano de sondagem - demanda {args.demand_id}")
-    print("(ordem derivada dos pesos do vetor A; sucesso e achado, nao aprovacao)\n")
+    print(f"\nprobe plan - demand {args.demand_id}")
+    print("(order derived from vector A weights; success is findings, not approval)\n")
     for step in plan:
-        flag = "TRAVA MERGE" if step["blocking"] else "registra"
-        print(f"  {step['label']:34} peso {step['weight']:>3}  "
-              f"{step['rounds']} rodada(s)  [{flag}]")
+        flag = "BLOCKS MERGE" if step["blocking"] else "records"
+        print(f"  {step['label']:34} weight {step['weight']:>3}  "
+              f"{step['rounds']} round(s)  [{flag}]")
         for pr in step["probes"]:
             print(f"      - {pr}")
         print()
@@ -52,36 +52,36 @@ def main() -> int:
     findings = out / "findings.toml"
     if not findings.exists():
         findings.write_text(
-            "# Relatorio de revisao adversarial\n"
-            "# Este arquivo e escrito pelo papel adversarial e por mais ninguem.\n\n"
+            "# Adversarial review report\n"
+            "# This file is written by the adversarial role and by no one else.\n\n"
             "[meta]\n"
             f'demand_id = "{args.demand_id}"\n'
-            'context_policy = "artifact_only"   # I2: sem contexto de quem construiu\n'
+            'context_policy = "artifact_only"   # I2: no builder context\n'
             'isolation_mode = "worktree"\n'
             "rounds_planned = " + str(sum(s["rounds"] for s in plan)) + "\n\n"
             "# [[finding]]\n"
             '# attribute = "security_privacy"\n'
-            '# severity  = "critica"   # critica | alta | media | baixa\n'
-            '# probe     = "injecao via conteudo observado"\n'
-            '# evidence  = "caminho:linha ou passo reproduzivel"\n'
+            '# severity  = "critical"   # critical | high | medium | low\n'
+            '# probe     = "injection via observed content"\n'
+            '# evidence  = "path:line or reproducible step"\n'
             '# blocking  = true\n',
             encoding="utf-8")
-        ok(f"esqueleto em {findings.relative_to(project)}")
+        ok(f"skeleton at {findings.relative_to(project)}")
 
     if args.isolate:
         wt = project.parent / f".fde-review-{args.demand_id}"
         r = subprocess.run(["git", "worktree", "add", "--detach", str(wt)],
                            cwd=project, capture_output=True, text=True)
         if r.returncode == 0:
-            ok(f"worktree isolada: {wt}")
-            print("  Rode o papel adversarial DENTRO dela. Ele deve ver artefato + spec,")
-            print("  e nada do raciocinio de quem construiu.")
+            ok(f"isolated worktree: {wt}")
+            print("  Run the adversarial role INSIDE it. It must see artifact + spec,")
+            print("  and nothing of the builder's reasoning.")
         else:
-            warn(f"worktree nao criada: {r.stderr.strip()[:200]}")
-            warn("sem isolamento, I2 nao e atendido e o gate vai reprovar")
+            warn(f"worktree not created: {r.stderr.strip()[:200]}")
+            warn("without isolation, I2 is not met and the gate will fail")
     else:
-        warn("--isolate nao usado. No tier `loop` o adapter cuida disso; fora dele,")
-        warn("o isolamento nao existe e o achado nao e confiavel.")
+        warn("--isolate not used. In the `loop` tier the adapter handles it; outside it,")
+        warn("there is no isolation and the finding is not trustworthy.")
     return 0
 
 

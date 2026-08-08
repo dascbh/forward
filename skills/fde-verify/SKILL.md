@@ -1,27 +1,27 @@
 ---
 name: fde-verify
-description: Roda o gate de invariantes — exatamente o mesmo verificador que o pre-commit e o CI executam. Use antes de qualquer commit, antes de abrir PR, quando um commit for rejeitado pelo hook, ou quando o usuário perguntar se algo "está pronto", "pode subir", "está em condição de produção". Use também para explicar por que um gate reprovou.
+description: Runs the invariant gate — exactly the same verifier that the pre-commit and CI run. Use before any commit, before opening a PR, when a commit gets rejected by the hook, or when the user asks whether something "is ready", "can ship", "is production-grade". Also use to explain why a gate failed.
 ---
 
 # fde-verify
 
 ```bash
-python bin/fde/verify.py --staged           # pre-commit (rápido)
-python bin/fde/verify.py --all              # CI (completo)
-python bin/fde/verify.py --gate eval        # um gate
-python bin/fde/verify.py --format json      # máquina
+python bin/fde/verify.py --staged           # pre-commit (fast)
+python bin/fde/verify.py --all              # CI (complete)
+python bin/fde/verify.py --gate eval        # a single gate
+python bin/fde/verify.py --format json      # machine-readable
 ```
 
-## Ao explicar uma reprovação
+## When explaining a failure
 
-Diga qual invariante, por que ele existe, e qual é o conserto. Não sugira contornar — não há chave de bypass, e procurar uma é o comportamento que o framework existe para impedir.
+Say which invariant, why it exists, and what the fix is. Do not suggest working around it — there is no bypass key, and looking for one is the behavior the framework exists to prevent.
 
-| gate | o que faltou | conserto |
+| gate | what was missing | fix |
 |---|---|---|
-| I1 | mudança de comportamento sem entrada de eval | escreva o failure mode e o evaluator |
-| I2 | revisão adversarial não rodou isolada | `fde review <id> --isolate` |
-| I3 | papel adversarial tocou código | reverta; achado vai em `reviews/`, correção é de outro papel |
-| I4 | critério de aceite ausente ou sem data | declare antes de construir; datado |
-| I5 | atributo declarado sem sinal | instrumente ou reduza o que foi declarado |
-| I6 | gate não roda sem o FDE | `fde sync` recopia o runtime |
-| I7 | handoff sem artefato em disco | crie a estrutura; não passe contexto por conversa |
+| I1 | behavior change without an eval entry | write the failure mode and the evaluator |
+| I2 | adversarial review did not run isolated | `fde review <id> --isolate` |
+| I3 | adversarial role touched code | revert; the finding goes in `reviews/`, fixing belongs to another role |
+| I4 | acceptance criteria missing or undated | declare before building; dated |
+| I5 | declared attribute without a signal | instrument it or reduce what was declared |
+| I6 | gate does not run without the FDE | `fde sync` re-copies the runtime |
+| I7 | handoff without an artifact on disk | create the structure; do not pass context by conversation |

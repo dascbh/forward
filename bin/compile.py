@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-compile — a fonte da verdade é neutra; os artefatos nativos são derivados.
+compile — the source of truth is neutral; the native artifacts are derived.
 
-Não é "provisionar um agente nativo": é COMPILAR. Um spec neutro
-(spec/ + fde.config.toml) e um emissor por ferramenta.
+This is not "provisioning a native agent": it is COMPILING. One neutral spec
+(spec/ + fde.config.toml) and one emitter per tool.
 
-Ordem:
-  1. AGENTS.md agnóstico na raiz — fino, aponta para skills (limite de 32 KiB)
-  2. adapters detectados emitem o nativo daquela ferramenta
-  3. gates no repositório (pre-commit + CI) — enforcement que não depende de IDE
+Order:
+  1. agnostic AGENTS.md at the root — thin, points to skills (32 KiB limit)
+  2. detected adapters emit that tool's native artifacts
+  3. gates in the repository (pre-commit + CI) — enforcement independent of IDE
 
-Idempotente. Todo arquivo gerado leva marcador e é sobrescrito por `fde sync`.
+Idempotent. Every generated file carries a marker and is overwritten by
+`fde sync`.
 """
 
 from __future__ import annotations
@@ -45,7 +46,7 @@ def load_adapters(kernel: Path):
 
 
 # ---------------------------------------------------------------------------
-# AGENTS.md — a camada agnóstica. Fino de propósito.
+# AGENTS.md — the agnostic layer. Thin on purpose.
 # ---------------------------------------------------------------------------
 def emit_agents_md(ctx: EmitContext) -> Path:
     cfg, spec = ctx.config, ctx.spec
@@ -53,21 +54,21 @@ def emit_agents_md(ctx: EmitContext) -> Path:
     depths = {**cfg.get("derived", {}).get("depths", {}), **cfg.get("depths", {})}
 
     lines = [
-        f"# {cfg.get('project', {}).get('name', 'projeto')}",
+        f"# {cfg.get('project', {}).get('name', 'project')}",
         "",
-        "Este repositório opera sob um kernel de entrega com invariantes não negociáveis.",
-        "Instruções aqui valem para qualquer agente de código (Codex, Cursor, Claude Code,",
-        "Copilot, Kiro, Gemini CLI, Windsurf, Aider).",
+        "This repository operates under a delivery kernel with non-negotiable",
+        "invariants. Instructions here apply to any coding agent (Codex, Cursor,",
+        "Claude Code, Copilot, Kiro, Gemini CLI, Windsurf, Aider).",
         "",
-        "## Comandos",
+        "## Commands",
         "",
         "```bash",
-        f"{cfg.get('stack', {}).get('test_command', 'make test')}      # teste",
-        f"{cfg.get('stack', {}).get('eval_command', 'python bin/fde/verify.py --gate eval')}   # eval",
-        "python bin/fde/verify.py    # gate completo (o mesmo que o CI roda)",
+        f"{cfg.get('stack', {}).get('test_command', 'make test')}      # tests",
+        f"{cfg.get('stack', {}).get('eval_command', 'python bin/fde/verify.py --gate eval')}   # evals",
+        "python bin/fde/verify.py    # full gate (the same one CI runs)",
         "```",
         "",
-        "## Invariantes (não configuráveis)",
+        "## Invariants (not configurable)",
         "",
     ]
     for inv in spec.invariants["invariant"]:
@@ -75,20 +76,20 @@ def emit_agents_md(ctx: EmitContext) -> Path:
         lines.append(f"- **{inv['id']} {inv['name']}** — {first}")
     lines += [
         "",
-        "Não existe chave capaz de desligar um invariante. Se a entrega não cabe nele,",
-        "o escopo encolhe — o padrão não.",
+        "No key exists that can turn off an invariant. If the delivery does not fit",
+        "one, the scope shrinks — the standard does not.",
         "",
-        "## Prioridade acordada (vetor A, orçamento 100)",
+        "## Agreed priority (vector A, budget 100)",
         "",
     ]
     for k, v in weights:
         lines.append(f"- {k}: {v}")
     lines += [
         "",
-        "Peso ordena o ataque adversarial e dimensiona a suíte. Peso nunca desce abaixo",
-        "do piso do atributo.",
+        "Weight orders the adversarial attack and sizes the suite. Weight never goes",
+        "below the attribute's floor.",
         "",
-        "## Profundidade por domínio (vetor B, derivado da stack)",
+        "## Depth per domain (vector B, derived from the stack)",
         "",
     ]
     for k, v in sorted(depths.items(), key=lambda kv: -int(kv[1])):
@@ -96,23 +97,24 @@ def emit_agents_md(ctx: EmitContext) -> Path:
             lines.append(f"- {k}: {v}")
     lines += [
         "",
-        "Override é upward-only. A natureza do sistema define o mínimo, não a preferência.",
+        "Override is upward-only. The nature of the system sets the minimum, not",
+        "preference.",
         "",
-        "## Papéis",
+        "## Roles",
         "",
     ]
     for role in spec.roles["role"]:
-        lines.append(f"- **{role['label']}** (`fde-{role['id']}`) — escreve em "
+        lines.append(f"- **{role['label']}** (`fde-{role['id']}`) — writes to "
                      f"`{', '.join(role.get('write_scope', []))}`")
     lines += [
         "",
-        "Handoff é por artefato em disco, nunca por continuidade de conversa.",
+        "Handoff is by artifact on disk, never by conversation continuity.",
         "",
-        "## Detalhe",
+        "## Detail",
         "",
-        "Cada etapa tem skill própria em `skills/` (formato Agent Skills, portátil entre",
-        "ferramentas). Este arquivo é deliberadamente fino: o Codex trunca AGENTS.md em",
-        "32 KiB sem avisar.",
+        "Each step has its own skill in `skills/` (Agent Skills format, portable",
+        "across tools). This file is deliberately thin: Codex truncates AGENTS.md at",
+        "32 KiB without warning.",
     ]
 
     body = generated_header("<!--") + "\n" + "\n".join(lines) + "\n"
@@ -120,19 +122,19 @@ def emit_agents_md(ctx: EmitContext) -> Path:
     out.write_text(body, encoding="utf-8")
     size = len(body.encode())
     if size > 24 * 1024:
-        warn(f"AGENTS.md em {size} B — perto do limite de 32 KiB do Codex")
+        warn(f"AGENTS.md at {size} B — close to Codex's 32 KiB limit")
     return out
 
 
 # ---------------------------------------------------------------------------
-# gates no repositório — o único plano de enforcement universal
+# gates in the repository — the only universal enforcement plane
 # ---------------------------------------------------------------------------
 def emit_repo_gates(ctx: EmitContext) -> list[Path]:
     written = []
     p = ctx.project
 
-    # cópia do runtime para o repo do cliente: o gate não pode depender do kernel
-    # estar instalado na máquina de quem clonar (I6)
+    # copy the runtime into the client's repo: the gate cannot depend on the
+    # kernel being installed on the machine of whoever clones (I6)
     dest = p / "bin" / "fde"
     dest.mkdir(parents=True, exist_ok=True)
     for f in ["fde_lib.py", "verify.py", "guard.py", "doctor.py", "detect_stack.py"]:
@@ -154,7 +156,7 @@ def emit_repo_gates(ctx: EmitContext) -> list[Path]:
     hook.write_text(
         "#!/bin/sh\n"
         "# " + generated_header().splitlines()[0].lstrip("# ") + "\n"
-        "# Enforcement universal: roda com qualquer agente, e com dev humano.\n"
+        "# Universal enforcement: runs with any agent, and with human devs.\n"
         "exec python3 bin/fde/verify.py --staged\n",
         encoding="utf-8",
     )
@@ -185,7 +187,7 @@ def emit_repo_gates(ctx: EmitContext) -> list[Path]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", default=None)
-    ap.add_argument("--check", action="store_true", help="não escreve; detecta drift")
+    ap.add_argument("--check", action="store_true", help="writes nothing; detects drift")
     args = ap.parse_args()
 
     project = project_root(Path(args.project) if args.project else None)
@@ -203,7 +205,7 @@ def main() -> int:
     for v in viol:
         print(f"  [{v.code}] {v.message}")
     if fatal:
-        fail(f"{len(fatal)} violação(ões) de configuração. Nada foi escrito.")
+        fail(f"{len(fatal)} configuration violation(s). Nothing was written.")
         return 1
 
     facts = detect(project)
@@ -213,32 +215,32 @@ def main() -> int:
     )
 
     if args.check:
-        ok("configuração válida (modo --check, nada escrito)")
+        ok("configuration valid (--check mode, nothing written)")
         return 0
 
-    # detecção ANTES de escrever: emit_agents_md cria AGENTS.md, e o adapter do
-    # Codex detecta por AGENTS.md — sem isso ele se auto-detectaria em qualquer repo.
+    # detection BEFORE writing: emit_agents_md creates AGENTS.md, and the Codex
+    # adapter detects by AGENTS.md — without this it would self-detect in any repo.
     adapters = load_adapters(kernel)
     forced = cfg.raw.get("tooling", {}).get("force", [])
     present = {ad.tool: (ad.detect(project) or ad.tool in forced) for ad in adapters}
 
     written = [emit_agents_md(ctx)]
-    ok(f"AGENTS.md (agnóstico) — {written[0].name}")
+    ok(f"AGENTS.md (agnostic) — {written[0].name}")
 
     for ad in adapters:
         if present[ad.tool]:
             files = ad.emit(ctx)
             cap = ad.capability()
-            ok(f"{ad.tool} [tier {cap.tier}] — {len(files)} arquivo(s)")
+            ok(f"{ad.tool} [tier {cap.tier}] — {len(files)} file(s)")
             written += files
         else:
-            print(f"  · {ad.tool}: não detectado, pulado")
+            print(f"  · {ad.tool}: not detected, skipped")
 
     gates = emit_repo_gates(ctx)
-    ok(f"gates no repositório — {len(gates)} arquivo(s) (pre-commit + CI + runtime)")
+    ok(f"repository gates — {len(gates)} file(s) (pre-commit + CI + runtime)")
     written += gates
 
-    print(f"\n{len(written)} arquivos. Rode `git config core.hooksPath .githooks` uma vez.")
+    print(f"\n{len(written)} files. Run `git config core.hooksPath .githooks` once.")
     return 0
 
 

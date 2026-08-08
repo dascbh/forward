@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-detect_stack — detecta, não pergunta.
+detect_stack — detect, don't ask.
 
-Stack se detecta por artefato no repositório: lockfile, manifest, runner de teste,
-formatter, CI existente. Perguntar o que dá para inferir é atrito desnecessário e
-produz resposta pior que a inferência.
+A stack is detected from artifacts in the repository: lockfiles, manifests,
+test runners, formatters, existing CI. Asking for what can be inferred is
+unnecessary friction and produces worse answers than the inference.
 
-Saída: JSON no stdout. A profundidade do vetor B é DERIVADA daqui — o cliente
-pode elevar, nunca reduzir.
+Output: JSON on stdout. Vector B depth is DERIVED from here — the client can
+raise it, never reduce it.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fde_lib import project_root  # noqa: E402
 
 # ---------------------------------------------------------------------------
-# assinaturas: (arquivo, chave inferida)
+# signatures: (file, inferred key)
 # ---------------------------------------------------------------------------
 LANG_SIGNS = {
     "package.json": "javascript",
@@ -89,7 +89,7 @@ def _exists_any(root: Path, names: list[str]) -> list[str]:
 
 
 def _grep_manifests(root: Path, needles: list[str]) -> list[str]:
-    """Procura assinaturas dentro dos manifests, não na árvore inteira."""
+    """Look for signatures inside the manifests, not across the whole tree."""
     hits: set[str] = set()
     manifests = ["package.json", "pyproject.toml", "requirements.txt",
                  "go.mod", "Cargo.toml", "composer.json"]
@@ -121,10 +121,10 @@ def detect(root: Path) -> dict:
     facts["embeds_model"] = bool(facts["ai_libraries"])
     facts["agent_tools"] = sorted({v for k, v in AGENT_TOOLS.items() if (root / k).exists()})
 
-    # o que a detecção NÃO resolve — vira pergunta na entrevista, em bloco único
+    # what detection does NOT resolve — becomes the interview, in a single block
     facts["unresolved"] = [
         k for k, cond in {
-            "data_class": True,          # nunca inferível de arquivo
+            "data_class": True,          # never inferable from files
             "deploy_target": not facts["has_iac"],
             "reversibility": True,
             "has_agent_loop": facts["embeds_model"],
@@ -136,12 +136,12 @@ def detect(root: Path) -> dict:
 
 def derive_depths(facts: dict, answers: dict | None = None) -> dict:
     """
-    Profundidade DERIVADA (0..3). É o piso do vetor B: override só para cima.
+    DERIVED depth (0..3). It is the vector B floor: override only upward.
     """
     a = answers or {}
-    dc = str(a.get("data_class", "interno")).lower()
-    sensitive = dc in {"pessoal", "financeiro", "saude"}
-    irreversible = str(a.get("reversibility", "reversivel")).lower() != "reversivel"
+    dc = str(a.get("data_class", "internal")).lower()
+    sensitive = dc in {"personal", "financial", "health"}
+    irreversible = str(a.get("reversibility", "reversible")).lower() != "reversible"
 
     surfaces = sum([facts["has_frontend"], facts["exposes_api"],
                     facts["has_database"], facts["has_iac"]])
@@ -152,7 +152,7 @@ def derive_depths(facts: dict, answers: dict | None = None) -> dict:
         "api_contract": 2 if facts["exposes_api"] else (1 if facts["has_frontend"] else 0),
         "design_system": 1 if facts["has_frontend"] else 0,
         "usability_research": (1 if a.get("user_facing") else 0) + (1 if facts["has_frontend"] else 0),
-        "qa_test_strategy": 1,  # piso duro — I1
+        "qa_test_strategy": 1,  # hard floor — I1
         "platform_delivery": 2 if (facts["has_ci"] or facts["has_iac"]) else 1,
         "applied_security": 2 if sensitive else (1 if facts["exposes_api"] else 0),
         "ai_agents": 2 if a.get("has_agent_loop") else (1 if facts["embeds_model"] else 0),

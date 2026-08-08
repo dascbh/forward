@@ -1,11 +1,11 @@
 """
-fde_lib — núcleo determinístico do framework.
+fde_lib — the framework's deterministic core.
 
-Zero dependência externa (stdlib apenas). Motivo: isso roda no repositório do
-cliente, no CI do cliente, possivelmente sem permissão de instalar nada, e tem
-que continuar rodando depois que o FDE sai (I6).
+Zero external dependencies (stdlib only). Reason: this runs in the client's
+repository, in the client's CI, possibly with no permission to install
+anything, and it must keep running after the FDE leaves (I6).
 
-Formato: TOML. `tomllib` é stdlib desde Python 3.11.
+Format: TOML. `tomllib` is stdlib since Python 3.11.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ GENERATED_HEADER = "FDE-KERNEL:GENERATED"
 
 
 # ---------------------------------------------------------------------------
-# carga de spec
+# spec loading
 # ---------------------------------------------------------------------------
 def load_toml(path: Path) -> dict:
     with open(path, "rb") as fh:
@@ -68,7 +68,7 @@ class Spec:
 
 
 # ---------------------------------------------------------------------------
-# config do projeto
+# project config
 # ---------------------------------------------------------------------------
 @dataclass
 class Config:
@@ -82,7 +82,7 @@ class Config:
         p = project / CONFIG_NAME
         if not p.exists():
             raise FileNotFoundError(
-                f"{CONFIG_NAME} não encontrado em {project}. Rode `fde init` primeiro."
+                f"{CONFIG_NAME} not found in {project}. Run `fde init` first."
             )
         raw = load_toml(p)
         return cls(
@@ -94,7 +94,7 @@ class Config:
 
 
 # ---------------------------------------------------------------------------
-# validação: é aqui que peso deixa de poder desligar invariante
+# validation: this is where weight stops being able to turn off an invariant
 # ---------------------------------------------------------------------------
 @dataclass
 class Violation:
@@ -106,38 +106,38 @@ class Violation:
 def validate(cfg: Config, spec: Spec) -> list[Violation]:
     v: list[Violation] = []
 
-    # 1. nenhuma chave de config pode colidir com invariante
+    # 1. no config key may collide with an invariant
     forbidden = {"invariants", "floors", "kernel", "gates_disabled", "skip"}
     for key in cfg.raw:
         if key in forbidden:
             v.append(
                 Violation(
                     "CFG-FORBIDDEN-KEY",
-                    f"'{key}' não é configurável. Invariantes vivem em spec/invariants.toml "
-                    f"e não têm chave. Para operar sem eles, faça fork.",
+                    f"'{key}' is not configurable. Invariants live in spec/invariants.toml "
+                    f"and have no key. To operate without them, fork.",
                 )
             )
 
-    # 2. vetor A é orçamento FECHADO
+    # 2. vector A is a CLOSED budget
     known_q = set(spec.quality_ids())
     unknown = set(cfg.weights) - known_q
     if unknown:
-        v.append(Violation("VEC-A-UNKNOWN", f"atributos desconhecidos: {sorted(unknown)}"))
+        v.append(Violation("VEC-A-UNKNOWN", f"unknown attributes: {sorted(unknown)}"))
     missing = known_q - set(cfg.weights)
     if missing:
-        v.append(Violation("VEC-A-MISSING", f"atributos sem peso alocado: {sorted(missing)}"))
+        v.append(Violation("VEC-A-MISSING", f"attributes with no allocated weight: {sorted(missing)}"))
 
     total = sum(int(x) for x in cfg.weights.values())
     if not unknown and not missing and total != spec.budget:
         v.append(
             Violation(
                 "VEC-A-BUDGET",
-                f"orçamento fechado: soma dos pesos = {total}, exigido = {spec.budget}. "
-                f"Se tudo pode ser alto, nada foi escolhido e o vetor não informa.",
+                f"closed budget: weights sum to {total}, required {spec.budget}. "
+                f"If everything can be high, nothing was chosen and the vector carries no information.",
             )
         )
 
-    # 3. piso: peso nunca desce abaixo. peso zero não existe.
+    # 3. floor: weight never goes below it. weight zero does not exist.
     for qid, w in cfg.weights.items():
         if qid not in known_q:
             continue
@@ -146,36 +146,36 @@ def validate(cfg: Config, spec: Spec) -> list[Violation]:
             v.append(
                 Violation(
                     "VEC-A-FLOOR",
-                    f"'{qid}' = {w} está abaixo do piso {floor}. Peso redistribui ênfase "
-                    f"acima do piso; não reduz rigor abaixo dele.",
+                    f"'{qid}' = {w} is below the floor {floor}. Weight redistributes emphasis "
+                    f"above the floor; it does not reduce rigor below it.",
                 )
             )
 
-    # 4. vetor B: profundidade é derivada; override só para cima
+    # 4. vector B: depth is derived; override is upward only
     derived = cfg.raw.get("derived", {}).get("depths", {})
     for did, d in cfg.depths.items():
         if did not in set(spec.domain_ids()):
-            v.append(Violation("VEC-B-UNKNOWN", f"domínio desconhecido: {did}"))
+            v.append(Violation("VEC-B-UNKNOWN", f"unknown domain: {did}"))
             continue
         floor = int(derived.get(did, 0))
         if int(d) < floor:
             v.append(
                 Violation(
                     "VEC-B-DOWNWARD",
-                    f"'{did}': override {d} < profundidade derivada {floor}. "
-                    f"Override é upward-only — a natureza do sistema define o mínimo.",
+                    f"'{did}': override {d} < derived depth {floor}. "
+                    f"Override is upward-only — the nature of the system sets the minimum.",
                 )
             )
 
-    # 5. piso duro de QA (profundidade 0 contradiz I1)
+    # 5. hard QA floor (depth 0 contradicts I1)
     qa_floor = int(spec.floors["qa_test_strategy"])
     qa = int(cfg.depths.get("qa_test_strategy", derived.get("qa_test_strategy", qa_floor)))
     if qa < qa_floor:
         v.append(
             Violation(
                 "VEC-B-QA-FLOOR",
-                f"qa_test_strategy = {qa}; mínimo {qa_floor}. Profundidade 0 significaria "
-                f"não haver estratégia de teste, o que contradiz I1.",
+                f"qa_test_strategy = {qa}; minimum {qa_floor}. Depth 0 would mean "
+                f"having no test strategy at all, which contradicts I1.",
             )
         )
 
@@ -183,25 +183,25 @@ def validate(cfg: Config, spec: Spec) -> list[Violation]:
 
 
 # ---------------------------------------------------------------------------
-# escalada de piso pela triagem (segurança sobe por classe de dado, nunca desce)
+# floor escalation by triage (security rises with data class, never falls)
 # ---------------------------------------------------------------------------
 DATA_CLASS_ESCALATION = {
-    "publico": 0,
-    "interno": 2,
-    "pessoal": 12,
-    "financeiro": 16,
-    "saude": 20,
+    "public": 0,
+    "internal": 2,
+    "personal": 12,
+    "financial": 16,
+    "health": 20,
 }
 
 
 def escalated_security_floor(cfg: Config, spec: Spec) -> int:
     base = spec.floor_for_quality("security_privacy")
-    dc = str(cfg.raw.get("triage", {}).get("data_class", "interno")).lower()
+    dc = str(cfg.raw.get("triage", {}).get("data_class", "internal")).lower()
     return max(base, DATA_CLASS_ESCALATION.get(dc, base))
 
 
 # ---------------------------------------------------------------------------
-# ordem de ataque adversarial — derivada do vetor A, não escolhida
+# adversarial attack order — derived from vector A, not chosen
 # ---------------------------------------------------------------------------
 def probe_plan(cfg: Config, spec: Spec) -> list[dict]:
     plan = []
@@ -212,7 +212,7 @@ def probe_plan(cfg: Config, spec: Spec) -> list[dict]:
                 "attribute": a["id"],
                 "label": a["label"],
                 "weight": w,
-                # rodadas escalam com peso, mínimo 1 — nenhuma dimensão fica sem ataque
+                # rounds scale with weight, minimum 1 — no dimension goes unattacked
                 "rounds": max(1, round(w / 10)),
                 "probes": a.get("adversarial_probes", []),
                 "blocking": w >= 15,

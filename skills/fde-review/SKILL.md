@@ -1,23 +1,23 @@
 ---
 name: fde-review
-description: Executa a revisão adversarial em contexto isolado, com ordem de ataque derivada dos pesos do projeto. Use antes de promover qualquer artefato, quando o usuário pedir revisão, code review, red team, "tenta quebrar isso", ou perguntar se algo está seguro/robusto o suficiente. Use SEMPRE em worktree isolada — revisor que vê o raciocínio de quem construiu concorda com ele mesmo.
+description: Runs the adversarial review in an isolated context, with attack order derived from the project's weights. Use before promoting any artifact, when the user asks for review, code review, red team, "try to break this", or asks whether something is secure/robust enough. Use ALWAYS in an isolated worktree — a reviewer who sees the builder's reasoning agrees with itself.
 ---
 
 # fde-review
 
 ```bash
-python bin/review.py <demand-id> --plan-only    # ver o plano
-python bin/review.py <demand-id> --isolate      # worktree isolada + esqueleto
+python bin/review.py <demand-id> --plan-only    # see the plan
+python bin/review.py <demand-id> --isolate      # isolated worktree + skeleton
 ```
 
-## Regras que não se negociam
+## Non-negotiable rules
 
-**Isolamento (I2).** O revisor recebe artefato e especificação. Não recebe o contexto, o histórico nem o raciocínio de quem construiu. Se você está no mesmo thread que produziu o código, você **não pode** ser o revisor — crie a worktree e rode ali.
+**Isolation (I2).** The reviewer receives the artifact and the specification. It does not receive the context, the history, or the reasoning of whoever built it. If you are in the same thread that produced the code, you **cannot** be the reviewer — create the worktree and run there.
 
-**Sem correção (I3).** O papel adversarial registra em `reviews/<id>/findings.toml` e para. Corrigir é do papel de implementação. Revisor que conserta o que achou apaga o registro do achado.
+**No fixing (I3).** The adversarial role records in `reviews/<id>/findings.toml` and stops. Fixing belongs to the implementation role. A reviewer who fixes what they found erases the record of the finding.
 
-**Sucesso é achado.** A meta não é aprovar. Uma revisão que não encontrou nada é suspeita antes de ser boa notícia — declare quantas rodadas rodou e o que sondou.
+**Success is findings.** The goal is not to approve. A review that found nothing is suspicious before it is good news — declare how many rounds ran and what was probed.
 
-## Ordem
+## Order
 
-Derivada dos pesos do vetor A, não da sua intuição sobre o que é interessante. Peso alto ataca primeiro e ganha mais rodadas. Atributo com peso baixo ainda recebe pelo menos uma rodada — piso, não zero.
+Derived from vector A weights, not from your intuition about what is interesting. High weight attacks first and gets more rounds. A low-weight attribute still gets at least one round — a floor, not zero.

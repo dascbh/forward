@@ -1,17 +1,17 @@
-# fde.config.toml - declarativo unico do projeto.
-# Versionado. Diff auditavel. Recompilavel com `fde sync`.
+# fde.config.toml - the project's single declarative file.
+# Versioned. Auditable diff. Recompilable with `fde sync`.
 #
-# NAO existe aqui chave para desligar invariante. Invariantes estao em
-# .fde/spec/invariants.toml e nao tem chave. Peso move rigor para cima ou
-# redistribui enfase; nunca desce abaixo do piso.
+# There is NO key here to turn off an invariant. Invariants live in
+# .fde/spec/invariants.toml and have no key. Weight moves rigor upward or
+# redistributes emphasis; it never goes below the floor.
 
 [project]
 name = "crm-demo"
 kernel_version = "0.1.0"
 
 [triage]
-data_class = "pessoal"
-reversibility = "irreversivel"
+data_class = "personal"
+reversibility = "irreversible"
 user_facing = true
 has_agent_loop = true
 
@@ -22,9 +22,9 @@ test_command = "make test"
 eval_command = "python bin/fde/verify.py --gate eval"
 
 # ---------------------------------------------------------------------------
-# VETOR A - atributos de qualidade. Orcamento FECHADO: soma = 100.
-# Isto e o que o cliente aloca e assina. Registro datado do que ele disse
-# que importava - e a ordem em que o adversarial vai atacar.
+# VECTOR A - quality attributes. CLOSED budget: sum = 100.
+# This is what the client allocates and signs. A dated record of what they
+# said mattered - and the order in which the adversarial will attack.
 # ---------------------------------------------------------------------------
 [weights]
 functional_correctness = 26
@@ -37,8 +37,8 @@ usability_accessibility = 8
 operational_cost = 7
 
 # ---------------------------------------------------------------------------
-# VETOR B - dominios tecnicos. DERIVADO da stack + triagem.
-# Override em [depths] e upward-only: voce eleva, nunca reduz.
+# VECTOR B - technical domains. DERIVED from stack + triage.
+# Override in [depths] is upward-only: you raise, never reduce.
 # ---------------------------------------------------------------------------
 [derived.depths]
 software_architecture = 3
@@ -52,7 +52,7 @@ applied_security = 2
 ai_agents = 2
 
 [depths]
-# ex.: data_modeling = 3   (permitido: >= derivado)
+# e.g.: data_modeling = 3   (allowed: >= derived)
 
 [tooling]
-force = []   # ex.: ["cursor"] para emitir adapter nao detectado
+force = []   # e.g.: ["cursor"] to emit an undetected adapter

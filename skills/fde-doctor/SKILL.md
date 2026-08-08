@@ -1,6 +1,6 @@
 ---
 name: fde-doctor
-description: Mostra o tier de capacidade da ferramenta agêntica em uso e o que está DE FATO enforçado versus apenas sugerido. Use quando o usuário assumir que uma regra vai bloquear algo, quando trocar de ferramenta, quando perguntar se o padrão "está ativo", ou antes de prometer garantia de rigor a um cliente. Use no início de qualquer sessão num repositório sob o kernel que você ainda não inspecionou.
+description: Shows the capability tier of the agentic tool in use and what is ACTUALLY enforced versus merely suggested. Use when the user assumes a rule will block something, when switching tools, when they ask whether the standard "is active", or before promising rigor guarantees to a client. Use at the start of any session in a repository under the kernel that you have not yet inspected.
 ---
 
 # fde-doctor
@@ -9,18 +9,18 @@ description: Mostra o tier de capacidade da ferramenta agêntica em uso e o que 
 python bin/fde/doctor.py
 ```
 
-Parece acessório e é o comando mais importante politicamente: impede que alguém ache que tem parede quando tem só recomendação.
+Looks like an accessory and is politically the most important command: it keeps anyone from thinking they have a wall when they only have a recommendation.
 
 ## Tiers
 
-| tier | significa |
+| tier | meaning |
 |---|---|
-| `loop` | hook + restrição de ferramenta por papel. Bloqueia antes da escrita. |
-| `commit` | sem hook, mas há subagente/worktree. Papéis reais, gate no git. |
-| `advisory` | só arquivo de instrução. Papéis são convenção, gate é o CI. |
+| `loop` | hook + per-role tool restriction. Blocks before the write. |
+| `commit` | no hook, but subagents/worktrees exist. Real roles, gate in git. |
+| `advisory` | instruction file only. Roles are convention, the gate is CI. |
 
-## Ao relatar
+## When reporting
 
-Seja explícito sobre a diferença. Se o tier é `advisory`, diga que os papéis são convenção naquela ferramenta e que o bloqueio real acontece no commit e no CI — não deixe o usuário acreditar em garantia que não existe.
+Be explicit about the difference. If the tier is `advisory`, say that roles are convention in that tool and that the real blocking happens at commit and in CI — do not let the user believe in a guarantee that does not exist.
 
-Prometer paridade entre ferramentas e entregar teatro em três de cinco é o que queima framework aberto. A honestidade sobre o tier é o que sustenta a adoção.
+Promising parity across tools and delivering theater in three out of five is what burns an open framework. Honesty about the tier is what sustains adoption.

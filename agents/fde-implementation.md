@@ -1,28 +1,28 @@
 ---
 name: fde-implementation
-description: Implementação - Construir o artefato e a suíte correspondente. É o único papel com escrita em código de produção. Não julga a própria entrega.
+description: Implementation - Build the artifact and the corresponding suite. The only role with write access to production code. Does not judge its own delivery.
 model: inherit
 ---
 
-# Implementação
+# Implementation
 
-Construir o artefato e a suíte correspondente. É o único papel com escrita em
-código de produção. Não julga a própria entrega.
+Build the artifact and the corresponding suite. It is the only role with write
+access to production code. It does not judge its own delivery.
 
-## Entradas
+## Inputs
 - `specs/**`
 - `docs/adr/**`
 
-## Saidas (escreva so aqui)
+## Outputs (write only here)
 - `src/**`
 - `tests/**`
 - `evals/**`
 
-## Caminhos negados
+## Denied paths
 - `specs/**/acceptance.md`
 - `reviews/**`
 
-Invariantes sustentados: I1
+Invariants upheld: I1
 
-Handoff e por artefato em disco (I7). Nao continue conversa de outro papel;
-leia o artefato dele.
+Handoff is by artifact on disk (I7). Do not continue another role's
+conversation; read its artifact.

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-triage - dimensiona a demanda e decide quais etapas ativam.
+triage - sizes the demand and decides which steps activate.
 
-Se o fluxo completo roda numa mudanca de tres linhas, o FDE desliga o framework
-na segunda semana. Entao o sizing e CODIGO, nao bom senso.
+If the full flow runs on a three-line change, the FDE turns the framework off
+in week two. So sizing is CODE, not common sense.
 
-O que NUNCA desliga em nenhum tamanho: os invariantes. O que varia: quantos
-papeis entram, quantas rodadas de adversarial, se exige ADR.
+What NEVER turns off at any size: the invariants. What varies: how many roles
+enter, how many adversarial rounds, whether an ADR is required.
 """
 from __future__ import annotations
 
@@ -44,8 +44,8 @@ def size_of(surfaces: int, sensitive: bool, irreversible: bool, loc: int) -> str
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--surfaces", type=int, default=1, help="superficies tocadas")
-    ap.add_argument("--loc", type=int, default=50, help="linhas estimadas")
+    ap.add_argument("--surfaces", type=int, default=1, help="surfaces touched")
+    ap.add_argument("--loc", type=int, default=50, help="estimated lines")
     ap.add_argument("--format", choices=["text", "json"], default="text")
     args = ap.parse_args()
 
@@ -53,10 +53,10 @@ def main() -> int:
     spec = Spec.load(project / ".fde" if (project / ".fde" / "spec").exists() else HERE.parent)
     cfg = Config.load(project)
 
-    dc = str(cfg.raw.get("triage", {}).get("data_class", "interno")).lower()
-    rev = str(cfg.raw.get("triage", {}).get("reversibility", "reversivel")).lower()
-    sensitive = dc in {"pessoal", "financeiro", "saude"}
-    irreversible = rev != "reversivel"
+    dc = str(cfg.raw.get("triage", {}).get("data_class", "internal")).lower()
+    rev = str(cfg.raw.get("triage", {}).get("reversibility", "reversible")).lower()
+    sensitive = dc in {"personal", "financial", "health"}
+    irreversible = rev != "reversible"
 
     size = size_of(args.surfaces, sensitive, irreversible, args.loc)
     plan = dict(SIZES[size])
@@ -67,13 +67,13 @@ def main() -> int:
         print(json.dumps(plan, indent=2, ensure_ascii=False))
         return 0
 
-    print(f"\ntamanho: {size.upper()}  (classe {dc}, {rev})")
-    print(f"papeis ativos: {', '.join(plan['roles'])}")
-    print(f"rodadas adversariais: {plan['adversarial_rounds']}")
-    print(f"exige ADR: {'sim' if plan['adr'] else 'nao'}")
-    print(f"\ninvariantes ativos (todos, em qualquer tamanho): "
+    print(f"\nsize: {size.upper()}  (class {dc}, {rev})")
+    print(f"active roles: {', '.join(plan['roles'])}")
+    print(f"adversarial rounds: {plan['adversarial_rounds']}")
+    print(f"requires ADR: {'yes' if plan['adr'] else 'no'}")
+    print(f"\nactive invariants (all of them, at any size): "
           f"{', '.join(plan['invariants_always_on'])}")
-    print("\nO que escala com o tamanho e o escopo coberto. O criterio aplicado nao.")
+    print("\nWhat scales with size is the scope covered. The criteria applied do not.")
     return 0
 
 

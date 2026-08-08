@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-doctor - mostra o tier daquela ferramenta e o que esta DE FATO enforcado.
+doctor - shows each tool's tier and what is ACTUALLY enforced.
 
-Parece acessorio e e o comando mais importante politicamente: e ele que impede
-o FDE de achar que tem parede quando tem so recomendacao.
+Looks like an accessory and is politically the most important command: it is
+what keeps the FDE from thinking they have a wall when they only have a
+recommendation.
 """
 from __future__ import annotations
 
@@ -16,8 +17,8 @@ sys.path.insert(0, str(HERE))
 
 
 def _find_adapters(start: Path) -> Path | None:
-    # doctor roda tanto do kernel (bin/) quanto copiado no repo do cliente
-    # (bin/fde/). Procura adapters/ subindo a arvore.
+    # doctor runs both from the kernel (bin/) and copied into the client repo
+    # (bin/fde/). Looks for adapters/ walking up the tree.
     for cand in [start, *start.parents][:5]:
         if (cand / "adapters" / "base.py").exists():
             return cand
@@ -31,9 +32,9 @@ from fde_lib import Config, Spec, project_root  # noqa: E402
 
 ADAPTERS = ["claude_code", "codex", "cursor"]
 TIER_LABEL = {
-    "loop": "bloqueia antes da escrita",
-    "commit": "bloqueia no commit",
-    "advisory": "so instrucao + CI",
+    "loop": "blocks before the write",
+    "commit": "blocks at commit",
+    "advisory": "instruction + CI only",
 }
 
 
@@ -49,12 +50,12 @@ def load(name: str):
 
 def main() -> int:
     project = project_root()
-    print(f"\nprojeto: {project}")
+    print(f"\nproject: {project}")
 
     cfgok = (project / "fde.config.toml").exists()
-    print(f"config:  {'fde.config.toml' if cfgok else 'AUSENTE - rode `fde init`'}\n")
+    print(f"config:  {'fde.config.toml' if cfgok else 'MISSING - run `fde init`'}\n")
 
-    print("ferramentas agenticas detectadas neste repositorio:\n")
+    print("agentic tools detected in this repository:\n")
     any_found = False
     for name in ADAPTERS:
         ad = load(name)
@@ -63,28 +64,28 @@ def main() -> int:
         found = ad.detect(project)
         cap = ad.capability()
         if not found:
-            print(f"  · {cap.tool:14} nao detectado")
+            print(f"  · {cap.tool:14} not detected")
             continue
         any_found = True
         print(f"  ● {cap.tool:14} tier {cap.tier} - {TIER_LABEL[cap.tier]}")
         for e in cap.enforced:
-            print(f"      \033[32mENFORCADO\033[0m  {e}")
+            print(f"      \033[32mENFORCED\033[0m   {e}")
         for a in cap.advisory:
-            print(f"      \033[33msugerido \033[0m  {a}")
+            print(f"      \033[33madvisory\033[0m   {a}")
         for n in cap.notes:
-            print(f"      nota      {n}")
+            print(f"      note       {n}")
         print()
 
     if not any_found:
-        print("  nenhuma. O padrao ainda vale: pre-commit + CI sao independentes de IDE.\n")
+        print("  none. The standard still holds: pre-commit + CI are IDE-independent.\n")
 
-    print("enforcement universal (independe de ferramenta):")
+    print("universal enforcement (tool-independent):")
     for f, label in [
         (project / ".githooks" / "pre-commit", "pre-commit"),
         (project / ".github" / "workflows" / "fde-gate.yml", "CI"),
-        (project / "bin" / "fde" / "verify.py", "runtime do gate no repo (I6)"),
+        (project / "bin" / "fde" / "verify.py", "gate runtime in the repo (I6)"),
     ]:
-        mark = "\033[32mok\033[0m" if f.exists() else "\033[31mausente\033[0m"
+        mark = "\033[32mok\033[0m" if f.exists() else "\033[31mmissing\033[0m"
         print(f"  {mark:20} {label}")
     print()
     return 0

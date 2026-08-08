@@ -146,7 +146,7 @@ client's repo with nothing to install.
 # 1. parameterize (detects the stack; asks only what cannot be inferred)
 python bin/init.py
 #    or non-interactive:
-python bin/init.py --yes --data-class pessoal --reversibility irreversivel
+python bin/init.py --yes --data-class personal --reversibility irreversible
 
 # 2. compile the native artifacts for the tool in use
 python bin/compile.py

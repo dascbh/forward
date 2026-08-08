@@ -1,37 +1,37 @@
 <!--
-FDE-KERNEL:GENERATED — não edite à mão.
-Fonte da verdade: fde.config.toml + spec/. Regenere com `fde sync`.
-Edição manual aqui é sobrescrita e detectada como drift.
+FDE-KERNEL:GENERATED — do not edit by hand.
+Source of truth: fde.config.toml + spec/. Regenerate with `fde sync`.
+Manual edits here are overwritten and detected as drift.
 -->
 
 # t2
 
-Este repositório opera sob um kernel de entrega com invariantes não negociáveis.
-Instruções aqui valem para qualquer agente de código (Codex, Cursor, Claude Code,
-Copilot, Kiro, Gemini CLI, Windsurf, Aider).
+This repository operates under a delivery kernel with non-negotiable
+invariants. Instructions here apply to any coding agent (Codex, Cursor,
+Claude Code, Copilot, Kiro, Gemini CLI, Windsurf, Aider).
 
-## Comandos
+## Commands
 
 ```bash
-pytest -q      # teste
-python bin/fde/verify.py --gate eval   # eval
-python bin/fde/verify.py    # gate completo (o mesmo que o CI roda)
+pytest -q      # tests
+python bin/fde/verify.py --gate eval   # evals
+python bin/fde/verify.py    # full gate (the same one CI runs)
 ```
 
-## Invariantes (não configuráveis)
+## Invariants (not configurable)
 
-- **I1 eval-precede-merge** — Nenhuma mudança que altere comportamento observável do sistema entra na branch principal sem entrada correspondente na suíte de avaliação.
-- **I2 adversarial-isolation** — A revisão adversarial recebe o artefato e a especificação. Nunca recebe o contexto, o histórico ou o raciocínio de quem construiu o artefato.
-- **I3 adversarial-incentive** — O papel adversarial é medido por falhas encontradas, não por entregas aprovadas. Ele não tem permissão de escrita no código sob revisão — só pode registrar achado. Corrigir é trabalho de outro papel.
-- **I4 promotion-criteria-declared** — Nenhum artefato é promovido a produção sem critério de aceite escrito, versionado e datado, declarado antes do início da construção.
-- **I5 observability-floor** — Todo artefato promovido emite o mínimo necessário para verificar em produção os atributos de qualidade que declarou atender.
-- **I6 client-runnable-gate** — O gate roda no ambiente do cliente, com o runner do cliente, sem nenhum componente do framework no caminho crítico. O entregável inclui a capacidade de executá-lo sem o FDE presente.
-- **I7 artifact-handoff** — Papéis se comunicam por artefato versionado em disco (spec, ADR, suíte, relatório de revisão), nunca por continuidade de conversa.
+- **I1 eval-precede-merge** — No change that alters observable system behavior lands on the main branch without a corresponding entry in the evaluation suite.
+- **I2 adversarial-isolation** — Adversarial review receives the artifact and the specification. It never receives the context, the history, or the reasoning of whoever built the artifact.
+- **I3 adversarial-incentive** — The adversarial role is measured by failures found, not by deliveries approved. It has no write permission on the code under review — it can only record findings. Fixing is another role's job.
+- **I4 promotion-criteria-declared** — No artifact is promoted to production without written, versioned, and dated acceptance criteria, declared before construction begins.
+- **I5 observability-floor** — Every promoted artifact emits the minimum needed to verify in production the quality attributes it declared to meet.
+- **I6 client-runnable-gate** — The gate runs in the client's environment, with the client's runner, with no framework component on the critical path. The deliverable includes the ability to run it without the FDE present.
+- **I7 artifact-handoff** — Roles communicate through versioned artifacts on disk (spec, ADR, suite, review report), never through conversation continuity.
 
-Não existe chave capaz de desligar um invariante. Se a entrega não cabe nele,
-o escopo encolhe — o padrão não.
+No key exists that can turn off an invariant. If the delivery does not fit
+one, the scope shrinks — the standard does not.
 
-## Prioridade acordada (vetor A, orçamento 100)
+## Agreed priority (vector A, budget 100)
 
 - functional_correctness: 26
 - security_privacy: 14
@@ -42,29 +42,30 @@ o escopo encolhe — o padrão não.
 - usability_accessibility: 8
 - operational_cost: 7
 
-Peso ordena o ataque adversarial e dimensiona a suíte. Peso nunca desce abaixo
-do piso do atributo.
+Weight orders the adversarial attack and sizes the suite. Weight never goes
+below the attribute's floor.
 
-## Profundidade por domínio (vetor B, derivado da stack)
+## Depth per domain (vector B, derived from the stack)
 
 - software_architecture: 1
 - qa_test_strategy: 1
 - platform_delivery: 1
 
-Override é upward-only. A natureza do sistema define o mínimo, não a preferência.
+Override is upward-only. The nature of the system sets the minimum, not
+preference.
 
-## Papéis
+## Roles
 
-- **Especificação** (`fde-spec`) — escreve em `specs/**, discovery/**`
-- **Arquitetura** (`fde-architecture`) — escreve em `docs/adr/**, specs/**`
-- **Implementação** (`fde-implementation`) — escreve em `src/**, tests/**, evals/**, infra/**`
-- **Revisão adversarial** (`fde-adversarial`) — escreve em `reviews/**`
-- **Promoção** (`fde-promotion`) — escreve em `promotions/**`
+- **Specification** (`fde-spec`) — writes to `specs/**, discovery/**`
+- **Architecture** (`fde-architecture`) — writes to `docs/adr/**, specs/**`
+- **Implementation** (`fde-implementation`) — writes to `src/**, tests/**, evals/**, infra/**`
+- **Adversarial review** (`fde-adversarial`) — writes to `reviews/**`
+- **Promotion** (`fde-promotion`) — writes to `promotions/**`
 
-Handoff é por artefato em disco, nunca por continuidade de conversa.
+Handoff is by artifact on disk, never by conversation continuity.
 
-## Detalhe
+## Detail
 
-Cada etapa tem skill própria em `skills/` (formato Agent Skills, portátil entre
-ferramentas). Este arquivo é deliberadamente fino: o Codex trunca AGENTS.md em
-32 KiB sem avisar.
+Each step has its own skill in `skills/` (Agent Skills format, portable
+across tools). This file is deliberately thin: Codex truncates AGENTS.md at
+32 KiB without warning.

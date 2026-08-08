@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-guard - hook PreToolUse. Bloqueio ANTES da escrita, nao no commit.
+guard - PreToolUse hook. Blocks BEFORE the write, not at commit.
 
-Existe so no tier `loop`. Nas outras ferramentas o mesmo invariante e cobrado
-mais tarde, pelo pre-commit. A diferenca e latencia de feedback, nao rigor.
+Exists only in the `loop` tier. In the other tools the same invariant is
+charged later, by the pre-commit. The difference is feedback latency, not
+rigor.
 
-Protocolo: recebe JSON do hook no stdin; exit 0 permite, exit 2 bloqueia com a
-mensagem no stderr voltando para o agente.
+Protocol: receives the hook's JSON on stdin; exit 0 allows, exit 2 blocks
+with the stderr message going back to the agent.
 """
 from __future__ import annotations
 
@@ -19,7 +20,7 @@ sys.path.insert(0, str(HERE))
 
 BEHAVIOR = ("src/", "lib/", "app/", "services/", "prompts/")
 
-# escopo de escrita por papel - espelha spec/roles.toml
+# write scope per role - mirrors spec/roles.toml
 DENIED = {
     "fde-spec": ("src/", "tests/", "infra/"),
     "fde-architecture": ("src/", "tests/"),
@@ -33,7 +34,7 @@ def main() -> int:
     try:
         payload = json.load(sys.stdin)
     except Exception:
-        return 0  # sem payload legivel, nao bloqueia por acidente
+        return 0  # no readable payload, do not block by accident
 
     path = (payload.get("tool_input", {}) or {}).get("file_path", "")
     agent = payload.get("agent_name") or payload.get("subagent") or ""
@@ -42,9 +43,9 @@ def main() -> int:
     for role, denied in DENIED.items():
         if role in agent and rel.startswith(denied):
             print(
-                f"[FDE] papel {role} nao escreve em {rel}.\n"
-                f"Isso e desenho, nao obstaculo: o papel que julga nao pode reescrever\n"
-                f"o que sera julgado. Registre o achado ou delegue ao papel correto.",
+                f"[FDE] role {role} does not write to {rel}.\n"
+                f"This is design, not an obstacle: the role that judges cannot rewrite\n"
+                f"what will be judged. Record the finding or delegate to the right role.",
                 file=sys.stderr,
             )
             return 2
@@ -54,9 +55,9 @@ def main() -> int:
         evals = project / "evals"
         if not evals.exists() or not any(evals.rglob("*")):
             print(
-                "[FDE] I1: mudanca de comportamento antes de existir suite de eval.\n"
-                "Escreva o failure mode e o evaluator primeiro - o pre-commit vai\n"
-                "cobrar isso de qualquer forma, e depois custa refazer.",
+                "[FDE] I1: behavior change before an eval suite exists.\n"
+                "Write the failure mode and the evaluator first - the pre-commit will\n"
+                "charge for this anyway, and redoing it later costs more.",
                 file=sys.stderr,
             )
             return 2

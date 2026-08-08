@@ -1,22 +1,22 @@
 ---
 name: fde-triage
-description: Dimensiona uma demanda e decide quais papéis e quantas rodadas adversariais ativam. Use SEMPRE antes de começar qualquer trabalho de implementação num projeto sob o kernel — mudança de uma linha ou feature inteira. Use quando o usuário disser que o processo está pesado demais para o tamanho da tarefa, ou pedir para "pular etapas". É o caminho legítimo para reduzir cerimônia sem relaxar critério.
+description: Sizes a demand and decides which roles and how many adversarial rounds activate. Use ALWAYS before starting any implementation work in a project under the kernel — a one-line change or a whole feature. Use when the user says the process feels too heavy for the size of the task, or asks to "skip steps". It is the legitimate path to reduce ceremony without relaxing criteria.
 ---
 
 # fde-triage
 
-Se o fluxo completo roda numa mudança de três linhas, o framework é desligado na segunda semana. Por isso o dimensionamento é código, não bom senso.
+If the full flow runs on a three-line change, the framework gets turned off in week two. That is why sizing is code, not common sense.
 
 ```bash
 python bin/triage.py --surfaces 2 --loc 120
 ```
 
-## O que escala
+## What scales
 
-Papéis ativos, rodadas adversariais, exigência de ADR.
+Active roles, adversarial rounds, ADR requirement.
 
-## O que nunca escala
+## What never scales
 
-Os invariantes. Em XS e em L, os sete valem igual. O que varia é a **fronteira coberta**, não o **critério aplicado**.
+The invariants. At XS and at L, all seven apply equally. What varies is the **boundary covered**, not the **criteria applied**.
 
-Quando o usuário reclamar do peso do processo: rode triage e mostre o plano reduzido. Quando pedir para desligar o gate: explique que não existe chave, e que o caminho é encolher o escopo da entrega até caber no padrão — não o contrário.
+When the user complains about process weight: run triage and show the reduced plan. When they ask to turn off the gate: explain that no key exists, and that the path is shrinking the delivery scope until it fits the standard — not the other way around.

@@ -1,9 +1,9 @@
 """
-Adapter Cursor - tier `commit`.
+Cursor adapter - `commit` tier.
 
-Cursor le AGENTS.md e CLAUDE.md na raiz e aplica como regra ao lado de
-.cursor/rules. Emitimos MDC apenas para escopo por glob, que e o que o AGENTS.md
-nao faz - o resto vem do arquivo agnostico, sem duplicacao.
+Cursor reads AGENTS.md and CLAUDE.md at the root and applies them as rules
+alongside .cursor/rules. We emit MDC only for glob scoping, which is what
+AGENTS.md does not do - the rest comes from the agnostic file, no duplication.
 """
 
 from __future__ import annotations
@@ -25,9 +25,9 @@ class CursorAdapter(Adapter):
         return Capability(
             tool=self.tool,
             tier="commit",
-            enforced=["gate no pre-commit e no CI"],
-            advisory=["papeis por escopo de glob (MDC)", "isolamento adversarial"],
-            notes=["regra MDC ativa por glob - usada so para escopo, nao para duplicar padrao"],
+            enforced=["gate at pre-commit and in CI"],
+            advisory=["roles scoped by glob (MDC)", "adversarial isolation"],
+            notes=["MDC rule activates by glob - used only for scoping, not to duplicate the standard"],
         )
 
     def emit(self, ctx: EmitContext) -> list[Path]:
@@ -35,14 +35,14 @@ class CursorAdapter(Adapter):
         p = ctx.project
         rule = (
             "---\n"
-            "description: Gate de eval do FDE kernel (I1)\n"
+            "description: FDE kernel eval gate (I1)\n"
             "globs: src/**\n"
             "alwaysApply: false\n"
             "---\n\n"
-            "Mudanca de comportamento em `src/` exige entrada correspondente em `evals/`\n"
-            "na mesma mudanca. O pre-commit bloqueia se faltar - escrever o eval depois\n"
-            "significa refazer o trabalho.\n\n"
-            "Criterio de aceite: `specs/<demand-id>/acceptance.md`.\n"
+            "A behavior change in `src/` requires a corresponding entry in `evals/`\n"
+            "within the same change. The pre-commit blocks if it is missing - writing\n"
+            "the eval afterwards means redoing the work.\n\n"
+            "Acceptance criteria: `specs/<demand-id>/acceptance.md`.\n"
         )
         written.append(self.write(p / ".cursor" / "rules" / "fde-eval-gate.mdc", rule, comment="<!--"))
         return written

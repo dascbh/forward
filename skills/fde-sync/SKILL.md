@@ -1,23 +1,23 @@
 ---
 name: fde-sync
-description: Recompila os artefatos nativos a partir de fde.config.toml e detecta drift em arquivo gerado que foi editado à mão. Use sempre que o usuário alterar pesos, mudar de ferramenta agêntica, adicionar uma stack ao projeto, ou quando um arquivo com o marcador FDE-KERNEL:GENERATED parecer inconsistente com a configuração. Use também quando o usuário perguntar por que uma regra "não está pegando" ou "sumiu".
+description: Recompiles the native artifacts from fde.config.toml and detects drift in generated files that were edited by hand. Use whenever the user changes weights, switches agentic tools, adds a stack to the project, or when a file carrying the FDE-KERNEL:GENERATED marker looks inconsistent with the configuration. Also use when the user asks why a rule "is not kicking in" or "disappeared".
 ---
 
 # fde-sync
 
-Regenera. Idempotente.
+Regenerates. Idempotent.
 
 ```bash
-python bin/compile.py            # regenera
-python bin/compile.py --check    # valida sem escrever
+python bin/compile.py            # regenerates
+python bin/compile.py --check    # validates without writing
 ```
 
 ## Drift
 
-Todo arquivo emitido leva `FDE-KERNEL:GENERATED` no topo. Editar à mão é perda garantida: o próximo `sync` sobrescreve.
+Every emitted file carries `FDE-KERNEL:GENERATED` at the top. Editing by hand is guaranteed loss: the next `sync` overwrites it.
 
-Se o usuário editou um arquivo gerado, o conserto é **na fonte** — `fde.config.toml` para o que é do projeto, `spec/` para o que é do kernel — e então recompilar. Nunca sugira "editar direto e não rodar sync": isso quebra a garantia de que o padrão é o mesmo em todas as ferramentas.
+If the user edited a generated file, the fix belongs **at the source** — `fde.config.toml` for what belongs to the project, `spec/` for what belongs to the kernel — and then recompile. Never suggest "edit directly and skip sync": that breaks the guarantee that the standard is the same across all tools.
 
-## Quando a ferramenta muda
+## When the tool changes
 
-O usuário trocou de Cursor para Claude Code, ou passou a usar as duas? Só rode `sync`. A fonte é a mesma; o que muda é qual adapter emite. Confira o resultado com `fde-doctor` — o tier de enforcement muda com a ferramenta e o usuário precisa saber disso.
+The user switched from Cursor to Claude Code, or started using both? Just run `sync`. The source is the same; what changes is which adapter emits. Check the result with `fde-doctor` — the enforcement tier changes with the tool and the user needs to know that.

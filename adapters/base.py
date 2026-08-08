@@ -1,24 +1,24 @@
 """
-Contrato de adapter.
+Adapter contract.
 
-A camada de INSTRUÇÃO é agnóstica (AGENTS.md + SKILL.md são padrões governados
-pela Agentic AI Foundation). A camada de ENFORCEMENT não é, e nunca vai ser:
-hook, restrição de ferramenta por papel e isolamento em worktree são
-implementação de cada ferramenta, com capacidade desigual.
+The INSTRUCTION layer is agnostic (AGENTS.md + SKILL.md are standards governed
+by the Agentic AI Foundation). The ENFORCEMENT layer is not and never will be:
+hooks, per-role tool restrictions, and worktree isolation are per-tool
+implementation, with unequal capability.
 
-Por isso o invariante mora no REPOSITÓRIO (pre-commit + CI), não na ferramenta.
-O adapter é conveniência: puxa o gate para dentro do loop do agente e dá
-feedback mais rápido. Se não existir adapter para a ferramenta, o padrão continua
-valendo — só chega mais tarde, no commit em vez de na escrita.
+That is why the invariant lives in the REPOSITORY (pre-commit + CI), not in
+the tool. The adapter is convenience: it pulls the gate into the agent's loop
+and gives faster feedback. If no adapter exists for a tool, the standard still
+holds — it just arrives later, at commit instead of at the write.
 
-Três tiers, declarados honestamente por `fde doctor`:
+Three tiers, honestly declared by `fde doctor`:
 
-  loop      — hook + restrição de ferramenta por papel. Bloqueio antes da escrita.
-  commit    — sem hook, mas há subagente/worktree. Papéis reais, gate no git.
-  advisory  — só arquivo de instrução. Papéis são convenção, gate é o CI.
+  loop      — hook + per-role tool restriction. Blocks before the write.
+  commit    — no hook, but subagents/worktrees exist. Real roles, gate in git.
+  advisory  — instruction file only. Roles are convention, the gate is CI.
 
-Prometer paridade e entregar teatro em três de cinco ferramentas é o que queima
-framework aberto. Declarar o tier é honestidade que gera confiança.
+Promising parity and delivering theater in three out of five tools is what
+burns an open framework. Declaring the tier is honesty that builds trust.
 """
 
 from __future__ import annotations
@@ -33,9 +33,9 @@ GEN_MARK = "FDE-KERNEL:GENERATED"
 
 def generated_header(comment: str = "#") -> str:
     lines = [
-        f"{GEN_MARK} — não edite à mão.",
-        "Fonte da verdade: fde.config.toml + spec/. Regenere com `fde sync`.",
-        "Edição manual aqui é sobrescrita e detectada como drift.",
+        f"{GEN_MARK} — do not edit by hand.",
+        "Source of truth: fde.config.toml + spec/. Regenerate with `fde sync`.",
+        "Manual edits here are overwritten and detected as drift.",
     ]
     if comment == "<!--":
         return "<!--\n" + "\n".join(lines) + "\n-->\n"
@@ -46,8 +46,8 @@ def generated_header(comment: str = "#") -> str:
 class Capability:
     tool: str
     tier: str
-    enforced: list[str] = field(default_factory=list)   # bloqueia de fato
-    advisory: list[str] = field(default_factory=list)   # só recomenda
+    enforced: list[str] = field(default_factory=list)   # actually blocks
+    advisory: list[str] = field(default_factory=list)   # only recommends
     notes: list[str] = field(default_factory=list)
 
 
@@ -64,24 +64,24 @@ class EmitContext:
 class Adapter:
     tool = "abstract"
 
-    def detect(self, project: Path) -> bool:          # a ferramenta está em uso aqui?
+    def detect(self, project: Path) -> bool:          # is the tool in use here?
         raise NotImplementedError
 
     def capability(self) -> Capability:
         raise NotImplementedError
 
-    def emit(self, ctx: EmitContext) -> list[Path]:    # arquivos escritos
+    def emit(self, ctx: EmitContext) -> list[Path]:    # files written
         raise NotImplementedError
 
     # ---- helpers ----
     @staticmethod
     def write(path: Path, content: str, comment: str = "#") -> Path:
         """
-        Escreve com marcador de gerado.
+        Write with the generated marker.
 
-        Frontmatter YAML tem que ser a PRIMEIRA coisa do arquivo — cabeçalho antes
-        dele quebra o parse e o agente perde name/disallowedTools/isolation.
-        Nesse caso o marcador entra depois do bloco de frontmatter.
+        YAML frontmatter must be the FIRST thing in the file — a header before
+        it breaks parsing and the agent loses name/disallowedTools/isolation.
+        In that case the marker goes after the frontmatter block.
         """
         path.parent.mkdir(parents=True, exist_ok=True)
         header = generated_header(comment)
