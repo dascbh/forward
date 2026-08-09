@@ -6,6 +6,8 @@ demand_id = "{{DEMAND_ID}}"
 context_policy = "artifact_only"   # I2: no builder context
 isolation_mode = "worktree"
 rounds_planned = {{ROUNDS_PLANNED}}
+# agent_transcript = "agent-<id>"  # your worktree directory name — links this
+#                                  # report to the harness transcript while it lives
 
 # Every finding cites a probe (adversarial pass) OR a principle (heuristic
 # pass) — I8. A finding with neither is opinion and the gate rejects it.

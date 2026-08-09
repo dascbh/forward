@@ -201,6 +201,14 @@ the user names.
    `.claude/skills/` (one directory per skill), so triage, review, verify,
    doctor, and sync are invocable in the project without the kernel
    checkout.
+6. The guard writes its decision trail to `.fde/guard-audit.jsonl`
+   (timestamp, path, agent, decision, rule) — add that path to the
+   project's `.gitignore`. If the user asks for operational telemetry,
+   add to the same settings.json `"env"` block:
+   `"CLAUDE_CODE_ENABLE_TELEMETRY": "1"`, `"OTEL_METRICS_EXPORTER":
+   "otlp"`, `"OTEL_LOGS_EXPORTER": "otlp"`,
+   `"OTEL_EXPORTER_OTLP_ENDPOINT": "<the collector>"`. Off by default —
+   never enable it unasked.
 
 **cursor** (tier `commit`): write `.cursor/rules/fde-eval-gate.mdc` —
 frontmatter `description: FDE kernel eval gate (I1)`, `globs: src/**`,

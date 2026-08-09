@@ -75,12 +75,14 @@ writing code on request; start by sizing. Pick a short demand id first
 
 1. **Triage**: `score = min(3, surfaces) + (sensitive ? 2 : 0) +
    (irreversible ? 2 : 0) + (loc < 50 ? 0 : loc < 300 ? 1 : 2)`.
-   `surfaces` = how many of the four surface kinds — UI/frontend, API,
-   data/schema, infra — **this demand** touches (per demand, never the
-   project's fixed count from install). `loc` = estimated lines of this
-   change. `sensitive`/`irreversible` come from `[triage]` in
-   `fde.config.toml` (project-level by design). Estimate the inputs
-   yourself; if torn between two sizes, take the larger.
+   All four inputs are judged for THIS demand, never inherited wholesale:
+   `surfaces` = how many of UI/frontend, API, data/schema, infra this
+   demand touches. `loc` = estimated lines of this change. `sensitive` =
+   this demand touches data of the class declared in `[triage]` (in a
+   public/internal project: always false). `irreversible` = this change
+   is hard to undo — migration, deletion, external side effect —
+   with `[triage].reversibility` setting the posture. Unsure on either →
+   true; torn between two sizes → take the larger.
    score ≤ 1 → **XS**: implementation, adversarial, 1 round ·
    2–3 → **S**: + spec · 4–6 → **M**: + promotion, 2 rounds, ADR ·
    ≥ 7 → **L**: all five roles, 3 rounds, ADR.

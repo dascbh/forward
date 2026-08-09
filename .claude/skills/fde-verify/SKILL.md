@@ -35,6 +35,17 @@ behavior the framework exists to prevent.
 - A flaky test gets fixed or understood, never re-run until green.
 - Fix the lint, don't disable the rule; fix the test, don't skip it.
 
+## Known bluntness, kept on purpose (FWD-004)
+
+I1 matches files, not diff content: a comment-only or prose-only edit
+inside a behavior root trips the gate. Deliberate. In this kernel,
+instructions ARE behavior (ADR-0001) — a prose edit to a skill changes
+what agents do, and the drift-detector tests are its legitimate eval.
+For code, inspecting diff content to exempt "harmless" edits would make
+the wall guess. The cost is one touched eval; the alternative is a wall
+that argues. Re-decide only with field evidence that the cost is real
+(the backlog carries the standing item).
+
 ## The bypass that is not one
 
 Never recommend `git commit --no-verify` — not even as one option among

@@ -21,8 +21,11 @@ always-on protection is the no-suite I1 branch.
 from __future__ import annotations
 
 import json
+import os
+import re
 import sys
 import tomllib
+from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -48,6 +51,47 @@ def _matches(path: str, entries) -> bool:
     return False
 
 
+def _agent_identity(payload: dict) -> str:
+    """Payload identity when the harness sends one; otherwise derive it
+    from the worktree the subagent runs in (.claude/worktrees/agent-<id>)
+    via the harness metadata (agent-<id>.meta.json, agentType). Absent or
+    unreadable metadata degrades to anonymous — never block by accident
+    (FWD-005)."""
+    agent = payload.get("agent_name") or payload.get("subagent") or ""
+    if agent:
+        return agent
+    cwd = payload.get("cwd") or str(Path.cwd())
+    m = re.search(r"\.claude/worktrees/(agent-[0-9a-f]+)", cwd)
+    if not m:
+        return ""
+    meta_root = Path(os.environ.get("FDE_AGENT_META_DIR")
+                     or Path.home() / ".claude" / "projects")
+    try:
+        for meta in meta_root.glob(f"*/*/subagents/{m.group(1)}.meta.json"):
+            return json.loads(meta.read_text(encoding="utf-8")).get("agentType") or ""
+    except Exception:
+        pass
+    return ""
+
+
+def _audit(project: Path, rel: str, agent: str, decision: str, rule: str) -> None:
+    """Append to .fde/guard-audit.jsonl. Auditing never affects the
+    decision itself (FWD-006)."""
+    try:
+        d = project / ".fde"
+        d.mkdir(exist_ok=True)
+        with open(d / "guard-audit.jsonl", "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({
+                "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "path": rel,
+                "agent": agent or None,
+                "decision": decision,
+                "rule": rule,
+            }) + "\n")
+    except Exception:
+        pass
+
+
 def _project() -> Path:
     for cand in [HERE.parent.parent, Path.cwd(), *Path.cwd().parents]:
         if (cand / "fde.config.toml").exists():
@@ -70,7 +114,7 @@ def main() -> int:
         return 0  # no readable payload, do not block by accident
 
     path = (payload.get("tool_input", {}) or {}).get("file_path", "")
-    agent = payload.get("agent_name") or payload.get("subagent") or ""
+    agent = _agent_identity(payload)
     if not path:
         return 0
 
@@ -88,7 +132,8 @@ def main() -> int:
     else:
         rel = p.as_posix()
 
-    def block(msg: str) -> int:
+    def block(msg: str, rule: str) -> int:
+        _audit(project, rel, agent, "block", rule)
         print(msg, file=sys.stderr)
         return 2
 
@@ -97,7 +142,8 @@ def main() -> int:
             return block(
                 f"[FDE] role {role} writes only in {', '.join(allowed)} — not {rel}.\n"
                 f"This is design, not an obstacle: the role that judges cannot rewrite\n"
-                f"what will be judged. Record the finding or delegate to the right role.")
+                f"what will be judged. Record the finding or delegate to the right role.",
+                "role-scope")
 
     if "fde-implementation" in agent and (
         rel.startswith("reviews/")
@@ -105,7 +151,8 @@ def main() -> int:
     ):
         return block(
             f"[FDE] role fde-implementation does not write to {rel}: it cannot\n"
-            f"rewrite the criteria it will be judged by, nor the findings against it.")
+            f"rewrite the criteria it will be judged by, nor the findings against it.",
+            "implementation-scope")
 
     if _matches(rel, behavior):
         # .gitkeep is structure, not a suite; a file entry counts if present
@@ -119,7 +166,11 @@ def main() -> int:
             return block(
                 "[FDE] I1: behavior change before an eval suite exists.\n"
                 "Write the failure mode and the evaluator first - the pre-commit will\n"
-                "charge for this anyway, and redoing it later costs more.")
+                "charge for this anyway, and redoing it later costs more.",
+                "I1-no-suite")
+    if agent:
+        # identified-role allows are signal; anonymous allows are noise
+        _audit(project, rel, agent, "allow", "in-scope")
     return 0
 
 

@@ -46,6 +46,11 @@ must match that SHA — isolation tooling can pin an older base (notably
 match, check out the right commit before probing: reviewing stale code
 produces confident nonsense.
 
+**Record provenance (FWD-007).** The reviewer writes its own worktree
+directory name (`.claude/worktrees/agent-<id>`) into `[meta]` as
+`agent_transcript = "agent-<id>"` — the durable link between the summary
+(`probed`) and the harness's raw execution transcript while it lives.
+
 ## The heuristic pass (same reviewer, same isolation)
 
 After probing, judge the attributes whose `verified_by` includes

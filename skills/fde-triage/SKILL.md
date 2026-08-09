@@ -11,15 +11,22 @@ table; do not negotiate it, and do not interview the user about the formula
 — estimate the inputs from the demand yourself and, if torn between two
 sizes, take the larger.
 
-## Inputs
+## Inputs — all four judged for THIS demand
 
 - `surfaces` — how many of the four surface kinds (UI/frontend, API,
-  data/schema, infra) **this demand** touches — per demand, never the
-  project's fixed count from install
+  data/schema, infra) **this demand** touches — never the project's
+  fixed count from install
 - `loc` — estimated lines changed by this demand
-- from `fde.config.toml` `[triage]`:
-  `sensitive` = data_class in {personal, financial, health};
-  `irreversible` = reversibility != reversible
+- `sensitive` — **this demand** touches data of the class declared in
+  `[triage].data_class`. The declaration is a ceiling: in a
+  public/internal project, sensitive is always false; in a
+  personal/financial/health project, judge whether the demand's paths
+  read or write that data. Unsure → true.
+- `irreversible` — **this change** is hard to undo once shipped: schema
+  migration, deletion, external side effect, published artifact.
+  `[triage].reversibility` sets the posture (a reversible project's
+  demand is false unless the demand itself creates irreversibility).
+  Unsure → true.
 
 ## Score and size
 

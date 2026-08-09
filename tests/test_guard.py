@@ -82,5 +82,94 @@ class TestGuard(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
 
 
+class TestGuardIdentityFromMetadata(unittest.TestCase):
+    """FWD-005: no agent_name in the payload — identity derived from the
+    worktree cwd + harness metadata (agentType)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+        self.meta_root = Path(self._tmp.name) / "meta"
+        d = self.meta_root / "proj" / "sess" / "subagents"
+        d.mkdir(parents=True)
+        (d / "agent-abc123.meta.json").write_text(
+            '{"agentType": "fde-adversarial"}')
+        self.env = {"FDE_AGENT_META_DIR": str(self.meta_root)}
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def payload(self, rel, worktree="agent-abc123"):
+        return {"tool_input": {"file_path": str(Path(self.p) / rel)},
+                "cwd": f"/x/.claude/worktrees/{worktree}"}
+
+    def test_worktree_subagent_is_scoped_without_payload_identity(self):
+        r = guard(self.p, self.payload("src/x.py"), env=self.env)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("fde-adversarial", r.stderr)
+        r = guard(self.p, self.payload("reviews/D-1/findings.toml"),
+                  env=self.env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_missing_metadata_no_role_block_with_suite_present(self):
+        (self.p / "tests").mkdir(exist_ok=True)
+        (self.p / "tests" / "t.py").write_text("assert True\n")
+        r = guard(self.p, self.payload("src/x.py", worktree="agent-ffffff"),
+                  env=self.env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_corrupt_metadata_never_crashes_or_blocks(self):
+        d = self.meta_root / "proj" / "sess" / "subagents"
+        (d / "agent-badbad.meta.json").write_text("{not json")
+        (self.p / "tests").mkdir(exist_ok=True)
+        (self.p / "tests" / "t.py").write_text("assert True\n")
+        r = guard(self.p, self.payload("src/x.py", worktree="agent-badbad"),
+                  env=self.env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+
+
+class TestGuardAudit(unittest.TestCase):
+    """FWD-006: every block and every identified allow leaves a trail;
+    auditing never affects the decision."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+        self.log = self.p / ".fde" / "guard-audit.jsonl"
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def payload(self, rel, agent=""):
+        return {"tool_input": {"file_path": str(Path(self.p) / rel)},
+                "agent_name": agent}
+
+    def entries(self):
+        import json as j
+        return [j.loads(l) for l in
+                self.log.read_text().strip().splitlines()]
+
+    def test_block_is_recorded_with_rule_and_agent(self):
+        guard(self.p, self.payload("src/x.py", "fde-adversarial"))
+        e = self.entries()[-1]
+        self.assertEqual((e["decision"], e["rule"], e["agent"]),
+                         ("block", "role-scope", "fde-adversarial"))
+        self.assertIn("ts", e)
+
+    def test_identified_allow_is_recorded_anonymous_is_not(self):
+        guard(self.p, self.payload("reviews/D/f.toml", "fde-adversarial"))
+        self.assertEqual(self.entries()[-1]["decision"], "allow")
+        n = len(self.entries())
+        guard(self.p, self.payload("docs/notes.md"))  # anonymous, in scope
+        self.assertEqual(len(self.entries()), n)  # not logged
+
+    def test_audit_failure_never_changes_the_decision(self):
+        self.log.mkdir(parents=True)  # a directory where the log should be
+        r = guard(self.p, self.payload("src/x.py", "fde-adversarial"))
+        self.assertEqual(r.returncode, 2)  # still blocks
+        self.assertNotIn("Traceback", r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

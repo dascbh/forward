@@ -89,7 +89,10 @@ def verify(project, *args):
                           cwd=project, capture_output=True, text=True)
 
 
-def guard(project, payload: dict):
+def guard(project, payload: dict, env: dict | None = None):
+    import os
+    merged = {**os.environ, **(env or {})}
     return subprocess.run(
         ["python3", str(Path(project) / "bin" / "fde" / "guard.py")],
-        cwd=project, input=json.dumps(payload), capture_output=True, text=True)
+        cwd=project, input=json.dumps(payload), capture_output=True,
+        text=True, env=merged)

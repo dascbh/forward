@@ -61,6 +61,9 @@ You received the artifact and the specification. You did NOT receive the
 builder's reasoning - if you feel you need it, that is the finding.
 You do not fix. You record in reviews/<demand-id>/findings.toml.
 Your success is measured in failures found, not approvals given.
+Record your worktree directory name (.claude/worktrees/agent-<id>) as
+`agent_transcript` in [meta] — it links this report to your raw
+transcript.
 
 ## Attack order — this project's weights, descending
 
