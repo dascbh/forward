@@ -1,0 +1,86 @@
+# Adversarial review — FWD-008 the artifact graph, commit b798e52.
+# Reviewer received artifact + spec only (I2). Findings only; no fixes (I3).
+
+[meta]
+demand_id = "FWD-008"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 2
+rounds_run = 2
+commit = "b798e52"
+agent_transcript = "agent-aba686fe1921d98ee"
+probed = """
+Confirmed runtime/graph.py == bin/fde/graph.py and runtime/verify.py ==
+bin/fde/verify.py (identical, no drift). Ran the full suite (112 green),
+--gate traceability (green), and every CLI surface on this repo: --render,
+--orphans, --central, --recurring, --demand FWD-005, --path (forward and
+reverse), --format json.
+
+ROUND 1 — correctness of the graph model & gate. Attacked: ADR supersedes
+parsing against the repo's ACTUAL ADR header format (title-first, plain
+date:/status: lines, no --- block); SIZE_RE picking a bolded token that is
+not the triage line; canon_demand / DEMAND_RE prefix collision FWD-1 vs
+FWD-10 (safe — greedy \\d+); supersedes self-loop and cycle detection
+(caught); path() edge direction (directed, reverse yields no path);
+weighted_in_degree node filter; ego TERMINAL no-bridge (holds); probe-node
+48-char truncation collision in --central.
+
+ROUND 2 — the harder regime + heuristic (DOM/MNT/OBS). Attacked: gate
+false-positives on legitimate mid-loop states (none found — spec+no-review,
+review+no-promotion stay green); gate MISSES via the scrum selects set
+derived from prose in goal.md; determinism of --central/--recurring across
+runs (deterministic); --format json / ego / path on a nonexistent id
+(graceful empty, no crash); malformed findings.toml and malformed config
+(degrade, no crash); doctrine consistency between SKILL.md /
+fde-architecture.md and the code; dead code in build_graph.
+"""
+
+# ---------------------------------------------------------------------------
+# functional_correctness — weight 30, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "high"
+probe = "case the spec does not cover and the code silently accepts: the ONE authored edge (ADR supersedes:) is never parsed from an ADR written in this repo's actual convention, so the gate's dangling/cyclic-supersedes check is vacuous on the repo's own data. _front_matter() only parses when the file starts with '---\\n', but every ADR in docs/adr/ opens with '# ADR-N — Title', a blank line, then plain 'date:'/'status:' lines (verified: 0004, 0009, 0010). Probe: wrote docs/adr/0001-a.md = '# ADR-0001 — A\\n\\ndate: 2026-08-09\\nstatus: accepted\\nsupersedes: 0099\\n\\n## Context\\n' (dangling target 0099) → forbidden_orphans() returns [] — the dangling reference is NOT caught, gate stays green. Only the '---\\nsupersedes: 0099\\n---' block form fires it — and no ADR in the repo uses that form. The dogfood/acceptance claim that a dangling supersedes 'turns it red' is unmet against the format the repo actually writes."
+evidence = "runtime/graph.py:191-192 (_front_matter requires text.startswith('---\\n')); :287 (supersedes read only via _front_matter); docs/adr/0001..0010 are all title-first with no '---' block; the gate green above. tests/test_graph.py:155,162 exercise ONLY the '---'-delimited form, so the 112-green suite passes while the real ADR shape is unhandled. Acceptance specs/FWD-008-artifact-graph/acceptance.md:15-16 ('a cyclic or dangling ADR supersedes: turns it red') and R1/R3 (spec.md:36-40,46-48) are unsatisfied for the repo's ADR format."
+blocking = true
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "medium"
+probe = "case the spec does not cover and the code silently accepts: the scrum-only orphan rule ('a review whose demand is neither specced nor planned') is fooled by any demand-id string anywhere in a sprint goal.md, prose included, because selects edges come from DEMAND_RE.findall over the whole file. Probe (scrum on): sprints/S-001/goal.md body 'We will not do FWD-200 this sprint, it is deferred.' + reviews/FWD-200/findings.toml with NO specs/FWD-200 dir → forbidden_orphans() returns [] (a 'selects' edge sprint:S-001→demand:FWD-200 exists), so the anchorless review escapes the gate. A negated or incidental mention silently 'plans' the demand; the check verifies mention, not selection."
+evidence = "runtime/graph.py:245 (dict.fromkeys(DEMAND_RE.findall(_read(gm))) builds selects from the entire goal.md); forbidden_orphans() runtime/graph.py:343-347 exempts any did whose demand node is in the selects set. R3 (spec.md:46-48) requires flagging a 'scrum-selected demand without a spec dir' / 'review for a demand no sprint planned' — the implementation conflates 'named anywhere in goal.md' with 'selected'."
+blocking = false
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "low"
+probe = "case the spec does not cover and the code silently accepts: R1 requires 'demand nodes = triage size (XS 1..L 4)', but SIZE_RE.search takes the FIRST '**XS|S|M|L**' anywhere in spec.md, not the triage line. Probe: a spec with '**S**pecification' in prose and triage '→ **L**' derives weight 2.0 (S) instead of 4.0 (L); a '**M**odern' drop-cap with triage '→ **XS**' derives 3.0 (M) instead of 1.0. The repo is currently clean only by luck — every existing spec's first bold token happens to be its triage size (FWD-001/002/003/005/006 → S, FWD-008 → M) — so this is a latent silent mis-derivation one stray bold away."
+evidence = "runtime/graph.py:39 (SIZE_RE = r'\\*\\*(XS|S|M|L)\\*\\*'); :263-265 (SIZE_RE.search over the whole spec.md, first match wins). Impact is bounded: the demand node's size 'weight' attribute is set but not consumed by weighted_in_degree() or recurring_principles() (both use edge weights; demand→spec/review edges are the default 1.0), so a wrong size mis-labels the JSON node without mis-ranking --central. Still a spec-declared derivation (R1, spec.md:39-40) the code gets wrong on plausible input."
+blocking = false
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "low"
+probe = "pathological input to a mining surface: probe nodes are keyed by str(probe)[:48] and add_node dedups by id, so two DISTINCT findings whose probe text differs only after 48 characters collapse into one node. Probe: findings on FWD-060 ('boundary case at the domain edge that the code path A rejects') and FWD-061 ('...code path B accepts') → a single probe node; --central reports its weighted in-degree as 6.0 (3+3 merged) and the node's 'full' attribute is overwritten to the last finding's text. --central (R2) thus conflates distinct probes and silently loses one's text. This is not academic on this repo: reviewers reuse verbatim catalog probe phrasings, so --central already shows merged probe nodes (e.g. weight 10.0 on 'case the spec does not cover and the code silent...')."
+evidence = "runtime/graph.py:317-319 (g.add_node('probe', str(f['probe'])[:48], full=str(f['probe'])) then add_edge with severity weight); Graph.add_node runtime/graph.py:68-72 dedups by _node(kind, ident) and update()-overwrites attrs. recurring_principles() (:121-129) deliberately excludes probes, but weighted_in_degree() (:114-119) does not, so the mining surface that ranks probes is the one that collides them."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# maintainability — weight 22, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting"
+evidence = "How to write an ADR's supersedes edge is specified two contradictory ways in the same paragraph. agents/fde-architecture.md (the FWD-008 diff) tells the architect to declare it 'in a supersedes: front-matter field' AND, one sentence later, to 'Follow the repo's existing ADR convention (location, numbering, format) before imposing a template.' The existing convention (docs/adr/*.md) is title-first with plain date:/status: lines and NO '---' block; the parser (runtime/graph.py:192) only reads '---'-delimited front matter. An architect following 'the existing convention' writes a plain 'supersedes: 0009' line the parser silently ignores (see the high-severity functional finding). skills/fde-graph/SKILL.md:32-34 repeats the ambiguous 'front-matter' framing. No ADR template exists to disambiguate (templates/ has AGENTS.md.template, fde.config, pre-commit, findings.template — no ADR). The format has two sources of truth that disagree; the documented one steers authors into the broken path."
+blocking = false
+
+[[finding]]
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-10 comments say why, never what; commented-out code is deleted (git remembers); a TODO has an owner and a date, or it dies"
+evidence = "runtime/graph.py:223-228 computes scrum_on inside build_graph — including a second full parse of fde.config.toml (tomllib.loads(_read(cfg)) at :226) — and the variable is never read again (grep: assigned :223/:226/:228; the only real use is the independent _scrum_on() at :343/:364). The comment 'recomputed below from config' (:223) implies the value governs what follows, but the product-goal/sprint/selects construction at :229-246 is unconditional, not scrum-gated. A maintainer reading this reasonably concludes sprint edges are built only when scrum is on — they are not. Dead assignment + misleading comment + a redundant config parse; the same duplication appears as dir_index (build-local, :250-253) vs _dir_index (module, :358-361), two identical helpers."
+blocking = false
