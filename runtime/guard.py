@@ -66,8 +66,11 @@ def _agent_identity(payload: dict) -> str:
         return ""
     meta_root = Path(os.environ.get("FDE_AGENT_META_DIR")
                      or Path.home() / ".claude" / "projects")
+    # scoped to THIS project's slug — a global scan could misattribute a
+    # same-id agent from another project (review finding, FWD-005)
+    slug = str(_project()).replace("/", "-")
     try:
-        for meta in meta_root.glob(f"*/*/subagents/{m.group(1)}.meta.json"):
+        for meta in meta_root.glob(f"{slug}/*/subagents/{m.group(1)}.meta.json"):
             return json.loads(meta.read_text(encoding="utf-8")).get("agentType") or ""
     except Exception:
         pass
@@ -132,6 +135,13 @@ def main() -> int:
     else:
         rel = p.as_posix()
 
+    # a worktree is a full checkout: a write inside .claude/worktrees/
+    # agent-<id>/<path> is judged as <path>, else every isolated role is
+    # false-blocked from its own handoff artifact (review finding, FWD-005)
+    wt = re.match(r"\.claude/worktrees/agent-[0-9a-f]+/(.+)", rel)
+    if wt:
+        rel = wt.group(1)
+
     def block(msg: str, rule: str) -> int:
         _audit(project, rel, agent, "block", rule)
         print(msg, file=sys.stderr)
@@ -168,8 +178,9 @@ def main() -> int:
                 "Write the failure mode and the evaluator first - the pre-commit will\n"
                 "charge for this anyway, and redoing it later costs more.",
                 "I1-no-suite")
-    if agent:
-        # identified-role allows are signal; anonymous allows are noise
+    if agent.startswith("fde-"):
+        # kernel-role allows are signal; anonymous or generic-agent allows
+        # are noise (review finding, FWD-006)
         _audit(project, rel, agent, "allow", "in-scope")
     return 0
 

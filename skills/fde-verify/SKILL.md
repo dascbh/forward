@@ -35,7 +35,7 @@ behavior the framework exists to prevent.
 - A flaky test gets fixed or understood, never re-run until green.
 - Fix the lint, don't disable the rule; fix the test, don't skip it.
 
-## Known bluntness, kept on purpose (FWD-004)
+## Known bluntness, kept on purpose (FWD-004, decided 2026-08-09)
 
 I1 matches files, not diff content: a comment-only or prose-only edit
 inside a behavior root trips the gate. Deliberate. In this kernel,

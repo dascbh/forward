@@ -90,7 +90,9 @@ class TestGuardIdentityFromMetadata(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.p = make_project(self._tmp.name)
         self.meta_root = Path(self._tmp.name) / "meta"
-        d = self.meta_root / "proj" / "sess" / "subagents"
+        # metadata lookup is scoped to this project's slug (FWD-005 fix)
+        slug = str(Path(self._tmp.name).resolve()).replace("/", "-")
+        d = self.meta_root / slug / "sess" / "subagents"
         d.mkdir(parents=True)
         (d / "agent-abc123.meta.json").write_text(
             '{"agentType": "fde-adversarial"}')
@@ -119,7 +121,8 @@ class TestGuardIdentityFromMetadata(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_corrupt_metadata_never_crashes_or_blocks(self):
-        d = self.meta_root / "proj" / "sess" / "subagents"
+        slug = str(Path(self._tmp.name).resolve()).replace("/", "-")
+        d = self.meta_root / slug / "sess" / "subagents"
         (d / "agent-badbad.meta.json").write_text("{not json")
         (self.p / "tests").mkdir(exist_ok=True)
         (self.p / "tests" / "t.py").write_text("assert True\n")
@@ -127,6 +130,17 @@ class TestGuardIdentityFromMetadata(unittest.TestCase):
                   env=self.env)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("Traceback", r.stderr)
+
+    def test_worktree_writes_are_judged_by_their_repo_relative_path(self):
+        """The reviewer's own false-block, fixed: a role writing its
+        handoff artifact INSIDE its worktree is in scope."""
+        wt_rel = ".claude/worktrees/agent-abc123"
+        r = guard(self.p,
+                  self.payload(f"{wt_rel}/reviews/D-1/findings.toml"),
+                  env=self.env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        r = guard(self.p, self.payload(f"{wt_rel}/src/x.py"), env=self.env)
+        self.assertEqual(r.returncode, 2)  # still scoped, correctly
 
 
 class TestGuardAudit(unittest.TestCase):
@@ -163,6 +177,12 @@ class TestGuardAudit(unittest.TestCase):
         n = len(self.entries())
         guard(self.p, self.payload("docs/notes.md"))  # anonymous, in scope
         self.assertEqual(len(self.entries()), n)  # not logged
+
+    def test_generic_agent_allows_are_not_logged(self):
+        guard(self.p, self.payload("reviews/D/f.toml", "fde-adversarial"))
+        n = len(self.entries())
+        guard(self.p, self.payload("docs/notes.md", "general-purpose"))
+        self.assertEqual(len(self.entries()), n)  # non-fde roles are noise
 
     def test_audit_failure_never_changes_the_decision(self):
         self.log.mkdir(parents=True)  # a directory where the log should be
