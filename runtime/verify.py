@@ -20,15 +20,29 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from fde_lib import Config, Spec, escalated_security_floor, project_root, validate  # noqa: E402
+from fde_lib import (  # noqa: E402
+    DEFAULT_BEHAVIOR_PATHS,
+    DEFAULT_EVAL_PATHS,
+    Config,
+    Spec,
+    escalated_security_floor,
+    gate_paths,
+    project_root,
+    validate,
+)
 
-BEHAVIOR_PATHS = ("src/", "lib/", "app/", "services/", "prompts/", "agents/")
-EVAL_PATHS = ("evals/", "tests/")
+# vendor trees never count as an observability signal (I5) — a match inside
+# node_modules or a virtualenv is someone else's instrumentation
+VENDOR_PATHS = ("node_modules/", ".venv/", "venv/", "vendor/", "dist/", "build/", "__pycache__/")
 
 
 class Gate:
-    def __init__(self, project: Path):
+    def __init__(self, project: Path,
+                 behavior_paths: tuple[str, ...] = DEFAULT_BEHAVIOR_PATHS,
+                 eval_paths: tuple[str, ...] = DEFAULT_EVAL_PATHS):
         self.project = project
+        self.behavior_paths = behavior_paths
+        self.eval_paths = eval_paths
         self.results: list[tuple[str, bool, str]] = []
 
     def add(self, gid: str, passed: bool, msg: str) -> None:
@@ -52,8 +66,10 @@ class Gate:
     # -- I1: eval precedes merge ------------------------------------------
     def gate_eval_coverage(self, staged: bool) -> None:
         files = self.changed(staged)
-        touched_behavior = [f for f in files if f.startswith(BEHAVIOR_PATHS)]
-        touched_eval = [f for f in files if f.startswith(EVAL_PATHS)]
+        touched_behavior = [f for f in files if f.startswith(self.behavior_paths)]
+        # .gitkeep is structure, not a measure
+        touched_eval = [f for f in files
+                        if f.startswith(self.eval_paths) and not f.endswith(".gitkeep")]
         if not touched_behavior:
             self.add("I1", True, "no behavior change in this changeset")
             return
@@ -64,7 +80,7 @@ class Gate:
             return
         self.add("I1", False,
                  f"{len(touched_behavior)} behavior file(s) with no corresponding "
-                 f"entry in evals/ or tests/: {', '.join(touched_behavior[:3])}"
+                 f"entry in {' or '.join(self.eval_paths)}: {', '.join(touched_behavior[:3])}"
                  + (" ..." if len(touched_behavior) > 3 else ""))
 
     # -- I2/I3: adversarial review isolated, unable to fix ----------------
@@ -108,10 +124,18 @@ class Gate:
     # -- I5: observability floor ------------------------------------------
     def gate_observability(self, cfg: Config, spec: Spec) -> None:
         declared = [k for k, v in cfg.raw.get("weights", {}).items() if int(v) > 0]
-        obs = self.project / "observability.toml"
-        alt = list(self.project.rglob("*telemetry*")) + list(self.project.rglob("*tracing*"))
-        if obs.exists() or alt:
-            self.add("I5", True, "observability signal present")
+        if (self.project / "observability.toml").exists():
+            self.add("I5", True, "observability signal present (observability.toml)")
+            return
+        # only the project's own files count: tracked or untracked-but-not-
+        # ignored, and never inside a vendor tree
+        files = self._git("ls-files", "-co", "--exclude-standard")
+        hits = [f for f in files
+                if ("telemetry" in f.lower() or "tracing" in f.lower())
+                and not f.startswith(VENDOR_PATHS)
+                and not any(f"/{v}" in f for v in VENDOR_PATHS)]
+        if hits:
+            self.add("I5", True, f"observability signal present ({hits[0]})")
         else:
             self.add("I5", False,
                      f"{len(declared)} declared attribute(s) with no corresponding signal — "
@@ -187,7 +211,8 @@ def main() -> int:
         print(f"\033[31m✗\033[0m {e}", file=sys.stderr)
         return 1
 
-    g = Gate(project)
+    behavior_paths, eval_paths = gate_paths(cfg.raw)
+    g = Gate(project, behavior_paths, eval_paths)
     only = args.gate
 
     def want(name: str) -> bool:

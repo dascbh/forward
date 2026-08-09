@@ -43,6 +43,18 @@ fact you record must come from a file, not from a guess.
 | has_iac | `Dockerfile`, `docker-compose.yml`, `terraform`/`main.tf`, `k8s/`, `helm/`, `serverless.yml`, `cdk.json`, `Pulumi.yaml` |
 | embeds_model | AI libraries in manifests: `anthropic`, `openai`, `langchain`, `langgraph`, `llama_index`, `litellm`, `crewai`, `autogen`, `pydantic_ai`, `@anthropic-ai/sdk` |
 
+Also locate, by reading the tree, two sets of prefixes the gate will use:
+
+- **code roots** — where a change alters observable behavior. Single-root
+  layouts: `src/`, `lib/`, `app/`. Monorepos: one per package, e.g.
+  `backend/app/`, `frontend/src/`. Include prompt/agent directories if the
+  system's behavior lives there.
+- **eval/test roots** — where the measure lives: `evals/`, `tests/`,
+  `backend/tests/`, etc. `evals/` (created in step 5) is always one of them.
+
+The gate is only as good as these prefixes — I1 does not cover code outside
+them.
+
 Show the user everything you detected **in a single block** and ask for one
 confirmation. Never one question per item.
 
@@ -99,6 +111,11 @@ floor — show the default allocation, and let them move points:
 | performance_scale | 9 | 3 |
 | usability_accessibility | 8 | 3 |
 | operational_cost | 7 | 3 |
+
+Fill `[gate]` with the code roots and eval/test roots located in step 1.
+The defaults cover single-root layouts; a monorepo MUST list its real roots
+or I1 will not fire on the real code. Retarget, never empty — the gate
+rejects empty lists.
 
 Validation you must enforce before writing: the eight weights **sum to
 exactly 100**; no weight below its floor; security_privacy not below its

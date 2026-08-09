@@ -20,6 +20,24 @@ KERNEL_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_NAME = "fde.config.toml"
 GENERATED_HEADER = "FDE-KERNEL:GENERATED"
 
+# I1 targeting. Defaults fit a single-root layout; monorepos declare their
+# real roots in [gate] — retargeting is allowed, emptying is not (validate()).
+DEFAULT_BEHAVIOR_PATHS = ("src/", "lib/", "app/", "services/", "prompts/", "agents/")
+DEFAULT_EVAL_PATHS = ("evals/", "tests/")
+
+
+def _norm_prefixes(items) -> tuple[str, ...]:
+    return tuple(p if p.endswith("/") else p + "/" for p in items)
+
+
+def gate_paths(raw: dict) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """behavior_paths and eval_paths from [gate], with defaults. An empty
+    list falls back to the defaults — silence is not a bypass."""
+    gate = raw.get("gate", {}) or {}
+    bp = gate.get("behavior_paths") or DEFAULT_BEHAVIOR_PATHS
+    ep = gate.get("eval_paths") or DEFAULT_EVAL_PATHS
+    return _norm_prefixes(bp), _norm_prefixes(ep)
+
 
 # ---------------------------------------------------------------------------
 # spec loading
@@ -178,6 +196,19 @@ def validate(cfg: Config, spec: Spec) -> list[Violation]:
                 f"having no test strategy at all, which contradicts I1.",
             )
         )
+
+    # 6. [gate] retargets I1 to the repo's real layout; it cannot empty it
+    gate = cfg.raw.get("gate", {}) or {}
+    for key in ("behavior_paths", "eval_paths"):
+        if key in gate and not gate[key]:
+            v.append(
+                Violation(
+                    "GATE-EMPTY",
+                    f"[gate] {key} is empty. The gate can be retargeted to the repo's "
+                    f"real roots, never emptied — an empty list would turn I1 off, and "
+                    f"invariants have no key.",
+                )
+            )
 
     return v
 

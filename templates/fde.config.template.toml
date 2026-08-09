@@ -7,7 +7,7 @@
 
 [project]
 name = "{{PROJECT_NAME}}"
-kernel_version = "0.1.0"
+kernel_version = "0.1.1"
 
 [triage]
 data_class = "{{DATA_CLASS}}"           # public | internal | personal | financial | health
@@ -20,6 +20,14 @@ languages = {{LANGUAGES}}
 test_runners = {{TEST_RUNNERS}}
 test_command = "{{TEST_COMMAND}}"
 eval_command = "python3 bin/fde/verify.py --gate eval"
+
+[gate]
+# Where a change alters observable behavior, and where its measure lives.
+# Repo-root-relative prefixes. Monorepos MUST list each real root
+# (e.g. ["backend/app/", "frontend/src/"]) or I1 will not cover the real
+# code. Retarget, never empty — empty lists are rejected.
+behavior_paths = {{BEHAVIOR_PATHS}}
+eval_paths = {{EVAL_PATHS}}
 
 # ---------------------------------------------------------------------------
 # VECTOR A - quality attributes. CLOSED budget: sum = 100.
