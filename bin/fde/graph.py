@@ -188,15 +188,23 @@ def _read(p: Path) -> str:
         return ""
 
 
-def _front_matter(text: str) -> dict:
-    if not text.startswith("---\n"):
-        return {}
-    end = text.find("\n---", 4)
+def _header_fields(text: str) -> dict:
+    """Header `key: value` lines, from the top of the file down to the
+    first `## ` section. Works for BOTH conventions: `---`-fenced
+    front-matter (backlog, sprint goal, acceptance) AND title-first ADRs
+    (`# ADR-N — …` then plain `date:`/`status:`/`supersedes:` lines).
+    Prose below the header never matches — the scan stops at the first
+    section heading."""
     fm = {}
-    for line in text[4:end if end != -1 else len(text)].splitlines():
-        if ":" in line:
-            k, v = line.split(":", 1)
-            fm[k.strip().lower()] = v.strip()
+    for line in text.splitlines():
+        if line.startswith("## "):
+            break
+        s = line.strip()
+        if s in ("---", "") or s.startswith("# "):
+            continue
+        m = re.match(r"([A-Za-z_][\w-]*)\s*:\s*(.*)$", s)
+        if m:
+            fm[m.group(1).lower()] = m.group(2).strip()
     return fm
 
 
@@ -220,16 +228,10 @@ def build_graph(project: Path) -> Graph:
         g.add_node("attribute", attr, weight=float(w))
 
     # product goal + sprints
-    scrum_on = bool(weights) and False  # recomputed below from config
-    if cfg.exists():
-        try:
-            scrum_on = bool((tomllib.loads(_read(cfg)).get("scrum") or {}).get("enabled") is True)
-        except tomllib.TOMLDecodeError:
-            scrum_on = False
     backlog = project / "backlog.md"
     goal_node = None
     if backlog.exists():
-        fm = _front_matter(_read(backlog))
+        fm = _header_fields(_read(backlog))
         if fm.get("goal"):
             goal_node = g.add_node("product-goal", "root", label=fm["goal"])
     sprints_dir = project / "sprints"
@@ -239,11 +241,15 @@ def build_graph(project: Path) -> Graph:
                 continue
             gm = sd / "goal.md"
             snode = g.add_node("sprint", sd.name,
-                               label=_front_matter(_read(gm)).get("goal"))
+                               label=_header_fields(_read(gm)).get("goal"))
             if goal_node:
                 g.add_edge(goal_node, "parents", snode)
-            for did in dict.fromkeys(DEMAND_RE.findall(_read(gm))):
-                g.add_edge(snode, "selects", g.add_node("demand", did))
+            # ids come from the demand TABLE rows only (lines starting `|`),
+            # not from prose — a demand mentioned in "Closes when…" is not
+            # selected, and a negated mention never counts as planned
+            for row in (l for l in _read(gm).splitlines() if l.lstrip().startswith("|")):
+                for did in dict.fromkeys(DEMAND_RE.findall(row)):
+                    g.add_edge(snode, "selects", g.add_node("demand", did))
 
     # demands: canonical id -> actual directory, per artifact kind (dir
     # names may be slugged: specs/FWD-001-self-install vs reviews/FWD-001)
@@ -260,9 +266,14 @@ def build_graph(project: Path) -> Graph:
         dnode = g.add_node("demand", did)
         sdir = specs.get(did)
         if sdir and (sdir / "spec.md").exists():
-            m = SIZE_RE.search(_read(sdir / "spec.md"))
-            if m:
-                g.nodes[dnode]["weight"] = float(SIZE_WEIGHT[m.group(1).lower()])
+            # size from the Triage line specifically, not the first bold
+            # token anywhere in the spec
+            for line in _read(sdir / "spec.md").splitlines():
+                if "triage" in line.lower():
+                    m = SIZE_RE.search(line)
+                    if m:
+                        g.nodes[dnode]["weight"] = float(SIZE_WEIGHT[m.group(1).lower()])
+                    break
             g.add_edge(dnode, "specified_by", g.add_node("spec", did))
         if sdir and (sdir / "acceptance.md").exists():
             g.add_edge(dnode, "accepted_by", g.add_node("acceptance", did))
@@ -284,7 +295,7 @@ def build_graph(project: Path) -> Graph:
         for a in sorted(adr_dir.glob("*.md")):
             m = re.match(r"(\d+)", a.name)
             aid = m.group(1) if m else a.stem
-            sup = _front_matter(_read(a)).get("supersedes", "")
+            sup = _header_fields(_read(a)).get("supersedes", "")
             for tgt in re.findall(r"\d+", sup):
                 # dangling target still gets a node so the gate can catch it
                 dst = known.get(tgt) or g.add_node("adr", tgt, missing=True)
@@ -315,8 +326,10 @@ def _build_review(g: Graph, dnode: str, did: str, findings: Path) -> None:
             pid = canon_principle(str(f["principle"]))
             g.add_edge(fnode, "cites", g.add_node("principle", pid), w)
         elif f.get("probe"):
-            g.add_edge(fnode, "cites",
-                       g.add_node("probe", str(f["probe"])[:48], full=str(f["probe"])), w)
+            # keyed by full text so distinct probes never merge; truncate
+            # only for display (--central)
+            full = str(f["probe"])
+            g.add_edge(fnode, "cites", g.add_node("probe", full), w)
 
 
 # ---------------------------------------------------------------------------
@@ -421,7 +434,8 @@ def main() -> int:
     if args.central:
         print("\nweighted in-degree (most depended-on):\n")
         for nid, w in g.weighted_in_degree()[:15]:
-            print(f"  {w:6.1f}  {nid}")
+            label = nid if len(nid) <= 60 else nid[:57] + "..."
+            print(f"  {w:6.1f}  {label}")
         return 0
     if args.recurring:
         print("\nrecurring citations (severity-weighted):\n")

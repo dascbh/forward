@@ -30,9 +30,11 @@ the kernel already holds: attribute nodes = vector-A weight, finding edges
 = severity (critical 4 … low 1), demand nodes = triage size (XS 1 … L 4).
 
 Every edge is derived from existing structure except one authored field:
-an ADR's `supersedes:` front-matter (a space/comma list of ADR numbers).
-A demand may also declare `references:` ADRs. Nothing else is authored —
-the graph cannot drift from the artifacts because it IS the artifacts.
+an ADR's `supersedes:` header line (a space/comma list of ADR numbers,
+in the header region above the first `##` section — the same place the
+title-first ADRs already carry `date:` and `status:`). Nothing else is
+authored — the graph cannot drift from the artifacts because it IS the
+artifacts.
 
 ## Mining
 

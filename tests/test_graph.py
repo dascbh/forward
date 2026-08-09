@@ -156,6 +156,41 @@ class TestForbiddenOrphans(unittest.TestCase):
         self.assertEqual(self.gate().returncode, 1)
         self.assertIn("missing ADR", self.gate().stdout)
 
+    def test_supersedes_parses_from_title_first_adrs(self):
+        # the repo's ACTUAL convention: title first, plain header lines,
+        # no --- fence. The fenced-only test above missed this (the
+        # blocking FWD-008 review finding). A body 'date:'/'supersedes:'
+        # below the first ## section must NOT be read.
+        adr = Path(self.p) / "docs" / "adr"
+        adr.mkdir(parents=True)
+        (adr / "0001-a.md").write_text(
+            "# ADR-0001 — Title\n\ndate: 2026-08-09\nstatus: accepted\n"
+            "supersedes: 0099\n\n## Context\nsupersedes: 0002 in prose\n")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("0099", r.stdout)      # header supersedes parsed
+        self.assertNotIn("0002", r.stdout)   # prose below ## ignored
+
+    def test_size_comes_from_the_triage_line_not_stray_bold(self):
+        d = Path(self.p) / "specs" / "FWD-040"
+        d.mkdir(parents=True)
+        (d / "spec.md").write_text(
+            "# FWD-040\nSome prose with **L** bolded early.\n"
+            "Triage: → **S**\n")
+        g = graph.build_graph(Path(self.p))
+        self.assertEqual(g.nodes[graph._node("demand", "FWD-040")]["weight"], 2.0)
+
+    def test_distinct_probes_do_not_merge_on_truncation(self):
+        pre = "regression in previously accepted behavior across the system X "
+        demand(self.p, "FWD-041")
+        review(self.p, "FWD-041", [
+            ("functional_correctness", "high", pre + "alpha differs"),
+            ("functional_correctness", "high", pre + "beta differs"),
+        ])
+        g = graph.build_graph(Path(self.p))
+        probes = [n for n in g.nodes.values() if n["kind"] == "probe"]
+        self.assertEqual(len(probes), 2)  # not merged by a 48-char prefix
+
     def test_supersedes_cycle_is_forbidden(self):
         adr = Path(self.p) / "docs" / "adr"
         adr.mkdir(parents=True)
