@@ -80,6 +80,9 @@ writing code on request; start by sizing. Pick a short demand id first
    declared before any code exists (I4).
 3. **Architecture** (L only): `docs/adr/`, `specs/<demand-id>/architecture.md`.
 4. **Implementation**: code and its eval entries in the same change (I1).
+   If the touched root has no suite at all, the demand includes
+   bootstrapping the minimal one (runner + first smoke eval). Never
+   `--no-verify` — it only moves the same red to CI, later and public.
 5. **Adversarial review**: isolated, weight-ordered, findings recorded in
    `reviews/<demand-id>/findings.toml`. Findings are fixed by
    implementation, never by the reviewer (I3).

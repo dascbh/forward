@@ -172,7 +172,12 @@ the user names.
    `@AGENTS.md` line if missing and append the note — never overwrite user
    content.
 4. `.claude/settings.json`: **merge** (never overwrite) a `PreToolUse` hook
-   with matcher `Write|Edit` running `python3 bin/fde/guard.py`.
+   with matcher `Write|Edit` running
+   `python3 "$CLAUDE_PROJECT_DIR/bin/fde/guard.py"`. Always the
+   `$CLAUDE_PROJECT_DIR` form, never a cwd-relative path — hooks run from
+   whatever directory the session happens to be in, and a relative path
+   breaks (and fails the tool call) the moment the user works from a
+   subdirectory.
 5. Copy the kernel's `skills/` — every skill except `fde-init` — to
    `.claude/skills/` (one directory per skill), so triage, review, verify,
    doctor, and sync are invocable in the project without the kernel

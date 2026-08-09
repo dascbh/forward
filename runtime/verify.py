@@ -78,10 +78,21 @@ class Gate:
                      f"{len(touched_behavior)} behavior file(s) with "
                      f"{len(touched_eval)} eval file(s)")
             return
-        self.add("I1", False,
-                 f"{len(touched_behavior)} behavior file(s) with no corresponding "
-                 f"entry in {' or '.join(self.eval_paths)}: {', '.join(touched_behavior[:3])}"
-                 + (" ..." if len(touched_behavior) > 3 else ""))
+        msg = (f"{len(touched_behavior)} behavior file(s) with no corresponding "
+               f"entry in {' or '.join(self.eval_paths)}: {', '.join(touched_behavior[:3])}"
+               + (" ..." if len(touched_behavior) > 3 else ""))
+        if not self._suite_exists():
+            msg += (" — no suite exists yet for these roots; the first demand touching "
+                    "them pays the bootstrap (runner + first eval). --no-verify only "
+                    "defers this same red to CI.")
+        self.add("I1", False, msg)
+
+    def _suite_exists(self) -> bool:
+        for e in self.eval_paths:
+            d = self.project / e
+            if d.exists() and any(f.is_file() and f.name != ".gitkeep" for f in d.rglob("*")):
+                return True
+        return False
 
     # -- I2/I3: adversarial review isolated, unable to fix ----------------
     def gate_adversarial(self) -> None:

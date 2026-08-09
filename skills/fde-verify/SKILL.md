@@ -21,6 +21,17 @@ Say which invariant, why it exists, and what the fix is. Do not suggest
 working around it — there is no bypass key, and looking for one is the
 behavior the framework exists to prevent.
 
+## The bypass that is not one
+
+Never recommend `git commit --no-verify` — not even as one option among
+others. A bypassed commit does not escape: CI runs this same verifier on
+push and fails there, publicly, later. When I1 blocks a change in a root
+that has **no suite at all** (common in brownfield adoption), the demand
+grew: it now includes bootstrapping the minimal suite for that root — one
+runner, one smoke eval covering the change. That is the one-time cost of
+an uncovered root surfacing, not this demand's fault — and it is paid
+now, not deferred.
+
 | gate | what was missing | fix |
 |---|---|---|
 | I1 | behavior change without an eval entry | write the failure mode and the evaluator |
