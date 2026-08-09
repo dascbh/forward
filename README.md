@@ -180,7 +180,10 @@ Day-to-day, each step is a skill in `skills/` (Agent Skills format, portable
 across tools):
 
 - `fde-triage` — sizes the demand: which roles enter, how many rounds
-- `fde-review` — adversarial review, isolated, attack order from the weights
+- `fde-design` — the design discipline for UI demands: foundation, flow,
+  IA, wireframe, design QA, user validation — proportional to size
+- `fde-review` — two-pass review, isolated: adversarial probes, then
+  heuristic judgment citing the principle catalogs
 - `fde-verify` — the gate: `python3 bin/fde/verify.py --all` (same as CI)
 - `fde-doctor` — what is actually enforced vs. merely suggested
 - `fde-sync` — regenerate after config, stack, or tool changes

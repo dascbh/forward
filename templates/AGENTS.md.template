@@ -80,6 +80,12 @@ writing code on request; start by sizing. Pick a short demand id first
    `failure-modes.toml`, and `acceptance.md` with a `date:` line —
    declared before any code exists (I4).
 3. **Architecture** (L only): `docs/adr/`, `specs/<demand-id>/architecture.md`.
+   *UI surface touched?* The design chain (`fde-design` skill) applies,
+   proportional to size: M adds flow + wireframe before implementation;
+   L adds PRD-grade spec, IA, and user validation. The approved wireframe
+   is the build contract; design-QA baselines live in the eval suite (I1).
+   No `design/foundation.md` yet → the first UI demand pays that
+   bootstrap.
 4. **Implementation**: code and its eval entries in the same change (I1).
    If the touched root has no suite at all, the demand includes
    bootstrapping the minimal one (runner + first smoke eval). Never

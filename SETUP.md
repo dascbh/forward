@@ -68,6 +68,11 @@ Ask in **one message**, and only what files cannot tell you:
    `reversible` | `difficult` | `irreversible`
 3. **has_agent_loop** — only if `embeds_model` is true: does the system run
    an autonomous agent loop (tool use, multi-step)? `true` | `false`
+4. **user-facing products only** (`has_frontend`): the personas (role +
+   what each demands of the UI, one line each), the one-sentence quality
+   bar screens are judged against, and the register (`operational` |
+   `editorial` | `consumer`). These seed `design/product.md` — see the
+   `fde-design` skill.
 
 Set `user_facing` = `has_frontend`. Do not ask about weights yet — that is
 step 4, after the user understands what weights do.
@@ -123,8 +128,9 @@ escalated floor for the chosen data_class. The gate re-checks all of this.
 
 ## 5. Create the handoff structure (I7)
 
-Create `specs/`, `docs/adr/`, `evals/`, `reviews/`, `promotions/`, each with
-a `.gitkeep`.
+Create `specs/`, `docs/adr/`, `evals/`, `reviews/`, `promotions/` — plus
+`design/` when the project has a frontend (write `design/product.md` from
+the step-2 answers) — each directory with a `.gitkeep`.
 
 ## 6. Install the gate runtime (I6)
 
@@ -216,6 +222,9 @@ completes its cycle.
 
 Then report to the user:
 - what was installed and where;
+- if the project has a frontend and `design/foundation.md` does not
+  exist: standing debt — the first UI demand pays the foundation
+  bootstrap (`fde-design`);
 - the enforcement tier of their tool and what that means, honestly:
   `loop` = blocked before the write (claude-code); `commit` = blocked at
   commit (cursor, codex); `advisory` = roles are convention, the wall is

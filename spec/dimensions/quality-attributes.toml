@@ -35,8 +35,15 @@ id = "functional_correctness"
 label = "Functional correctness"
 question = "Does the system do what the specification says it does?"
 floor = 20
-verified_by = ["empirical", "adversarial"]
+verified_by = ["empirical", "adversarial", "heuristic"]
 evidence = ["green eval suite", "coverage of declared failure modes"]
+heuristic_principles = [
+  "DOM-1 cardinality decides attribute level: if parent-to-child is 1:N and children can diverge on X, X belongs to the child — a clean screen does not fix a wrong model",
+  "DOM-2 every message, CTA, and instruction addresses the persona logged into THIS flow — another role's jargon or duty is context leakage",
+  "DOM-3 the UI expresses exactly the domain space: a domain-valid case the UI cannot express, or a UI-allowed case the spec forbids, is a defect",
+  "DOM-4 every cited navigation path exists label-by-label in the real navigation",
+  "DOM-5 no orphans, both ways: requirement without screen, screen without requirement, criterion without verification, state without representation",
+]
 adversarial_probes = [
   "valid input at domain boundaries",
   "case the spec does not cover and the code silently accepts",
@@ -113,6 +120,7 @@ heuristic_principles = [
   "MNT-2 smallest surface: modules expose the minimum; coupling follows dependency direction",
   "MNT-3 names match the domain: a reader maps code to concept without a glossary",
   "MNT-4 decisions are written where the next reader will look (ADR, not memory)",
+  "MNT-5 UI is built from the foundation's tokens and kit: a raw value or an off-kit duplicate is drift",
 ]
 adversarial_probes = [
   "plausible requirement change that forces a rewrite",
@@ -147,9 +155,12 @@ heuristic_principles = [
   "USE-1 status visible: the user always knows what is happening and what state they are in",
   "USE-2 real-world match: labels and flows follow the user's domain language, not the system's",
   "USE-3 consistency: the same concept has the same name and behavior everywhere",
-  "USE-4 error prevention and recovery: destructive paths confirm; every error names a way out",
+  "USE-4 error prevention and recovery: destructive paths confirm; every error names a way out; typed input is never lost",
   "USE-5 recognition over recall: options are visible; nothing depends on remembering hidden state",
   "USE-6 accessible by default: keyboard, contrast, and screen reader work on the main flow",
+  "USE-7 one fact, one source: a state is stated once, authoritatively; a surface that only rephrases it merges or leaves",
+  "USE-8 register discipline: density and finish match the product's register; one highlight per screen; no decoration that outranks the work",
+  "USE-9 microcopy carries the action: buttons name verb + object; errors say what happened and what to do next; labels stay visible (a placeholder is not a label)",
 ]
 adversarial_probes = [
   "error path with no clear way out",
