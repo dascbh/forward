@@ -1,0 +1,136 @@
+# Adversarial review — FWD-001 self-install, commit c4c53d3.
+# Reviewer received artifact + spec only (I2). Findings only; no fixes (I3).
+
+[meta]
+demand_id = "FWD-001"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 1
+rounds_run = 1
+commit = "c4c53d3"
+probed = """
+Ran: unittest suite (39 green), verify --all at c4c53d3 (I2 red as expected
+mid-demand), diff of runtime/ vs bin/fde/ and spec/ vs .fde/spec/ (identical),
+diff of agents/ vs .claude/agents/ (concretized attack order, as SETUP.md
+prescribes). 13 scripted probes on fixture projects built with tests/support.py:
+I1 staged/CI/shallow-clone modes, file-entry behavior paths, spec/-vs-specs/
+prefix collision (HELD — trailing-slash normalization prevents it), I3
+subject-grep both directions, I2/I4 monotonicity, guard blocklist vs roles.toml
+allowlist (adversarial->promotions|bin/fde|.fde|docs, implementation->
+acceptance.md), tampered bin/fde/verify.py staged, --gate with unknown name.
+One live probe: this adversarial session wrote src/ via the Write tool in its
+worktree — the PreToolUse guard did not block (file removed after probe).
+Heuristic pass against MNT/DOM/OBS/USE catalogs on fde.config.toml,
+observability.toml, AGENTS.md, SETUP.md, roles.toml, tests/.
+"""
+
+# ---------------------------------------------------------------------------
+# functional_correctness — weight 30, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "critical"
+probe = "regression in previously accepted behavior: CI-mode I1 cannot fail. (1) fde-gate.yml uses actions/checkout@v4 with default fetch-depth=1, so HEAD~1 does not resolve; changed() falls back to ls-files and marks the whole tree changed, making I1 green whenever any eval file exists anywhere in the repo. (2) Even with full history, non-staged mode diffs only HEAD~1..HEAD, so any multi-commit push hides uncovered behavior commits behind the last commit. Reproduced both: fixture push of [behavior-no-eval, docs-only] -> I1 'no behavior change'; depth-1 clone of the same repo -> I1 '1 behavior file(s) with 1 eval file(s)' green."
+evidence = "runtime/verify.py:64 (fallback chain); .github/workflows/fde-gate.yml:10 (checkout@v4, no fetch-depth). Consequence: R1's CI half and R3/FM-3 are structurally defeated, and AGENTS.md's claim that --no-verify 'only moves the same red to CI, later and public' is false — the red never reaches CI."
+blocking = true
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "high"
+probe = "case the spec does not cover and the code silently accepts: [gate] file entries never match. _norm_prefixes appends '/' to every entry, so behavior_paths 'SETUP.md' becomes 'SETUP.md/' and the changed-file 'SETUP.md' fails startswith. Reproduced: fixture with behavior_paths=['src/','SETUP.md'], staged a SETUP.md-only change with no eval -> verify --staged exit 0, I1 'no behavior change in this changeset'."
+evidence = "runtime/fde_lib.py:29-39; fde.config.toml:28 declares SETUP.md; same defect in bin/fde/guard.py:56-59. The acceptance criterion '[gate] covers ... SETUP.md' is unmet: the installer — 250 lines of executable instructions, named explicitly in R1 — is outside I1. No test stages a change to a file-entry behavior path."
+blocking = true
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "high"
+probe = "live write: this fde-adversarial session created src/__fde_guard_probe__.txt via the Write tool in its worktree and the PreToolUse guard did not block it (tests/ exists, so only the role branch could have fired; it did not). guard.py keys the role off payload 'agent_name'/'subagent' — fields not present in Claude Code's documented PreToolUse stdin payload — so in production the agent string is empty and no DENIED entry ever matches. The role-scope half of the guard is dead code; only the no-suite branch can ever block."
+evidence = "bin/fde/guard.py:69; .claude/agents/fde-adversarial.md:44-46 claims 'writes outside Outputs are blocked before they happen' — empirically false in the exact isolation mode (worktree subagent) the role prescribes. tests/test_guard.py:19-21 fabricates agent_name in every payload, so all four role-scope tests pass vacuously against a field the real caller does not send."
+blocking = true
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "high"
+probe = "regression in previously accepted behavior: the artifacts that actually enforce are outside their own change control. CI executes bin/fde/verify.py and Spec loads from .fde/spec/ (preferred over spec/ at runtime), but [gate].behavior_paths covers neither bin/ nor .fde/ nor .claude/** nor .github/workflows/ nor AGENTS.md; tests import from runtime/ and copy fixtures from runtime/+spec/ only; no test asserts source/copy identity. Reproduced: staged a tampered bin/fde/verify.py (report hard-coded to return 0) in a kernel-shaped fixture -> verify --staged exit 0, I1 'no behavior change'; the 39-test suite stays green because it never looks at bin/."
+evidence = "fde.config.toml:28; tests/support.py:52-60; runtime/verify.py:241-242 (.fde preference); .github/workflows/fde-gate.yml:16 runs the bin/ copy. FM-2 is the demand's own named failure mode, and the four freshly installed derived surfaces (bin/fde/, .fde/spec/, .claude/agents/, .claude/skills/) are exactly the drift class it claims to close — with zero drift detection."
+blocking = true
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "medium"
+probe = "case the spec does not cover and the code silently accepts: verify.py --gate with an unknown name runs zero gates and reports success. want() matches nothing, results stay empty, report() prints 'all gates passed.', exit 0. Reproduced: verify --gate evals (plausible plural typo of the documented 'eval') -> exit 0, no gate executed. A typo in a client's [stack].eval_command or CI step yields permanent vacuous green."
+evidence = "runtime/verify.py:251-274 (no validation of --gate against known names; empty results treated as pass). Also --all is parsed but never read (plain invocation already runs everything), so the flag documented in AGENTS.md and run by CI is decorative."
+blocking = true
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "medium"
+probe = "regression in previously accepted behavior: the I3 check greps the last 20 commit SUBJECTS for the substrings 'fde-adversarial' and 'src/'. False positive: an innocent commit message ('docs: clarify that fde-adversarial never writes src/') turns I3 red — reproduced, exit 1 'a commit from the adversarial role touched code — I3 violated'. False negative: an actual adversarial commit rewriting src/ under any normal message passes. The gate reports 'adversarial role has no writes to code' on evidence that examines neither authors nor files."
+evidence = "runtime/verify.py:116-120; fixture probe. No test covers gate_adversarial in either direction."
+blocking = true
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "medium"
+probe = "case the spec does not cover and the code silently accepts: I2 and I4 are repo-global and monotonic. One findings.toml with the right strings anywhere under reviews/, and one dated acceptance.md anywhere under specs/, satisfy the gates forever. Reproduced: fixture with reviewed demand D-1 and a second demand D-2 (spec committed, no review, no acceptance) -> adversarial-isolation exit 0, promotion-criteria exit 0. From the second demand on, the per-demand discipline in AGENTS.md steps 2 and 5 is enforced by nothing."
+evidence = "runtime/verify.py:99-101 (any findings.toml), runtime/verify.py:148-151 (any acceptance.md); fixture probe."
+blocking = true
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "medium"
+principle = "DOM-5 no orphans, both ways: requirement without screen, screen without requirement, criterion without verification, state without representation"
+evidence = "R2 (specs/FWD-001-self-install/spec.md:28-31) enumerates 'unparseable findings' as a MUST-fail; the branch exists (runtime/verify.py:128-132) but no test exercises it (grep 'unparseable' tests/ -> empty). Gates I2 (isolation declaration), I3, I6, I7 and the entire non-staged/CI code path of I1 have zero test coverage — tests/test_verify.py covers only I1 --staged, I8, I4, I5. The version-sync test (tests/test_spec_integrity.py:127-134) omits fde.config.toml's own kernel_version. The suite the acceptance calls 'covering the verify gates' misses the gates that failed under this review's probes."
+blocking = true
+
+# ---------------------------------------------------------------------------
+# security_privacy — weight 8
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "security_privacy"
+severity = "high"
+probe = "permission escalation through role confusion: guard.py's DENIED map is a hardcoded blocklist, not the roles.toml allowlist it claims to mirror. Reproduced with explicit agent_name payloads (the branch's best case): fde-adversarial allowed to write promotions/D-1/decision.md (another role's verdict), docs/adr/, .fde/spec/invariants.toml, and bin/fde/verify.py — the reviewer may rewrite the judge that CI executes; fde-implementation allowed to write specs/D-1/acceptance.md, which spec/roles.toml explicitly denies ('cannot rewrite the criteria it will be judged by'), quietly defeating I4's declared-before-construction. No other layer audits authorship (the I3 gate greps commit subjects)."
+evidence = "bin/fde/guard.py:29-38 ('mirrors spec/roles.toml' — it does not: allowlist semantics vs incomplete blocklist) vs spec/roles.toml:67,88; fixture probes, all guard exits 0."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# maintainability — weight 22, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-3 names match the domain: a reader maps code to concept without a glossary"
+evidence = "AGENTS.md Roles section and spec/roles.toml declare write scopes for a repo shaped like a client (src/**, infra/**) that this repo does not have: the kernel's production code lives in runtime/ and bin/, which appear in no role's write_scope — read literally, no role may edit the code this demand shipped. The self-install concretized the adversarial attack order (SETUP.md step 8.2) but left every scope generic. An agent obeying AGENTS.md as written cannot execute the next kernel demand without improvising — the exact ambiguity AGENTS.md forbids escalating mid-demand."
+blocking = false
+
+[[finding]]
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-10 comments say why, never what; when how to run or operate the system changes, README and runbook update in the same change"
+evidence = "SETUP.md:221-225 step 9 tells the installing agent to expect exactly 'CFG, CFG-SEC, I1, I6, I7 green; I2, I4, I5 red' on a fresh install. Actual fresh-install output also prints I8 green, and never prints I3 at all (gate_adversarial returns early when reviews/ is empty, runtime/verify.py:99-102), so the checklist the installer must verify against cannot match the gate's real output."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# reliability_resilience — weight 12
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "reliability_resilience"
+severity = "low"
+probe = "partial failure in a multi-step operation: the demand's two-commit choreography guarantees the reviewed commit cannot satisfy its own acceptance. acceptance.md requires 'python3 bin/fde/verify.py --all green on this repository', but at c4c53d3 verify --all exits 1 (I2 red — the review this file records must post-date the commit). Pushed alone, the first act of the new fde-gate workflow on main is to fail; the criterion is only satisfiable by a later commit the acceptance does not mention."
+evidence = "verify --all at c4c53d3: '1 gate(s) failed' (reproduced in this worktree); specs/FWD-001-self-install/acceptance.md:10."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# observability — weight 10
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "observability"
+severity = "medium"
+principle = "OBS-1 every declared attribute emits a signal that can confirm or deny it"
+evidence = "The I5 gate passes on the mere existence of observability.toml regardless of content (runtime/verify.py:162-163; tests/test_verify.py:123-126 encodes existence-as-signal). The file's four entries do not map to the eight weighted attributes: nothing could confirm or deny usability_accessibility (12), reliability_resilience (12), or operational_cost; the 'field' entry ('installed projects report drift and defects upstream') describes a hope with no emitting mechanism. The kernel's own I5 floor is satisfiable by an empty file."
+blocking = false
