@@ -1,6 +1,6 @@
 {
   "name": "forward",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "FORWARD - a delivery kernel for forward-deployed engineering: empirical review and adversarial review as gate invariants, portable across agentic tools.",
   "license": "Apache-2.0",
   "keywords": ["fde", "eval-driven", "adversarial-review", "agents-md", "portable"]

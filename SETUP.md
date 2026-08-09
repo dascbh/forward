@@ -155,10 +155,13 @@ Manual edits here are overwritten and detected as drift.
 ## 7. Emit `AGENTS.md` — the agnostic layer
 
 Copy `templates/AGENTS.md.template` to the project root as `AGENTS.md` and
-fill the placeholders: project name, test/eval commands from `[stack]`,
-weights sorted descending, depths > 0 sorted descending. Keep it thin
-(< 24 KiB) — Codex truncates at 32 KiB without warning. Detail lives in the
-kernel's `skills/`, not here.
+fill the placeholders: project name; test/eval commands from `[stack]`;
+`{{INVARIANTS_LIST}}` generated from `.fde/spec/invariants.toml` — one
+bullet per invariant, `**<id> <name>** — <statement collapsed to one
+line>`, so the list can never drift from the spec; weights sorted
+descending; depths > 0 sorted descending. Keep it thin (< 24 KiB) — Codex
+truncates at 32 KiB without warning. Detail lives in the kernel's
+`skills/`, not here.
 
 ## 8. Emit the native layer for the tool you are
 
