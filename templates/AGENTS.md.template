@@ -64,8 +64,13 @@ writing code on request; start by sizing. Pick a short demand id first
 (e.g. `DEM-042`).
 
 1. **Triage**: `score = min(3, surfaces) + (sensitive ? 2 : 0) +
-   (irreversible ? 2 : 0) + (loc < 50 ? 0 : loc < 300 ? 1 : 2)`, with
-   sensitive/irreversible from `[triage]` in `fde.config.toml`.
+   (irreversible ? 2 : 0) + (loc < 50 ? 0 : loc < 300 ? 1 : 2)`.
+   `surfaces` = how many of the four surface kinds — UI/frontend, API,
+   data/schema, infra — **this demand** touches (per demand, never the
+   project's fixed count from install). `loc` = estimated lines of this
+   change. `sensitive`/`irreversible` come from `[triage]` in
+   `fde.config.toml` (project-level by design). Estimate the inputs
+   yourself; if torn between two sizes, take the larger.
    score ≤ 1 → **XS**: implementation, adversarial, 1 round ·
    2–3 → **S**: + spec · 4–6 → **M**: + promotion, 2 rounds, ADR ·
    ≥ 7 → **L**: all five roles, 3 rounds, ADR.
@@ -88,5 +93,9 @@ continuing the same conversation thread (I7).
 ## Detail
 
 Per-step procedures live in the kernel's `skills/` (Agent Skills format,
-portable across tools). This file is deliberately thin: Codex truncates
-AGENTS.md at 32 KiB without warning.
+portable across tools; installed at `.claude/skills/` for Claude Code).
+This file is deliberately thin: Codex truncates AGENTS.md at 32 KiB
+without warning. Where this summary compresses a rule, the skill's
+definition governs. Never escalate kernel-interpretation questions to the
+user mid-demand — resolve from the skill, take the stricter reading if
+still torn, and flag the ambiguity as kernel feedback afterwards.

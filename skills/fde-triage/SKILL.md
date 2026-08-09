@@ -7,13 +7,16 @@ description: Sizes a demand and decides which roles and how many adversarial rou
 
 If the full flow runs on a three-line change, the framework gets turned off
 in week two. That is why sizing is a rule table, not common sense. Apply the
-table; do not negotiate it.
+table; do not negotiate it, and do not interview the user about the formula
+— estimate the inputs from the demand yourself and, if torn between two
+sizes, take the larger.
 
 ## Inputs
 
-- `surfaces` — how many surfaces the demand touches (UI, API, schema,
-  infra…), 1–3+
-- `loc` — estimated lines changed
+- `surfaces` — how many of the four surface kinds (UI/frontend, API,
+  data/schema, infra) **this demand** touches — per demand, never the
+  project's fixed count from install
+- `loc` — estimated lines changed by this demand
 - from `fde.config.toml` `[triage]`:
   `sensitive` = data_class in {personal, financial, health};
   `irreversible` = reversibility != reversible
