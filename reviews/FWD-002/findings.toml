@@ -1,0 +1,106 @@
+# Adversarial review — FWD-002 scrum mode, commit 8db5b6d.
+# Reviewer received artifact + spec only (I2). Findings only; no fixes (I3).
+
+[meta]
+demand_id = "FWD-002"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 1
+rounds_run = 1
+commit = "8db5b6d"
+probed = """
+Ran: unittest suite (72 green, matching the commit's claim), verify full run
+and --gate scrum at 8db5b6d (green on the kernel's own layout), diff of
+runtime/verify.py vs bin/fde/verify.py and skills/fde-scrum vs
+.claude/skills/fde-scrum (identical; test_install_sync covers both classes),
+invariants.toml diff (version bump only — the 'no new invariants' claim
+holds). 10 scripted probes on fixtures built with tests/support.py:
+S-1..S-10 unpadded naming (P1), stray non-numeric S-* dir (P2),
+incidental 'goal:'/'date:' substrings with no product goal (P3b),
+dated goal.md with the date past char 400 (P4), violating layout under
+--staged and --gate scrum --staged (P5/P5b), [scrum] enabled = "false"
+string (P6), backlog.md as a directory (P7), goal.md containing only
+'date:' plus an empty retro.md (P8), and the skill's literal one-line
+enable instruction as TOML (H8). Heuristic pass against DOM/MNT/OBS/USE
+catalogs on SKILL.md, backlog.md, S-001/goal.md, ADR-0008, AGENTS.md,
+templates, and the test suite.
+"""
+
+# ---------------------------------------------------------------------------
+# functional_correctness — weight 30, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "high"
+probe = "valid input at domain boundaries: the 'latest sprint' exemption is decided by lexicographic sort over whatever matches sprints/S-*, so the exemption lands on the wrong directory at the first boundary. (P1) Fixture with S-1..S-10 in the exact 'sprints/S-N/goal.md' form AGENTS.md and the skill document, S-1..S-9 all retro'd, S-10 open -> SCRUM-RETRO red 'missing: S-10': the gate demands a retrospective from the sprint that is currently open (sorted puts S-9 last) and the only ways forward are writing S-10's retro while it runs — inverting 'no retro, no next sprint' — or renaming every sprint. (P2) Fixture with S-001 open plus a stray sprints/S-archive/ dir -> S-archive becomes 'latest' and S-001, the real open sprint, is required to have a retro. Same red at S-999 -> S-1000 with the kernel's own padded convention."
+evidence = "runtime/verify.py:281-296 (sorted(...glob('S-*')), sprints[:-1]); AGENTS.md:121 and skills/fde-scrum/SKILL.md:18 document the unpadded 'S-N' form; the zero-padding that makes sorting accidentally work up to 999 is stated nowhere — the naming contract exists only in the builder's head. tests/test_scrum.py stops at S-001/S-002, so the ordering the whole exemption rests on is untested."
+blocking = true
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "medium"
+probe = "case the spec does not cover and the code silently accepts: the dated-goal checks are bare substring presence, so the commitment artifacts can be vacuous or incidental. (P3b) backlog.md whose head has 'created date: 2026-08-09' and a line 'sprint goal: decide at planning' — no product goal declared anywhere — passes SCRUM green 'backlog carries a dated product goal'. (P8) sprints/S-00N/goal.md containing exactly 'date:' (no value, no goal text) passes SCRUM-GOAL, and an empty retro.md satisfies SCRUM-RETRO. FM-2 ('a sprint opens without a goal') and FM-3 ('backlog without a product goal') are both expressible in files the gate calls green."
+evidence = "runtime/verify.py:272-273, 286-288, 292-293. Reproduced with fixtures; exit 0 in all three shapes. The precedent (gate_promotion_criteria checks 'date:' the same way) explains the style but the sprint check is weaker still: it never looks for 'goal:' at all, only 'date:'."
+blocking = false
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "medium"
+probe = "valid input at domain boundaries: the date detection window is the first 400 characters, undocumented anywhere. (P4) goal.md that opens with a title and ~500 chars of context, then 'goal:' and 'date: 2026-08-09' -> SCRUM-GOAL red 'sprint without a dated goal.md: S-001' — the file is dated, the gate says it is not, and nothing in the skill, AGENTS.md, or the gate message tells the user the date must sit in the first 400 characters. The skill mandates header placement for backlog.md only ('goal: and date: in the header'); for sprint goal.md it says just '(dated)'."
+evidence = "runtime/verify.py:268-269 (head() truncates at 400); skills/fde-scrum/SKILL.md:53 ('Write sprints/S-N/goal.md (dated)'). The failure message names a cause ('without a dated goal.md') that is false for this input — the trail points away from the actual rule."
+blocking = false
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "low"
+probe = "case the spec does not cover and the code silently accepts: FM-1 by type confusion. (P6) fde.config.toml with [scrum] enabled = \"false\" (string, a plausible YAML-habit typo) -> the truthiness test treats it as enabled and the cadence gates fire red on a project that explicitly wrote 'false'. validate() says nothing about the [scrum] section's shape, so the config gate stays green while the mode misreads the operator's intent."
+evidence = "runtime/verify.py:263 ((cfg.raw.get('scrum', {}) or {}).get('enabled') — truthiness, not boolean); reproduced: fixture exits 1 demanding backlog.md. FM-1 is the spec's own first failure mode (specs/FWD-002-scrum-mode/spec.md:27)."
+blocking = false
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "medium"
+principle = "DOM-5 no orphans, both ways: requirement without screen, screen without requirement, criterion without verification, state without representation"
+evidence = "R2 and R3 have no executable verification. No test asserts the scrum-mode section exists in templates/AGENTS.md.template or AGENTS.md (grep 'scrum' over tests/ matches only test_scrum.py, which covers R1 alone); no test asserts the skill defines the eight elements R2 enumerates (test_spec_integrity checks frontmatter name only, test_install_sync checks copy identity only). The acceptance criteria 'fde-scrum skill exists ... defining capture, discover, plan, execute, close, review, retro, and the unplanned route' and 'AGENTS.md template (and this repo's generated AGENTS.md) carry the scrum-mode section' (specs/FWD-002-scrum-mode/acceptance.md:12-16) are criteria without verification: deleting the scrum section from the template, or gutting the skill to its frontmatter, keeps the 72-test suite and every gate green."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# maintainability — weight 22, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting"
+evidence = "The 13-line scrum-mode section is verbatim in templates/AGENTS.md.template:102-114 and AGENTS.md:118-130. AGENTS.md's own header claims 'Manual edits here are overwritten and detected as drift', but no detector covers this section: TestGeneratedSurfaces (tests/test_install_sync.py) ties AGENTS.md to invariants, weights, and test_command only. The pair can now diverge silently — the drift-detection claim is ahead of the mechanism for exactly the lines this demand added."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# reliability_resilience — weight 12
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "reliability_resilience"
+severity = "low"
+probe = "partial failure in a multi-step operation: two reachable inputs abort the verifier with a raw traceback instead of a gate result, and in a full run the crash discards every gate that already ran. (P7) backlog.md as a directory -> exists() is true, head() raises IsADirectoryError, unhandled. (H8) the skill's enable instruction taken literally — 'Add `[scrum] enabled = true` to fde.config.toml' — is invalid TOML as a single line; Config.load raises TOMLDecodeError, and main() catches only FileNotFoundError, so the operator gets a stack trace where every other failure in this tool gets a named gate line."
+evidence = "runtime/verify.py:268-272 (unguarded read_text), :352-356 (except FileNotFoundError only); skills/fde-scrum/SKILL.md:26 (the one-line phrasing). Both reproduced: IsADirectoryError and tomllib.TOMLDecodeError tracebacks, exit 1 with no gate report."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# usability_accessibility — weight 12
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "usability_accessibility"
+severity = "low"
+probe = "error path with no clear way out: R1's explicit-request clause ('--gate scrum reports the mode as off') breaks when combined with --staged. (P5b) verify --gate scrum --staged -> exit 2, 'no gate ran — check the flags', which names neither the conflict (scrum is a CI-tier gate, skipped under --staged) nor the fix (drop --staged). Same layout under plain --staged exits 0 (P5), so the cadence rules the mode advertises as blocking ('no retro, no next sprint') are invisible at the pre-commit tier and first surface in CI — consistent with the other CI-tier gates, but the scrum checks are three file reads, and nothing documents the tiering."
+evidence = "runtime/verify.py:369 (if not args.staged), :385-387 (the generic 'no gate ran' fallback). Reproduced both exits on a violating fixture."
+blocking = false
+
+[[finding]]
+attribute = "usability_accessibility"
+severity = "low"
+principle = "USE-3 consistency: the same concept has the same name and behavior everywhere"
+evidence = "skills/fde-scrum/SKILL.md:33 ('seria bom ter X') and :42 ('investiga X') are the only Portuguese phrases in any of the nine shipped skills (grep over skills/*/SKILL.md) — the kernel's client-facing artifacts are otherwise uniformly English. A client agent matching user phrasing against these trigger examples in a non-Portuguese project gets examples in a language its users will not produce; the maintainer's locale leaked into the portable artifact."
+blocking = false
