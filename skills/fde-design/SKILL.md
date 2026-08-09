@@ -109,6 +109,12 @@ These checks live in `eval_paths` — they ARE the frontend eval suite:
   unapproved element, swapped order or grouping, divergent label,
   unimplemented state. Approved microcopy is contract — a divergent
   label is a High finding.
+- Clean console is part of the gate: zero errors and warnings on the
+  routes under test. A UI change never viewed in a real browser is a red
+  flag — unit tests do not test rendering.
+- Race probe: rapid-toggle the interaction five times — one DOM
+  instance, no duplicated requests. Touch targets ≥ 44px; text survives
+  200% zoom.
 
 ## User validation (L, or whenever the premise is a bet)
 

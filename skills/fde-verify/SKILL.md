@@ -21,6 +21,20 @@ Say which invariant, why it exists, and what the fix is. Do not suggest
 working around it — there is no bypass key, and looking for one is the
 behavior the framework exists to prevent.
 
+## Suite discipline — what makes I1 worth anything
+
+- A bug fix starts with the failing eval that reproduces it — that eval
+  IS the I1 entry. A fix without a first-observed-failing test is
+  unproven.
+- A test that passes on its first run proves nothing: watch it fail
+  before you make it pass.
+- Assert state, not interactions — a suite that checks which methods were
+  called breaks under refactor while behavior is unchanged.
+- Double preference: real > fake > stub > mock; mock only slow or
+  non-deterministic boundaries.
+- A flaky test gets fixed or understood, never re-run until green.
+- Fix the lint, don't disable the rule; fix the test, don't skip it.
+
 ## The bypass that is not one
 
 Never recommend `git commit --no-verify` — not even as one option among

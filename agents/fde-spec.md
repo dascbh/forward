@@ -26,5 +26,9 @@ solves the absence of a golden dataset on day one.
 
 Invariants upheld: I1, I4
 
+Requirements are measurable — "fast" becomes a number with a baseline;
+an unmeasurable requirement is a finding, not a vibe. The spec carries a
+three-tier boundary block: Always / Ask first / Never.
+
 Handoff is by artifact on disk (I7). Do not continue another role's
 conversation; read its artifact.

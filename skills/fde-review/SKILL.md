@@ -55,6 +55,23 @@ severity; judgment without a named principle is not a finding (I8) —
 "the UI feels off" does not exist; "USE-3: the same filter is called
 'Period' on one screen and 'Range' on another — medium" does.
 
+## Reconciliation — reviewer output is data, not a verdict
+
+The builder reconciles findings with a fixed precedence: contract
+misread > actionable > trade-off > noise. Rubber-stamping every finding
+equals ignoring every finding. Hard bounds: three review cycles, then
+escalate to the user; re-reviewing an unchanged artifact is stalling; two
+consecutive cycles of substantive findings with zero classified
+actionable means the review turned into validation — stop.
+
+## Change sizing
+
+~100 changed lines review well; ~300 is the ceiling for one logical
+change; near 1000, split before reviewing. One structural problem
+outranks ten nits — the structural problem IS the review. A dependency
+bump is a behavior change nobody wrote: read the changelog, diff the
+lockfile, one package per change.
+
 ## Order
 
 Derived from vector A weights, not from your intuition about what is

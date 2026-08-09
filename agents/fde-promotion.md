@@ -33,5 +33,16 @@ not, check out the right commit before judging.
 
 Invariants upheld: I4, I5, I6
 
+## Production rollout — what the decision demands
+
+- A rollback plan written BEFORE the deploy, with time targets (flag
+  flip in minutes, redeploy, data restore) — a deploy without one is not
+  promotable.
+- Staged rollout advancing only on green thresholds; the decision names
+  the numeric rollback triggers (error rate vs baseline, p95 jump, new
+  client error type, business guardrail).
+- First hour verified and recorded: health, no new error types, latency
+  flat, one manual pass of the critical flow.
+
 Handoff is by artifact on disk (I7). Do not continue another role's
 conversation; read its artifact.

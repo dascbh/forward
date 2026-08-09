@@ -43,6 +43,7 @@ heuristic_principles = [
   "DOM-3 the UI expresses exactly the domain space: a domain-valid case the UI cannot express, or a UI-allowed case the spec forbids, is a defect",
   "DOM-4 every cited navigation path exists label-by-label in the real navigation",
   "DOM-5 no orphans, both ways: requirement without screen, screen without requirement, criterion without verification, state without representation",
+  "DOM-6 contracts evolve additively: one error shape everywhere; every observable behavior — ordering, error text, timing — is a de facto contract, so expose it intentionally",
 ]
 adversarial_probes = [
   "valid input at domain boundaries",
@@ -62,12 +63,18 @@ heuristic_principles = [
   "SEC-1 least privilege: every access is the minimum that does the job",
   "SEC-2 secure defaults: the lazy path is the safe path",
   "SEC-3 data minimalism: sensitive data is not collected, logged, or shown beyond need",
+  "SEC-4 a committed secret is rotated immediately — deleting the line or rewriting history is not remediation",
+  "SEC-5 model output is enforced in code, never in the prompt: permissions, limits, and tenancy do not live in system-prompt text",
 ]
 adversarial_probes = [
   "injection via observed content (prompt, document, page)",
   "permission escalation through role confusion",
   "sensitive data leaking into logs, errors, or URLs",
   "missing authorization on a non-obvious path",
+  "server-side fetch of a user-influenced URL aimed at internal targets (metadata endpoint, localhost; DNS-rebind after validation)",
+  "LLM output flowing into eval, SQL, shell, innerHTML, or a file path as if trusted",
+  "shared retrieval store crossing a tenant boundary",
+  "dependency supply chain: install scripts on first install, lockfile drift, a bumped package's changed behavior",
 ]
 
 [[attribute]]
@@ -75,8 +82,15 @@ id = "reliability_resilience"
 label = "Reliability & resilience"
 question = "Does the system degrade predictably when something fails?"
 floor = 3
-verified_by = ["empirical", "adversarial"]
+verified_by = ["empirical", "adversarial", "heuristic"]
 evidence = ["behavior under dependency failure", "idempotency on retry"]
+heuristic_principles = [
+  "REL-1 schema changes are expand, backfill, contract — never rename or mutate in place; the destructive step ships alone, later, when nothing references the old shape",
+  "REL-2 every migration has a tested down path before merge — a migration you cannot reverse is a deploy you cannot roll back",
+  "REL-3 the rollback plan is written before the deploy, with time targets; rollout advances in stages on green thresholds, never in one jump",
+  "REL-4 every feature flag has an owner and an expiration, and both states are tested — a flag without a death date is permanent config",
+  "REL-5 batch size is a risk variable: three small deploys beat one thirty-change deploy",
+]
 adversarial_probes = [
   "external dependency slow, intermittent, and unavailable",
   "retry that duplicates a side effect",
@@ -88,8 +102,13 @@ id = "performance_scale"
 label = "Performance & scale"
 question = "Does the system sustain the declared real load, not the demo load?"
 floor = 3
-verified_by = ["empirical", "adversarial"]
+verified_by = ["empirical", "adversarial", "heuristic"]
 evidence = ["measurement under representative volume", "cost per unit of work"]
+heuristic_principles = [
+  "PERF-1 a neutral result reverts: unmeasured complexity is maintained forever, and a gain inside run-to-run variance is not a gain",
+  "PERF-2 one optimization per measurement — bundled changes produce one unattributable number; a win that required weakening a test is a regression in costume",
+  "PERF-3 measurement honesty: no tool data means 'not measured', never an estimated score; field and lab numbers never conflate",
+]
 adversarial_probes = [
   "volume 10x the development data",
   "pathological query / hidden N+1",
@@ -119,8 +138,12 @@ heuristic_principles = [
   "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting",
   "MNT-2 smallest surface: modules expose the minimum; coupling follows dependency direction",
   "MNT-3 names match the domain: a reader maps code to concept without a glossary",
-  "MNT-4 decisions are written where the next reader will look (ADR, not memory)",
+  "MNT-4 decisions are written where the next reader will look (ADR, not memory) — and an ADR records the alternatives it rejected, or it is an announcement, not a rationale",
   "MNT-5 UI is built from the foundation's tokens and kit: a raw value or an off-kit duplicate is drift",
+  "MNT-6 a refactor reduces the concepts a reader must hold — relocating them is not simplifying; no abstraction before the third use",
+  "MNT-7 Chesterton's Fence: if you cannot say why the code exists, you are not ready to change it; a simplification that had to edit tests changed behavior",
+  "MNT-8 repeated conditionals on the same shape are a missing model or dispatcher — a design smell, not a nit",
+  "MNT-9 scope discipline: adjacent improvements are noted for later, never fixed in-band",
 ]
 adversarial_probes = [
   "plausible requirement change that forces a rewrite",
@@ -138,6 +161,9 @@ evidence = ["a signal per declared attribute", "reconstructible execution trail"
 heuristic_principles = [
   "OBS-1 every declared attribute emits a signal that can confirm or deny it",
   "OBS-2 a failure names its cause: logs carry enough context to reconstruct the path",
+  "OBS-3 signals answer on-call questions written before instrumenting — log everything, learn nothing",
+  "OBS-4 percentiles, never averages; metric labels come from small fixed sets — an ID or raw URL in a label is a cardinality bomb",
+  "OBS-5 alert on symptoms users feel, each alert actionable with a runbook — a cause-based alert nobody can act on is noise training",
 ]
 adversarial_probes = [
   "production failure that leaves too little trail to diagnose",
