@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -260,40 +262,62 @@ class Gate:
 
     # -- scrum mode: cadence gates, active only when [scrum] is enabled ----
     def gate_scrum(self, cfg: Config, explicit: bool = False) -> None:
-        if not (cfg.raw.get("scrum", {}) or {}).get("enabled"):
+        # strict boolean: enabled = "false" (a string) must not read as on;
+        # validate() flags the type, this gate simply does not arm
+        if (cfg.raw.get("scrum", {}) or {}).get("enabled") is not True:
             if explicit:
                 self.add("SCRUM", True, "scrum mode off — cadence gates not in force")
             return
 
-        def head(p: Path) -> str:
-            return p.read_text(encoding="utf-8", errors="ignore").lower()[:400]
+        def commits(p: Path) -> bool:
+            """Non-empty 'goal:' and 'date:' HEADER LINES (first 30 lines)."""
+            if not p.is_file():
+                return False
+            got = {"goal": False, "date": False}
+            text = p.read_text(encoding="utf-8", errors="ignore")
+            for line in text.splitlines()[:30]:
+                s = line.strip().lower()
+                for k in got:
+                    if s.startswith(k + ":") and s[len(k) + 1:].strip():
+                        got[k] = True
+            return all(got.values())
 
-        backlog = self.project / "backlog.md"
-        if not backlog.exists() or "goal:" not in head(backlog) \
-                or "date:" not in head(backlog):
-            self.add("SCRUM", False,
-                     "backlog.md with a dated product goal is required — "
-                     "items without a ruler cannot be ordered")
-        else:
-            self.add("SCRUM", True, "backlog carries a dated product goal")
+        self.add("SCRUM", commits(self.project / "backlog.md"),
+                 "backlog carries a dated product goal"
+                 if commits(self.project / "backlog.md") else
+                 "backlog.md must declare non-empty 'goal:' and 'date:' header "
+                 "lines (first 30 lines) — items without a ruler cannot be ordered")
 
         sprints_dir = self.project / "sprints"
-        sprints = sorted(d for d in sprints_dir.glob("S-*")
-                         if d.is_dir()) if sprints_dir.exists() else []
+        entries = [d for d in sprints_dir.iterdir()
+                   if d.is_dir()] if sprints_dir.is_dir() else []
+        numbered, stray = [], []
+        for d in entries:
+            m = re.fullmatch(r"S-(\d+)", d.name)
+            (numbered.append((int(m.group(1)), d)) if m else stray.append(d.name))
+        if stray:
+            self.add("SCRUM-GOAL", False,
+                     f"unrecognized directory under sprints/ (names are S-<number>; "
+                     f"ordering is numeric): {', '.join(sorted(stray)[:3])}")
+            return
+        sprints = [d for _, d in sorted(numbered)]
         if not sprints:
             self.add("SCRUM-GOAL", True, "no sprint open yet")
             return
-        bad_goal = [d.name for d in sprints
-                    if not (d / "goal.md").exists()
-                    or "date:" not in head(d / "goal.md")]
+        bad_goal = [d.name for d in sprints if not commits(d / "goal.md")]
         self.add("SCRUM-GOAL", not bad_goal,
-                 f"{len(sprints)} sprint(s), every goal dated" if not bad_goal
-                 else f"sprint without a dated goal.md: {', '.join(bad_goal[:3])}")
+                 f"{len(sprints)} sprint(s), every goal committed and dated"
+                 if not bad_goal else
+                 f"goal.md must declare non-empty 'goal:' and 'date:' header lines "
+                 f"(first 30 lines): {', '.join(bad_goal[:3])}")
         unclosed = [d.name for d in sprints[:-1]
-                    if not (d / "retro.md").exists()]
+                    if not (d / "retro.md").is_file()
+                    or not (d / "retro.md").read_text(
+                        encoding="utf-8", errors="ignore").strip()]
         self.add("SCRUM-RETRO", not unclosed,
                  "every previous sprint has its retro" if not unclosed
-                 else f"no retro, no next sprint — missing: {', '.join(unclosed[:3])}")
+                 else f"no retro, no next sprint — missing or empty: "
+                      f"{', '.join(unclosed[:3])}")
 
     # -- config ------------------------------------------------------------
     def gate_config(self, cfg: Config, spec: Spec) -> None:
@@ -345,6 +369,10 @@ def main() -> int:
         print(f"\033[31m✗\033[0m unknown gate '{args.gate}'. "
               f"Valid: {', '.join(KNOWN_GATES)}", file=sys.stderr)
         return 2
+    if args.staged and args.gate and args.gate not in ("config", "eval", "eval-coverage"):
+        print(f"\033[31m✗\033[0m gate '{args.gate}' runs at the commit/CI tier and is "
+              f"skipped under --staged — drop --staged to run it", file=sys.stderr)
+        return 2
 
     project = project_root()
     kernel_spec = project / ".fde"
@@ -353,6 +381,10 @@ def main() -> int:
         cfg = Config.load(project)
     except FileNotFoundError as e:
         print(f"\033[31m✗\033[0m {e}", file=sys.stderr)
+        return 1
+    except tomllib.TOMLDecodeError as e:
+        print(f"\033[31m✗\033[0m fde.config.toml is not valid TOML: {e}",
+              file=sys.stderr)
         return 1
 
     behavior_paths, eval_paths = gate_paths(cfg.raw)

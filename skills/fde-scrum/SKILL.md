@@ -15,7 +15,7 @@ user is consulted.
 | artifact | commitment | rule |
 |---|---|---|
 | `backlog.md` | product goal, dated | one goal at a time; reached or abandoned → declare the next |
-| `sprints/S-N/goal.md` | sprint goal, dated | declared BEFORE the sprint's first demand starts |
+| `sprints/S-N/goal.md` | sprint goal, dated | declared BEFORE the sprint's first demand starts; sprints are named `S-<number>` (S-1, S-2, … — ordering is numeric) |
 | increment | the DoD that already exists | invariants + acceptance + `verify --all` — an exit code, not a wiki page |
 
 Traceability chain: product goal → sprint goal → demand → acceptance →
@@ -23,15 +23,23 @@ eval. Any link without the one above it is orphan work.
 
 ## Turning the mode on (once)
 
-Add `[scrum] enabled = true` to fde.config.toml. Ask ONE question: "what
-is the product goal right now?" (one sentence). Create `backlog.md` with
-`goal:` and `date:` in the header. From then on the gate enforces the
-cadence (`--gate scrum`).
+Add to fde.config.toml:
+
+```toml
+[scrum]
+enabled = true
+```
+
+Ask ONE question: "what is the product goal right now?" (one sentence).
+Create `backlog.md` with non-empty `goal:` and `date:` header lines (the
+gate reads the first 30 lines). From then on the gate enforces the
+cadence (`--gate scrum` — a CI-tier gate; it does not run under
+`--staged`).
 
 ## Capture — the default shift
 
-An idea, pain, or "seria bom ter X" mentioned in conversation becomes a
-backlog item, not an immediate demand. One-line acknowledgment, nothing
+An idea, pain, or "it would be nice to have X" mentioned in conversation
+becomes a backlog item, not an immediate demand. One-line acknowledgment, nothing
 more. Each item carries: hypothesis (what value, for whom), **evidence
 label** — `opinion < usage-data < user-test < production` — and a rough
 size. Refinement is continuous: re-order and re-label whenever new
@@ -39,7 +47,7 @@ evidence lands; never a meeting.
 
 ## Discover — a push, not a phase
 
-`/fde-scrum discover <topic>` (or "investiga X"): research the code,
+`/fde-scrum discover <topic>` (or "look into X"): research the code,
 usage data, or a user-validation plan (fde-design's validation doctrine).
 Raw material goes to `discovery/`; the distilled result updates the
 item's evidence label in the backlog. Discovery never blocks delivery —
@@ -50,8 +58,8 @@ it upgrades the label the user sees at planning.
 Present the backlog ordered, with hypothesis, evidence, and size visible
 — selecting an `opinion` item is a declared bet, not an accident. Propose
 a sprint goal (one sentence). The user adjusts and approves. Write
-`sprints/S-N/goal.md` (dated) with the selected demands, each with one
-line: "serves the goal because…". The kernel labels evidence; it never
+`sprints/S-N/goal.md` — non-empty `goal:` and `date:` header lines — with
+the selected demands, each with one line: "serves the goal because…". The kernel labels evidence; it never
 blocks a value choice — the product owner is the user, and that is not
 delegable.
 

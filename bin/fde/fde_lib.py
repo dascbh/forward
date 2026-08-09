@@ -206,7 +206,19 @@ def validate(cfg: Config, spec: Spec) -> list[Violation]:
             )
         )
 
-    # 6. [gate] retargets I1 to the repo's real layout; it cannot empty it
+    # 6. [scrum].enabled is a real boolean or absent — a string "false"
+    #    reading as on would fire cadence gates against the operator's intent
+    scrum = cfg.raw.get("scrum", {}) or {}
+    if "enabled" in scrum and not isinstance(scrum["enabled"], bool):
+        v.append(
+            Violation(
+                "SCRUM-ENABLED",
+                f"[scrum] enabled must be a TOML boolean (true/false), got "
+                f"{type(scrum['enabled']).__name__}.",
+            )
+        )
+
+    # 7. [gate] retargets I1 to the repo's real layout; it cannot empty it
     gate = cfg.raw.get("gate", {}) or {}
     for key in ("behavior_paths", "eval_paths"):
         if key in gate and not gate[key]:
