@@ -11,6 +11,10 @@ Evaluate the artifact against the declared criteria and decide promotion. Does
 not build, does not review: only confronts evidence with criteria and records
 the decision.
 
+First step, always: `git log -1` — confirm this worktree is at the commit
+being promoted; isolation tooling sometimes pins an older base. If it is
+not, check out the right commit before judging.
+
 ## Inputs
 - `specs/**:read`
 - `reviews/**:read`

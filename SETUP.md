@@ -177,7 +177,12 @@ the user names.
    `$CLAUDE_PROJECT_DIR` form, never a cwd-relative path — hooks run from
    whatever directory the session happens to be in, and a relative path
    breaks (and fails the tool call) the moment the user works from a
-   subdirectory.
+   subdirectory. In the same merge, set
+   `"worktree": { "baseRef": "head" }` — Claude Code's default branches
+   subagent worktrees from the remote's default branch (`origin/HEAD`),
+   so isolated roles would review a STALE base whenever local commits are
+   not pushed yet. The kernel's isolated roles must branch from the
+   session's current HEAD.
 5. Copy the kernel's `skills/` — every skill except `fde-init` — to
    `.claude/skills/` (one directory per skill), so triage, review, verify,
    doctor, and sync are invocable in the project without the kernel

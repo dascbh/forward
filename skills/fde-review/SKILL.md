@@ -38,10 +38,13 @@ nothing is suspicious before it is good news — record rounds run and what
 was probed in the `[meta]` of `findings.toml`. In chat, the findings
 speak; the process does not.
 
-**First step inside the worktree.** Confirm the checkout matches the
-commit under review (`git log -1`) — isolation tooling sometimes pins an
-older base. If it does not match, check out the right commit before
-probing: reviewing stale code produces confident nonsense.
+**Pass the SHA, verify the SHA.** Invoke the reviewer with the commit SHA
+under review in its prompt. First step inside the worktree: `git log -1`
+must match that SHA — isolation tooling can pin an older base (notably
+`origin/HEAD` when local commits are unpushed; the kernel sets
+`worktree.baseRef: "head"` at install to prevent this). If it does not
+match, check out the right commit before probing: reviewing stale code
+produces confident nonsense.
 
 ## Order
 
