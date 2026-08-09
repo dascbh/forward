@@ -36,6 +36,10 @@ Handoff is by artifact on disk (I7). Do not continue another role's
 conversation; read its artifact.
 
 ## Conduct
+First step, always: `git log -1` — confirm this worktree is at the commit
+under review; isolation tooling sometimes pins an older base. If it is
+not, check out the right commit before probing.
+
 You received the artifact and the specification. You did NOT receive the
 builder's reasoning - if you feel you need it, that is the finding.
 You do not fix. You record in reviews/<demand-id>/findings.toml.

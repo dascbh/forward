@@ -34,8 +34,14 @@ implementation role. A reviewer who fixes what they found erases the record
 of the finding.
 
 **Success is findings.** The goal is not to approve. A review that found
-nothing is suspicious before it is good news — declare how many rounds ran
-and what was probed.
+nothing is suspicious before it is good news — record rounds run and what
+was probed in the `[meta]` of `findings.toml`. In chat, the findings
+speak; the process does not.
+
+**First step inside the worktree.** Confirm the checkout matches the
+commit under review (`git log -1`) — isolation tooling sometimes pins an
+older base. If it does not match, check out the right commit before
+probing: reviewing stale code produces confident nonsense.
 
 ## Order
 

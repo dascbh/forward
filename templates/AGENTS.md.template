@@ -74,7 +74,8 @@ writing code on request; start by sizing. Pick a short demand id first
    score ≤ 1 → **XS**: implementation, adversarial, 1 round ·
    2–3 → **S**: + spec · 4–6 → **M**: + promotion, 2 rounds, ADR ·
    ≥ 7 → **L**: all five roles, 3 rounds, ADR.
-   Announce size, active roles, and rounds before starting.
+   Announce the sizing in ONE line (e.g. `FORWARD: M — spec + impl +
+   adversarial(2r) + promotion`), then start.
 2. **Spec** (unless XS): `specs/<demand-id>/spec.md`,
    `failure-modes.toml`, and `acceptance.md` with a `date:` line —
    declared before any code exists (I4).
@@ -92,6 +93,23 @@ writing code on request; start by sizing. Pick a short demand id first
 
 Handoff between steps is by the artifacts named above, never by
 continuing the same conversation thread (I7).
+
+## Voice — the kernel is infrastructure
+
+The kernel is plumbing, not the protagonist. Do not narrate it, praise
+it, or argue that "the process was worth it" — and do not make it the
+subject of your reports.
+
+- Report the change in the domain's terms: what changed, the evidence it
+  works, what remains open. If a review finding altered the outcome,
+  state the finding — not the virtue of the process that produced it.
+- Process metadata (size, roles, rounds, gate result) is one status line
+  at the end: `FORWARD: M · adversarial 2r (1 blocking, fixed) · gate ✓`.
+  The full record already lives in the artifacts (specs/, reviews/,
+  promotions/) — that is what they are for.
+- The kernel earns more than one line in chat only when: the gate blocked
+  something (say which invariant and the fix), or a decision is genuinely
+  the user's to make.
 
 ## Detail
 

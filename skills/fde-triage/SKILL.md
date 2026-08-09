@@ -37,7 +37,9 @@ score = min(3, surfaces)
 | 4–6 | M | spec, implementation, adversarial, promotion | 2 | yes |
 | ≥ 7 | L | all five | 3 | yes |
 
-Report the size, the active roles, and the plan before starting the work.
+Announce the result in one line — size, roles, rounds — and start. The
+table is deterministic; the reasoning behind the score does not belong in
+chat.
 
 ## What never scales
 
