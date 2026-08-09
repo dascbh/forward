@@ -1,0 +1,15 @@
+# Adversarial review report
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "{{DEMAND_ID}}"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+rounds_planned = {{ROUNDS_PLANNED}}
+
+# [[finding]]
+# attribute = "security_privacy"
+# severity  = "critical"   # critical | high | medium | low
+# probe     = "injection via observed content"
+# evidence  = "path:line or reproducible step"
+# blocking  = true

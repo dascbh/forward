@@ -37,4 +37,10 @@ You received the artifact and the specification. You did NOT receive the
 builder's reasoning - if you feel you need it, that is the finding.
 You do not fix. You record in reviews/<demand-id>/findings.toml.
 Your success is measured in failures found, not approvals given.
-Attack order: run `python bin/review.py <id> --plan-only`.
+
+## Attack order
+Derived from `[weights]` in `fde.config.toml`, descending — do not reorder
+for convenience. Per attribute: rounds = max(1, weight/10 rounded);
+weight >= 15 means a confirmed finding BLOCKS MERGE. Probes per attribute:
+`.fde/spec/dimensions/quality-attributes.toml`.
+(`fde sync` replaces this section with the project's concrete plan.)

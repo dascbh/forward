@@ -1,10 +1,10 @@
 <!--
 FDE-KERNEL:GENERATED — do not edit by hand.
-Source of truth: fde.config.toml + spec/. Regenerate with `fde sync`.
+Source of truth: fde.config.toml + .fde/spec/. Regenerate with `fde sync`.
 Manual edits here are overwritten and detected as drift.
 -->
 
-# t2
+# {{PROJECT_NAME}}
 
 This repository operates under a delivery kernel with non-negotiable
 invariants. Instructions here apply to any coding agent (Codex, Cursor,
@@ -13,9 +13,9 @@ Claude Code, Copilot, Kiro, Gemini CLI, Windsurf, Aider).
 ## Commands
 
 ```bash
-pytest -q      # tests
-python bin/fde/verify.py --gate eval   # evals
-python bin/fde/verify.py    # full gate (the same one CI runs)
+{{TEST_COMMAND}}      # tests
+python3 bin/fde/verify.py --gate eval   # evals
+python3 bin/fde/verify.py    # full gate (the same one CI runs)
 ```
 
 ## Invariants (not configurable)
@@ -33,23 +33,14 @@ one, the scope shrinks — the standard does not.
 
 ## Agreed priority (vector A, budget 100)
 
-- functional_correctness: 26
-- security_privacy: 14
-- reliability_resilience: 12
-- observability: 12
-- maintainability: 12
-- performance_scale: 9
-- usability_accessibility: 8
-- operational_cost: 7
+{{WEIGHTS_LIST}}
 
 Weight orders the adversarial attack and sizes the suite. Weight never goes
 below the attribute's floor.
 
 ## Depth per domain (vector B, derived from the stack)
 
-- software_architecture: 1
-- qa_test_strategy: 1
-- platform_delivery: 1
+{{DEPTHS_LIST}}
 
 Override is upward-only. The nature of the system sets the minimum, not
 preference.
@@ -62,10 +53,12 @@ preference.
 - **Adversarial review** (`fde-adversarial`) — writes to `reviews/**`
 - **Promotion** (`fde-promotion`) — writes to `promotions/**`
 
-Handoff is by artifact on disk, never by conversation continuity.
+Handoff is by artifact on disk, never by conversation continuity. The
+adversarial and promotion roles run isolated: artifact + spec only, never
+the builder's thread.
 
 ## Detail
 
-Each step has its own skill in `skills/` (Agent Skills format, portable
-across tools). This file is deliberately thin: Codex truncates AGENTS.md at
-32 KiB without warning.
+Per-step procedures live in the kernel's `skills/` (Agent Skills format,
+portable across tools). This file is deliberately thin: Codex truncates
+AGENTS.md at 32 KiB without warning.

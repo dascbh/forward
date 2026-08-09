@@ -1,0 +1,58 @@
+# fde.config.toml - the project's single declarative file.
+# Versioned. Auditable diff. Recompilable with `fde sync`.
+#
+# There is NO key here to turn off an invariant. Invariants live in
+# .fde/spec/invariants.toml and have no key. Weight moves rigor upward or
+# redistributes emphasis; it never goes below the floor.
+
+[project]
+name = "{{PROJECT_NAME}}"
+kernel_version = "0.1.0"
+
+[triage]
+data_class = "{{DATA_CLASS}}"           # public | internal | personal | financial | health
+reversibility = "{{REVERSIBILITY}}"     # reversible | difficult | irreversible
+user_facing = {{USER_FACING}}
+has_agent_loop = {{HAS_AGENT_LOOP}}
+
+[stack]
+languages = {{LANGUAGES}}
+test_runners = {{TEST_RUNNERS}}
+test_command = "{{TEST_COMMAND}}"
+eval_command = "python3 bin/fde/verify.py --gate eval"
+
+# ---------------------------------------------------------------------------
+# VECTOR A - quality attributes. CLOSED budget: sum = 100.
+# This is what the client allocates and signs. A dated record of what they
+# said mattered - and the order in which the adversarial will attack.
+# ---------------------------------------------------------------------------
+[weights]
+functional_correctness = {{W_CORRECTNESS}}
+security_privacy = {{W_SECURITY}}
+reliability_resilience = {{W_RELIABILITY}}
+observability = {{W_OBSERVABILITY}}
+maintainability = {{W_MAINTAINABILITY}}
+performance_scale = {{W_PERFORMANCE}}
+usability_accessibility = {{W_USABILITY}}
+operational_cost = {{W_COST}}
+
+# ---------------------------------------------------------------------------
+# VECTOR B - technical domains. DERIVED from stack + triage (SETUP.md step 3).
+# Override in [depths] is upward-only: you raise, never reduce.
+# ---------------------------------------------------------------------------
+[derived.depths]
+software_architecture = {{D_ARCHITECTURE}}
+data_modeling = {{D_DATA}}
+api_contract = {{D_API}}
+design_system = {{D_DESIGN}}
+usability_research = {{D_RESEARCH}}
+qa_test_strategy = {{D_QA}}
+platform_delivery = {{D_PLATFORM}}
+applied_security = {{D_APPSEC}}
+ai_agents = {{D_AI}}
+
+[depths]
+# e.g.: data_modeling = 3   (allowed: >= derived)
+
+[tooling]
+tools = {{TOOLS}}   # e.g.: ["claude-code"] - which native layers step 8 emitted

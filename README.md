@@ -9,8 +9,12 @@ the Agentic AI Foundation (AGENTS.md, Agent Skills); the enforcement layer
 lives in the repository, not in the IDE.
 
 > FORWARD is the project name; `fde` remains the technical prefix — from
-> forward-deployed engineering — in commands (`fde doctor`), skills
-> (`fde-review`), and configuration (`fde.config.toml`).
+> forward-deployed engineering — in the skills (`fde-review`, `fde-doctor`),
+> the roles (`fde-adversarial`), and the configuration (`fde.config.toml`).
+
+> **Are you a coding agent?** If you were asked to set this kernel up in a
+> project, read [`SETUP.md`](SETUP.md) and execute it top to bottom. That
+> file is the installer; you are its runtime.
 
 ---
 
@@ -139,38 +143,38 @@ three out of five tools is what burns an open framework.
 
 ## Usage
 
-Zero external dependencies. Python 3.11+ (`tomllib` is stdlib). Runs in the
-client's repo with nothing to install.
+Tell your coding agent — Claude Code, Cursor, Codex, Kiro, whatever reads a
+repository:
 
-```bash
-# 1. parameterize (detects the stack; asks only what cannot be inferred)
-python bin/init.py
-#    or non-interactive:
-python bin/init.py --yes --data-class personal --reversibility irreversible
+> Clone https://github.com/dascbh/forward and set it up for this project.
 
-# 2. compile the native artifacts for the tool in use
-python bin/compile.py
-git config core.hooksPath .githooks
+The agent follows [`SETUP.md`](SETUP.md): detects the stack from files,
+interviews you only for what files cannot say (data class, reversibility),
+allocates the weight vector with you, writes `fde.config.toml`, installs the
+gate into the repo, and emits the native layer for the tool it is. The
+install ends with the gate auditing the agent's own work.
 
-# 3. see what is actually enforced
-python bin/fde/doctor.py
+Day-to-day, each step is a skill in `skills/` (Agent Skills format, portable
+across tools):
 
-# 4. on demand
-python bin/triage.py --surfaces 2 --loc 120     # sizing
-python bin/review.py DEM-001 --isolate          # isolated adversarial review
-python bin/fde/verify.py --all                  # the gate (same one CI runs)
-```
+- `fde-triage` — sizes the demand: which roles enter, how many rounds
+- `fde-review` — adversarial review, isolated, attack order from the weights
+- `fde-verify` — the gate: `python3 bin/fde/verify.py --all` (same as CI)
+- `fde-doctor` — what is actually enforced vs. merely suggested
+- `fde-sync` — regenerate after config, stack, or tool changes
 
-### Commands as skills
+### The agent is the runtime
 
-Each command has a corresponding skill in `skills/` in the Agent Skills
-format — portable, read by ~30 tools. `commands/` is not used: it is a legacy
-Claude Code format, not an open standard.
+There is no CLI to install and no dependency to add. Interaction lives in
+instructions (`SETUP.md` + `skills/`), executed by whatever agent is in use.
+What remains code is the one thing that must run where no agent exists: the
+gate — `runtime/verify.py` and `runtime/guard.py`, copied into the client
+repo at `bin/fde/` and called by pre-commit and CI with plain Python 3.11+
+stdlib (`tomllib`), zero external dependencies.
 
-The logic lives in `bin/` as deterministic scripts, never in prompts. Three
-reasons: it runs in CI with no agent at all, it does not vary across tools or
-across runs of the same model, and it is testable. Stack detection inside a
-prompt is different every Tuesday.
+The determinism argument did not go away — it moved. The agent executes
+procedures; the gate audits outcomes with exit codes. A wrong weight sum, a
+floor violation, an unisolated review: caught by code, not by convention.
 
 ---
 
@@ -198,9 +202,9 @@ is guaranteed loss on the next `sync`; the fix belongs at the source.
   commit and in CI.
 - `git worktree` is a requirement for forced isolation outside the `loop`
   tier.
-- Adapters covered: Claude Code (`loop`), Codex and Cursor (`commit`).
-  Copilot, Kiro, Gemini CLI, and Windsurf work via AGENTS.md in `advisory`
-  until they get their own adapter.
+- Native layers scripted in `SETUP.md` step 8: Claude Code (`loop`), Cursor
+  and Codex (`commit`). Copilot, Kiro, Gemini CLI, and Windsurf work via
+  AGENTS.md in `advisory` until they get their own section.
 - "Adversarial" in ML already means adversarial examples and GANs. Here it
   means process-level adversarial review. Worth disambiguating on first
   mention to anyone coming from ML.

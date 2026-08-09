@@ -1,0 +1,14 @@
+# FDE-KERNEL:GENERATED — do not edit by hand.
+# Source of truth: fde.config.toml + .fde/spec/. Regenerate with `fde sync`.
+# Manual edits here are overwritten and detected as drift.
+name: fde-gate
+on: [push, pull_request]
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: FDE gate
+        run: python bin/fde/verify.py --all
