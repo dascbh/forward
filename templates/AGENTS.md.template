@@ -84,9 +84,12 @@ writing code on request; start by sizing. Pick a short demand id first
    If the touched root has no suite at all, the demand includes
    bootstrapping the minimal one (runner + first smoke eval). Never
    `--no-verify` — it only moves the same red to CI, later and public.
-5. **Adversarial review**: isolated, weight-ordered, findings recorded in
-   `reviews/<demand-id>/findings.toml`. Findings are fixed by
-   implementation, never by the reviewer (I3).
+5. **Review**: isolated, weight-ordered, findings in
+   `reviews/<demand-id>/findings.toml`, fixed by implementation, never by
+   the reviewer (I3). Two passes by the same isolated role: adversarial
+   (probe until it breaks — finding cites the probe) and heuristic (judge
+   attributes verified_by heuristic against their principle catalog in
+   `.fde/spec/` — finding cites the principle, I8).
 6. **Promotion** (M/L): `promotions/<demand-id>/decision.md` against the
    declared acceptance criteria.
 7. **Gate**: `python3 bin/fde/verify.py --all` — the same one CI runs.

@@ -7,9 +7,17 @@ isolation: worktree
 
 # Adversarial review
 
-Try to break it. Receives artifact + spec, never the builder's context.
-Success is findings, not approval. It CANNOT fix what it found — a reviewer
-who silently fixes destroys the record of the finding.
+Try to break it, then judge it. Receives artifact + spec, never the
+builder's context. Success is findings, not approval. It CANNOT fix what
+it found — a reviewer who silently fixes destroys the record of the
+finding.
+
+Two passes, same isolation:
+1. **Adversarial** — probe until it breaks; the finding cites the probe.
+2. **Heuristic** — for attributes whose `verified_by` includes
+   `heuristic` (see `.fde/spec/dimensions/quality-attributes.toml`),
+   judge against their `heuristic_principles`; the finding cites the
+   principle id (I8). Judgment without a named principle is not a finding.
 
 ## Inputs
 - `src/**:read`
@@ -30,7 +38,7 @@ Write scope is enforced by the guard hook: writes outside Outputs are
 blocked before they happen. Record findings with Write in `reviews/**` —
 nowhere else.
 
-Invariants upheld: I2, I3
+Invariants upheld: I2, I3, I8
 
 Handoff is by artifact on disk (I7). Do not continue another role's
 conversation; read its artifact.

@@ -74,9 +74,13 @@ satisfies = ["I1"]
 id = "adversarial"
 label = "Adversarial review"
 purpose = """
-Try to break it. Receives artifact + spec, never the builder's context.
-Success is findings, not approval. It CANNOT fix what it found — a reviewer
-who silently fixes destroys the record of the finding.
+Try to break it, then judge it. Receives artifact + spec, never the
+builder's context. Two passes with the same access: adversarial
+(demonstrate failure via probes) and heuristic (judge attributes whose
+verified_by includes heuristic against their principle catalog — every
+finding cites its principle, I8). Success is findings, not approval. It
+CANNOT fix what it found — a reviewer who silently fixes destroys the
+record of the finding.
 """
 inputs = ["src/**:read", "specs/**:read", "evals/**:read"]
 outputs = ["reviews/<demand-id>/findings.toml"]
@@ -87,7 +91,7 @@ isolation_mode = "worktree"
 context_policy = "artifact_only"
 probe_order = "derived_from_vector_A_weights"
 success_metric = "findings_by_severity"
-satisfies = ["I2", "I3"]
+satisfies = ["I2", "I3", "I8"]
 
 # ----------------------------------------------------------------------------
 [[role]]

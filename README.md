@@ -1,7 +1,8 @@
 # FORWARD
 
-A delivery kernel for forward-deployed engineering. Treats **empirical review**
-and **adversarial review** as gate invariants, not as methodology phases.
+A delivery kernel for forward-deployed engineering. Treats **empirical
+review**, **adversarial review**, and **heuristic review** as gate
+invariants, not as methodology phases.
 
 Portable across agentic tools: Claude Code, Codex, Cursor, Copilot, Kiro,
 Gemini CLI, Windsurf, Aider. The instruction layer uses standards governed by
@@ -29,11 +30,12 @@ refuse the integrator role — and zero definition of "production-ready".
 Without that, FDE is sales with a fast PoC, and the criticism that it produces
 lock-in and limited functionality stands.
 
-This kernel claims no pioneering in empirical review nor in adversarial
-review. Both have lineage: eval-driven development on one side; debate as
-supervision, red teaming, and challenger/solver architectures on the other.
-The claim is narrower and defensible: **no FDE framework today treats both as
-delivery gates, and without that a PoC never becomes production.**
+This kernel claims no pioneering in empirical, adversarial, or heuristic
+review. All three have lineage: eval-driven development; debate as
+supervision, red teaming, and challenger/solver architectures; heuristic
+evaluation and expert review. The claim is narrower and defensible: **no FDE
+framework today treats them as delivery gates, and without that a PoC never
+becomes production.**
 
 ---
 
@@ -56,7 +58,26 @@ operations. `fde doctor` and the gate make that visible before the contract.
 
 ---
 
-## The seven invariants
+## Three verification modes
+
+Each pillar has a different oracle, and each reaches what the others
+structurally cannot:
+
+- **Empirical** — verdict by execution: an eval passes or fails. Reaches
+  everything computable.
+- **Adversarial** — verdict by demonstrated failure: a probe produces a
+  broken outcome. Reaches what execution alone hides.
+- **Heuristic** — verdict by judgment against a declared, versioned
+  principle catalog. Reaches what can be bad while everything passes:
+  usability, information architecture, craft.
+
+Heuristic review is not licensed opinion. A finding cites the principle it
+violates and a severity, or it is not a finding (I8). The catalogs live in
+[`quality-attributes.toml`](spec/dimensions/quality-attributes.toml) — each
+attribute declares `verified_by` and, where judgment applies, its
+`heuristic_principles`.
+
+## The eight invariants
 
 Defined in [`spec/invariants.toml`](spec/invariants.toml). **They have no
 configuration key.** Whoever needs to operate without one of them forks the
@@ -71,6 +92,7 @@ framework — the fork is visible; a silent exception would not be.
 | I5 | What is not observable is not verifiable: an observability floor |
 | I6 | The gate runs in the client's environment, without the FDE present |
 | I7 | Handoff between roles is by artifact on disk, never by conversation |
+| I8 | Every finding cites the probe that broke it or the principle it violates — naked judgment is not a finding |
 
 ---
 

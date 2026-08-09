@@ -46,6 +46,15 @@ must match that SHA — isolation tooling can pin an older base (notably
 match, check out the right commit before probing: reviewing stale code
 produces confident nonsense.
 
+## The heuristic pass (same reviewer, same isolation)
+
+After probing, judge the attributes whose `verified_by` includes
+`heuristic` (`.fde/spec/dimensions/quality-attributes.toml`) against
+their `heuristic_principles`. A heuristic finding cites `principle` and
+severity; judgment without a named principle is not a finding (I8) —
+"the UI feels off" does not exist; "USE-3: the same filter is called
+'Period' on one screen and 'Range' on another — medium" does.
+
 ## Order
 
 Derived from vector A weights, not from your intuition about what is

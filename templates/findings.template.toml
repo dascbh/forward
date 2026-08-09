@@ -7,9 +7,19 @@ context_policy = "artifact_only"   # I2: no builder context
 isolation_mode = "worktree"
 rounds_planned = {{ROUNDS_PLANNED}}
 
+# Every finding cites a probe (adversarial pass) OR a principle (heuristic
+# pass) — I8. A finding with neither is opinion and the gate rejects it.
+
 # [[finding]]
 # attribute = "security_privacy"
 # severity  = "critical"   # critical | high | medium | low
 # probe     = "injection via observed content"
 # evidence  = "path:line or reproducible step"
 # blocking  = true
+
+# [[finding]]
+# attribute = "usability_accessibility"
+# severity  = "medium"
+# principle = "USE-3"      # from heuristic_principles in .fde/spec/dimensions/
+# evidence  = "screen or path + what violates the principle"
+# blocking  = false

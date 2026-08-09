@@ -25,11 +25,17 @@ kind = "closed_budget"
 budget = 100
 weight_unit = "points"
 
+# verified_by declares which pillar produces the verdict, in order of
+# primacy: "empirical" (execution — an eval passes or fails), "adversarial"
+# (demonstrated failure — a probe breaks it), "heuristic" (judgment against
+# the heuristic_principles catalog — findings cite the principle, I8).
+
 [[attribute]]
 id = "functional_correctness"
 label = "Functional correctness"
 question = "Does the system do what the specification says it does?"
 floor = 20
+verified_by = ["empirical", "adversarial"]
 evidence = ["green eval suite", "coverage of declared failure modes"]
 adversarial_probes = [
   "valid input at domain boundaries",
@@ -43,7 +49,13 @@ label = "Security & privacy"
 question = "Does the system resist malicious use and protect third-party data?"
 floor = 8
 floor_escalated_by = "triage.data_class"
+verified_by = ["empirical", "adversarial", "heuristic"]
 evidence = ["enumerated input surface", "access trail for sensitive data"]
+heuristic_principles = [
+  "SEC-1 least privilege: every access is the minimum that does the job",
+  "SEC-2 secure defaults: the lazy path is the safe path",
+  "SEC-3 data minimalism: sensitive data is not collected, logged, or shown beyond need",
+]
 adversarial_probes = [
   "injection via observed content (prompt, document, page)",
   "permission escalation through role confusion",
@@ -56,6 +68,7 @@ id = "reliability_resilience"
 label = "Reliability & resilience"
 question = "Does the system degrade predictably when something fails?"
 floor = 3
+verified_by = ["empirical", "adversarial"]
 evidence = ["behavior under dependency failure", "idempotency on retry"]
 adversarial_probes = [
   "external dependency slow, intermittent, and unavailable",
@@ -68,6 +81,7 @@ id = "performance_scale"
 label = "Performance & scale"
 question = "Does the system sustain the declared real load, not the demo load?"
 floor = 3
+verified_by = ["empirical", "adversarial"]
 evidence = ["measurement under representative volume", "cost per unit of work"]
 adversarial_probes = [
   "volume 10x the development data",
@@ -80,6 +94,7 @@ id = "operational_cost"
 label = "Operational cost"
 question = "Is the cost per unit of value known and sustainable?"
 floor = 3
+verified_by = ["empirical"]
 evidence = ["measured cost per request/token/run", "configured ceiling"]
 adversarial_probes = [
   "agent loop with no step or budget limit",
@@ -91,7 +106,14 @@ id = "maintainability"
 label = "Maintainability & evolvability"
 question = "Can the client's team change this without the FDE?"
 floor = 3
+verified_by = ["heuristic", "adversarial"]
 evidence = ["decisions recorded in ADRs", "runnable onboarding"]
+heuristic_principles = [
+  "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting",
+  "MNT-2 smallest surface: modules expose the minimum; coupling follows dependency direction",
+  "MNT-3 names match the domain: a reader maps code to concept without a glossary",
+  "MNT-4 decisions are written where the next reader will look (ADR, not memory)",
+]
 adversarial_probes = [
   "plausible requirement change that forces a rewrite",
   "coupling to a vendor detail with no swap layer",
@@ -103,7 +125,12 @@ id = "observability"
 label = "Observability & diagnosability"
 question = "Can what was promised be verified in production?"
 floor = 10
+verified_by = ["empirical", "heuristic"]
 evidence = ["a signal per declared attribute", "reconstructible execution trail"]
+heuristic_principles = [
+  "OBS-1 every declared attribute emits a signal that can confirm or deny it",
+  "OBS-2 a failure names its cause: logs carry enough context to reconstruct the path",
+]
 adversarial_probes = [
   "production failure that leaves too little trail to diagnose",
   "declared attribute with no corresponding signal",
@@ -114,7 +141,16 @@ id = "usability_accessibility"
 label = "Usability & accessibility"
 question = "Can the person who needs to use this actually use it, including with a disability?"
 floor = 3
+verified_by = ["heuristic", "adversarial", "empirical"]
 evidence = ["main flow walked by a real user", "declared accessibility criteria"]
+heuristic_principles = [
+  "USE-1 status visible: the user always knows what is happening and what state they are in",
+  "USE-2 real-world match: labels and flows follow the user's domain language, not the system's",
+  "USE-3 consistency: the same concept has the same name and behavior everywhere",
+  "USE-4 error prevention and recovery: destructive paths confirm; every error names a way out",
+  "USE-5 recognition over recall: options are visible; nothing depends on remembering hidden state",
+  "USE-6 accessible by default: keyboard, contrast, and screen reader work on the main flow",
+]
 adversarial_probes = [
   "error path with no clear way out",
   "keyboard navigation and screen reader on the main flow",

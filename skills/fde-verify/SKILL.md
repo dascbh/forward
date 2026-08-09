@@ -41,3 +41,4 @@ now, not deferred.
 | I5 | declared attribute without a signal | instrument it or reduce what was declared |
 | I6 | gate does not run without the FDE | `fde-sync` re-copies the runtime |
 | I7 | handoff without an artifact on disk | create the structure; do not pass context by conversation |
+| I8 | finding cites neither probe nor principle | name the probe that broke it or the catalog principle it violates; naked opinion is not a finding |

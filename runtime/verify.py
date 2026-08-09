@@ -119,6 +119,30 @@ class Gate:
                  "adversarial role has no writes to code" if not leak
                  else "a commit from the adversarial role touched code — I3 violated")
 
+    # -- I8: every finding cites a probe or a principle --------------------
+    def gate_finding_discipline(self) -> None:
+        import tomllib
+        reviews = list((self.project / "reviews").rglob("*.toml"))
+        bad, total = [], 0
+        for r in reviews:
+            try:
+                with open(r, "rb") as fh:
+                    data = tomllib.load(fh)
+            except Exception:
+                bad.append(f"{r.relative_to(self.project)}: unparseable")
+                continue
+            for f in data.get("finding", []):
+                total += 1
+                if not (f.get("probe") or f.get("principle")):
+                    bad.append(f"{r.name}: finding without probe or principle "
+                               f"— naked opinion is not a finding")
+        if not reviews or total == 0:
+            self.add("I8", True, "no findings recorded yet — nothing to validate")
+        else:
+            self.add("I8", not bad,
+                     f"{total} finding(s), every one cites a probe or a principle"
+                     if not bad else "; ".join(bad[:3]))
+
     # -- I4: criteria declared before -------------------------------------
     def gate_promotion_criteria(self) -> None:
         specs = list((self.project / "specs").rglob("acceptance.md"))
@@ -236,6 +260,8 @@ def main() -> int:
     if not args.staged:  # pre-commit stays fast; the rest is CI
         if want("adversarial-isolation"):
             g.gate_adversarial()
+        if want("finding-discipline"):
+            g.gate_finding_discipline()
         if want("promotion-criteria"):
             g.gate_promotion_criteria()
         if want("observability"):

@@ -10,7 +10,7 @@
 # ============================================================================
 
 [meta]
-kernel_version = "0.1.6"
+kernel_version = "0.2.0"
 mutable = false
 
 # ----------------------------------------------------------------------------
@@ -138,6 +138,29 @@ rationale = """
 Handoff by conversation leaks reasoning between roles, collapses the
 separation, and leaves no trail. An artifact on disk is auditable and survives
 the session.
+"""
+
+# ----------------------------------------------------------------------------
+# I8 — Judgment cites its principle
+# ----------------------------------------------------------------------------
+[[invariant]]
+id = "I8"
+name = "principled-judgment"
+statement = """
+Quality that cannot be verified by execution (eval) or by demonstrated
+failure (adversarial probe) is verified by heuristic review: judgment
+against a declared, versioned principle catalog. Every finding cites either
+the probe that broke it or the principle it violates, with severity.
+Judgment without a named principle is not a finding.
+"""
+enforced_by = ["ci", "demand-loop"]
+verifiable_by = "fde verify --gate finding-discipline"
+rationale = """
+Evals reach what executes; adversarial probes reach what can be shown to
+break. Usability, information architecture, and craft can be bad while
+everything passes — the only instrument left is expert judgment, and
+undisciplined judgment is taste. Naming the principle is what makes
+judgment auditable, contestable, and portable between reviewers.
 """
 
 # ----------------------------------------------------------------------------
