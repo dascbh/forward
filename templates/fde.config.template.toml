@@ -7,7 +7,7 @@
 
 [project]
 name = "{{PROJECT_NAME}}"
-kernel_version = "0.5.0"
+kernel_version = "0.6.0"
 
 [triage]
 data_class = "{{DATA_CLASS}}"           # public | internal | personal | financial | health
@@ -64,3 +64,6 @@ ai_agents = {{D_AI}}
 
 [tooling]
 tools = {{TOOLS}}   # e.g.: ["claude-code"] - which native layers step 8 emitted
+
+# [scrum]
+# enabled = true   # optional cadence layer: backlog + sprints (fde-scrum skill)

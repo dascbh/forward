@@ -43,11 +43,15 @@ qa_test_strategy = 1
 
 
 def make_project(dir, data_class="internal", behavior='["src/"]',
-                 evals='["evals/", "tests/"]', security=14, cost=7) -> Path:
+                 evals='["evals/", "tests/"]', security=14, cost=7,
+                 scrum=False) -> Path:
     p = Path(dir)
-    (p / "fde.config.toml").write_text(BASE_CONFIG.format(
+    body = BASE_CONFIG.format(
         data_class=data_class, behavior=behavior, evals=evals,
-        security=security, cost=cost), encoding="utf-8")
+        security=security, cost=cost)
+    if scrum:
+        body += "\n[scrum]\nenabled = true\n"
+    (p / "fde.config.toml").write_text(body, encoding="utf-8")
     dest = p / "bin" / "fde"
     dest.mkdir(parents=True, exist_ok=True)
     for f in ("fde_lib.py", "verify.py", "guard.py"):

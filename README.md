@@ -209,6 +209,8 @@ tools; installed into the project for Claude Code):
   heuristic judgment citing the principle catalogs
 - `fde-debug` — stop-the-line, six-step triage to root cause, and the
   guard eval that turns the fix into an I1 entry
+- `fde-scrum` — optional cadence layer: evidence-labeled backlog, sprints
+  with dated goals, review and retro as the user's two sittings
 - `fde-verify` — the gate: `python3 bin/fde/verify.py --all` (same as CI)
 - `fde-doctor` — what is actually enforced vs. merely suggested
 - `fde-sync` — regenerate after config, stack, or tool changes

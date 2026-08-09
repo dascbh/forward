@@ -126,6 +126,10 @@ Validation you must enforce before writing: the eight weights **sum to
 exactly 100**; no weight below its floor; security_privacy not below its
 escalated floor for the chosen data_class. The gate re-checks all of this.
 
+If the user wants the cadence layer (backlog, sprints, review/retro),
+enable `[scrum]` — the `fde-scrum` skill defines it; do not enable it
+unasked.
+
 ## 5. Create the handoff structure (I7)
 
 Create `specs/`, `docs/adr/`, `evals/`, `reviews/`, `promotions/` — plus

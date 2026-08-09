@@ -9,7 +9,7 @@
 
 [project]
 name = "forward"
-kernel_version = "0.5.0"
+kernel_version = "0.6.0"
 
 [triage]
 data_class = "public"             # open Apache-2.0 repository, no third-party data
@@ -68,3 +68,7 @@ ai_agents = 0
 
 [tooling]
 tools = ["claude-code"]
+
+[scrum]
+enabled = true
+

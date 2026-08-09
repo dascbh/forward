@@ -115,6 +115,19 @@ writing code on request; start by sizing. Pick a short demand id first
 Handoff between steps is by the artifacts named above, never by
 continuing the same conversation thread (I7).
 
+## Scrum mode — when `[scrum]` is enabled
+
+The cadence layer above the demand loop. Defaults shift: an idea or pain
+mentioned in conversation becomes an evidence-labeled backlog item
+(`opinion < usage-data < user-test < production`), not an immediate
+demand. The user's attention is spent in two sittings — planning (dated
+sprint goal + selection in `sprints/S-N/goal.md`) and review + retro
+(increment inspected, backlog reordered, process findings recorded).
+Between them, demands run the loop without interruptions. "Fix it NOW"
+bypasses the backlog but is recorded as unplanned and surfaces at the
+retro. No dated goal, no sprint; no retro, no next sprint (`--gate
+scrum`). Detail: `fde-scrum` skill.
+
 ## Voice — the kernel is infrastructure
 
 The kernel is plumbing, not the protagonist. Do not narrate it, praise

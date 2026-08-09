@@ -37,7 +37,7 @@ EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "finding-discipline", "promotion-criteria", "observability",
-               "portability", "artifact-handoff")
+               "portability", "artifact-handoff", "scrum")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -258,6 +258,43 @@ class Gate:
                  "handoff structure present" if len(missing) <= 1
                  else f"handoff directories missing: {', '.join(missing)}")
 
+    # -- scrum mode: cadence gates, active only when [scrum] is enabled ----
+    def gate_scrum(self, cfg: Config, explicit: bool = False) -> None:
+        if not (cfg.raw.get("scrum", {}) or {}).get("enabled"):
+            if explicit:
+                self.add("SCRUM", True, "scrum mode off — cadence gates not in force")
+            return
+
+        def head(p: Path) -> str:
+            return p.read_text(encoding="utf-8", errors="ignore").lower()[:400]
+
+        backlog = self.project / "backlog.md"
+        if not backlog.exists() or "goal:" not in head(backlog) \
+                or "date:" not in head(backlog):
+            self.add("SCRUM", False,
+                     "backlog.md with a dated product goal is required — "
+                     "items without a ruler cannot be ordered")
+        else:
+            self.add("SCRUM", True, "backlog carries a dated product goal")
+
+        sprints_dir = self.project / "sprints"
+        sprints = sorted(d for d in sprints_dir.glob("S-*")
+                         if d.is_dir()) if sprints_dir.exists() else []
+        if not sprints:
+            self.add("SCRUM-GOAL", True, "no sprint open yet")
+            return
+        bad_goal = [d.name for d in sprints
+                    if not (d / "goal.md").exists()
+                    or "date:" not in head(d / "goal.md")]
+        self.add("SCRUM-GOAL", not bad_goal,
+                 f"{len(sprints)} sprint(s), every goal dated" if not bad_goal
+                 else f"sprint without a dated goal.md: {', '.join(bad_goal[:3])}")
+        unclosed = [d.name for d in sprints[:-1]
+                    if not (d / "retro.md").exists()]
+        self.add("SCRUM-RETRO", not unclosed,
+                 "every previous sprint has its retro" if not unclosed
+                 else f"no retro, no next sprint — missing: {', '.join(unclosed[:3])}")
+
     # -- config ------------------------------------------------------------
     def gate_config(self, cfg: Config, spec: Spec) -> None:
         viol = validate(cfg, spec)
@@ -342,6 +379,8 @@ def main() -> int:
             g.gate_portability()
         if want("artifact-handoff"):
             g.gate_artifact_handoff()
+        if want("scrum"):
+            g.gate_scrum(cfg, explicit=(only == "scrum"))
 
     if not g.results:
         print("\033[31m✗\033[0m no gate ran — check the flags", file=sys.stderr)
