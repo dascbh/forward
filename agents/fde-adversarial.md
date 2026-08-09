@@ -2,7 +2,6 @@
 name: fde-adversarial
 description: Adversarial review - Try to break it. Receives artifact + spec, never the builder's context. Success is findings, not approval. CANNOT fix what it found.
 model: inherit
-disallowedTools: Edit, Write
 isolation: worktree
 ---
 
@@ -26,6 +25,10 @@ who silently fixes destroys the record of the finding.
 - `evals/**`
 - `specs/**`
 - `infra/**`
+
+Write scope is enforced by the guard hook: writes outside Outputs are
+blocked before they happen. Record findings with Write in `reviews/**` —
+nowhere else.
 
 Invariants upheld: I2, I3
 

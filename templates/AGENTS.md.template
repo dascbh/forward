@@ -57,6 +57,34 @@ Handoff is by artifact on disk, never by conversation continuity. The
 adversarial and promotion roles run isolated: artifact + spec only, never
 the builder's thread.
 
+## Demand loop — how work enters
+
+Every feature, fix, or change request follows this cycle. Do not start
+writing code on request; start by sizing. Pick a short demand id first
+(e.g. `DEM-042`).
+
+1. **Triage**: `score = min(3, surfaces) + (sensitive ? 2 : 0) +
+   (irreversible ? 2 : 0) + (loc < 50 ? 0 : loc < 300 ? 1 : 2)`, with
+   sensitive/irreversible from `[triage]` in `fde.config.toml`.
+   score ≤ 1 → **XS**: implementation, adversarial, 1 round ·
+   2–3 → **S**: + spec · 4–6 → **M**: + promotion, 2 rounds, ADR ·
+   ≥ 7 → **L**: all five roles, 3 rounds, ADR.
+   Announce size, active roles, and rounds before starting.
+2. **Spec** (unless XS): `specs/<demand-id>/spec.md`,
+   `failure-modes.toml`, and `acceptance.md` with a `date:` line —
+   declared before any code exists (I4).
+3. **Architecture** (L only): `docs/adr/`, `specs/<demand-id>/architecture.md`.
+4. **Implementation**: code and its eval entries in the same change (I1).
+5. **Adversarial review**: isolated, weight-ordered, findings recorded in
+   `reviews/<demand-id>/findings.toml`. Findings are fixed by
+   implementation, never by the reviewer (I3).
+6. **Promotion** (M/L): `promotions/<demand-id>/decision.md` against the
+   declared acceptance criteria.
+7. **Gate**: `python3 bin/fde/verify.py --all` — the same one CI runs.
+
+Handoff between steps is by the artifacts named above, never by
+continuing the same conversation thread (I7).
+
 ## Detail
 
 Per-step procedures live in the kernel's `skills/` (Agent Skills format,

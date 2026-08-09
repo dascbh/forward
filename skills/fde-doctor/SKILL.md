@@ -17,10 +17,10 @@ recommendation.
    - `.github/workflows/fde-gate.yml`
    - `bin/fde/verify.py` — the gate runtime lives in the repo (I6)
    - `fde.config.toml`
-2. **Native layers present** — `.claude/agents/fde-*.md` plus the guard
-   hook in `.claude/settings.json` (claude-code);
-   `.cursor/rules/fde-eval-gate.mdc` (cursor); `.codex/AGENTS.md` (codex);
-   `AGENTS.md` (every tool).
+2. **Native layers present** — `.claude/agents/fde-*.md`, the guard hook
+   in `.claude/settings.json`, and the skills in `.claude/skills/fde-*`
+   (claude-code); `.cursor/rules/fde-eval-gate.mdc` (cursor);
+   `.codex/AGENTS.md` (codex); `AGENTS.md` (every tool).
 3. **Declare the tier** of the tool in use:
 
 | tier | tools | meaning |

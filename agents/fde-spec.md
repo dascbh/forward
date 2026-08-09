@@ -2,7 +2,6 @@
 name: fde-spec
 description: Specification - Convert discovery into enumerated failure modes and declared acceptance criteria. This role produces the measure BEFORE any code exists.
 model: inherit
-disallowedTools: Edit, Write
 ---
 
 # Specification

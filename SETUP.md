@@ -173,6 +173,10 @@ the user names.
    content.
 4. `.claude/settings.json`: **merge** (never overwrite) a `PreToolUse` hook
    with matcher `Write|Edit` running `python3 bin/fde/guard.py`.
+5. Copy the kernel's `skills/` — every skill except `fde-init` — to
+   `.claude/skills/` (one directory per skill), so triage, review, verify,
+   doctor, and sync are invocable in the project without the kernel
+   checkout.
 
 **cursor** (tier `commit`): write `.cursor/rules/fde-eval-gate.mdc` —
 frontmatter `description: FDE kernel eval gate (I1)`, `globs: src/**`,

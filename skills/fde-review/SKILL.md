@@ -23,7 +23,8 @@ reasoning of whoever built it. If you are in the same thread that produced
 the code, you **cannot** be the reviewer:
 
 - Claude Code: invoke the `fde-adversarial` subagent — it runs in an
-  isolated worktree with Edit/Write denied.
+  isolated worktree, and the guard hook blocks its writes outside
+  `reviews/**`.
 - Any other tool: `git worktree add --detach ../.fde-review-<demand-id>`
   and run the review inside it, in a fresh session with no builder context.
 

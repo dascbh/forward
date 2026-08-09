@@ -7,7 +7,9 @@
 # a different hat, and the "architect" approves what they themselves designed.
 #
 # What produces real separation:
-#   1. denied_tools  — the role CANNOT do what is not its job
+#   1. write_scope   — enforced by the guard hook (loop tier) and charged by
+#                      the gate at commit everywhere else; the role CANNOT
+#                      write what is not its output
 #   2. isolation     — the role does not SEE the builder's reasoning
 #   3. inputs/outputs — handoff by artifact on disk (I7), not by conversation
 #
@@ -31,7 +33,6 @@ solves the absence of a golden dataset on day one.
 inputs = ["discovery/**", "fde.config.toml"]
 outputs = ["specs/<demand-id>/spec.md", "specs/<demand-id>/failure-modes.toml", "specs/<demand-id>/acceptance.md"]
 write_scope = ["specs/**", "discovery/**"]
-denied_tools = ["Edit", "Write"]           # outside write_scope; the adapter translates
 denied_paths = ["src/**", "tests/**", "infra/**"]
 isolation = false
 satisfies = ["I1", "I4"]
@@ -80,7 +81,6 @@ who silently fixes destroys the record of the finding.
 inputs = ["src/**:read", "specs/**:read", "evals/**:read"]
 outputs = ["reviews/<demand-id>/findings.toml"]
 write_scope = ["reviews/**"]
-denied_tools = ["Edit", "Write"]
 denied_paths = ["src/**", "tests/**", "evals/**", "specs/**", "infra/**"]
 isolation = true                            # mandatory — I2
 isolation_mode = "worktree"
