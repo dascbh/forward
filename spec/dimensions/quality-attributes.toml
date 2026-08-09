@@ -144,6 +144,7 @@ heuristic_principles = [
   "MNT-7 Chesterton's Fence: if you cannot say why the code exists, you are not ready to change it; a simplification that had to edit tests changed behavior",
   "MNT-8 repeated conditionals on the same shape are a missing model or dispatcher — a design smell, not a nit",
   "MNT-9 scope discipline: adjacent improvements are noted for later, never fixed in-band",
+  "MNT-10 comments say why, never what; commented-out code is deleted (git remembers); a TODO has an owner and a date, or it dies; when how to run or operate the system changes, README and runbook update in the same change",
 ]
 adversarial_probes = [
   "plausible requirement change that forces a rewrite",
