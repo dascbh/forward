@@ -1,8 +1,13 @@
 # What "production" means for a kernel: installed repositories.
-# These are the signals that make the declared attributes verifiable (I5).
+# One signal per weighted attribute (I5 / OBS-1) — each can confirm or
+# deny what the weight declares.
 
 [signals]
-ci_gate = "fde-gate workflow runs the suite + verify --all on every push and PR"
-regression = "tests/ covers runtime behavior and spec/instruction integrity"
-version = "kernel_version synced across spec, plugin.json, and the config template — test-enforced"
-field = "installed projects report drift and defects upstream; each becomes an ADR, a fix, and usually a test"
+functional_correctness = "tests/ suite over runtime behavior + verify --all on every push (fde-gate)"
+maintainability = "tests/test_spec_integrity.py + test_install_sync.py: cross-references, catalogs, source/copy identity, version sync; decisions in docs/adr/"
+reliability_resilience = "fde-gate history on main: a red run is a broken release; pre-commit blocks locally first"
+usability_accessibility = "field reports from installed projects (ergonomics findings become demands; e.g. voice doctrine, triage granularity)"
+observability = "this file, checked for content by the I5 gate — an empty [signals] fails"
+security_privacy = "SEC probes run in every adversarial review round; no secrets in repo (public data class)"
+performance_scale = "suite runtime reported by unittest on every CI run; stdlib-only keeps the gate dependency-free"
+operational_cost = "zero external dependencies by design — the cost envelope is Python 3.11+ itself"

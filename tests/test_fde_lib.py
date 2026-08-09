@@ -15,6 +15,7 @@ from fde_lib import (  # noqa: E402
     Spec,
     escalated_security_floor,
     gate_paths,
+    path_matches,
     probe_plan,
     validate,
 )
@@ -94,15 +95,31 @@ class TestEscalation(unittest.TestCase):
 class TestGatePaths(unittest.TestCase):
     def test_defaults_when_gate_absent_or_empty(self):
         self.assertEqual(gate_paths({}),
-                         (DEFAULT_BEHAVIOR_PATHS, DEFAULT_EVAL_PATHS))
+                         (tuple(DEFAULT_BEHAVIOR_PATHS), tuple(DEFAULT_EVAL_PATHS)))
         self.assertEqual(gate_paths({"gate": {"behavior_paths": []}})[0],
-                         DEFAULT_BEHAVIOR_PATHS)
+                         tuple(DEFAULT_BEHAVIOR_PATHS))
 
-    def test_prefixes_are_normalized_with_trailing_slash(self):
-        bp, ep = gate_paths({"gate": {"behavior_paths": ["backend/app"],
+    def test_entries_are_kept_as_declared(self):
+        bp, ep = gate_paths({"gate": {"behavior_paths": ["backend/app", "SETUP.md"],
                                       "eval_paths": ["backend/tests/"]}})
-        self.assertEqual(bp, ("backend/app/",))
+        self.assertEqual(bp, ("backend/app", "SETUP.md"))
         self.assertEqual(ep, ("backend/tests/",))
+
+
+class TestPathMatches(unittest.TestCase):
+    def test_directory_entries_match_their_subtree_slash_optional(self):
+        self.assertTrue(path_matches("src/a.py", ("src/",)))
+        self.assertTrue(path_matches("backend/app/x.py", ("backend/app",)))
+        self.assertFalse(path_matches("backend/apple.py", ("backend/app",)))
+
+    def test_file_entries_match_exactly(self):
+        self.assertTrue(path_matches("SETUP.md", ("SETUP.md",)))
+        self.assertFalse(path_matches("SETUP.md.bak", ("SETUP.md",)))
+        self.assertFalse(path_matches("docs/SETUP.md", ("SETUP.md",)))
+
+    def test_no_sibling_prefix_bleed(self):
+        self.assertFalse(path_matches("specs/x.md", ("spec",)))
+        self.assertTrue(path_matches("spec/x.toml", ("spec",)))
 
 
 class TestProbePlan(unittest.TestCase):

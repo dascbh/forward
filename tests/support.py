@@ -68,6 +68,18 @@ def run_git(project, *args):
     subprocess.run(["git", *args], cwd=project, check=True, capture_output=True)
 
 
+def git_out(project, *args) -> str:
+    r = subprocess.run(["git", *args], cwd=project, check=True,
+                       capture_output=True, text=True)
+    return r.stdout.strip()
+
+
+def commit_all(project, msg) -> str:
+    run_git(project, "add", "-A")
+    run_git(project, "commit", "-q", "-m", msg)
+    return git_out(project, "rev-parse", "HEAD")
+
+
 def verify(project, *args):
     return subprocess.run(["python3", "bin/fde/verify.py", *args],
                           cwd=project, capture_output=True, text=True)

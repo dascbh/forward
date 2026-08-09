@@ -41,9 +41,11 @@ Two passes, same isolation:
 - `specs/**`
 - `infra/**`
 
-Write scope is enforced by the guard hook: writes outside Outputs are
-blocked before they happen. Record findings with Write in `reviews/**` —
-nowhere else.
+Write scope is enforced by the guard hook where the harness identifies
+the role in the hook payload; everywhere else the wall is the commit gate
+(I2/I3 — findings and behavior never change in the same commit). Either
+way the rule is the same: record findings in `reviews/**` and nowhere
+else. Scope is design, not an obstacle.
 
 Invariants upheld: I2, I3, I8
 

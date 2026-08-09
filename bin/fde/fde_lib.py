@@ -26,17 +26,26 @@ DEFAULT_BEHAVIOR_PATHS = ("src/", "lib/", "app/", "services/", "prompts/", "agen
 DEFAULT_EVAL_PATHS = ("evals/", "tests/")
 
 
-def _norm_prefixes(items) -> tuple[str, ...]:
-    return tuple(p if p.endswith("/") else p + "/" for p in items)
+def path_matches(path: str, entries) -> bool:
+    """Gate-path semantics: a directory entry (trailing slash optional)
+    matches its whole subtree; a file entry matches exactly. 'spec' never
+    matches 'specs/x' — the separator is part of the match."""
+    for e in entries:
+        e = e.rstrip("/")
+        if path == e or path.startswith(e + "/"):
+            return True
+    return False
 
 
 def gate_paths(raw: dict) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """behavior_paths and eval_paths from [gate], with defaults. An empty
-    list falls back to the defaults — silence is not a bypass."""
+    list falls back to the defaults — silence is not a bypass. Entries are
+    kept as declared; match with path_matches (file entries match exactly,
+    directory entries match their subtree)."""
     gate = raw.get("gate", {}) or {}
-    bp = gate.get("behavior_paths") or DEFAULT_BEHAVIOR_PATHS
-    ep = gate.get("eval_paths") or DEFAULT_EVAL_PATHS
-    return _norm_prefixes(bp), _norm_prefixes(ep)
+    bp = tuple(gate.get("behavior_paths") or DEFAULT_BEHAVIOR_PATHS)
+    ep = tuple(gate.get("eval_paths") or DEFAULT_EVAL_PATHS)
+    return bp, ep
 
 
 # ---------------------------------------------------------------------------

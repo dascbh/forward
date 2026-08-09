@@ -12,6 +12,11 @@ with the stderr message going back to the agent.
 Hooks deliver ABSOLUTE file paths; gate paths and role scopes are
 repo-relative. Everything is normalized against the project root before
 matching — without that, no prefix ever matches and the guard is theater.
+
+Honesty note: the role branch fires only when the harness includes a role
+identity in the payload (agent_name/subagent). Where it does not, role
+scopes are charged later, by the I2/I3 gates at commit — the guard's
+always-on protection is the no-suite I1 branch.
 """
 from __future__ import annotations
 
@@ -25,17 +30,22 @@ HERE = Path(__file__).resolve().parent
 DEFAULT_BEHAVIOR = ("src/", "lib/", "app/", "services/", "prompts/")
 DEFAULT_EVAL = ("evals/", "tests/")
 
-# write scope per role - mirrors spec/roles.toml
-DENIED = {
-    "fde-spec": ("src/", "tests/", "infra/"),
-    "fde-architecture": ("src/", "tests/"),
-    "fde-adversarial": ("src/", "tests/", "evals/", "specs/", "infra/"),
-    "fde-promotion": ("src/", "tests/", "evals/", "specs/", "reviews/"),
-    "fde-implementation": ("reviews/",),
+# ALLOWLIST per judging role — mirrors write_scope in spec/roles.toml.
+# These roles write ONLY inside their scope; everything else is blocked.
+ALLOWED = {
+    "fde-spec": ("specs/", "discovery/"),
+    "fde-architecture": ("docs/adr/", "specs/"),
+    "fde-adversarial": ("reviews/",),
+    "fde-promotion": ("promotions/",),
 }
 
-# roles that must never write production code, wherever [gate] says it lives
-CODE_DENIED = ("fde-spec", "fde-architecture", "fde-adversarial", "fde-promotion")
+
+def _matches(path: str, entries) -> bool:
+    for e in entries:
+        e = e.rstrip("/")
+        if path == e or path.startswith(e + "/"):
+            return True
+    return False
 
 
 def _project() -> Path:
@@ -53,12 +63,6 @@ def _gate(project: Path) -> dict:
         return {}
 
 
-def _prefixes(items, default: tuple) -> tuple:
-    if not items:
-        return default
-    return tuple(p if p.endswith("/") else p + "/" for p in items)
-
-
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
@@ -72,8 +76,8 @@ def main() -> int:
 
     project = _project()
     gate = _gate(project)
-    behavior = _prefixes(gate.get("behavior_paths"), DEFAULT_BEHAVIOR)
-    eval_paths = _prefixes(gate.get("eval_paths"), DEFAULT_EVAL)
+    behavior = tuple(gate.get("behavior_paths") or DEFAULT_BEHAVIOR)
+    eval_paths = tuple(gate.get("eval_paths") or DEFAULT_EVAL)
 
     p = Path(path.split("/./")[-1])
     if p.is_absolute():
@@ -84,34 +88,38 @@ def main() -> int:
     else:
         rel = p.as_posix()
 
-    for role, denied in DENIED.items():
-        if role in agent and (
-            rel.startswith(denied)
-            or (role in CODE_DENIED and rel.startswith(behavior))
-        ):
-            print(
-                f"[FDE] role {role} does not write to {rel}.\n"
-                f"This is design, not an obstacle: the role that judges cannot rewrite\n"
-                f"what will be judged. Record the finding or delegate to the right role.",
-                file=sys.stderr,
-            )
-            return 2
+    def block(msg: str) -> int:
+        print(msg, file=sys.stderr)
+        return 2
 
-    if rel.startswith(behavior):
-        # .gitkeep is structure, not a suite
-        has_suite = any(
-            (project / e).exists()
-            and any(f.is_file() and f.name != ".gitkeep" for f in (project / e).rglob("*"))
-            for e in eval_paths
-        )
-        if not has_suite:
-            print(
+    for role, allowed in ALLOWED.items():
+        if role in agent and not _matches(rel, allowed):
+            return block(
+                f"[FDE] role {role} writes only in {', '.join(allowed)} — not {rel}.\n"
+                f"This is design, not an obstacle: the role that judges cannot rewrite\n"
+                f"what will be judged. Record the finding or delegate to the right role.")
+
+    if "fde-implementation" in agent and (
+        rel.startswith("reviews/")
+        or (rel.startswith("specs/") and rel.endswith("acceptance.md"))
+    ):
+        return block(
+            f"[FDE] role fde-implementation does not write to {rel}: it cannot\n"
+            f"rewrite the criteria it will be judged by, nor the findings against it.")
+
+    if _matches(rel, behavior):
+        # .gitkeep is structure, not a suite; a file entry counts if present
+        def has_suite(e: str) -> bool:
+            d = project / e.rstrip("/")
+            if d.is_file():
+                return True
+            return d.is_dir() and any(
+                f.is_file() and f.name != ".gitkeep" for f in d.rglob("*"))
+        if not any(has_suite(e) for e in eval_paths):
+            return block(
                 "[FDE] I1: behavior change before an eval suite exists.\n"
                 "Write the failure mode and the evaluator first - the pre-commit will\n"
-                "charge for this anyway, and redoing it later costs more.",
-                file=sys.stderr,
-            )
-            return 2
+                "charge for this anyway, and redoing it later costs more.")
     return 0
 
 

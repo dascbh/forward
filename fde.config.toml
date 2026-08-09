@@ -25,7 +25,13 @@ eval_command = "python3 bin/fde/verify.py --gate eval"
 
 [gate]
 # Per ADR-0001 the instructions ARE the runtime — so they are behavior.
-behavior_paths = ["runtime/", "spec/", "skills/", "agents/", "templates/", "SETUP.md"]
+# The installed copies (bin/fde/, .fde/, .claude/, workflow, AGENTS.md) are
+# what CI and agents actually execute: change-controlled too (finding F4);
+# their eval is the source/copy identity suite in tests/test_install_sync.py.
+behavior_paths = [
+  "runtime/", "spec/", "skills/", "agents/", "templates/", "SETUP.md",
+  "bin/fde/", ".fde/", ".claude/", ".github/workflows/", "AGENTS.md", "CLAUDE.md",
+]
 eval_paths = ["tests/", "evals/"]
 
 # ---------------------------------------------------------------------------

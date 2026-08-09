@@ -218,11 +218,12 @@ If the tool has a native rules file (`.kiro/steering/`, `.windsurfrules`,
 
 Run: `python3 bin/fde/verify.py --all`
 
-Expected on a fresh install: `CFG`, `CFG-SEC`, `I1`, `I6`, `I7` green;
-`I2`, `I4`, `I5` red — no review, no acceptance criteria, no observability
-signal exists yet. That is designed, not a failure of your install. Do NOT
-fabricate artifacts to turn them green; they go green when the first demand
-completes its cycle.
+Expected on a fresh install: `CFG`, `CFG-SEC`, `I1`, `I6`, `I7`, `I8`
+green (I8 reports "nothing to validate"; `I3` does not print at all until
+reviews exist); `I2`, `I4`, `I5` red — no review, no acceptance criteria,
+no observability signal exists yet. That is designed, not a failure of
+your install. Do NOT fabricate artifacts to turn them green; they go
+green when the first demand completes its cycle.
 
 Then report to the user:
 - what was installed and where;

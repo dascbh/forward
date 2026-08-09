@@ -27,9 +27,17 @@ from fde_lib import (  # noqa: E402
     Spec,
     escalated_security_floor,
     gate_paths,
+    path_matches,
     project_root,
     validate,
 )
+
+# git's well-known empty tree: diffing against it means "everything in HEAD"
+EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
+               "finding-discipline", "promotion-criteria", "observability",
+               "portability", "artifact-handoff")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -58,18 +66,34 @@ class Gate:
         except FileNotFoundError:
             return []
 
-    def changed(self, staged: bool) -> list[str]:
+    def _rev_ok(self, rev: str) -> bool:
+        try:
+            r = subprocess.run(["git", "rev-parse", "--verify", "--quiet",
+                                f"{rev}^{{commit}}"],
+                               cwd=self.project, capture_output=True, text=True)
+            return r.returncode == 0
+        except FileNotFoundError:
+            return False
+
+    def changed(self, staged: bool, since: str | None = None) -> list[str]:
         if staged:
             return self._git("diff", "--cached", "--name-only")
-        return self._git("diff", "--name-only", "HEAD~1..HEAD") or self._git("ls-files")
+        # CI: diff the pushed/PR range when given; else the last commit;
+        # else (first commit, shallow clone) everything in HEAD. Never fall
+        # back to ls-files — that made I1 vacuously green.
+        if since and set(since) != {"0"} and self._rev_ok(since):
+            return self._git("diff", "--name-only", f"{since}..HEAD")
+        if self._rev_ok("HEAD~1"):
+            return self._git("diff", "--name-only", "HEAD~1..HEAD")
+        return self._git("diff", "--name-only", EMPTY_TREE, "HEAD")
 
     # -- I1: eval precedes merge ------------------------------------------
-    def gate_eval_coverage(self, staged: bool) -> None:
-        files = self.changed(staged)
-        touched_behavior = [f for f in files if f.startswith(self.behavior_paths)]
+    def gate_eval_coverage(self, staged: bool, since: str | None = None) -> None:
+        files = self.changed(staged, since)
+        touched_behavior = [f for f in files if path_matches(f, self.behavior_paths)]
         # .gitkeep is structure, not a measure
         touched_eval = [f for f in files
-                        if f.startswith(self.eval_paths) and not f.endswith(".gitkeep")]
+                        if path_matches(f, self.eval_paths) and not f.endswith(".gitkeep")]
         if not touched_behavior:
             self.add("I1", True, "no behavior change in this changeset")
             return
@@ -107,17 +131,33 @@ class Gate:
             text = r.read_text(encoding="utf-8", errors="ignore")
             if "context_policy" not in text or "artifact_only" not in text:
                 bad.append(str(r.relative_to(self.project)))
+        # a promoted demand without a recorded review is a bypass, not a gap
+        unreviewed = [d.parent.name for d in
+                      (self.project / "promotions").rglob("decision.md")
+                      if not (self.project / "reviews" / d.parent.name /
+                              "findings.toml").exists()]
         if bad:
             self.add("I2", False, f"report without isolation declaration: {', '.join(bad[:3])}")
+        elif unreviewed:
+            self.add("I2", False,
+                     f"promoted without a recorded review: {', '.join(unreviewed[:3])}")
         else:
             self.add("I2", True, f"{len(reviews)} report(s) with isolation declared")
 
-        # I3: the adversarial role did not write to code
-        authors = self._git("log", "-20", "--format=%s")
-        leak = [a for a in authors if "fde-adversarial" in a and "src/" in a]
-        self.add("I3", not leak,
-                 "adversarial role has no writes to code" if not leak
-                 else "a commit from the adversarial role touched code — I3 violated")
+        # I3: findings and behavior never change in the same commit — a
+        # reviewer who fixes erases the record of the finding
+        dirty = []
+        for c in self._git("log", "-20", "--format=%H"):
+            files = self._git("diff-tree", "--root", "--no-commit-id",
+                              "--name-only", "-r", c)
+            # .gitkeep is structure, not a finding
+            if (any(f.startswith("reviews/") and not f.endswith(".gitkeep")
+                    for f in files)
+                    and any(path_matches(f, self.behavior_paths) for f in files)):
+                dirty.append(c[:7])
+        self.add("I3", not dirty,
+                 "no commit mixes review findings with behavior changes" if not dirty
+                 else f"findings and behavior changed in the same commit: {', '.join(dirty[:3])}")
 
     # -- I8: every finding cites a probe or a principle --------------------
     def gate_finding_discipline(self) -> None:
@@ -136,31 +176,56 @@ class Gate:
                 if not (f.get("probe") or f.get("principle")):
                     bad.append(f"{r.name}: finding without probe or principle "
                                f"— naked opinion is not a finding")
-        if not reviews or total == 0:
+        if bad:
+            # an unparseable file is a failure, never a vacuous pass
+            self.add("I8", False, "; ".join(bad[:3]))
+        elif total == 0:
             self.add("I8", True, "no findings recorded yet — nothing to validate")
         else:
-            self.add("I8", not bad,
-                     f"{total} finding(s), every one cites a probe or a principle"
-                     if not bad else "; ".join(bad[:3]))
+            self.add("I8", True,
+                     f"{total} finding(s), every one cites a probe or a principle")
 
     # -- I4: criteria declared before -------------------------------------
     def gate_promotion_criteria(self) -> None:
-        specs = list((self.project / "specs").rglob("acceptance.md"))
-        if not specs:
-            self.add("I4", False, "no specs/**/acceptance.md — acceptance criteria "
+        # per demand, not once per repository: every demand directory under
+        # specs/ carries its own dated acceptance
+        demand_dirs = [d for d in sorted((self.project / "specs").glob("*"))
+                       if d.is_dir()]
+        if not demand_dirs:
+            self.add("I4", False, "no specs/<demand>/ — acceptance criteria "
                                   "were not declared")
             return
-        undated = [s.name for s in specs if "date:" not in
-                   s.read_text(encoding="utf-8", errors="ignore").lower()[:400]]
-        self.add("I4", not undated,
-                 f"{len(specs)} criteria file(s) declared" if not undated
-                 else f"criteria without a date: {', '.join(undated[:3])}")
+        missing = [d.name for d in demand_dirs if not (d / "acceptance.md").exists()]
+        undated = [d.name for d in demand_dirs
+                   if (d / "acceptance.md").exists()
+                   and "date:" not in (d / "acceptance.md")
+                   .read_text(encoding="utf-8", errors="ignore").lower()[:400]]
+        if missing:
+            self.add("I4", False, f"demand(s) without acceptance.md: {', '.join(missing[:3])}")
+        elif undated:
+            self.add("I4", False, f"criteria without a date: {', '.join(undated[:3])}")
+        else:
+            self.add("I4", True, f"{len(demand_dirs)} demand(s) with dated criteria")
 
     # -- I5: observability floor ------------------------------------------
     def gate_observability(self, cfg: Config, spec: Spec) -> None:
         declared = [k for k, v in cfg.raw.get("weights", {}).items() if int(v) > 0]
-        if (self.project / "observability.toml").exists():
-            self.add("I5", True, "observability signal present (observability.toml)")
+        obs = self.project / "observability.toml"
+        if obs.exists():
+            # existence is not a signal — the file must declare signals
+            import tomllib
+            try:
+                with open(obs, "rb") as fh:
+                    signals = tomllib.load(fh).get("signals", {}) or {}
+            except Exception:
+                signals = {}
+            if signals:
+                self.add("I5", True,
+                         f"observability.toml declares {len(signals)} signal(s)")
+            else:
+                self.add("I5", False,
+                         "observability.toml exists but declares no [signals] — "
+                         "an empty file is not a floor")
             return
         # only the project's own files count: tracked or untracked-but-not-
         # ignored, and never inside a vendor tree
@@ -234,8 +299,15 @@ def main() -> int:
     ap.add_argument("--staged", action="store_true", help="pre-commit mode")
     ap.add_argument("--all", action="store_true", help="CI mode: everything")
     ap.add_argument("--gate", default=None, help="a single specific gate")
+    ap.add_argument("--since", default=None,
+                    help="CI: diff this rev..HEAD for I1 (push base / PR base)")
     ap.add_argument("--format", choices=["text", "json"], default="text")
     args = ap.parse_args()
+
+    if args.gate is not None and args.gate not in KNOWN_GATES:
+        print(f"\033[31m✗\033[0m unknown gate '{args.gate}'. "
+              f"Valid: {', '.join(KNOWN_GATES)}", file=sys.stderr)
+        return 2
 
     project = project_root()
     kernel_spec = project / ".fde"
@@ -256,7 +328,7 @@ def main() -> int:
     if want("config"):
         g.gate_config(cfg, spec)
     if want("eval-coverage") or want("eval"):
-        g.gate_eval_coverage(staged=args.staged)
+        g.gate_eval_coverage(staged=args.staged, since=args.since)
     if not args.staged:  # pre-commit stays fast; the rest is CI
         if want("adversarial-isolation"):
             g.gate_adversarial()
@@ -271,6 +343,9 @@ def main() -> int:
         if want("artifact-handoff"):
             g.gate_artifact_handoff()
 
+    if not g.results:
+        print("\033[31m✗\033[0m no gate ran — check the flags", file=sys.stderr)
+        return 2
     return g.report(args.format)
 
 
