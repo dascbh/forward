@@ -1,0 +1,8 @@
+# What "production" means for a kernel: installed repositories.
+# These are the signals that make the declared attributes verifiable (I5).
+
+[signals]
+ci_gate = "fde-gate workflow runs the suite + verify --all on every push and PR"
+regression = "tests/ covers runtime behavior and spec/instruction integrity"
+version = "kernel_version synced across spec, plugin.json, and the config template — test-enforced"
+field = "installed projects report drift and defects upstream; each becomes an ADR, a fix, and usually a test"

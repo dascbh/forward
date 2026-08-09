@@ -1,0 +1,4 @@
+#!/bin/sh
+# FDE-KERNEL:GENERATED — do not edit by hand.
+# Universal enforcement: runs with any agent, and with human devs.
+exec python3 bin/fde/verify.py --staged

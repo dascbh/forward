@@ -140,7 +140,8 @@ kernel checkout present. Copy from the kernel into the project:
 1. `runtime/fde_lib.py`, `runtime/verify.py`, `runtime/guard.py` → `bin/fde/`
 2. `spec/invariants.toml`, `spec/roles.toml`, `spec/dimensions/*.toml` → `.fde/spec/` (same layout)
 3. `templates/pre-commit` → `.githooks/pre-commit`, then `chmod +x` it
-4. `templates/fde-gate.yml` → `.github/workflows/fde-gate.yml`
+4. `templates/fde-gate.yml` → `.github/workflows/fde-gate.yml`, filling
+   `{{TEST_COMMAND}}` from `[stack]` — CI runs the tests AND the gate
 5. Run `git config core.hooksPath .githooks` in the project.
 
 Generated-file marker — put this at the top of every file you generate in

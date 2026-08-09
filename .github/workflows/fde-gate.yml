@@ -11,6 +11,6 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - name: Tests
-        run: {{TEST_COMMAND}}
+        run: python3 -m unittest discover -s tests
       - name: FDE gate
         run: python bin/fde/verify.py --all

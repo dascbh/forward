@@ -1,0 +1,111 @@
+# ============================================================================
+# ROLES
+# ============================================================================
+# Five roles. They are not job titles — each one exists because it has
+# DIFFERENT ACCESS (tools, context, artifacts). A role running the same model,
+# in the same context, with the same tools as another role is the same role in
+# a different hat, and the "architect" approves what they themselves designed.
+#
+# What produces real separation:
+#   1. write_scope   — enforced by the guard hook (loop tier) and charged by
+#                      the gate at commit everywhere else; the role CANNOT
+#                      write what is not its output
+#   2. isolation     — the role does not SEE the builder's reasoning
+#   3. inputs/outputs — handoff by artifact on disk (I7), not by conversation
+#
+# PM, PO, squad lead, and tech lead were deliberately collapsed. They exist in
+# human org charts because humans lack shared context. Agents have it. Keeping
+# them would be token overhead and one more point of intent degradation.
+# ============================================================================
+
+[meta]
+spec_version = "0.1.0"
+
+# ----------------------------------------------------------------------------
+[[role]]
+id = "spec"
+label = "Specification"
+purpose = """
+Convert discovery into enumerated failure modes and declared acceptance
+criteria. This role produces the measure BEFORE any code exists — it is what
+solves the absence of a golden dataset on day one.
+"""
+inputs = ["discovery/**", "fde.config.toml"]
+outputs = ["specs/<demand-id>/spec.md", "specs/<demand-id>/failure-modes.toml", "specs/<demand-id>/acceptance.md"]
+write_scope = ["specs/**", "discovery/**"]
+denied_paths = ["src/**", "tests/**", "infra/**"]
+isolation = false
+satisfies = ["I1", "I4"]
+
+# ----------------------------------------------------------------------------
+[[role]]
+id = "architecture"
+label = "Architecture"
+purpose = """
+Decide boundaries, contracts, and trade-offs in light of the weight vector.
+Produces recorded decisions, not code — if it could edit the implementation,
+it becomes a dev with a different prompt and the decision never gets written.
+"""
+inputs = ["specs/**", "fde.config.toml", "src/**:read"]
+outputs = ["docs/adr/*.md", "specs/<demand-id>/architecture.md"]
+write_scope = ["docs/adr/**", "specs/**"]
+denied_paths = ["src/**", "tests/**"]
+isolation = false
+satisfies = ["I7"]
+
+# ----------------------------------------------------------------------------
+[[role]]
+id = "implementation"
+label = "Implementation"
+purpose = """
+Build the artifact and the corresponding suite. It is the only role with write
+access to production code. It does not judge its own delivery.
+"""
+inputs = ["specs/**", "docs/adr/**"]
+outputs = ["src/**", "tests/**", "evals/**"]
+write_scope = ["src/**", "tests/**", "evals/**", "infra/**"]
+denied_paths = ["specs/**/acceptance.md", "reviews/**"]
+denied_reason = "cannot rewrite the criteria it will be judged by, nor the findings against it"
+isolation = false
+satisfies = ["I1"]
+
+# ----------------------------------------------------------------------------
+[[role]]
+id = "adversarial"
+label = "Adversarial review"
+purpose = """
+Try to break it, then judge it. Receives artifact + spec, never the
+builder's context. Two passes with the same access: adversarial
+(demonstrate failure via probes) and heuristic (judge attributes whose
+verified_by includes heuristic against their principle catalog — every
+finding cites its principle, I8). Success is findings, not approval. It
+CANNOT fix what it found — a reviewer who silently fixes destroys the
+record of the finding.
+"""
+inputs = ["src/**:read", "specs/**:read", "evals/**:read"]
+outputs = ["reviews/<demand-id>/findings.toml"]
+write_scope = ["reviews/**"]
+denied_paths = ["src/**", "tests/**", "evals/**", "specs/**", "infra/**"]
+isolation = true                            # mandatory — I2
+isolation_mode = "worktree"
+context_policy = "artifact_only"
+probe_order = "derived_from_vector_A_weights"
+success_metric = "findings_by_severity"
+satisfies = ["I2", "I3", "I8"]
+
+# ----------------------------------------------------------------------------
+[[role]]
+id = "promotion"
+label = "Promotion"
+purpose = """
+Evaluate the artifact against the declared criteria and decide promotion. Does
+not build, does not review: only confronts evidence with criteria and records
+the decision.
+"""
+inputs = ["specs/**:read", "reviews/**:read", "evals/**:read", "artifacts/gate-report.json"]
+outputs = ["promotions/<demand-id>/decision.md"]
+write_scope = ["promotions/**"]
+denied_paths = ["src/**", "tests/**", "evals/**", "specs/**", "reviews/**"]
+isolation = true
+isolation_mode = "worktree"
+satisfies = ["I4", "I5", "I6"]

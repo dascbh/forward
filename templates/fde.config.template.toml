@@ -7,7 +7,7 @@
 
 [project]
 name = "{{PROJECT_NAME}}"
-kernel_version = "0.4.1"
+kernel_version = "0.5.0"
 
 [triage]
 data_class = "{{DATA_CLASS}}"           # public | internal | personal | financial | health
