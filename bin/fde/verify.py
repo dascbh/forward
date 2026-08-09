@@ -39,7 +39,7 @@ EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "finding-discipline", "promotion-criteria", "observability",
-               "portability", "artifact-handoff", "scrum")
+               "portability", "artifact-handoff", "scrum", "traceability")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -319,6 +319,18 @@ class Gate:
                  else f"no retro, no next sprint — missing or empty: "
                       f"{', '.join(unclosed[:3])}")
 
+    # -- traceability: the artifact graph has no forbidden orphans --------
+    def gate_traceability(self) -> None:
+        try:
+            import graph
+            orphans = graph.forbidden_orphans(self.project)
+        except Exception as e:
+            self.add("TRACE", False, f"graph could not be built: {e}")
+            return
+        self.add("TRACE", not orphans,
+                 "artifact graph connected — no forbidden orphans" if not orphans
+                 else "; ".join(orphans[:3]))
+
     # -- config ------------------------------------------------------------
     def gate_config(self, cfg: Config, spec: Spec) -> None:
         viol = validate(cfg, spec)
@@ -413,6 +425,8 @@ def main() -> int:
             g.gate_artifact_handoff()
         if want("scrum"):
             g.gate_scrum(cfg, explicit=(only == "scrum"))
+        if want("traceability"):
+            g.gate_traceability()
 
     if not g.results:
         print("\033[31m✗\033[0m no gate ran — check the flags", file=sys.stderr)

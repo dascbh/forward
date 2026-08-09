@@ -9,7 +9,7 @@
 
 [project]
 name = "forward"
-kernel_version = "0.7.0"
+kernel_version = "0.8.0"
 
 [triage]
 data_class = "public"             # open Apache-2.0 repository, no third-party data

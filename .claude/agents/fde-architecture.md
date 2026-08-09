@@ -29,8 +29,11 @@ Invariants upheld: I7
 
 An ADR records the alternatives it REJECTED and why — a decision without
 rejected options is an announcement, not a rationale (MNT-4). Superseded
-ADRs are never deleted: the new ADR references what it replaces. Follow
-the repo's existing ADR convention (location, numbering, format) before
+ADRs are never deleted: the new ADR declares what it replaces in a
+`supersedes:` front-matter field (a space/comma list of ADR numbers) —
+the one authored edge in the artifact graph (`fde-graph`), which the
+`traceability` gate checks for dangling or cyclic references. Follow the
+repo's existing ADR convention (location, numbering, format) before
 imposing a template.
 
 Handoff is by artifact on disk (I7). Do not continue another role's

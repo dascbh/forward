@@ -140,3 +140,8 @@ without warning. Where this summary compresses a rule, the skill's
 definition governs. Never escalate kernel-interpretation questions to the
 user mid-demand — resolve from the skill, take the stricter reading if
 still torn, and flag the ambiguity as kernel feedback afterwards.
+
+The artifacts form a provenance graph joined by demand-id; `fde-graph`
+queries and mines it (`--demand`, `--central`, `--recurring`) and the
+`traceability` gate keeps it connected. It is evidence derived from files,
+not a database — the kernel adds no index or graph store (ADR-0010).

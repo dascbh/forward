@@ -211,6 +211,8 @@ tools; installed into the project for Claude Code):
   guard eval that turns the fix into an I1 entry
 - `fde-scrum` — optional cadence layer: evidence-labeled backlog, sprints
   with dated goals, review and retro as the user's two sittings
+- `fde-graph` — the artifacts as a directed weighted provenance graph:
+  query a demand's context, mine recurring findings, enforce traceability
 - `fde-verify` — the gate: `python3 bin/fde/verify.py --all` (same as CI)
 - `fde-doctor` — what is actually enforced vs. merely suggested
 - `fde-sync` — regenerate after config, stack, or tool changes
