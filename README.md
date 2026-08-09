@@ -165,25 +165,50 @@ three out of five tools is what burns an open framework.
 
 ## Usage
 
+### Install — one prompt
+
 Tell your coding agent — Claude Code, Cursor, Codex, Kiro, whatever reads a
-repository:
+repository — inside the project you want under the kernel:
 
 > Clone https://github.com/dascbh/forward and set it up for this project.
+> Follow the kernel's SETUP.md top to bottom: detect the stack from my
+> files, interview me only for what files cannot say, allocate the weight
+> vector with me, install the gate into the repo, and emit the native
+> layer for the tool you are. Finish by running the gate and reporting
+> honestly what is enforced versus merely suggested.
 
-The agent follows [`SETUP.md`](SETUP.md): detects the stack from files,
-interviews you only for what files cannot say (data class, reversibility),
-allocates the weight vector with you, writes `fde.config.toml`, installs the
-gate into the repo, and emits the native layer for the tool it is. The
-install ends with the gate auditing the agent's own work.
+The agent executes [`SETUP.md`](SETUP.md); the install ends with the gate
+auditing the agent's own work. On a fresh project, I2/I4/I5 red is the
+designed result — those turn green when the first demand completes its
+cycle, not before.
 
-Day-to-day, each step is a skill in `skills/` (Agent Skills format, portable
-across tools):
+### Update — one prompt
+
+When this repository gains a new version, in the installed project:
+
+> Update FORWARD: git pull the kernel clone (or re-clone
+> https://github.com/dascbh/forward) and re-run SETUP.md steps 6–8 from
+> the current sources — runtime and spec into `bin/fde/` and `.fde/spec/`,
+> AGENTS.md regenerated, roles and skills re-copied. Overwrite only files
+> carrying the FDE-KERNEL:GENERATED marker; merge user-owned files, never
+> clobber them. Close with `python3 bin/fde/verify.py --all` and report
+> what changed in one status line.
+
+Installed projects pin nothing: updating is re-emitting from current
+sources, and drift shows up as a diff in generated files.
+
+### Day-to-day
+
+Each step is a skill in `skills/` (Agent Skills format, portable across
+tools; installed into the project for Claude Code):
 
 - `fde-triage` — sizes the demand: which roles enter, how many rounds
 - `fde-design` — the design discipline for UI demands: foundation, flow,
   IA, wireframe, design QA, user validation — proportional to size
 - `fde-review` — two-pass review, isolated: adversarial probes, then
   heuristic judgment citing the principle catalogs
+- `fde-debug` — stop-the-line, six-step triage to root cause, and the
+  guard eval that turns the fix into an I1 entry
 - `fde-verify` — the gate: `python3 bin/fde/verify.py --all` (same as CI)
 - `fde-doctor` — what is actually enforced vs. merely suggested
 - `fde-sync` — regenerate after config, stack, or tool changes
@@ -210,8 +235,10 @@ diffs, idempotent recompilation, new projects parameterized by copy,
 non-interactive mode for CI.
 
 Two natures, deliberately separated: **parameterizable** (build and test
-commands, paths, data class, weights, depths) and **fixed** (the invariants).
-Fixed is not a field in the file — the key does not exist.
+commands, the gate's behavior/eval roots, data class, weights, depths) and
+**fixed** (the invariants). Fixed is not a field in the file — the key does
+not exist. The gate can be retargeted to the repo's real layout, never
+emptied.
 
 Generated files carry `FDE-KERNEL:GENERATED` at the top. Editing them by hand
 is guaranteed loss on the next `sync`; the fix belongs at the source.
