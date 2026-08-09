@@ -16,6 +16,11 @@ Items ordered by value against the goal. Evidence ladder:
 | 4 | OTel wiring + guard audit trail | SETUP optionally writes the Claude Code OTel env block (CLAUDE_CODE_ENABLE_TELEMETRY + OTLP endpoint) into the settings.json it already manages — operational audit out of the box; and the guard emits an allowed/blocked trail (today it blocks with exit 2 and leaves no record, which contradicts the spirit of I5) | opinion | S |
 | 5 | Execution provenance in demand artifacts | findings.toml and decision.md record the reviewer's transcript id (agent-<id>) and session, optionally archiving the agent jsonl under reviews/<id>/ — today the forensic trail (full tool calls, probe scripts, outputs) is local and expires with harness retention, severing the link between the durable summary (probed) and the raw execution | opinion | S |
 
+## Status
+
+Items 1–5 selected into S-002 as FWD-003..FWD-007 (planning 2026-08-09);
+sizes re-scored at selection with per-demand triage inputs.
+
 ## Unplanned intake
 
 None yet.
