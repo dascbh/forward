@@ -1,0 +1,52 @@
+# Adversarial review — FWD-007 execution provenance in review artifacts, commit 131aa6f.
+# Reviewer received artifact + spec only (I2). Findings only; no fixes (I3). XS: no spec.
+
+[meta]
+demand_id = "FWD-007"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 1
+rounds_run = 1
+commit = "131aa6f"
+agent_transcript = "agent-a67f824caab716ee0"
+probed = """
+Traced agent_transcript across every surface: templates/findings.template.toml
+(the line is COMMENTED OUT), skills/fde-review/SKILL.md, agents/fde-adversarial.md,
+.claude/agents/fde-adversarial.md (all four contain the string; the last two
+differ because .claude/ is the fde-sync GENERATED copy — expected, not drift — and
+both carry the line). test_all_provenance_surfaces_name_agent_transcript
+(tests/test_instructions.py:55-61) checks presence in all four. Read the gate:
+runtime/verify.py gate_adversarial (:124-162) checks only context_policy and
+artifact_only; gate_finding_discipline (:165-188) checks only probe or principle.
+Neither validates agent_transcript presence or value — finding 1. Dogfood: I
+recorded my own worktree id 'agent-a67f824caab716ee0' in each [meta] per the new
+rule.
+"""
+
+# ---------------------------------------------------------------------------
+# observability — weight 10
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "observability"
+severity = "low"
+principle = "OBS-1 every declared attribute emits a signal that can confirm or deny it"
+evidence = """
+FWD-007 declares execution provenance as a signal ('the durable link between the
+summary and the harness raw execution transcript', skills/fde-review/SKILL.md) but
+ships it as an unenforced, unverifiable convention: (1) OPTIONAL — the field is
+commented out in templates/findings.template.toml, so the default findings file
+carries no agent_transcript; (2) UNENFORCED — runtime/verify.py never checks for it
+(gate_adversarial :124-162 and gate_finding_discipline :165-188 validate
+context_policy and probe/principle only), so a findings file with no
+agent_transcript, or with any arbitrary string, passes the gate; (3) UNVERIFIABLE —
+it is self-reported free text with nothing tying it to the actual author; (4)
+EPHEMERAL TARGET — it points at .claude/worktrees/agent-<id>, which is gitignored
+and deleted after the run (the commit itself says 'while it lives'), so the
+'durable' link dangles to nothing soon after merge. Net: the signal will be
+inconsistently present and unreliable — nothing downstream can depend on it to
+reconstruct which transcript produced a finding. Low, and inherent to
+provenance-by-self-report; surfaced as an honest limitation of the declared
+signal, not a code bug.
+"""
+blocking = false

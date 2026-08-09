@@ -1,0 +1,48 @@
+# Adversarial review — FWD-004 I1 bluntness decided and recorded, commit 131aa6f.
+# Reviewer received artifact + spec only (I2). Findings only; no fixes (I3). XS: no spec.
+
+[meta]
+demand_id = "FWD-004"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 1
+rounds_run = 1
+commit = "131aa6f"
+agent_transcript = "agent-a67f824caab716ee0"
+probed = """
+Read the added 'Known bluntness, kept on purpose (FWD-004)' section in
+skills/fde-verify/SKILL.md and confirmed skills/fde-verify equals
+.claude/skills/fde-verify byte-for-byte. Verified the cited ADR-0001 exists and
+actually supports the 'instructions ARE behavior' claim (docs/adr/0001 'The agent
+is the runtime': 'Interaction lives in instructions ... executed by the agent') —
+not a dangling reference (MNT-4 pass on that axis).
+test_verify_skill_records_the_kept_bluntness (tests/test_instructions.py:53-56)
+asserts the section and the ADR-0001 phrase are present. Confirmed the backlog
+carries the standing re-decide item. Probed for a 'skip the eval' reading: the
+section explicitly keeps the file-level trip ('the alternative is a wall that
+argues'), so it does not weaken I1.
+"""
+
+# ---------------------------------------------------------------------------
+# maintainability — weight 22, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-4 decisions are written where the next reader will look (ADR, not memory) — and an ADR records the alternatives it rejected, or it is an announcement, not a rationale"
+evidence = """
+FWD-004's deliverable is a design DECISION that weighs and rejects a named
+alternative ('diff-content inspection ... rejected') — precisely the shape MNT-4
+says belongs in the dated ADR log. It landed instead as undated prose in
+skills/fde-verify/SKILL.md ('Known bluntness, kept on purpose'). The same batch
+opened ADR-0009 for FWD-003 but no ADR (and no date) for this cross-cutting I1
+call, so a maintainer scanning docs/adr/ for 'why is I1 file-level, not
+diff-level' finds nothing; the rationale is discoverable only by already reading
+the verify skill. Why low/PLAUSIBLE not high: the skill is a defensible home for
+an I1-behavior question, the rejected alternative IS recorded, and a standing
+backlog item exists — the gap is discoverability as a decision and the missing
+date, not a lost rationale. XS does not mandate an ADR; this is a heuristic
+judgment, not a process breach.
+"""
+blocking = false

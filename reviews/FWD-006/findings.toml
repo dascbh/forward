@@ -1,0 +1,50 @@
+# Adversarial review — FWD-006 guard audit trail + OTel wiring, commit 131aa6f.
+# Reviewer received artifact + spec only (I2). Findings only; no fixes (I3).
+
+[meta]
+demand_id = "FWD-006"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 1
+rounds_run = 1
+commit = "131aa6f"
+agent_transcript = "agent-a67f824caab716ee0"
+probed = """
+Probes on tests/support.py fixtures (scratchpad/probe_fwd006.py): (A) entry
+injection via a file path containing a newline plus a forged JSONL object —
+json.dumps escapes it, ONE entry written, no forged line (defended). (B)
+anonymous allow not logged (0), identified allow logged (1), block logged (1),
+matching R1. (C) a general-purpose (non-role) worktree agent in-scope write IS
+allow-logged with rule 'in-scope' — finding 1. (D) audit failure (log path is a
+directory) never changes the decision: still rc 2, no traceback (R2/FM-1 pass).
+Reasoned concurrent-append safety: single write() under PIPE_BUF to an O_APPEND
+file is atomic on POSIX, no interleave (not a finding). Confirmed .gitignore
+carries .fde/guard-audit.jsonl and SETUP step 6 documents the file plus the
+opt-in OTel block (off by default). Real metadata check: worktree-identified
+agents in this repo are mostly the low-volume judging roles, so finding 1 has
+modest practical volume.
+"""
+
+# ---------------------------------------------------------------------------
+# observability — weight 10
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "observability"
+severity = "low"
+principle = "OBS-3 signals answer on-call questions written before instrumenting — log everything, learn nothing"
+evidence = """
+R1 (specs/FWD-006-guard-audit-otel/spec.md) justifies allow-logging as 'a write
+from an identified ROLE ... (low volume, high signal)'. But the allow branch
+(runtime/guard.py:171-173) fires for ANY non-empty derived identity, not only the
+four judging roles: a general-purpose or claude-code-guide subagent running in a
+worktree has no entry in ALLOWED and no scope to enforce, yet its every in-scope
+write is logged with rule 'in-scope'. Probe C (scratchpad/probe_fwd006.py)
+confirms: agent 'general-purpose' produces an allow entry. Those rows carry no
+role-scope-enforcement signal (there is no scope to allow or deny), so they dilute
+the high-signal blocks the trail exists for — 'identified role' in the spec is
+narrower than 'any identified agent' in the code. The trail also grows unbounded
+within a session (no rotation); gitignored and failure-safe, so impact is bounded,
+and observed worktree usage is low-volume. Low.
+"""
+blocking = false

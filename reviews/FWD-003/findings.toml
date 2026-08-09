@@ -1,0 +1,51 @@
+# Adversarial review — FWD-003 per-demand triage inputs, commit 131aa6f.
+# Reviewer received artifact + spec only (I2). Findings only; no fixes (I3).
+
+[meta]
+demand_id = "FWD-003"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 1
+rounds_run = 1
+commit = "131aa6f"
+agent_transcript = "agent-a67f824caab716ee0"
+probed = """
+Ran the full unittest suite at 131aa6f (95 green, matches the commit claim) and
+verify --all (every gate green). Extracted the 'Demand loop' section from both
+templates/AGENTS.md.template and AGENTS.md and diffed raw vs normalized: the ONLY
+raw difference is the example demand id (DEM-042 vs FWD-002), which the test's
+uppercase-id normalization masks — the substantive parity holds. Read the
+fde-triage skill for the FM-2 'license to skip' reading: the 'What never scales'
+section ('At XS and at L, all eight [invariants] apply equally') plus the
+preserved tiebreaks ('Unsure to true', 'take the larger') defend FM-2 well.
+Dogfood-sized FWD-003 by the new rule (surfaces 0, public so sensitive false,
+reversible, ~250 LOC, score 1): squarely XS by the table, shipped as S — sizing
+UP is the safe direction, no violation. Confirmed skills/fde-triage equals
+.claude/skills/fde-triage byte-for-byte. Heuristic pass vs MNT/DOM catalogs.
+"""
+
+# ---------------------------------------------------------------------------
+# maintainability — weight 22, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting"
+evidence = """
+FM-1 (specs/FWD-003-per-demand-triage/spec.md:31 — 'skill and AGENTS.md diverge
+on the rule') is the failure mode this demand exists to close, yet the rule now
+lives in THREE copies (the fde-triage skill, templates/AGENTS.md.template, and
+AGENTS.md) and the shipped detector binds only two by equality:
+test_demand_loop_carries_the_rule_identically_in_both_surfaces
+(tests/test_instructions.py:41-48) compares template against AGENTS. The skill —
+which AGENTS.md itself designates as authoritative ('Where this summary
+compresses a rule, the skill definition governs') — is checked only for phrase
+presence (test_skill_defines_per_demand_inputs_with_tiebreaks, :22-28). So the
+authoritative source can drift semantically from the two loop summaries (change a
+threshold, invert a tiebreak) while keeping the anchor phrases, and the suite
+stays green — the exact FM-1 class the parity test was added to prevent, left
+open on the one copy that governs. Low: the three copies agree today and the
+needle set is a partial backstop; the residual is future drift on the authority.
+"""
+blocking = false
