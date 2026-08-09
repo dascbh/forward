@@ -43,7 +43,7 @@ chat.
 
 ## What never scales
 
-The invariants. At XS and at L, all seven apply equally. What varies is the
+The invariants. At XS and at L, all eight apply equally. What varies is the
 **boundary covered**, not the **criteria applied**.
 
 When the user complains about process weight: apply the table and show the
