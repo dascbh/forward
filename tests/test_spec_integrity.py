@@ -17,6 +17,7 @@ PREFIX_TO_ATTRIBUTE = {
     "SEC": "security_privacy",
     "REL": "reliability_resilience",
     "PERF": "performance_scale",
+    "COST": "operational_cost",
 }
 
 MODES = {"empirical", "adversarial", "heuristic"}

@@ -9,7 +9,7 @@
 
 [project]
 name = "forward"
-kernel_version = "0.8.0"
+kernel_version = "0.9.0"
 
 [triage]
 data_class = "public"             # open Apache-2.0 repository, no third-party data
@@ -71,4 +71,13 @@ tools = ["claude-code"]
 
 [scrum]
 enabled = true
+
+# Exhibit A (ADR-0011): the kernel gates its own decay. Current signals
+# leave honest headroom — a real regression trips the gate, normal growth
+# does not. window excludes nothing; max_change_lines is omitted because
+# the root commit (2896 lines) is still in the window.
+[erosion]
+window = 50
+max_add_delete_ratio = 12.0
+max_duplication_pct = 6.0
 

@@ -161,3 +161,8 @@ The artifacts form a provenance graph joined by demand-id; `fde-graph`
 queries and mines it (`--demand`, `--central`, `--recurring`) and the
 `traceability` gate keeps it connected. It is evidence derived from files,
 not a database — the kernel adds no index or graph store (ADR-0010).
+
+Long-term decay is measured, not assumed (`fde-erosion`, ADR-0011):
+`erosion.py` reports the clone ratio, add/delete ratio, and batch size,
+and the opt-in `[erosion]` budget gates them — because the evidence shows
+instruction alone does not stop the rot; only measurement and review do.

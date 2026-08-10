@@ -39,6 +39,49 @@ becomes production.**
 
 ---
 
+## Why AI-built software rots — and what this kernel does about it
+
+There is a thesis worth taking seriously: *every application built with
+generative AI is destined to fail in the long term.* Four 2026
+long-horizon studies give it teeth. **SlopCodeBench** (arXiv 2603.24755)
+measures coding agents extending their own code across checkpoints:
+erosion rises in **80%** of trajectories, verbosity in **89.8%**,
+cyclomatic complexity grows **10×**, agent code is **2.2× more verbose**
+than maintained repos — and where humans stay stable over time, agents
+worsen **monotonically**. **SWE-EVO**, **NL2Repo-Bench**, and
+**SpecBench** converge: duplication over consolidation, architectural
+drift, and reward hacking — satisfying the requirement while violating the
+intent.
+
+The decisive finding is negative: **prompts do not fix it.**
+"Anti-slop" and "plan-first" prompts cut *initial* verbosity by a third,
+but degradation resumed at the identical rate, at 29–48% higher cost. So
+"write clean code" is not a countermeasure — it is the failure mode.
+
+The honest reading is not "AI code always fails" — it is **"un-governed
+AI code trends toward unmaintainability on measurable axes, and most
+teams aren't measuring."** The doom is *conditional*, and every named
+failure mode has a named countermeasure: tests as the anchor, small
+diffs, isolated review, deletion, human-held architecture, and
+**measuring the trend, not the snapshot.** Those are this kernel's
+invariants. Two of the papers reinvented them while measuring the rot:
+SlopCodeBench evaluates agents from the *code state alone, with no
+conversation context* — that is I2 (adversarial isolation) + I7 (artifact
+handoff); SpecBench recommends *"explicit constraints on solution
+properties, not just acceptance criteria"* — that is the quality vector +
+the principle catalogs (I8).
+
+FORWARD's answer is [ADR-0011](docs/adr/0011-entropy-is-measured-not-assumed.md):
+**entropy is measured, not assumed.** Erosion, verbosity, and efficiency
+are first-class, gated concerns — `fde-erosion` and an opt-in `[erosion]`
+budget the gate enforces, because the papers prove instruction alone
+does not hold. And Exhibit A is this repository: built end to end by a
+generative model under its own governance, tests growing every demand,
+adversarial review catching real bugs, complexity bounded — the monotonic
+decay the papers measure did not happen here.
+
+---
+
 ## How rigor survives speed
 
 "Deliver on day one" was never "production on day one" — it meant running on
@@ -213,6 +256,8 @@ tools; installed into the project for Claude Code):
   with dated goals, review and retro as the user's two sittings
 - `fde-graph` — the artifacts as a directed weighted provenance graph:
   query a demand's context, mine recurring findings, enforce traceability
+- `fde-erosion` — measure and gate long-term decay: clone ratio,
+  add/delete ratio, batch size, against an opt-in `[erosion]` budget
 - `fde-verify` — the gate: `python3 bin/fde/verify.py --all` (same as CI)
 - `fde-doctor` — what is actually enforced vs. merely suggested
 - `fde-sync` — regenerate after config, stack, or tool changes

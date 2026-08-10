@@ -39,7 +39,8 @@ EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "finding-discipline", "promotion-criteria", "observability",
-               "portability", "artifact-handoff", "scrum", "traceability")
+               "portability", "artifact-handoff", "scrum", "traceability",
+               "erosion")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -319,6 +320,23 @@ class Gate:
                  else f"no retro, no next sprint — missing or empty: "
                       f"{', '.join(unclosed[:3])}")
 
+    # -- erosion: decay stays within the declared budget (opt-in) ---------
+    def gate_erosion(self, explicit: bool = False) -> None:
+        try:
+            import erosion
+            declared, breaches = erosion.gate(self.project)
+        except Exception as e:
+            self.add("EROSION", False, f"erosion could not be measured: {e}")
+            return
+        if not declared:
+            if explicit:
+                self.add("EROSION", True,
+                         "no [erosion] budget declared — trend measured, not gated")
+            return
+        self.add("EROSION", not breaches,
+                 "within the declared erosion budget" if not breaches
+                 else "; ".join(breaches[:3]))
+
     # -- traceability: the artifact graph has no forbidden orphans --------
     def gate_traceability(self) -> None:
         try:
@@ -427,6 +445,8 @@ def main() -> int:
             g.gate_scrum(cfg, explicit=(only == "scrum"))
         if want("traceability"):
             g.gate_traceability()
+        if want("erosion"):
+            g.gate_erosion(explicit=(only == "erosion"))
 
     if not g.results:
         print("\033[31m✗\033[0m no gate ran — check the flags", file=sys.stderr)

@@ -120,8 +120,13 @@ id = "operational_cost"
 label = "Operational cost"
 question = "Is the cost per unit of value known and sustainable?"
 floor = 3
-verified_by = ["empirical"]
+verified_by = ["empirical", "heuristic"]
 evidence = ["measured cost per request/token/run", "configured ceiling"]
+heuristic_principles = [
+  "COST-1 'works' is not 'efficient': a 3-40x runtime/memory regression is a regression, not a detail — AI code averages 3.12x execution time and 6.36x memory over human canonical (EffiBench)",
+  "COST-2 cost per unit of value is budgeted before build, not discovered in the bill; an agent loop without a step or spend ceiling is an incident waiting",
+  "COST-3 spend that buys no correctness is waste: quality-aware prompting raised per-checkpoint cost 29-48% with no accuracy gain (SlopCodeBench) — measure the trade, do not assume it",
+]
 adversarial_probes = [
   "agent loop with no step or budget limit",
   "cost that grows superlinearly with usage",
@@ -145,6 +150,9 @@ heuristic_principles = [
   "MNT-8 repeated conditionals on the same shape are a missing model or dispatcher — a design smell, not a nit",
   "MNT-9 scope discipline: adjacent improvements are noted for later, never fixed in-band",
   "MNT-10 comments say why, never what; commented-out code is deleted (git remembers); a TODO has an owner and a date, or it dies; when how to run or operate the system changes, README and runbook update in the same change",
+  "MNT-11 reuse over clone: find and refactor the existing helper, never generate-and-clone — duplication is the single most-measured axis of AI-code decay (SlopCodeBench, GitClear)",
+  "MNT-12 deletion is a feature: a net-negative diff is healthy; code added and not used, or left after its caller is gone, is bloat that compounds monotonically",
+  "MNT-13 AI output is a draft, not a commit: it is reviewed and UNDERSTOOD or it does not merge — no change lands that no human can explain, because prompts do not stop degradation, only comprehension and review do",
 ]
 adversarial_probes = [
   "plausible requirement change that forces a rewrite",

@@ -218,6 +218,19 @@ def validate(cfg: Config, spec: Spec) -> list[Violation]:
             )
         )
 
+    # 6b. [erosion] budget values are numbers — a typo'd threshold must
+    #     not silently disable the gate it was meant to arm
+    erosion = cfg.raw.get("erosion", {}) or {}
+    for key, val in erosion.items():
+        if not isinstance(val, (int, float)) or isinstance(val, bool):
+            v.append(
+                Violation(
+                    "EROSION-BUDGET",
+                    f"[erosion] {key} must be a number, got "
+                    f"{type(val).__name__}.",
+                )
+            )
+
     # 7. [gate] retargets I1 to the repo's real layout; it cannot empty it
     gate = cfg.raw.get("gate", {}) or {}
     for key in ("behavior_paths", "eval_paths"):
