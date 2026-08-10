@@ -158,7 +158,7 @@ Artifact: `specs/<demand-id>/design/wireframes/*.html`. Once approved it
 is the contract — divergence during build reopens the wireframe, never
 gets improvised in code.
 
-## Three kinds in the base — do not confuse them
+## Five kinds in the base — do not confuse them
 
 - **`[[system]]`** encodes *decisions*: which job, which convention, which
   states, which a11y contract. Study it to decide.
@@ -173,10 +173,17 @@ gets improvised in code.
   names the patterns it `composed_of` and, more usefully, `must_resolve`:
   the risks that appear only once the parts are combined — failure *after*
   the charge in checkout, the first run of a dashboard, the error that
-  reveals which field was wrong in sign-in.
+  reveals which field was wrong in sign-in. Its `canonical` is
+  documentation to study; its `examples` are frameworks that ship a
+  scaffold — code to start from, never several of.
+- **`[[pattern]]`** is one interaction job; **`[[directory]]`** is where
+  to look when the base has nothing.
 
-Start at the archetype when you are building a whole page; it hands you the
-pattern list and the page-level risks in one read.
+Start at the archetype when you are building a whole page — it hands you
+the pattern list and the page-level risks in one read. **It does not
+discharge the baselines**: every `baseline = true` pattern whose platform
+covers your surface still applies, and archetypes deliberately do not
+repeat them.
 
 ## Choosing the pattern (the curated base)
 

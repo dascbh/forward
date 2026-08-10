@@ -159,8 +159,8 @@ class TestReferenceBase(unittest.TestCase):
 
 
 class TestFrameworksAndArchetypes(unittest.TestCase):
-    """FWD-012: frameworks are a different kind from systems, and
-    archetypes compose patterns. Both integrity-checked."""
+    """FWD-012 + its review: frameworks scaffold, archetypes compose, and
+    every kind obeys the base's own curation and freshness rules."""
 
     @classmethod
     def setUpClass(cls):
@@ -170,47 +170,82 @@ class TestFrameworksAndArchetypes(unittest.TestCase):
         cls.frameworks = {f["id"] for f in cls.d["framework"]}
 
     def test_frameworks_declare_what_they_do_not_decide(self):
-        # the load-bearing field: a framework scaffolds, it decides no job.
-        # without this, a framework reads like a design system
         for f in self.d["framework"]:
-            for key in ("url", "kind", "license", "best_at",
-                        "does_not_decide", "maintenance"):
+            for key in ("url", "kind", "market", "license", "rationale",
+                        "best_at", "does_not_decide", "maintenance"):
                 self.assertTrue(f.get(key), f"{f['id']}.{key}")
             self.assertIn(f["kind"], ("css-framework", "utility-framework",
                                       "block-library"), f["id"])
 
-    def test_framework_maintenance_is_dated_evidence(self):
-        # "actively maintained" from a project's own marketing page is not
-        # evidence; the claim carries the date it was checked
+    def test_maintenance_carries_a_verdict_and_its_date(self):
+        # "active"/"dormant" are the verdicts the kind is sold on; the base
+        # declares the criterion, so a claim must state which it reached
         for f in self.d["framework"]:
+            m = f["maintenance"].lower()
+            self.assertTrue(any(v in m for v in ("active", "dormant", "split",
+                                                 "commercial")), f["id"])
             self.assertRegex(f["maintenance"], r"checked \d{4}-\d{2}-\d{2}",
                              f["id"])
 
-    def test_frameworks_and_systems_are_disjoint_kinds(self):
-        self.assertFalse(self.systems & self.frameworks,
-                         "an id is both a system and a framework")
+    def test_the_maintenance_criterion_is_written_down(self):
+        # a verdict nobody can reproduce is folklore by the next refresh
+        text = BASE.read_text(encoding="utf-8")
+        self.assertIn("dormant =", text)
+        self.assertIn("active  =", text)
 
-    def test_archetypes_compose_patterns_that_exist(self):
+    def test_ids_are_unique_across_every_kind(self):
+        # one flat namespace: an archetype must not reuse a pattern's id
+        # (which it may also compose) — review finding, FWD-012
+        ids = [x["id"] for k in ("system", "framework", "pattern",
+                                 "archetype", "directory")
+               for x in self.d.get(k, [])]
+        dupes = {i for i in ids if ids.count(i) > 1}
+        self.assertFalse(dupes, f"ids reused across kinds: {sorted(dupes)}")
+
+    def test_archetypes_carry_the_same_decision_fields_as_patterns(self):
         for a in self.d["archetype"]:
-            for key in ("job", "composed_of", "canonical", "must_resolve",
-                        "evidence"):
+            for key in ("rationale", "job", "fits_when", "fails_when",
+                        "composed_of", "must_resolve", "evidence"):
                 self.assertTrue(a.get(key), f"{a['id']}.{key}")
+            self.assertTrue(a.get("canonical") or a.get("examples"),
+                            f"{a['id']} points nowhere")
             unknown = set(a["composed_of"]) - self.patterns
             self.assertFalse(unknown, f"{a['id']} composes unknown {unknown}")
-            unknown = set(a["canonical"]) - (self.systems | self.frameworks)
-            self.assertFalse(unknown, f"{a['id']} cites unknown {unknown}")
+            self.assertFalse(set(a.get("canonical", [])) - self.systems,
+                             f"{a['id']} canonical must be design systems")
+            self.assertFalse(set(a.get("examples", [])) - self.frameworks,
+                             f"{a['id']} examples must be frameworks")
             self.assertGreaterEqual(len(a["must_resolve"]), 3, a["id"])
-
-    def test_archetype_evidence_is_dated(self):
-        for a in self.d["archetype"]:
             self.assertRegex(a["evidence"], r"checked \d{4}-\d{2}-\d{2}",
                              a["id"])
 
-    def test_archetype_ids_and_jobs_are_unique(self):
-        ids = [a["id"] for a in self.d["archetype"]]
-        jobs = [a["job"] for a in self.d["archetype"]]
-        self.assertEqual(len(ids), len(set(ids)))
-        self.assertEqual(len(jobs), len(set(jobs)))
+    def test_baselines_are_declared_to_survive_the_archetype_shortcut(self):
+        # starting at an archetype must not discharge a baseline obligation
+        text = BASE.read_text(encoding="utf-8")
+        self.assertIn("BASELINES STILL APPLY", text)
+
+    def test_every_framework_is_reachable(self):
+        used = set()
+        for a in self.d["archetype"]:
+            used |= set(a.get("examples", []))
+        dead = self.frameworks - used
+        self.assertFalse(dead, f"frameworks nothing points to: {sorted(dead)}")
+
+    def test_no_dated_claim_is_in_the_future_and_the_base_is_not_stale(self):
+        # dates without expiry become folklore; this goes red when the base
+        # has not been re-verified in a year, which is the intended signal
+        from datetime import date, timedelta
+        today = date.today()
+        text = BASE.read_text(encoding="utf-8")
+        for m in re.finditer(r"(\d{4})-(\d{2})-(\d{2})", text):
+            d = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+            self.assertLessEqual(d, today, f"future date {d}")
+        checked = self.d["meta"]["sources_checked"]
+        y, mo, dd = (int(x) for x in checked.split("-"))
+        self.assertGreater(date(y, mo, dd), today - timedelta(days=365),
+                           "the reference base has not been re-verified in a "
+                           "year — re-check its sources and update "
+                           "sources_checked")
 
 
 class TestDivergenceDiscipline(unittest.TestCase):
