@@ -19,7 +19,7 @@
 [meta]
 kind = "reference_base"
 sources_checked = "2026-08-09"
-spec_version = "0.10.1"
+spec_version = "0.10.2"
 
 # ---------------------------------------------------------------------------
 # DESIGN SYSTEMS — which one to study, for what
@@ -198,6 +198,56 @@ use_for = "a large tagged list of systems: which ship components, voice & tone, 
 id = "design-systems-brasileiros"
 url = "https://designsystemsbrasileiros.com"
 use_for = "Brazilian systems, many open source — the pt-BR conventions global systems do not carry"
+
+# ---------------------------------------------------------------------------
+# FRAMEWORKS — scaffolding, not decisions
+# ---------------------------------------------------------------------------
+# A DIFFERENT KIND from [[system]] above, and the distinction is the point.
+# A design system encodes DECISIONS (which job, which convention, which
+# states). A CSS/utility framework encodes LAYOUT AND MARKUP and decides no
+# job at all; a block library ships COMPOSITIONS you still have to choose
+# between. Cataloguing them as systems would be a category error — "study
+# Bootstrap for what job?" does not parse.
+#
+# `does_not_decide` is the load-bearing field: it is what you still owe
+# after adopting one. `maintenance` is a volatile fact, so it carries the
+# date it was verified against the repository, not the marketing page.
+
+[[framework]]
+id = "bootstrap"
+url = "https://getbootstrap.com"
+kind = "css-framework"
+license = "MIT"
+best_at = "getting a conventional, responsive page standing fast; its example set is a catalogue of page archetypes"
+does_not_decide = "which job the screen serves, which pattern fits it, the domain language, or any state beyond the default one — a Bootstrap page is a page that looks finished before it is designed"
+maintenance = "active: last push 2026-08-08, v5.3.8 released 2025-08-26 (repository checked 2026-08-09)"
+
+[[framework]]
+id = "tailwind"
+url = "https://tailwindcss.com"
+kind = "utility-framework"
+license = "MIT"
+best_at = "expressing a design foundation's tokens directly in markup without a component layer imposing a look"
+does_not_decide = "anything about the job, and by design nothing about consistency — utilities make the right and the wrong composition equally easy, so the foundation (design/foundation.md) has to carry the discipline the framework declines to"
+maintenance = "active: last push 2026-08-07, v4.3.3 released 2026-07-16 (repository checked 2026-08-09)"
+
+[[framework]]
+id = "tailwind-plus"
+url = "https://tailwindcss.com/plus"
+kind = "block-library"
+license = "commercial (paid, per-seat) — the blocks are code you copy, so the licence follows them into your repository"
+best_at = "a starting composition for marketing-register pages: 12 hero, 15 feature, 12 pricing, 11 CTA variants and more"
+does_not_decide = "which variant serves your job — and a library of near-identical variants is precisely the clone temptation the erosion research measures (MNT-11). Take ONE, adapt it into the kit, and delete the rest; pasting several is how a product ends up with four hero sections"
+maintenance = "commercial product, versioned with Tailwind (checked 2026-08-09)"
+
+[[framework]]
+id = "foundation"
+url = "https://get.foundation"
+kind = "css-framework"
+license = "MIT"
+best_at = "content and marketing sites, and the one thing nothing else covers: Foundation for Emails, where the client matrix (Outlook, Gmail) breaks normal CSS"
+does_not_decide = "the job, and — read the maintenance line before adopting — its own future"
+maintenance = "dormant: last push 2025-01-21, v6.9.0 released 2024-09-27, i.e. ~19 months without a commit (repository checked 2026-08-09). The project site says 'active development'; the repository does not agree. Adopting it is a vendor-coupling decision to record (MNT-2)"
 
 # ---------------------------------------------------------------------------
 # PATTERNS — the recurring jobs and where each is well solved
@@ -458,3 +508,77 @@ fails_when = "never as a job; the failure is choosing the form by taste instead 
 states = ["compact: bottom bar for 3-5 peer destinations (a drawer at this size hides them)", "medium: rail", "expanded: drawer as the primary form", "current destination indicated in every form", "position preserved per destination across a form switch", "deep-link arrival"]
 a11y = "the destination set is identical in every form; current announced as selected; targets at least 44pt at compact; switching forms never traps focus"
 recurrence = "Material 3 specifies navigation bar, rail and drawer as one adaptive family (m3.material.io/components, checked 2026-08-09); HIG names the equivalent tab bar and sidebar"
+
+# ---------------------------------------------------------------------------
+# ARCHETYPES — page-level compositions
+# ---------------------------------------------------------------------------
+# The level ABOVE a pattern: a whole page that recurs across products.
+# `composed_of` names the patterns it assembles (every id must resolve).
+# `must_resolve` is what the PAGE owes beyond its parts — the risks that
+# only appear once the parts are combined. Evidence is cross-source:
+# an archetype shipped as a framework example AND as a block category AND
+# documented by design systems is recurring by any reading.
+
+[[archetype]]
+id = "authentication"
+job = "let a returning person back in, and fail without telling an attacker anything"
+composed_of = ["progressive-form", "error-recovery"]
+canonical = ["govuk", "dsgov", "bootstrap"]
+must_resolve = ["password managers can fill and save it", "the error never reveals which field was wrong", "rate limiting is visible before it locks", "second factor and its recovery path", "session expiry returns to where the user was", "the forgot path actually returns"]
+evidence = "Bootstrap ships a sign-in example; every design system documents the form; GOV.UK documents the error language (checked 2026-08-09)"
+
+[[archetype]]
+id = "pricing"
+job = "let someone choose a plan and understand what they will actually pay"
+composed_of = ["progressive-disclosure"]
+canonical = ["tailwind-plus", "bootstrap", "polaris"]
+must_resolve = ["currency, tax and locale stated, not assumed", "monthly/annual toggle and which is shown by default", "the comparison table at small widths", "the enterprise 'contact us' tier", "what happens on downgrade or cancel"]
+evidence = "Bootstrap pricing example; Tailwind Plus ships 12 pricing sections and 3 pricing pages (checked 2026-08-09)"
+
+[[archetype]]
+id = "checkout"
+job = "take payment without losing the customer or the order"
+composed_of = ["progressive-form", "destructive-confirmation", "async-job-feedback", "error-recovery"]
+canonical = ["polaris", "nimbus", "bootstrap"]
+must_resolve = ["guest versus account, decided not defaulted", "the back button mid-flow", "address and document formats per locale (CPF/CNPJ, postal code)", "price or stock changing mid-flow", "failure AFTER the charge — the worst state, and the one most often unhandled", "the receipt reaching the customer"]
+evidence = "Bootstrap checkout example; commerce systems document the flow end to end (checked 2026-08-09)"
+
+[[archetype]]
+id = "dashboard-shell"
+job = "hold the product's surfaces together and open on what needs attention"
+composed_of = ["primary-navigation", "dashboard-overview", "empty-state-onboarding"]
+canonical = ["carbon", "cloudscape", "bootstrap"]
+must_resolve = ["the first run, before any data exists", "permissions hiding destinations without breaking the layout", "deep-linking into a collapsed section", "one slow widget not blocking the page", "what the shell shows while the user's context loads"]
+evidence = "Bootstrap dashboard example; Carbon and Cloudscape both document the shell (checked 2026-08-09)"
+
+[[archetype]]
+id = "marketing-landing"
+job = "make one claim land and one action obvious"
+composed_of = ["primary-navigation", "progressive-disclosure"]
+canonical = ["tailwind-plus", "foundation", "bootstrap"]
+must_resolve = ["exactly one primary action (a second one halves both)", "the claim survives 200% zoom and a narrow viewport", "no layout shift when the hero media loads", "the page is usable before JavaScript", "FAQ as disclosure, not a wall"]
+evidence = "Tailwind Plus ships 12 hero, 15 feature, 11 CTA and 6 logo-cloud variants plus 4 landing examples; Bootstrap ships cover/heroes/features (checked 2026-08-09)"
+
+[[archetype]]
+id = "content-article"
+job = "let someone read a long thing and find the next one"
+composed_of = ["hierarchy-orientation", "set-traversal"]
+canonical = ["govuk", "gestalt", "bootstrap"]
+must_resolve = ["reading width and heading hierarchy", "where the reader is in a long piece", "what to read next without a dead end", "content behind auth or a paywall stating so before the scroll", "print and reader modes not breaking"]
+evidence = "Bootstrap blog example; Tailwind Plus ships blog and content sections (checked 2026-08-09)"
+
+[[archetype]]
+id = "catalogue-grid"
+job = "browse a set of things that are mostly images"
+composed_of = ["search-filter-facets", "set-traversal", "empty-state-onboarding"]
+canonical = ["gestalt", "nimbus", "bootstrap"]
+must_resolve = ["mixed aspect ratios without a ragged grid", "no results, distinguished from not-yet-loaded", "returning from an item to the same scroll position", "pagination versus infinite scroll, decided against the audit need", "images failing without collapsing the layout"]
+evidence = "Bootstrap album and product examples; Gestalt exists for this register (checked 2026-08-09)"
+
+[[archetype]]
+id = "not-found"
+job = "turn a wrong address into a next step"
+composed_of = ["error-recovery", "primary-navigation"]
+canonical = ["govuk", "tailwind-plus"]
+must_resolve = ["says what was not found, not just that something was not", "offers search and a way home", "distinguishes gone from never-existed from no-permission", "is logged, so the broken link gets fixed", "keeps the product's chrome so the user is not ejected"]
+evidence = "Tailwind Plus ships 5 404 variants; GOV.UK documents the error page (checked 2026-08-09)"

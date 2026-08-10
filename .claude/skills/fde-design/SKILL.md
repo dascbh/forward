@@ -158,6 +158,26 @@ Artifact: `specs/<demand-id>/design/wireframes/*.html`. Once approved it
 is the contract — divergence during build reopens the wireframe, never
 gets improvised in code.
 
+## Three kinds in the base — do not confuse them
+
+- **`[[system]]`** encodes *decisions*: which job, which convention, which
+  states, which a11y contract. Study it to decide.
+- **`[[framework]]`** encodes *scaffolding*: grid, utilities, markup. It
+  decides **no job** — read its `does_not_decide` field, which is what you
+  still owe after adopting it, and its `maintenance` line before you couple
+  to it (MNT-2). A block library's variants are a starting point: take one,
+  adapt it into the kit, delete the rest — a product with four hero
+  sections is how the clone metric climbs (MNT-11).
+- **`[[archetype]]`** is a whole page that recurs (sign-in, pricing,
+  checkout, dashboard shell, landing, article, catalogue, not-found). It
+  names the patterns it `composed_of` and, more usefully, `must_resolve`:
+  the risks that appear only once the parts are combined — failure *after*
+  the charge in checkout, the first run of a dashboard, the error that
+  reveals which field was wrong in sign-in.
+
+Start at the archetype when you are building a whole page; it hands you the
+pattern list and the page-level risks in one read.
+
 ## Choosing the pattern (the curated base)
 
 `.fde/spec/references/ui-patterns.toml` is the base: which design systems

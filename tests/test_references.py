@@ -158,6 +158,61 @@ class TestReferenceBase(unittest.TestCase):
                          installed.read_text(encoding="utf-8"))
 
 
+class TestFrameworksAndArchetypes(unittest.TestCase):
+    """FWD-012: frameworks are a different kind from systems, and
+    archetypes compose patterns. Both integrity-checked."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.d = load()
+        cls.patterns = {p["id"] for p in cls.d["pattern"]}
+        cls.systems = {s["id"] for s in cls.d["system"]}
+        cls.frameworks = {f["id"] for f in cls.d["framework"]}
+
+    def test_frameworks_declare_what_they_do_not_decide(self):
+        # the load-bearing field: a framework scaffolds, it decides no job.
+        # without this, a framework reads like a design system
+        for f in self.d["framework"]:
+            for key in ("url", "kind", "license", "best_at",
+                        "does_not_decide", "maintenance"):
+                self.assertTrue(f.get(key), f"{f['id']}.{key}")
+            self.assertIn(f["kind"], ("css-framework", "utility-framework",
+                                      "block-library"), f["id"])
+
+    def test_framework_maintenance_is_dated_evidence(self):
+        # "actively maintained" from a project's own marketing page is not
+        # evidence; the claim carries the date it was checked
+        for f in self.d["framework"]:
+            self.assertRegex(f["maintenance"], r"checked \d{4}-\d{2}-\d{2}",
+                             f["id"])
+
+    def test_frameworks_and_systems_are_disjoint_kinds(self):
+        self.assertFalse(self.systems & self.frameworks,
+                         "an id is both a system and a framework")
+
+    def test_archetypes_compose_patterns_that_exist(self):
+        for a in self.d["archetype"]:
+            for key in ("job", "composed_of", "canonical", "must_resolve",
+                        "evidence"):
+                self.assertTrue(a.get(key), f"{a['id']}.{key}")
+            unknown = set(a["composed_of"]) - self.patterns
+            self.assertFalse(unknown, f"{a['id']} composes unknown {unknown}")
+            unknown = set(a["canonical"]) - (self.systems | self.frameworks)
+            self.assertFalse(unknown, f"{a['id']} cites unknown {unknown}")
+            self.assertGreaterEqual(len(a["must_resolve"]), 3, a["id"])
+
+    def test_archetype_evidence_is_dated(self):
+        for a in self.d["archetype"]:
+            self.assertRegex(a["evidence"], r"checked \d{4}-\d{2}-\d{2}",
+                             a["id"])
+
+    def test_archetype_ids_and_jobs_are_unique(self):
+        ids = [a["id"] for a in self.d["archetype"]]
+        jobs = [a["job"] for a in self.d["archetype"]]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(len(jobs), len(set(jobs)))
+
+
 class TestDivergenceDiscipline(unittest.TestCase):
     """R1/R2/R3 live in the skill; these keep them from being edited away."""
 
