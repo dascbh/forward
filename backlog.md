@@ -19,7 +19,15 @@ Items ordered by value against the goal. Evidence ladder:
 ## Status
 
 Items 1–5 selected into S-002 as FWD-003..FWD-007 (planning 2026-08-09);
-sizes re-scored at selection with per-demand triage inputs.
+sizes re-scored at selection with per-demand triage inputs. Items 6–8
+below entered at the S-005 review; item 6 was selected into S-006 as
+FWD-013.
+
+| # | item | hypothesis | evidence | size (est.) |
+|---|---|---|---|---|
+| 6 | Verification discipline | five factual errors about external sources shipped in two demands, each caught only by isolated review because the accompanying tests asserted a claim existed rather than that it was true; a catalog principle plus a gate on undated/expired claims would make the failure mode detectable by the suite | usage-data (S-005 reviews, 3 rounds) | M |
+| 7 | Split the reference base by kind | 55 entries across 5 node kinds in one 584-line TOML; the FWD-012 review asked whether one file is still the right container (MNT-1/MNT-2). Declined at the S-005 review — revisit if the base keeps growing | opinion | S |
+| 8 | Collapse the parallel-copy defence | the graph mining the kernel's own review history ranks MNT-1 at 25.0 severity-weighted, 3x the next principle: source, installed mirror, template and generated surface each get a bespoke drift test. One mechanism could replace the case-by-case detectors | usage-data (graph --recurring) | M |
 
 ## Unplanned intake
 
