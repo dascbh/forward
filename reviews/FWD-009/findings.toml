@@ -1,0 +1,90 @@
+# Adversarial review — FWD-009 anti-erosion, commit e96ae28.
+# Reviewer received artifact + spec only (I2). Findings only; no fixes (I3).
+
+[meta]
+demand_id = "FWD-009"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 2
+rounds_run = 2
+commit = "e96ae28"
+agent_transcript = "agent-adf653f7808ae2baf"
+probed = """
+Ran the full suite (127 green), `verify.py --gate erosion` (green) and
+`--all` (green), `erosion.py --report/--gate/--format json` on this repo,
+and scripted probes on throwaway git repos.
+
+ROUND 1 — correctness of the measurement & gate. parse_numstat on rename
+lines ('old => new', '{a => b}', '{old => new}') → numeric prefix intact,
+counts correct (safe). _largest_change hash-boundary: a file literally
+named 40 hex chars sits on a numstat line ('n\\tn\\t<hex>') and never
+fullmatch-es the boundary regex, and --format=%H emits no commit message,
+so no content line is mistaken for a boundary (safe). CLONE_K=6 on
+sub-6-line files yields an empty range, no crash, no windows (safe).
+EXCLUDED_PREFIXES: trailing-slash discipline means 'runtime/bin/fde/x'
+and '.fdenew/' do NOT match 'bin/fde/' / '.fde/' (safe). duplicate_block_pct
+is deterministic (blake2b, order-independent count). measure() on an
+unborn HEAD → empty log → add_delete_ratio/largest_change None (safe).
+Config gate rejects non-numeric AND bool [erosion] values, allows int and
+float (correct). BROKE: max_change_lines false-fires on the root commit
+(F1); dependency_count double-counts optional-dependency groups (F4);
+erosion.py --report tracebacks on a non-numeric budget (F5).
+
+ROUND 2 — the harder regime & the claims. The erosion gate is a false
+wall for any repo younger than `window` (F1). The mirror-exclusion that
+makes the kernel's own duplication read 1.0% rests on a 'drift-checked
+mirror' premise that is false for erosion.py itself (F2); without the
+exclusion the repo is 61.7% duplicated and the README/ADR 'Exhibit A —
+decay did not happen here' claim is not what the metric shows (F3).
+Catalog integrity (MNT-11..13, COST-1..3) is well-formed: prefixes
+unique, PREFIX_TO_ATTRIBUTE extended to COST, operational_cost declares
+verified_by=heuristic, test_spec_integrity enforces it (acceptance met).
+--gate erosion --staged names the tier conflict (acceptance met).
+"""
+
+# ---------------------------------------------------------------------------
+# functional_correctness — weight 30, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "high"
+probe = "valid input at the domain boundary that the gate wrongly rejects — a false wall, the exact failure FM-2 commits to never producing. `_largest_change` returns the biggest single commit in the last `window` commits; for any repo younger than `window` (default 50) that window still contains the ROOT commit, whose size is the initial scaffold, not erosion. The client-facing skill (skills/fde-erosion/SKILL.md:52) recommends `max_change_lines = 600` with no caveat. Probe: throwaway repo, healthy 900-line initial scaffold + one 1-line follow-up commit, `[erosion] window=50, max_change_lines=600` → `erosion.py --gate` prints 'largest change (lines) 905 > budget 600' and exits 1. Nothing eroded; the gate is red on a two-commit greenfield repo — precisely the AI-built greenfield app the manifesto targets. The caveat that makes this safe lives ONLY in the kernel's private fde.config.toml:77-78 comment ('max_change_lines is omitted because the root commit (2896 lines) is still in the window'); the shipped client doctrine hands over the trap value instead of the caveat. For the first `window` commits of every project the signal is dominated by an event that is not decay."
+evidence = "runtime/erosion.py:209-223 (_largest_change over `git log -{window}`, no root-commit exclusion); :243 (gate window default 50); skills/fde-erosion/SKILL.md:52 (recommends max_change_lines = 600); fde.config.toml:77-78 (the kernel self-exempts, documenting the exact reason in a comment clients do not read); reproduced live: 905 > 600, gate exit 1, on a 2-commit repo. Contradicts FM-2 (spec.md:39-41 'absent a declaration the gate is silent, never a false wall' — the spirit is no false walls) and R1's framing of largest_change as the batch-size signal (spec.md:52-56)."
+blocking = true
+
+[[finding]]
+attribute = "functional_correctness"
+severity = "low"
+probe = "malformed-but-plausible manifest inflates a gated metric. `_count_pyproject_deps` sums len(project.dependencies) + len(each optional-dependencies group), so a package listed in main deps AND an extra group, or in two optional groups (e.g. pytest in both .dev and .test), is counted once per occurrence. Probe: pyproject with dependencies=[requests,click], optional dev=[pytest,requests], test=[pytest] → three distinct third-party packages, but dependency_count returns 5. A client whose real dependency surface sits just under `max_dependencies` gets a false breach from duplicate listings that add zero real dependencies. dependency_count is meant as the reinvent-or-import trend; the over-count is systematic, not a one-off."
+evidence = "runtime/erosion.py:156-165 (_count_pyproject_deps: n = len(dependencies); for group in optional-dependencies.values(): n += len(group) — no de-duplication across groups or against main); consumed by check_budget for max_dependencies (:113,116-118). Reproduced: reported 5 for 3 distinct packages."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# maintainability — weight 22, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "maintainability"
+severity = "high"
+probe = "knowledge that only exists in the builder's head / duplication with no swap layer. erosion.py excludes bin/fde/ from the duplication scan, justified in-code (:42-44) and in the skill (:26-28) as 'a drift-checked mirror is expected duplication.' But the drift check does NOT cover erosion.py. tests/test_install_sync.py:19 compares exactly ('fde_lib.py','verify.py','guard.py') — erosion.py (this demand's file) and graph.py are absent, and the test passes green. Meanwhile the kernel EXECUTES the bin/fde copy: `python3 bin/fde/verify.py` sets HERE=bin/fde (verify.py:23-24) and gate_erosion does `import erosion` (verify.py:326) → bin/fde/erosion.py; but the unit suite imports runtime/erosion.py (test_erosion.py:11) and support.py copies runtime/ into test projects. Probe: add one line to runtime/erosion.py and leave bin/fde/erosion.py unchanged → `python3 -m unittest tests.test_install_sync` stays green (its loop never opens erosion.py) and `--all` keeps running the STALE executed copy. The two files are byte-identical today (verified) purely by manual discipline, with no gate to catch the next edit. The exclusion that produces the kernel's headline 1.0% duplication therefore rests on a guarantee the demand did not actually build for its own artifact."
+evidence = "runtime/erosion.py:45 (EXCLUDED_PREFIXES starts 'bin/fde/'), :42-44 (the 'drift-checked mirror' justification); tests/test_install_sync.py:18-21 (covered set = fde_lib.py, verify.py, guard.py only; erosion.py + graph.py omitted; test green); runtime/verify.py:23-24,326 (executed gate imports bin/fde/erosion.py); tests/test_erosion.py:11 + tests/support.py:57 (suite exercises runtime/erosion.py only). Measured: whole-repo duplicate-block % is 61.7 without the exclusion vs 1.0 with it; the runtime/↔bin/fde/ pair alone is 100% cloned over 10 files. graph.py corroborates — same omission since FWD-008."
+blocking = true
+
+[[finding]]
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting"
+evidence = "The dogfood claim presented as proof is an artifact of what the metric excludes, not a property of the code. README.md:78-81 ('Exhibit A is this repository ... complexity bounded — the monotonic decay the papers measure did not happen here'), ADR-0011:62-66, and the commit message ('dup 0.9% vs 6.0') cite the kernel's own duplicate-block % as evidence the governance stops decay. But that 0.9-1.0% is computed with bin/fde/ (a byte-for-byte clone of runtime/) excluded; the honest whole-repo figure is 61.7% (the single largest real duplication in the repo — five 300-line files maintained in two places — is definitionally invisible to the number being touted). Compounding it, `window = 50` on a 36-commit repo means the 'trend' has no pre-decay baseline inside the window to trend against, and the papers measure decay over long horizons a 9-demand repo has not reached — so 'decay did not happen here' is 'too early to tell', not a demonstrated result. The claim over-reads its own instrument."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# reliability_resilience — weight 12
+# ---------------------------------------------------------------------------
+
+[[finding]]
+attribute = "reliability_resilience"
+severity = "low"
+probe = "the tool whose headline promise is 'every metric degrades to None instead of crashing' (FM-4) tracebacks on a config typo. `erosion.py --report` reads the budget raw (load_budget, :259) and passes it to check_budget (:287), which does `float(budget[bkey])` (:117) with no numeric guard on that path. Probe: `[erosion] max_add_delete_ratio = \"lots\"` (a typo) in a normal git repo → `erosion.py --report` raises 'ValueError: could not convert string to float: lots' and dies with a stack trace instead of reporting the signals. The config gate (fde_lib EROSION-BUDGET) catches this for `verify.py`, but --report is the standalone diagnostic a user runs FIRST, before the gate, exactly to understand a misconfiguration — and it is the one surface with no graceful degradation."
+evidence = "runtime/erosion.py:117 (float(budget[bkey]) unguarded); :259 then :286-287 (--report reads raw budget and calls check_budget outside any validation); contrast measure()'s careful None-degradation (:186-206). Reproduced: ValueError on a string budget value via check_budget."
+blocking = false
