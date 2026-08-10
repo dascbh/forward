@@ -1,0 +1,221 @@
+# Adversarial review — FWD-012 frameworks and page archetypes, commit ae4dd9a.
+# Reviewer received artifact + spec only (I2). XS = one round.
+# Findings only; no fixes (I3).
+
+[meta]
+demand_id = "FWD-012"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 1
+rounds_run = 1
+commit = "ae4dd9a"
+agent_transcript = "agent-aa210d613cf336ffd"
+probed = """
+Ran the full suite (171 green) and `python3 bin/fde/verify.py` (all 16
+gates green) at ae4dd9a. FWD-012 is XS so there is no spec dir; the
+declared justification is the row at sprints/S-005/goal.md:12 and the
+governing doctrine is docs/adr/0012 plus the base's own header rules
+(ui-patterns.toml:1-17, :202-214, :512-520).
+
+PROBE A — staleness. Rewrote every `checked 2026-08-09` in the base to
+`checked 2019-01-01` and relabelled the foundation entry
+`maintenance = "active, thriving: last push 2025-01-21, ... ~19 months
+without a commit"` — a status word that contradicts its own data by seven
+years of rot. Suite: 171 tests, OK. The only assertion over the field is
+`assertRegex(f["maintenance"], r"checked \\d{4}-\\d{2}-\\d{2}")`.
+
+PROBE B — the kind boundary, i.e. the thing the commit exists to defend.
+Deleted the `[[framework]] id = "foundation"` block and re-added
+`foundation` as a `[[system]]` with market/label/best_at/study_when, and
+added it to one pattern's `canonical` to satisfy the FWD-011 reachability
+rule. Suite: 171 tests, OK. `test_frameworks_and_systems_are_disjoint_
+kinds` computes `systems & frameworks`, so it fires only when the SAME id
+sits in both tables; a CSS framework filed only as a design system — the
+exact category error the commit message calls out — passes. Archetype
+`canonical` resolution accepts it either way because it unions the two
+tables.
+
+PROBE C — id namespace. Appended `[[archetype]] id = "error-recovery"`
+with `composed_of = ["error-recovery"]` (the pattern of the same name),
+a unique `job`, three `must_resolve` items and a dated `evidence`.
+Suite: 171 tests, OK. Nothing asserts archetype ids are disjoint from
+pattern/system/framework ids.
+
+PROBE D — reachability. Computed the union of every archetype's
+`canonical`: `tailwind` appears in none, so no documented path reaches
+it. Then invented `[[framework]] id = "totally-made-up-css"`, url
+example.invalid, cited by nothing. Suite: 171 tests, OK — there is no
+framework analogue of `test_every_system_is_reachable_from_some_pattern`.
+
+PROBE E — ran the documented selection order (SKILL.md:188-201) against
+the new entry point (SKILL.md:178-179 "Start at the archetype ... it
+hands you the pattern list"). Computed `baseline` patterns
+{empty-state-onboarding, error-recovery, primary-navigation} minus each
+archetype's `composed_of`: 7 of 8 archetypes drop at least one; pricing
+and content-article drop all three.
+
+PROBE F — verified every volatile fact in the diff against its source.
+GitHub API: twbs/bootstrap pushed_at 2026-08-08T03:46:54Z, latest release
+v5.3.8 published 2025-08-26; tailwindlabs/tailwindcss pushed_at
+2026-08-07T15:44:35Z, v4.3.3 published 2026-07-16; foundation/foundation-
+sites pushed_at 2025-01-21T22:11:53Z, v6.9.0 published 2024-09-27,
+archived=false. All three maintenance lines are accurate for the
+repository they name. tailwindcss.com/plus/ui-blocks/marketing: Hero 12,
+Feature 15, Pricing 12, CTA 11, Logo Clouds 6, 404 Pages 5, Landing Pages
+4, Pricing Pages 3, Blog 7, Content 7 — every count in the base and in
+the archetype evidence lines checks out. getbootstrap.com/docs/5.3/
+examples/: Sign-in, Pricing, Checkout, Dashboard, Album, Product, Blog,
+Cover under Custom Components and Heroes, Features under Snippets — all
+ten cited names exist.
+
+SAFE: spec/references/ui-patterns.toml and .fde/spec/references/
+ui-patterns.toml are byte-identical; skills/fde-design/SKILL.md and
+.claude/skills/fde-design/SKILL.md are byte-identical (test_install_sync
+covers both). All five version carriers read 0.10.2 (.claude-plugin/
+plugin.json, fde.config.toml, templates/fde.config.template.toml,
+spec/invariants.toml, spec/references/ui-patterns.toml spec_version).
+The component-code guard still fires on all six samples and the new
+prose adds no code. Archetype and pattern ids are internally unique;
+every `composed_of` id resolves; every `canonical` id resolves.
+"""
+
+# ---------------------------------------------------------------------------
+# functional_correctness — weight 30, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "high"
+probe = "the new top of the base silently drops the base's own non-negotiable obligations. PROBE E. SKILL.md:178-179 makes the archetype the entry point for a whole page — 'Start at the archetype when you are building a whole page; it hands you the pattern list and the page-level risks in one read' — and it is placed ABOVE the section that carries the deterministic order, so a reader building a page never reaches step 1. Step 1 of that order is 'satisfy every `baseline = true` entry whose platform covers your surface (obligations — empty state, error recovery, primary navigation — never candidates competing for a job)'. All three baselines are platform = 'all', so all three are owed on every surface. Set-difference of the baselines against each archetype's `composed_of`: authentication drops empty-state-onboarding and primary-navigation; pricing drops ALL THREE; checkout drops empty-state-onboarding and primary-navigation; dashboard-shell drops error-recovery; marketing-landing drops empty-state-onboarding and error-recovery; content-article drops ALL THREE; catalogue-grid drops error-recovery and primary-navigation; not-found drops empty-state-onboarding. Seven of eight. The archetypes are not even consistent with each other: primary-navigation appears in 3 of 8 pages that all have chrome, error-recovery in 3 of 8. The result contradicts the archetypes' own text — content-article `must_resolve` demands 'what to read next without a dead end' while composing no navigation, and catalogue-grid `must_resolve` demands 'no results, distinguished from not-yet-loaded' which IS empty-state-onboarding's job, restated instead of composed. A pricing page assembled from `composed_of = [\"progressive-disclosure\"]` owes no error recovery at all. No assertion binds baselines into `composed_of`, and no line of the skill says the baselines survive the archetype shortcut."
+evidence = "skills/fde-design/SKILL.md:178-179 (the shortcut) against :188-192 (step 1, baselines as obligations) and spec/references/ui-patterns.toml:522-584 (`composed_of` of all eight archetypes) versus the three `baseline = true` entries (empty-state-onboarding, error-recovery, primary-navigation, all platform = 'all'); tests/test_references.py:193-202 checks only that composed ids resolve."
+blocking = true
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "high"
+probe = "the foundation entry's dormancy verdict is measured against a repository that is not the one the entry recommends, and the correct repository says the opposite. `best_at` sells the entry on ONE thing — 'the one thing nothing else covers: Foundation for Emails, where the client matrix (Outlook, Gmail) breaks normal CSS' — and Foundation for Emails is `foundation/foundation-emails`, a separate repository. The `maintenance` line's evidence ('last push 2025-01-21, v6.9.0 released 2024-09-27, ~19 months without a commit') is `foundation/foundation-sites`, the CSS framework. Checked via the GitHub API on 2026-08-10: foundation/foundation-emails pushed_at 2026-03-13T16:40:54Z, latest release 2.5.1 published 2026-03-12 — five months, not nineteen. So the reader is warned off the artifact as 'dormant, ~19 months' on the strength of a number that is wrong by 14 months for the only thing the entry says is worth adopting it for. The base's own header states the rule this breaks: 'maintenance is a volatile fact, so it carries the date it was verified against the repository' — singular, unstated, and the entry names two products with divergent states. The suite cannot see it: `test_framework_maintenance_is_dated_evidence` regexes for a date string and nothing ties the claim to the URL or to the product named in `best_at`."
+evidence = "spec/references/ui-patterns.toml:248 (`best_at` naming Foundation for Emails) against :250 (`maintenance` measuring foundation-sites); api.github.com/repos/foundation/foundation-emails (pushed_at 2026-03-13T16:40:54Z) and /releases/latest (tag 2.5.1, published_at 2026-03-12T03:06:47Z) versus api.github.com/repos/foundation/foundation-sites (pushed_at 2025-01-21T22:11:53Z, v6.9.0 2024-09-27); the rule at :212-214; tests/test_references.py:182-187."
+blocking = true
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "high"
+probe = "'the one thing nothing else covers' is false, and the false uniqueness claim is what makes the dormancy warning survivable — it tells the reader there is no alternative. MJML (mjmlio/mjml) covers exactly the stated job: its own description is 'Quickly create responsive HTML emails that work on any device and client. Even Outlook.' Checked via the GitHub API on 2026-08-10: MIT licence, 18,192 stars, pushed_at 2026-08-07T12:21:12Z — pushed the same week as Bootstrap and Tailwind, against Foundation for Emails' five-month gap. Maizzle and Cerberus occupy the same niche. The base therefore steers a reader toward a project it has itself labelled dormant, on a claim of uniqueness that a single API call disproves, and the directory escape hatch does not help: the `[[directory]]` entries cover design systems and pt-BR conventions, none covers email frameworks. The class of error is the one the previous round already found twice in this file (FWD-011 F1, F4): a superlative asserted about an external ecosystem with no source and no date, in a base whose only product is verified facts."
+evidence = "spec/references/ui-patterns.toml:248 ('the one thing nothing else covers: Foundation for Emails'); api.github.com/repos/mjmlio/mjml (description 'Quickly create responsive HTML emails that work on any device and client. Even Outlook.', license MIT, stargazers 18192, pushed_at 2026-08-07T12:21:12Z); reviews/FWD-011/findings.toml F1 and F4 (same class, previously found)."
+blocking = true
+
+[[finding]]
+id = "F4"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "the tailwind-plus licence — the field the entry itself declares load-bearing ('the blocks are code you copy, so the licence follows them into your repository') — misdescribes the commercial model in both of its two claims. The base says 'commercial (paid, per-seat)'. Tailwind Plus is a ONE-TIME purchase, not a subscription, and the team tier is a flat price for a headcount band, not per seat: tailwindcss.com/plus states '$299 one time payment' for Personal, '$979 one time payment' for Teams with 'access for up to 25 people', and the FAQ states 'a one-time purchase, with no recurring subscription ... you get access to everything in Tailwind Plus forever'; the licence page defines the Team License as 'up to 25 Employees and Contractors of the Licensee'. A reader budgeting a 25-developer team from 'per-seat' computes 25 x $299 = $7,475 against an actual $979 — an 7.6x error on a procurement number — and 'per-seat' additionally implies a renewal risk that does not exist, which is the single most relevant fact when the entry's whole argument is that this vendor's code enters your repository permanently. Separately, this entry's `maintenance` ('commercial product, versioned with Tailwind (checked 2026-08-09)') is the only one of the four that is NOT verified against a repository — there is no public repository — so it is precisely the marketing-page claim the section header forbids, wearing the date stamp the test accepts."
+evidence = "spec/references/ui-patterns.toml:238 (license) and :241 (maintenance) against https://tailwindcss.com/plus ('$299 one time payment', '$979 one time payment', 'up to 25 people', 'a one-time purchase, with no recurring subscription') and https://tailwindcss.com/plus/license ('up to 25 Employees and Contractors of the Licensee'); the rule at spec/references/ui-patterns.toml:212-214."
+blocking = true
+
+[[finding]]
+id = "F5"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "the archetypes section declares a three-legged inclusion standard and five of the eight entries do not meet it, while the only assertion over the field checks for a date. The header states: 'Evidence is cross-source: an archetype shipped as a framework example AND as a block category AND documented by design systems is recurring by any reading' — three conjuncts. authentication cites a Bootstrap example, 'every design system documents the form' and GOV.UK: no block-library leg, and the middle conjunct is an unverifiable universal (APG and Radix document form widgets, not a sign-in page). checkout cites a Bootstrap example and 'commerce systems document the flow end to end' — no named source, no block-library leg. dashboard-shell cites a Bootstrap example plus Carbon and Cloudscape — no block-library leg. content-article and catalogue-grid are worse: 'Gestalt exists for this register' is a statement that a design system exists, not evidence that the page archetype recurs. Only pricing, marketing-landing and not-found carry all the legs (and those three are the ones whose numbers verify). `test_archetype_evidence_is_dated` asserts only `checked \\d{4}-\\d{2}-\\d{2}`, so 'invented for this probe (checked 2026-08-09)' passes — PROBE C shipped exactly that string green. A declared inclusion rule that the shipping entries do not satisfy is not a rule; it is a preamble, and the next contributor will read the shipped entries as the standard."
+evidence = "spec/references/ui-patterns.toml:517-520 (the cross-source rule) against the `evidence` lines at :528 (authentication), :544 (checkout), :552 (dashboard-shell), :568 (content-article), :576 (catalogue-grid); tests/test_references.py:204-207."
+blocking = false
+
+[[finding]]
+id = "F6"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "there is no documented order for choosing an archetype or a framework, and the archetype schema omits every field the pattern order relies on to disambiguate. Patterns are required to carry job, platform, canonical, fits_when, fails_when, states, a11y (tests/test_references.py:13-14) and the order uses platform to EXCLUDE and fails_when to DROP. Archetypes carry only job, composed_of, canonical, must_resolve, evidence — no platform, no fits_when, no fails_when, no states, no a11y, no recurrence/rationale. So the reader who is told to 'start at the archetype' has no filter and no misfit criterion. Concretely undecidable cases: a blog index is 'browse a set of things' (catalogue-grid), 'find the next one' (content-article) and 'make one claim land' if it is a marketing blog (marketing-landing) — three jobs match and nothing eliminates any of them; a SaaS pricing page is both pricing and marketing-landing, whose `must_resolve` sets conflict on the primary action ('exactly one primary action (a second one halves both)' versus a plan grid of N equal CTAs). The pattern level had this exact problem raised and answered with an explicit tie-break ('if more than one pattern still survives, the choice is a recorded decision naming the trade'); the archetype level has no equivalent sentence. `composed_of` is not constrained either — `test_archetypes_compose_patterns_that_exist` requires `must_resolve` to have at least three items but puts no floor on `composed_of`, and pricing ships a 'composition' of exactly one pattern."
+evidence = "skills/fde-design/SKILL.md:161-179 (the archetype section, no order, no tie-break) against :188-201 (the pattern order, which turns on platform and fails_when); spec/references/ui-patterns.toml:522-584 (no archetype carries platform/fits_when/fails_when) versus tests/test_references.py:13-14 and :38-42; :533 (`composed_of = [\"progressive-disclosure\"]`) against :555-557 and :563-565."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# maintainability — weight 22, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F7"
+attribute = "maintainability"
+severity = "high"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting"
+probe = "the kind boundary — the entire thesis of the demand — is asserted in prose and defended by a test that cannot detect its violation. PROBE B: I deleted the `[[framework]] id = \"foundation\"` block and re-declared `foundation` as a `[[system]]` with the four fields systems require, citing it from one pattern's `canonical` to satisfy the reachability rule. 171 tests, OK; all gates green. That IS the category error the commit message calls out ('filing them as [[system]] would be a category error'), committed in full, undetected. `test_frameworks_and_systems_are_disjoint_kinds` evaluates `self.systems & self.frameworks` — it fires only if a contributor duplicates an id into BOTH tables, which is the one thing nobody does; the realistic failure is a contributor adding Bulma, Bourbon or Open Props as a `[[system]]` because that is the section they scrolled to first. Nothing in the schema distinguishes the kinds either: the discriminator would be `does_not_decide` (frameworks) versus `study_when` (systems), and no assertion says a system must not carry the former or a framework the latter. The test name promises a boundary; it delivers an id-collision check, and the name is what the next reader will trust."
+evidence = "tests/test_references.py:189-191 (`assertFalse(self.systems & self.frameworks)`); spec/references/ui-patterns.toml:205-210 (the prose claim); reproduced at /private/tmp/.../scratchpad/repo — foundation moved from [[framework]] to [[system]], 171 tests OK."
+blocking = true
+
+[[finding]]
+id = "F8"
+attribute = "maintainability"
+severity = "high"
+principle = "MNT-4 decisions are written where the next reader will look (ADR, not memory) — and an ADR records the alternatives it rejected, or it is an announcement, not a rationale"
+probe = "'active' and 'dormant' are the verdicts the whole framework kind is sold on, and no criterion for them is written anywhere — so the next person to refresh the file cannot reproduce the judgment, and the current file already applies it inconsistently. Bootstrap is labelled 'active' on the strength of a push date while its last RELEASE is v5.3.8 of 2025-08-26 — 11.5 months before the check, and a release is what a consumer of a CSS framework actually adopts. Foundation is labelled 'dormant' at 19 months without a COMMIT. Two different clocks, no stated threshold, no stated which signal governs. PROBE A shows the field is free text with no guard at all: I set foundation to `maintenance = \"active, thriving: last push 2025-01-21, v6.9.0 released 2024-09-27, i.e. ~19 months without a commit\"` — a status word flatly contradicted by the data on the same line — and the suite stayed green at 171. The commit's own argument ('the check earned its keep immediately') rests on a mechanism that will not survive the first contributor who does not share the author's unwritten threshold; that is knowledge living only in the builder's head, which is the maintainability probe this attribute names."
+evidence = "spec/references/ui-patterns.toml:223 (bootstrap 'active', release 2025-08-26) against :250 (foundation 'dormant', 19 months) and :232, :241; tests/test_references.py:182-187 (the only assertion: a `checked <date>` substring); PROBE A reproduced, 171 tests OK with a self-contradicting status word."
+blocking = true
+
+[[finding]]
+id = "F9"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting"
+probe = "every dated claim this demand added is a checked-once fact with no expiry, and the suite accepts any date including an ancient one. PROBE A: rewrote all 12 occurrences of `checked 2026-08-09` (4 framework maintenance lines, 8 archetype evidence lines) to `checked 2019-01-01`. 171 tests, OK. Both new assertions are `assertRegex(..., r\"checked \\d{4}-\\d{2}-\\d{2}\")`, which is satisfied by a date seven years stale, by a future date, and by 9999-99-99. `meta.sources_checked` has the same shape (`test_the_base_records_when_it_was_last_checked` asserts only that it is date-shaped). The demand deliberately imported the most volatile class of fact the base has ever carried — push dates, release tags, block counts, a price model, a licence — and added no bound on how old any of it may be before the gate complains. Verified-then-rotted is worse than unverified, because the date stamp is what earns the reader's trust: a reader in 2028 will read 'active: last push 2026-08-08' as a current statement about Bootstrap."
+evidence = "tests/test_references.py:182-187 and :204-207 (both regex-only); :107-108 (`sources_checked`, date-shape only); spec/references/ui-patterns.toml:223, :232, :241, :250 and :528-583 (12 dated claims); PROBE A reproduced with `checked 2019-01-01` throughout, 171 tests OK."
+blocking = false
+
+[[finding]]
+id = "F10"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-12 deletion is a feature: a net-negative diff is healthy; code added and not used, or left after its caller is gone, is bloat that compounds monotonically"
+probe = "the reachability rule the previous round established for systems was not extended to the kind added here, and the file already ships a dead entry. PROBE D: the union of every archetype's `canonical` is {govuk, dsgov, bootstrap, tailwind-plus, polaris, nimbus, carbon, cloudscape, foundation, gestalt}. `tailwind` — the utility framework, the one of the four with the longest `does_not_decide` argument — appears in none of them, and no pattern cites frameworks at all (`test_every_canonical_reference_resolves_to_a_declared_system` resolves pattern `canonical` against systems only). There is therefore no documented path from any job to the tailwind entry. FWD-011 F2 was the identical defect for systems and produced `test_every_system_is_reachable_from_some_pattern` with the rationale 'a system no pattern cites cannot be found by the documented selection order — a dead entry'; the new kind is exempted silently. I confirmed the gap by inventing `[[framework]] id = \"totally-made-up-css\"`, url https://example.invalid, cited by nothing: 171 tests, OK. The same hole covers archetypes — nothing asserts an archetype is reachable, and 10 of the 21 patterns appear in no archetype, which is fine but undeclared either way."
+evidence = "spec/references/ui-patterns.toml:225-232 (tailwind) against the eight `canonical` lists at :526, :534, :542, :550, :558, :566, :574, :582; tests/test_references.py:94-101 (the systems rule) with no framework or archetype analogue in :161-213; reviews/FWD-011/findings.toml F2."
+blocking = false
+
+[[finding]]
+id = "F11"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting"
+probe = "the curation rule that keeps the base from becoming an encyclopedia is enforced for one kind out of five, and the two kinds added here carry no justification field at all. The header rule is 'A pattern earns an entry by RECURRENCE, not by completeness. This is a curated base, not an encyclopedia', and `test_every_pattern_justifies_its_existence` enforces `recurrence or rationale` on patterns only. Frameworks have neither field and no assertion: bootstrap, tailwind, tailwind-plus and foundation are in the file because the author chose them, with nothing recorded about why these four and not Bulma, Pico, Open Props or Material Web. Archetypes have `evidence`, but F5 shows the declared standard for it is not met by five of eight. The file is now 584 lines holding five entry kinds with four different implicit schemas and 55 entries (18 systems, 4 frameworks, 21 patterns, 8 archetypes, 4 directories); the schema for each lives only in a prose comment and in the test file, which is two places for one fact. The inclusion rule for a curated base is the only thing standing between 55 entries and 200, and for two of the five kinds it does not exist."
+evidence = "spec/references/ui-patterns.toml:10-12 (the recurrence rule) and :216-250 (four frameworks with no recurrence/rationale field) against tests/test_references.py:64-70 (patterns only); the file is 584 lines with `system`=18, `framework`=4, `pattern`=21, `archetype`=8, `directory`=4."
+blocking = false
+
+[[finding]]
+id = "F12"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-3 names match the domain: a reader maps code to concept without a glossary"
+probe = "`canonical` now means two different things depending on which table it appears in, and in the archetype table it points at exactly the copy-paste code ADR-0012 rejected. For a pattern, `canonical` names a design system whose documented DECISION you study ('The reader studies the canonical implementation; the kernel only says which one'). For an archetype, `canonical` resolves against systems UNION frameworks, and in practice it is mostly frameworks: bootstrap appears in 7 of 8 archetypes, tailwind-plus in 3. What a reader finds at the other end is not a documented decision but a page of markup to copy — for bootstrap, the very thing the base warns about two hundred lines earlier ('a Bootstrap page is a page that looks finished before it is designed'). ADR-0012 rejected bundling component code because 'copied components rot, bloat (MNT-11, MNT-12), drag licenses'; making the block library the canonical reference re-opens that door with the field name that tells the reader it is the authoritative one. The paid case is sharper: not-found's `canonical` is [govuk, tailwind-plus], so half of it is behind a $299 paywall, and pricing and marketing-landing both lead with tailwind-plus. A reader without a licence cannot study the reference the base names as canonical, and nothing in the entry or the skill says what to do instead."
+evidence = "spec/references/ui-patterns.toml:4-8 ('the reader studies the canonical implementation') and :222 (bootstrap `does_not_decide`) against :526, :534, :542, :550, :558, :566, :574, :582 (bootstrap in 7/8, tailwind-plus in 3/8, :582 = [govuk, tailwind-plus]); tests/test_references.py:200-201 (archetype canonical resolves against systems|frameworks); docs/adr/0012-*.md, 'Options considered', the rejected component-library option."
+blocking = false
+
+[[finding]]
+id = "F13"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-3 names match the domain: a reader maps code to concept without a glossary"
+probe = "archetype ids share one flat namespace with pattern, system and framework ids, and nothing checks it. PROBE C: appended `[[archetype]] id = \"error-recovery\"` — the id of an existing pattern, and one that the archetype then lists in its own `composed_of` — with a unique `job`, three `must_resolve` items and a dated `evidence`. 171 tests, OK. `test_archetype_ids_and_jobs_are_unique` compares archetypes against archetypes only, and the pattern uniqueness test predates the new kind. The collision is not exotic: 'authentication', 'checkout' and 'not-found' are plausible pattern names, and `composed_of` and `canonical` are both bare id references resolved against different tables, so a colliding id makes a reference silently ambiguous to a human and silently correct to the test. `fde-graph` and any future tooling that indexes the base by id inherit the ambiguity."
+evidence = "tests/test_references.py:209-213 (archetype ids compared only to archetype ids) and :34-36 (patterns to patterns); PROBE C reproduced — archetype `error-recovery` composing pattern `error-recovery`, 171 tests OK."
+blocking = false
+
+[[finding]]
+id = "F14"
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-10 comments say why, never what; commented-out code is deleted (git remembers); a TODO has an owner and a date, or it dies; when how to run or operate the system changes, README and runbook update in the same change"
+probe = "the section that teaches the taxonomy is titled 'Three kinds in the base — do not confuse them' and the base has five: `[[system]]`, `[[framework]]`, `[[pattern]]`, `[[archetype]]`, `[[directory]]`. The two it omits are the two that matter most operationally — `[[pattern]]` is the kind the entire deterministic selection order operates on, and `[[directory]]` is the escape hatch FWD-011 added for when nothing fits. A reader who trusts the heading now believes the base has three kinds, none of which is the pattern, immediately before a section called 'Choosing the pattern'. The count will also be wrong again the next time a kind is added, because it is written as a number in a heading rather than derived."
+evidence = "skills/fde-design/SKILL.md:161 ('## Three kinds in the base — do not confuse them') and :162-177 (system, framework, archetype only) against spec/references/ui-patterns.toml, which parses to keys {meta, system, directory, framework, pattern, archetype}."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# usability_accessibility — weight 12
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F15"
+attribute = "usability_accessibility"
+severity = "low"
+principle = "USE-3 consistency: the same concept has the same name and behavior everywhere"
+probe = "the anti-anglo coverage rule stops at the two new kinds. Systems must declare a `market` and the suite requires at least three distinct markets with at least one non-global, on the stated reasoning that 'a base drawn only from anglo systems exports their conventions as universal'. Frameworks declare no market and all four are anglo/global (Twitter, Tailwind Labs, ZURB); archetypes declare no market either. The consequence is visible inside the archetypes: locale obligations appear ad hoc rather than structurally — checkout's `must_resolve` names 'CPF/CNPJ, postal code' and pricing names 'currency, tax and locale stated, not assumed', while authentication, marketing-landing, content-article, catalogue-grid and not-found name none, even though pt-BR error language, LGPD consent text, and address/date formats bite on every one of them. The archetype is now the recommended entry point (SKILL.md:178), so the level with the weakest locale coverage is the level a reader reads first."
+evidence = "tests/test_references.py:84-92 (market required, >=3 markets, non-global required) against spec/references/ui-patterns.toml:216-250 (no `market` on any framework) and :522-584 (no `market` on any archetype); :543 (checkout `must_resolve`, CPF/CNPJ) and :535 (pricing `must_resolve`, currency/tax/locale) against the locale-silent :527, :559, :567, :575, :583."
+blocking = false
