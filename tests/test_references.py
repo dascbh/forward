@@ -61,20 +61,59 @@ class TestReferenceBase(unittest.TestCase):
             self.assertTrue(x["url"].startswith("https://"), x["id"])
             self.assertTrue(x.get("use_for"), x["id"])
 
-    def test_recurrence_evidence_is_substantive_where_claimed(self):
-        # the base's inclusion rule is recurrence; where an entry claims
-        # the evidence, it must actually carry it (not an empty field)
-        claimed = [p for p in self.d["pattern"] if "recurrence" in p]
-        self.assertGreaterEqual(len(claimed), 5)
-        for p in claimed:
-            self.assertGreater(len(p["recurrence"]), 15, p["id"])
+    def test_every_pattern_justifies_its_existence(self):
+        # the curation rule ("earns a place by recurrence") applies to
+        # EVERY entry or it is not a rule — recurrence measured, or a
+        # stated rationale
+        for p in self.d["pattern"]:
+            self.assertTrue(p.get("recurrence") or p.get("rationale"),
+                            f"{p['id']} justifies nothing")
 
-    def test_systems_cover_more_than_one_locale_of_convention(self):
-        # a base that only knows US/EU systems silently exports their
-        # conventions as universal
-        blob = " ".join(f"{s['best_at']} {s['study_when']}"
-                        for s in self.d["system"]).lower()
-        self.assertIn("brazil", blob)
+    def test_recurrence_claims_carry_a_number_source_and_as_of_date(self):
+        # counts drift; a number with no source and no date is folklore
+        # by the next release (review finding, FWD-011)
+        for p in self.d["pattern"]:
+            if "recurrence" not in p:
+                continue
+            r = p["recurrence"]
+            self.assertRegex(r, r"\d", p["id"])
+            self.assertRegex(r, r"component\.gallery|m3\.material\.io|HIG",
+                             p["id"])
+            self.assertRegex(r, r"checked \d{4}-\d{2}-\d{2}", p["id"])
+
+    def test_systems_declare_a_market_and_more_than_one_is_covered(self):
+        # a base drawn only from anglo systems exports their conventions
+        # as universal; the invariant is declared coverage, not a word
+        markets = set()
+        for s in self.d["system"]:
+            self.assertTrue(s.get("market"), f"{s['id']} declares no market")
+            markets.add(s["market"])
+        self.assertGreaterEqual(len(markets), 3, sorted(markets))
+        self.assertTrue(markets - {"global"}, "only global systems listed")
+
+    def test_every_system_is_reachable_from_some_pattern(self):
+        # a system no pattern cites cannot be found by the documented
+        # selection order — a dead entry (review finding, FWD-011)
+        cited = set()
+        for p in self.d["pattern"]:
+            cited |= set(p["canonical"])
+        dead = self.systems - cited
+        self.assertFalse(dead, f"systems no pattern cites: {sorted(dead)}")
+
+    def test_every_system_points_somewhere(self):
+        for s in self.d["system"]:
+            self.assertTrue(s.get("url", "").startswith("https://"), s["id"])
+
+    def test_the_base_records_when_it_was_last_checked(self):
+        self.assertRegex(self.d["meta"]["sources_checked"], r"\d{4}-\d{2}-\d{2}")
+
+    def test_one_pattern_per_job_no_contradicting_pair(self):
+        # two entries for the same job contradict each other sooner or
+        # later (the nav pair did, FWD-011 F5)
+        jobs = [p["job"] for p in self.d["pattern"]]
+        self.assertEqual(len(jobs), len(set(jobs)))
+        nav = [p["id"] for p in self.d["pattern"] if "navigation" in p["id"]]
+        self.assertEqual(len(nav), 1, nav)
 
     def test_the_base_contains_no_component_code(self):
         # criteria and pointers only (ADR-0012). The guard must catch what

@@ -166,11 +166,13 @@ implementations, the fit and misfit criteria, the states the pattern must
 resolve, and its accessibility contract. Use it before inventing.
 
 The order is deterministic: satisfy every **`baseline = true`** entry
-first (they are obligations for any UI surface — empty state, error
-recovery, mobile navigation — never candidates competing for a job) →
-then name the **job** and match on it → filter by **platform** (an exact
-platform beats `all`) → among survivors, drop those whose `fails_when`
-describes your case → study the **canonical** systems the entry names
+whose platform covers your surface (obligations — empty state, error
+recovery, primary navigation — never candidates competing for a job; a
+web-only console owes nothing to a `mobile` baseline) → then name the
+**job** and match on it → **exclude** entries whose platform does not
+cover your surface (`all` always applies; the filter removes, it never
+ranks) → among survivors, drop those whose `fails_when` describes your
+case → study the **canonical** systems the entry names
 (the base points; it never copies their code) → respect the platform
 convention (`hig` on Apple, `material` on Android — deviating spends the
 user's existing muscle memory) → resolve every state the entry lists →

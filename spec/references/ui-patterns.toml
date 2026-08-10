@@ -18,6 +18,7 @@
 
 [meta]
 kind = "reference_base"
+sources_checked = "2026-08-09"
 spec_version = "0.10.1"
 
 # ---------------------------------------------------------------------------
@@ -29,108 +30,144 @@ spec_version = "0.10.1"
 
 [[system]]
 id = "material"
+url = "https://m3.material.io"
+market = "global"
 label = "Material Design (Google)"
 best_at = "Android platform convention, motion and elevation semantics, adaptive layouts"
 study_when = "the surface is Android, or a cross-platform product that must feel native there"
 
 [[system]]
 id = "hig"
+url = "https://developer.apple.com/design/human-interface-guidelines"
+market = "global"
 label = "Apple Human Interface Guidelines"
 best_at = "iOS/macOS platform convention, navigation semantics, gesture and focus expectations"
 study_when = "the surface is Apple; deviating from HIG costs the user's existing muscle memory"
 
 [[system]]
 id = "carbon"
+url = "https://carbondesignsystem.com"
+market = "global"
 label = "IBM Carbon"
 best_at = "dense operational data, data tables, complex multi-step forms, enterprise register"
 study_when = "the screen is a work console and density is the requirement, not a preference"
 
 [[system]]
 id = "primer"
+url = "https://primer.style"
+market = "global"
 label = "GitHub Primer"
 best_at = "developer tooling, code-adjacent surfaces, keyboard-first interaction, diff and review UI"
 study_when = "the user is technical and lives in the product all day"
 
 [[system]]
 id = "polaris"
+url = "https://polaris.shopify.com"
+market = "global"
 label = "Shopify Polaris"
 best_at = "commerce admin, merchant workflows, resource lists, bulk operations, empty states that teach"
 study_when = "the product is an admin over business objects with recurring operational tasks"
 
 [[system]]
 id = "govuk"
+url = "https://design-system.service.gov.uk"
+market = "uk"
 label = "GOV.UK Design System"
 best_at = "forms, error handling, plain language, accessibility as the default — the public-service gold standard"
 study_when = "the flow is a form, an application, or anything where failure excludes a person"
 
 [[system]]
 id = "atlassian"
+url = "https://atlassian.design"
+market = "global"
 label = "Atlassian Design System"
 best_at = "collaboration surfaces, permissions and roles, cross-object navigation, notification density"
 study_when = "many people act on the same objects with different rights"
 
 [[system]]
 id = "fluent"
+url = "https://fluent2.microsoft.design"
+market = "global"
 label = "Microsoft Fluent"
 best_at = "productivity suites, command surfaces (ribbons, palettes), enterprise theming"
 study_when = "the product sits in a Microsoft-centric workplace or is command-dense"
 
 [[system]]
 id = "radix-shadcn"
+url = "https://www.radix-ui.com/primitives"
+market = "global"
 label = "Radix Primitives / shadcn-ui"
 best_at = "headless, accessible primitives (dialog, menu, combobox) with no visual opinion"
 study_when = "the project owns its visual language but must not reimplement interaction and a11y"
 
 [[system]]
 id = "apg"
+url = "https://www.w3.org/WAI/ARIA/apg/"
+market = "global"
 label = "W3C ARIA Authoring Practices Guide"
 best_at = "the normative keyboard and screen-reader behavior of every widget"
 study_when = "always, before implementing any non-trivial widget — it is the accessibility contract"
 
 [[system]]
 id = "dsgov"
+url = "https://www.gov.br/ds/"
+market = "br"
 label = "DSGov — Design System do Governo Federal (Brazil)"
 best_at = "Brazilian public-sector conventions, pt-BR form and error language, eMAG/LBI accessibility"
 study_when = "the product is Brazilian public-facing or regulated — the global systems carry none of the pt-BR conventions or the local legal accessibility floor"
 
 [[system]]
 id = "po-ui"
+url = "https://po-ui.io"
+market = "br"
 label = "PO UI (TOTVS)"
 best_at = "Brazilian enterprise/ERP surfaces: dense registers, fiscal and document-heavy forms, long-lived back offices"
 study_when = "the product is Brazilian business software where the user's reference is an ERP, not a consumer app"
 
 [[system]]
 id = "nimbus"
+url = "https://nimbus.nuvemshop.com.br"
+market = "latam"
 label = "Nimbus (Nuvemshop/Tiendanube)"
 best_at = "Latin American commerce admin, seller workflows, open source with published tokens"
 study_when = "the product is LatAm commerce and Polaris's assumptions do not match the local merchant"
 
 [[system]]
 id = "cloudscape"
+url = "https://cloudscape.design"
+market = "global"
 label = "AWS Cloudscape"
 best_at = "cloud consoles: resource tables at scale, dense configuration, destructive infrastructure actions, split panels"
 study_when = "the user administers infrastructure and a mistake costs money or uptime"
 
 [[system]]
 id = "spectrum"
+url = "https://spectrum.adobe.com"
+market = "global"
 label = "Adobe Spectrum"
 best_at = "professional creative tools: canvas-adjacent panels, tool options, complex selection, keyboard-heavy expert flows"
 study_when = "the screen surrounds a workspace rather than being the work"
 
 [[system]]
 id = "ant"
+url = "https://ant.design"
+market = "cn"
 label = "Ant Design"
 best_at = "breadth of data-dense enterprise components, form-heavy back offices, tabular editing"
 study_when = "the requirement is coverage of an unusual data component and the register is enterprise"
 
 [[system]]
 id = "nhs"
+url = "https://service-manual.nhs.uk"
+market = "uk"
 label = "NHS digital service manual"
 best_at = "clinical safety, health content, plain language under stress, forms where a mistake harms"
 study_when = "the user is a patient or a clinician and comprehension failure has a clinical cost"
 
 [[system]]
 id = "gestalt"
+url = "https://gestalt.pinterest.systems"
+market = "global"
 label = "Pinterest Gestalt"
 best_at = "visual discovery surfaces: media-first grids, dense imagery, feed browsing"
 study_when = "the content is the image and the chrome must recede"
@@ -145,7 +182,7 @@ study_when = "the content is the image and the chrome must recede"
 [[directory]]
 id = "component-gallery"
 url = "https://component.gallery"
-use_for = "recurrence evidence — how many design systems implement a component, and every name it goes by"
+use_for = "recurrence evidence — how many EXAMPLES a component has and every name it goes by. Examples exceed distinct systems (one system can appear several times): count distinct before citing a number"
 
 [[directory]]
 id = "design-systems-repo"
@@ -155,31 +192,40 @@ use_for = "a maintained gallery of public systems, plus articles, books and tool
 [[directory]]
 id = "awesome-design-systems"
 url = "https://github.com/alexpate/awesome-design-systems"
-use_for = "160+ systems tagged by what they actually ship: components, voice & tone, designer kit, source"
+use_for = "a large tagged list of systems: which ship components, voice & tone, a designer kit, or source"
 
 [[directory]]
 id = "design-systems-brasileiros"
 url = "https://designsystemsbrasileiros.com"
-use_for = "Brazilian systems by sector and which are open — the pt-BR conventions global systems do not carry"
+use_for = "Brazilian systems, many open source — the pt-BR conventions global systems do not carry"
 
 # ---------------------------------------------------------------------------
 # PATTERNS — the recurring jobs and where each is well solved
 # ---------------------------------------------------------------------------
 # SELECTION IS DETERMINISTIC, in this order:
 #   1. `baseline = true` entries are OBLIGATIONS, not candidates — every UI
-#      surface must resolve them (empty state, error recovery). They never
-#      compete for a job.
-#   2. Among the rest, match on `job` first, then filter by `platform`
-#      (an exact platform beats "all").
-#   3. If more than one still matches, the one whose `fails_when` does NOT
-#      describe the case wins. If several survive, the choice is a
-#      recorded decision, not a coin flip: name the trade (USE-11).
+#      surface must resolve them (empty state, error recovery, primary
+#      navigation). They never compete for a job. A baseline entry applies
+#      only where its `platform` applies: a web-only console owes nothing
+#      to a `mobile` baseline.
+#   2. Among the rest, match on `job`, then EXCLUDE any entry whose
+#      `platform` does not cover your surface. `all` always applies and is
+#      never outranked by a narrower entry — the filter removes, it does
+#      not rank.
+#   3. If more than one still matches, drop those whose `fails_when`
+#      describes your case. If several survive, the choice is a recorded
+#      decision, not a coin flip: name the trade (USE-11).
+#
+# `recurrence` / `rationale` justify an entry's EXISTENCE (the curation
+# rule). Neither participates in selection — a popular pattern is not
+# thereby the right one.
 
 [[pattern]]
 id = "resource-list-bulk-actions"
+rationale = "every admin over business objects grows a batch operation; partial failure is what most implementations miss"
 job = "find, select and act on many records without leaving the list"
 platform = "web"
-canonical = ["polaris", "carbon", "primer"]
+canonical = ["polaris", "cloudscape", "nimbus"]
 fits_when = "the same operation applies to many objects and the user works in batches"
 fails_when = "actions are per-object and destructive — batch selection then multiplies the blast radius"
 states = ["empty", "loading", "no results for filter", "partial selection", "action in progress", "partial failure"]
@@ -187,9 +233,10 @@ a11y = "APG grid; selection state announced; the action bar reachable without le
 
 [[pattern]]
 id = "master-detail"
+rationale = "the canonical layout named by both Material's adaptive guidance and HIG's split view"
 job = "scan a set and work one item deeply without losing place"
 platform = "all"
-canonical = ["hig", "fluent", "atlassian"]
+canonical = ["hig", "spectrum", "atlassian"]
 fits_when = "items are comparable and the user moves between them repeatedly"
 fails_when = "the detail is long-form or the flow is one-shot — a full page beats a cramped pane"
 states = ["nothing selected", "loading detail", "detail error", "item deleted while open"]
@@ -197,9 +244,10 @@ a11y = "focus moves to the detail region on selection and is announced; back ret
 
 [[pattern]]
 id = "progressive-form"
+rationale = "GOV.UK's one-thing-per-page is the most evidenced form pattern in public service delivery"
 job = "collect a long or branching set of answers without overwhelming"
 platform = "all"
-canonical = ["govuk", "carbon"]
+canonical = ["govuk", "nhs", "dsgov"]
 fits_when = "questions branch, or the set is long enough that one page reads as a wall"
 fails_when = "the user needs to see all answers at once to decide — then one page with sections wins"
 states = ["per-step validation", "resume after abandon", "review before submit", "submit failure with input preserved"]
@@ -207,6 +255,7 @@ a11y = "one h1 per step; errors summarized at the top and linked to fields; step
 
 [[pattern]]
 id = "search-filter-facets"
+rationale = "the standard answer to a set beyond scrolling; recurs in every catalogue and admin"
 job = "narrow a large set to the few that matter"
 platform = "web"
 canonical = ["polaris", "carbon"]
@@ -217,9 +266,10 @@ a11y = "result count announced on change; applied filters are focusable and remo
 
 [[pattern]]
 id = "destructive-confirmation"
+rationale = "the only defence against irreversible action, and the most commonly misapplied — confirmations on reversible ones"
 job = "prevent an irreversible action taken by accident"
 platform = "all"
-canonical = ["govuk", "polaris", "hig"]
+canonical = ["govuk", "cloudscape", "hig"]
 fits_when = "the action is irreversible or expensive to undo"
 fails_when = "the action is reversible — then undo beats a confirmation nobody reads"
 states = ["confirm naming the object and the consequence", "in progress", "failure", "undo window when possible"]
@@ -227,6 +277,7 @@ a11y = "focus trapped in the dialog and returned to the trigger; the confirm but
 
 [[pattern]]
 id = "async-job-feedback"
+rationale = "any operation outliving its request needs it; its absence shows up as duplicate submissions"
 job = "start work that outlives the request and know how it ended"
 platform = "all"
 canonical = ["polaris", "carbon", "atlassian"]
@@ -237,6 +288,7 @@ a11y = "progress via aria-live polite; completion announced; never rely on color
 
 [[pattern]]
 id = "inline-edit"
+rationale = "recurs wherever surrounding context is what makes the value correct; its failure mode (lost input) is expensive"
 job = "correct one value without a context switch"
 platform = "web"
 canonical = ["primer", "atlassian"]
@@ -247,6 +299,7 @@ a11y = "the control is a real input with a label; escape cancels; the saved stat
 
 [[pattern]]
 id = "empty-state-onboarding"
+rationale = "every collection surface has a first run — a baseline obligation, not a choice"
 baseline = true
 job = "turn an empty screen into the first step"
 platform = "all"
@@ -258,6 +311,7 @@ a11y = "the primary action is reachable and described; illustration is decorativ
 
 [[pattern]]
 id = "notification-inbox"
+rationale = "recurs wherever events accumulate for a person rather than for a screen"
 job = "know what happened while away, without losing what matters in noise"
 platform = "all"
 canonical = ["atlassian", "primer"]
@@ -268,6 +322,7 @@ a11y = "unread conveyed beyond color; new-item count announced; no focus stealin
 
 [[pattern]]
 id = "permission-role-editor"
+rationale = "recurs in every multi-role product; effective-versus-assigned is the error nobody catches"
 job = "grant and audit who can do what"
 platform = "web"
 canonical = ["atlassian", "carbon"]
@@ -278,6 +333,7 @@ a11y = "the matrix is a real table with headers; the effect of a change is annou
 
 [[pattern]]
 id = "dashboard-overview"
+rationale = "recurs as the default landing surface; the decorative-metrics trap is why the criteria matter"
 job = "answer 'is anything wrong, and what do I do next'"
 platform = "all"
 canonical = ["carbon", "polaris"]
@@ -288,31 +344,22 @@ a11y = "every chart has a text equivalent; numbers tabular; status conveyed beyo
 
 [[pattern]]
 id = "command-palette"
+rationale = "recurs in developer and expert tools; hiding from occasional users is its declared trade"
 job = "reach anything without learning the navigation"
 platform = "web"
-canonical = ["primer", "fluent"]
+canonical = ["primer", "fluent", "spectrum"]
 fits_when = "the user is frequent, technical, or the surface area exceeds what navigation can hold"
 fails_when = "the audience is occasional — a discoverable menu serves them, a palette hides from them"
 states = ["empty prompt with suggestions", "no match", "recent and scoped results", "action requiring confirmation"]
 a11y = "APG combobox; results announced; every palette action also exists in the visible UI"
 
 [[pattern]]
-id = "mobile-primary-navigation"
-baseline = true
-job = "move between the few places that matter, one-handed"
-platform = "mobile"
-canonical = ["hig", "material"]
-fits_when = "always on mobile — the choice is which form, not whether"
-fails_when = "a drawer hides the primary destinations: use a tab bar for 3-5 peers, a drawer only for secondary"
-states = ["current destination indicated", "badge on a peer", "deep-link arrival", "returning preserves per-tab position"]
-a11y = "targets at least 44pt; current tab announced as selected; reachable with one hand"
-
-[[pattern]]
 id = "error-recovery"
+rationale = "every request can fail — a baseline obligation, not a choice"
 baseline = true
 job = "turn a failure into a next step instead of a dead end"
 platform = "all"
-canonical = ["govuk", "material"]
+canonical = ["govuk", "dsgov", "material"]
 fits_when = "always — every request can fail"
 fails_when = "never; an error without a way out is a defect (USE-4)"
 states = ["retryable (offer retry)", "permanent (explain and route)", "permission (say who to ask)", "partial (say what did land)"]
@@ -320,9 +367,10 @@ a11y = "the error is announced, not only rendered; focus moves to it; the messag
 
 [[pattern]]
 id = "data-entry-table"
+rationale = "recurs where volume makes per-row forms too slow; the div-grid accessibility trap is near-universal"
 job = "edit many rows quickly, as in a spreadsheet"
 platform = "web"
-canonical = ["carbon", "fluent"]
+canonical = ["carbon", "ant", "po-ui"]
 fits_when = "the user's mental model is already tabular and volume makes forms too slow"
 fails_when = "each row needs validation against distant context — use per-row forms"
 states = ["dirty rows marked", "per-cell validation", "bulk paste", "save partial failure identifying the rows"]
@@ -330,6 +378,7 @@ a11y = "APG grid with real keyboard navigation; cell coordinates announced; neve
 
 [[pattern]]
 id = "date-range-selection"
+rationale = "recurs in every reporting surface; GOV.UK's typed-date evidence contradicts the default calendar reflex"
 job = "bound a query in time without fighting the control"
 platform = "all"
 canonical = ["carbon", "material", "govuk"]
@@ -347,34 +396,34 @@ a11y = "typed entry always possible; the calendar is keyboard-navigable; the sel
 id = "progressive-disclosure"
 job = "reveal secondary detail in place, without losing the overview"
 platform = "all"
-canonical = ["carbon", "govuk", "material"]
+canonical = ["carbon", "govuk", "ant"]
 fits_when = "the detail is optional for the decision and the overview is what the user came for"
 fails_when = "every user needs the content — hiding it behind a click buys tidiness and costs the task"
 states = ["collapsed", "expanded", "one-at-a-time vs many open (declared, not accidental)", "deep-linked to an expanded item", "content still loading when expanded"]
 a11y = "APG disclosure/accordion; the trigger is a button carrying aria-expanded, never a div with a chevron"
-recurrence = "accordion/disclosure in 101 systems (component.gallery)"
+recurrence = "accordion/disclosure: 101 examples across ~74 distinct systems (component.gallery, checked 2026-08-09)"
 
 [[pattern]]
 id = "set-traversal"
 job = "move through a set too large for one screen without losing your place"
 platform = "all"
-canonical = ["polaris", "govuk", "primer"]
+canonical = ["polaris", "gestalt", "primer"]
 fits_when = "the set has a knowable size, or the user must return to a position or cite it"
 fails_when = "infinite scroll on a set the user must audit — position becomes unaddressable and the footer unreachable"
 states = ["first and last page", "unknown total", "page size changed", "returning from a detail view to the same position", "loading the next page"]
 a11y = "the current page is announced; next/previous are real links or buttons, never icon-only; appended items announced"
-recurrence = "pagination in 48 systems (component.gallery)"
+recurrence = "pagination: 48 examples across ~46 distinct systems (component.gallery, checked 2026-08-09)"
 
 [[pattern]]
 id = "typeahead-selection"
 job = "choose one value from a set too large to list"
 platform = "all"
-canonical = ["apg", "radix-shadcn", "carbon"]
+canonical = ["apg", "radix-shadcn", "ant"]
 fits_when = "the option set is large, known to the system, and the user roughly knows what they want"
 fails_when = "the set is small (a select wins) or the user cannot name what they want (browse and facets win)"
 states = ["no input", "loading suggestions", "no match — offer to broaden or create", "selected", "free text allowed or not (declared)"]
 a11y = "APG combobox; result count announced; fully keyboard-operable; never silently discard input that matched nothing"
-recurrence = "combobox/autocomplete in 37 systems (component.gallery)"
+recurrence = "combobox/autocomplete: 37 examples catalogued (component.gallery, checked 2026-08-09; examples exceed distinct systems)"
 
 [[pattern]]
 id = "file-intake"
@@ -385,7 +434,7 @@ fits_when = "the system needs a document the user already has"
 fails_when = "the data could be typed or fetched — an upload is the most failure-prone input there is"
 states = ["idle stating accepted types and size", "uploading with progress and cancel", "rejected naming the reason", "uploaded and replaceable", "partial failure in a multi-file set"]
 a11y = "a real file input reachable by keyboard; drag-and-drop is an enhancement, never the only path; each error tied to the file that failed"
-recurrence = "file upload in 32 systems (component.gallery)"
+recurrence = "file upload: 32 examples catalogued (component.gallery, checked 2026-08-09; examples exceed distinct systems)"
 
 [[pattern]]
 id = "hierarchy-orientation"
@@ -396,15 +445,16 @@ fits_when = "content nests more than two levels and users arrive by deep link"
 fails_when = "the structure is flat, or the path shown is not how the user got here — a breadcrumb that lies is worse than none"
 states = ["deep-linked arrival", "long path truncated in the middle", "current level not a link", "moving to a sibling at the current level"]
 a11y = "nav landmark with a label; the current item marked aria-current; truncation still exposes the full path"
-recurrence = "breadcrumbs in 55 systems, tree view in 14 (component.gallery)"
+recurrence = "breadcrumbs: 55 examples, tree view: 14 (component.gallery, checked 2026-08-09; examples exceed distinct systems)"
 
 [[pattern]]
-id = "adaptive-navigation"
-job = "keep primary navigation reachable as the viewport changes"
+id = "primary-navigation"
+baseline = true
+job = "reach the few destinations that matter, at whatever size the viewport is"
 platform = "all"
-canonical = ["material", "fluent", "cloudscape"]
-fits_when = "one product spans phone, tablet and desktop"
-fails_when = "the product lives in a single viewport — pick one form and commit to it"
-states = ["compact (bottom bar)", "medium (rail)", "expanded (drawer)", "current destination indicated in every form", "state preserved across the switch"]
-a11y = "the destination set is identical in every form; current announced as selected; switching never traps focus"
-recurrence = "Material 3 specifies navigation bar, rail and drawer as one adaptive family"
+canonical = ["material", "hig", "cloudscape"]
+fits_when = "always — every product has primary destinations; the choice is which form, never whether"
+fails_when = "never as a job; the failure is choosing the form by taste instead of by size and count"
+states = ["compact: bottom bar for 3-5 peer destinations (a drawer at this size hides them)", "medium: rail", "expanded: drawer as the primary form", "current destination indicated in every form", "position preserved per destination across a form switch", "deep-link arrival"]
+a11y = "the destination set is identical in every form; current announced as selected; targets at least 44pt at compact; switching forms never traps focus"
+recurrence = "Material 3 specifies navigation bar, rail and drawer as one adaptive family (m3.material.io/components, checked 2026-08-09); HIG names the equivalent tab bar and sidebar"
