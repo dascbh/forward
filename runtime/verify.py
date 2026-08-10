@@ -367,6 +367,16 @@ class Gate:
         self.add("CFG", not viol,
                  "configuration valid" if not viol
                  else "; ".join(f"[{v.code}] {v.message.splitlines()[0]}" for v in viol[:3]))
+        # the config's kernel_version against the spec actually installed:
+        # they diverge when one half of an update lands (review finding)
+        declared = str(cfg.raw.get("project", {}).get("kernel_version", ""))
+        installed = str(spec.invariants.get("meta", {}).get("kernel_version", ""))
+        if declared and installed and declared != installed:
+            self.add("CFG-VER", False,
+                     f"fde.config.toml says kernel {declared} but the installed "
+                     f".fde/spec is {installed} — an update landed half way; "
+                     f"re-run fde sync")
+
         floor = escalated_security_floor(cfg, spec)
         w = int(cfg.weights.get("security_privacy", 0))
         self.add("CFG-SEC", w >= floor,

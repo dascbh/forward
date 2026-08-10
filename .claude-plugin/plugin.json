@@ -2,6 +2,18 @@
   "name": "forward",
   "version": "0.11.0",
   "description": "FORWARD - a delivery kernel for forward-deployed engineering: empirical review and adversarial review as gate invariants, portable across agentic tools.",
+  "author": {
+    "name": "Daniel Abraão Silva Costa",
+    "url": "https://github.com/dascbh"
+  },
+  "homepage": "https://github.com/dascbh/forward",
+  "repository": "https://github.com/dascbh/forward",
   "license": "Apache-2.0",
-  "keywords": ["fde", "eval-driven", "adversarial-review", "agents-md", "portable"]
+  "keywords": [
+    "fde",
+    "eval-driven",
+    "adversarial-review",
+    "agents-md",
+    "portable"
+  ]
 }

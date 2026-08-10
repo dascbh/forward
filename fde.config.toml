@@ -30,7 +30,8 @@ eval_command = "python3 bin/fde/verify.py --gate eval"
 # their eval is the source/copy identity suite in tests/test_install_sync.py.
 behavior_paths = [
   "runtime/", "spec/", "skills/", "agents/", "templates/", "SETUP.md",
-  "bin/fde/", ".fde/", ".claude/", ".github/workflows/", "AGENTS.md", "CLAUDE.md",
+  "bin/fde/", ".fde/", ".claude/", ".claude-plugin/", ".github/workflows/",
+  "AGENTS.md", "CLAUDE.md",
 ]
 eval_paths = ["tests/", "evals/"]
 

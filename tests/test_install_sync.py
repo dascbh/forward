@@ -74,6 +74,35 @@ class TestPluginDistribution(unittest.TestCase):
         self.assertNotIn("version", self.market["plugins"][0])
         self.assertTrue(self.plugin.get("version"))
 
+    def test_the_manifests_pass_the_real_validator(self):
+        # asserting the schema against itself proved nothing: `owner` as a
+        # bare string passed the suite and failed `claude plugin validate`
+        # (review finding, FWD-014). Skipped where the CLI is absent — CI
+        # containers have no claude binary — so this hardens local work
+        # without becoming a false red.
+        import shutil, subprocess
+        if not shutil.which("claude"):
+            self.skipTest("claude CLI not available")
+        r = subprocess.run(["claude", "plugin", "validate", "."],
+                           cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("warning", (r.stdout + r.stderr).lower())
+
+    def test_owner_and_author_are_objects_not_strings(self):
+        # the exact shape the validator rejects, pinned so the CLI-less
+        # path still catches it
+        self.assertIsInstance(self.market["owner"], dict)
+        self.assertTrue(self.market["owner"].get("name"))
+        self.assertIsInstance(self.plugin["author"], dict)
+        self.assertTrue(self.plugin["author"].get("name"))
+
+    def test_the_published_licence_has_a_file_behind_it(self):
+        # the manifests advertise Apache-2.0 in a public catalogue
+        self.assertEqual(self.plugin["license"], "Apache-2.0")
+        licence = ROOT / "LICENSE"
+        self.assertTrue(licence.exists(), "licence published without a LICENSE file")
+        self.assertIn("Apache License", read(licence))
+
     def test_the_plugin_ships_the_skills_and_roles_it_promises(self):
         # a plugin install must carry fde-init (the bootstrap skill the
         # project-level install deliberately excludes) and the five roles

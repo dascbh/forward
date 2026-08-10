@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 BASE_CONFIG = """\
 [project]
 name = "fixture"
-kernel_version = "test"
+kernel_version = "{kernel_version}"
 
 [triage]
 data_class = "{data_class}"
@@ -46,9 +46,12 @@ def make_project(dir, data_class="internal", behavior='["src/"]',
                  evals='["evals/", "tests/"]', security=14, cost=7,
                  scrum=False) -> Path:
     p = Path(dir)
+    import tomllib
+    with open(ROOT / "spec" / "invariants.toml", "rb") as fh:
+        kv = tomllib.load(fh)["meta"]["kernel_version"]
     body = BASE_CONFIG.format(
         data_class=data_class, behavior=behavior, evals=evals,
-        security=security, cost=cost)
+        security=security, cost=cost, kernel_version=kv)
     if scrum:
         body += "\n[scrum]\nenabled = true\n"
     (p / "fde.config.toml").write_text(body, encoding="utf-8")

@@ -219,22 +219,32 @@ three out of five tools is what burns an open framework.
 /plugin install forward@forward
 ```
 
+(`dascbh/forward` is GitHub shorthand; if your git is not set up for SSH,
+use the explicit `https://github.com/dascbh/forward.git` instead.)
+
 Then, inside any project you want under the kernel:
 
 ```
 /forward:fde-init
 ```
 
-The skill clones the kernel and executes [`SETUP.md`](SETUP.md) — no clone
-needed first, which is what makes this work in a brand-new project. Later,
-`/forward:fde-sync` re-emits everything from current sources, and
-`/plugin update forward@forward` pulls a new kernel version (driven by the
-`version` field in the plugin manifest).
+**The plugin IS the kernel** — installing it puts `runtime/`, `spec/`,
+`templates/` and `SETUP.md` on disk at `${CLAUDE_PLUGIN_ROOT}`, so
+`fde-init` reads them from there and clones nothing. That is what makes
+this work in a brand-new project, and it is what makes
+`/plugin update forward@forward` meaningful: it moves the kernel the next
+`/forward:fde-sync` will re-emit from.
 
 The five roles also arrive as subagents (`forward:fde-adversarial` and
-friends). They are the generic ones: a project that has run `fde-init`
-gets its own copies in `.claude/agents/`, concretized to that project's
-weights — prefer those inside an installed project.
+friends). They are the **generic** ones. A project that has run
+`fde-init` gets its own copies in `.claude/agents/` and `.claude/skills/`,
+concretized to that project's weights — so after an install both exist and
+**the project's copies are the ones to use**; the plugin's are the
+pre-install fallback.
+
+*(Install mechanics verified against
+[code.claude.com/docs/en/plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces.md)
+and `claude plugin validate`, checked 2026-08-09.)*
 
 ### Install — one prompt (any agent)
 

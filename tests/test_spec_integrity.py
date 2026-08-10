@@ -126,8 +126,9 @@ class TestTemplatesAndVersions(unittest.TestCase):
             self.assertIn(ph, config, ph)
 
     def test_kernel_version_is_synced_everywhere(self):
-        # every file that carries a kernel_version/version, discovered —
-        # enumerating carriers is how the 4th one shipped unchecked
+        # every file that carries the version. Listed because each has a
+        # different key and shape; the installed mirrors (.fde/**) are
+        # covered by the byte-identity tests, not here.
         spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
         carriers = {
             ".claude-plugin/plugin.json": r'"version":\s*"([^"]+)"',

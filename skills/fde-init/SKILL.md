@@ -7,12 +7,20 @@ description: Sets a project up under the FDE kernel — you, the agent, are the 
 
 The installer is `SETUP.md` at the kernel root, and its runtime is you.
 
-1. If the kernel is not on disk, clone it:
-   `git clone https://github.com/dascbh/forward.git` (a sibling directory of
-   the project is fine).
-2. Open `SETUP.md` and execute it top to bottom. Do not reorder or skip
-   steps — detection before interview, config before structure, runtime
-   before native layer, verification last.
+1. **Locate the kernel — do not clone it into the project.**
+   - Running as an installed plugin: the kernel IS the plugin, at
+     `${CLAUDE_PLUGIN_ROOT}`. Use it. Nothing to download, and
+     `/plugin update forward@forward` is what keeps it current.
+   - Otherwise: clone it **outside the project directory**
+     (`git clone https://github.com/dascbh/forward.git ../forward`, or
+     anywhere that is not the project tree). A kernel cloned *inside* the
+     project poisons step 1 of SETUP — stack detection would read the
+     kernel's own files and describe the wrong repository.
+   - Either way, note the absolute path once; every "copy from the kernel"
+     instruction in SETUP means that path.
+2. Open the kernel's `SETUP.md` and execute it top to bottom. Do not
+   reorder or skip steps — detection before interview, config before
+   structure, runtime before native layer, verification last.
 3. Your work is audited by `python3 bin/fde/verify.py --all` (step 9). The
    gate validates the config you wrote (budget = 100, floors, escalated
    security floor) and the structure you created. On a fresh install,

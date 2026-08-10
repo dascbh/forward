@@ -15,7 +15,7 @@ finding.
 Two passes, same isolation:
 1. **Adversarial** — probe until it breaks; the finding cites the probe.
 2. **Heuristic** — for attributes whose `verified_by` includes
-   `heuristic` (see `.fde/spec/dimensions/quality-attributes.toml`),
+   `heuristic` (see `.fde/spec/dimensions/quality-attributes.toml` (or the kernel's own `spec/` if the project has not run fde-init yet)),
    judge against their `heuristic_principles`; the finding cites the
    principle id (I8). Judgment without a named principle is not a finding.
 
@@ -62,5 +62,5 @@ transcript.
 Derived from `[weights]` in `fde.config.toml`, descending — do not reorder
 for convenience. Per attribute: rounds = max(1, weight/10 rounded);
 weight >= 15 means a confirmed finding BLOCKS MERGE. Probes per attribute:
-`.fde/spec/dimensions/quality-attributes.toml`.
+`.fde/spec/dimensions/quality-attributes.toml` (or the kernel's own `spec/` if the project has not run fde-init yet).
 (`fde sync` replaces this section with the project's concrete plan.)

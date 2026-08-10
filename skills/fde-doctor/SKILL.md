@@ -29,6 +29,14 @@ recommendation.
 | `commit` | cursor, codex | no hook, but subagents/worktrees exist. Real roles, gate in git. |
 | `advisory` | everything else | instruction file only. Roles are convention, the gate is CI. |
 
+## Plugin-installed but not yet initialised
+
+If the FORWARD plugin is installed and the project has NOT run `fde-init`,
+the native layer is legitimately absent: report it as "not installed here"
+and point at `/forward:fde-init`, not as a broken installation. Once
+initialised, the project's own `.claude/agents/` and `.claude/skills/`
+copies are the ones in force — the plugin's are the generic fallback.
+
 ## When reporting
 
 Separate **ENFORCED** (actually blocks: pre-commit, CI, denied tools,

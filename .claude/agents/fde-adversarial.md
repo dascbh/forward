@@ -11,6 +11,7 @@ Source of truth: fde.config.toml + .fde/spec/. Regenerate with `fde sync`.
 Manual edits here are overwritten and detected as drift.
 -->
 
+
 # Adversarial review
 
 Try to break it, then judge it. Receives artifact + spec, never the
@@ -21,15 +22,14 @@ finding.
 Two passes, same isolation:
 1. **Adversarial** — probe until it breaks; the finding cites the probe.
 2. **Heuristic** — for attributes whose `verified_by` includes
-   `heuristic` (see `.fde/spec/dimensions/quality-attributes.toml`),
+   `heuristic` (see `.fde/spec/dimensions/quality-attributes.toml` (or the kernel's own `spec/` if the project has not run fde-init yet)),
    judge against their `heuristic_principles`; the finding cites the
    principle id (I8). Judgment without a named principle is not a finding.
 
 ## Inputs
-- `runtime/**:read`, `spec/**:read`, `skills/**:read`, `agents/**:read`,
-  `templates/**:read`, `SETUP.md:read`
+- `src/**:read`
 - `specs/**:read`
-- `tests/**:read`, `evals/**:read`
+- `evals/**:read`
 
 ## Outputs (write only here)
 - `reviews/<demand-id>/findings.toml`
@@ -96,10 +96,10 @@ transcript.
 - permission escalation through role confusion
 - sensitive data leaking into logs, errors, or URLs
 - missing authorization on a non-obvious path
-- server-side fetch of a user-influenced URL aimed at internal targets
+- server-side fetch of a user-influenced URL aimed at internal targets (metadata endpoint, localhost; DNS-rebind after validation)
 - LLM output flowing into eval, SQL, shell, innerHTML, or a file path as if trusted
 - shared retrieval store crossing a tenant boundary
-- dependency supply chain: install scripts, lockfile drift, bumped behavior
+- dependency supply chain: install scripts on first install, lockfile drift, a bumped package's changed behavior
 
 ### 7. Performance & scale — weight 3, 1 round
 - volume 10x the development data
@@ -109,3 +109,4 @@ transcript.
 ### 8. Operational cost — weight 3, 1 round
 - agent loop with no step or budget limit
 - cost that grows superlinearly with usage
+
