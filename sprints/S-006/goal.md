@@ -14,4 +14,6 @@ promotion decision, and the owner runs the review + retro sitting.
 
 ## Unplanned
 
-None.
+| demand | size | why it bypassed the backlog |
+|---|---|---|
+| FWD-014 plugin distribution | XS | the owner is starting a new project and needs `/forward:fde-init` to exist; the repo already shipped `.claude-plugin/plugin.json`, `skills/` and `agents/` in the right places, so the gap was one file (`marketplace.json`) making the repo its own marketplace. Does not serve the sprint goal — recorded here, surfaces at the retro |

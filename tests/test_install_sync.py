@@ -48,6 +48,42 @@ class TestRuntimeCopies(unittest.TestCase):
                             f"orphan runtime copy: {installed.name}")
 
 
+class TestPluginDistribution(unittest.TestCase):
+    """The repo is both marketplace and plugin, so `/plugin install
+    forward@forward` resolves. These keep the two manifests agreeing."""
+
+    @classmethod
+    def setUpClass(cls):
+        import json
+        cls.plugin = json.loads(read(ROOT / ".claude-plugin" / "plugin.json"))
+        cls.market = json.loads(read(ROOT / ".claude-plugin" / "marketplace.json"))
+
+    def test_marketplace_lists_this_repo_as_its_plugin(self):
+        entries = self.market["plugins"]
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+        self.assertEqual(entry["source"], ".", "the repo is its own plugin")
+        # `/plugin install <plugin>@<marketplace>` — both names are used
+        self.assertEqual(entry["name"], self.plugin["name"])
+        self.assertEqual(self.market["name"], self.plugin["name"])
+
+    def test_manifests_require_no_second_version_carrier(self):
+        # the plugin entry deliberately omits `version` so plugin.json
+        # stays the single source (MNT-1); a version here would be a
+        # fifth carrier to keep in sync
+        self.assertNotIn("version", self.market["plugins"][0])
+        self.assertTrue(self.plugin.get("version"))
+
+    def test_the_plugin_ships_the_skills_and_roles_it_promises(self):
+        # a plugin install must carry fde-init (the bootstrap skill the
+        # project-level install deliberately excludes) and the five roles
+        skills = {d.name for d in (ROOT / "skills").iterdir() if d.is_dir()}
+        self.assertIn("fde-init", skills)
+        self.assertIn("fde-sync", skills)
+        roles = {p.stem for p in (ROOT / "agents").glob("fde-*.md")}
+        self.assertEqual(len(roles), 5, sorted(roles))
+
+
 class TestClaudeLayerCopies(unittest.TestCase):
     def test_skills_are_installed_identically_except_init(self):
         for d in sorted((ROOT / "skills").iterdir()):

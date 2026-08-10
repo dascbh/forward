@@ -212,10 +212,35 @@ three out of five tools is what burns an open framework.
 
 ## Usage
 
-### Install — one prompt
+### Install — Claude Code, as a plugin
 
-Tell your coding agent — Claude Code, Cursor, Codex, Kiro, whatever reads a
-repository — inside the project you want under the kernel:
+```
+/plugin marketplace add dascbh/forward
+/plugin install forward@forward
+```
+
+Then, inside any project you want under the kernel:
+
+```
+/forward:fde-init
+```
+
+The skill clones the kernel and executes [`SETUP.md`](SETUP.md) — no clone
+needed first, which is what makes this work in a brand-new project. Later,
+`/forward:fde-sync` re-emits everything from current sources, and
+`/plugin update forward@forward` pulls a new kernel version (driven by the
+`version` field in the plugin manifest).
+
+The five roles also arrive as subagents (`forward:fde-adversarial` and
+friends). They are the generic ones: a project that has run `fde-init`
+gets its own copies in `.claude/agents/`, concretized to that project's
+weights — prefer those inside an installed project.
+
+### Install — one prompt (any agent)
+
+The kernel is tool-agnostic; the plugin is a Claude Code convenience.
+Everywhere else, tell your coding agent — Cursor, Codex, Kiro, whatever
+reads a repository — inside the project you want under the kernel:
 
 > Clone https://github.com/dascbh/forward and set it up for this project.
 > Follow the kernel's SETUP.md top to bottom: detect the stack from my
