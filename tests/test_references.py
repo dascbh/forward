@@ -50,6 +50,32 @@ class TestReferenceBase(unittest.TestCase):
         for p in self.d["pattern"]:
             self.assertIn(p["platform"], ("web", "mobile", "all"), p["id"])
 
+    def test_directories_are_declared_for_when_no_entry_fits(self):
+        # USE-11 sends the reader somewhere when nothing fits; that
+        # somewhere has to exist and say what it is good for
+        dirs = self.d.get("directory", [])
+        self.assertGreaterEqual(len(dirs), 3)
+        ids = [x["id"] for x in dirs]
+        self.assertEqual(len(ids), len(set(ids)))
+        for x in dirs:
+            self.assertTrue(x["url"].startswith("https://"), x["id"])
+            self.assertTrue(x.get("use_for"), x["id"])
+
+    def test_recurrence_evidence_is_substantive_where_claimed(self):
+        # the base's inclusion rule is recurrence; where an entry claims
+        # the evidence, it must actually carry it (not an empty field)
+        claimed = [p for p in self.d["pattern"] if "recurrence" in p]
+        self.assertGreaterEqual(len(claimed), 5)
+        for p in claimed:
+            self.assertGreater(len(p["recurrence"]), 15, p["id"])
+
+    def test_systems_cover_more_than_one_locale_of_convention(self):
+        # a base that only knows US/EU systems silently exports their
+        # conventions as universal
+        blob = " ".join(f"{s['best_at']} {s['study_when']}"
+                        for s in self.d["system"]).lower()
+        self.assertIn("brazil", blob)
+
     def test_the_base_contains_no_component_code(self):
         # criteria and pointers only (ADR-0012). The guard must catch what
         # a contributor would actually paste: JSX/HTML, arrow or classic

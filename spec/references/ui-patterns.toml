@@ -18,7 +18,7 @@
 
 [meta]
 kind = "reference_base"
-spec_version = "0.10.0"
+spec_version = "0.10.1"
 
 # ---------------------------------------------------------------------------
 # DESIGN SYSTEMS — which one to study, for what
@@ -86,6 +86,81 @@ id = "apg"
 label = "W3C ARIA Authoring Practices Guide"
 best_at = "the normative keyboard and screen-reader behavior of every widget"
 study_when = "always, before implementing any non-trivial widget — it is the accessibility contract"
+
+[[system]]
+id = "dsgov"
+label = "DSGov — Design System do Governo Federal (Brazil)"
+best_at = "Brazilian public-sector conventions, pt-BR form and error language, eMAG/LBI accessibility"
+study_when = "the product is Brazilian public-facing or regulated — the global systems carry none of the pt-BR conventions or the local legal accessibility floor"
+
+[[system]]
+id = "po-ui"
+label = "PO UI (TOTVS)"
+best_at = "Brazilian enterprise/ERP surfaces: dense registers, fiscal and document-heavy forms, long-lived back offices"
+study_when = "the product is Brazilian business software where the user's reference is an ERP, not a consumer app"
+
+[[system]]
+id = "nimbus"
+label = "Nimbus (Nuvemshop/Tiendanube)"
+best_at = "Latin American commerce admin, seller workflows, open source with published tokens"
+study_when = "the product is LatAm commerce and Polaris's assumptions do not match the local merchant"
+
+[[system]]
+id = "cloudscape"
+label = "AWS Cloudscape"
+best_at = "cloud consoles: resource tables at scale, dense configuration, destructive infrastructure actions, split panels"
+study_when = "the user administers infrastructure and a mistake costs money or uptime"
+
+[[system]]
+id = "spectrum"
+label = "Adobe Spectrum"
+best_at = "professional creative tools: canvas-adjacent panels, tool options, complex selection, keyboard-heavy expert flows"
+study_when = "the screen surrounds a workspace rather than being the work"
+
+[[system]]
+id = "ant"
+label = "Ant Design"
+best_at = "breadth of data-dense enterprise components, form-heavy back offices, tabular editing"
+study_when = "the requirement is coverage of an unusual data component and the register is enterprise"
+
+[[system]]
+id = "nhs"
+label = "NHS digital service manual"
+best_at = "clinical safety, health content, plain language under stress, forms where a mistake harms"
+study_when = "the user is a patient or a clinician and comprehension failure has a clinical cost"
+
+[[system]]
+id = "gestalt"
+label = "Pinterest Gestalt"
+best_at = "visual discovery surfaces: media-first grids, dense imagery, feed browsing"
+study_when = "the content is the image and the chrome must recede"
+
+# ---------------------------------------------------------------------------
+# DIRECTORIES — where to look when nothing here fits
+# ---------------------------------------------------------------------------
+# Consulted BEFORE inventing a pattern (USE-11: novelty is a declared cost).
+# These are the sources this base is curated from; they stay directories on
+# purpose — the kernel curates criteria, it does not mirror catalogs.
+
+[[directory]]
+id = "component-gallery"
+url = "https://component.gallery"
+use_for = "recurrence evidence — how many design systems implement a component, and every name it goes by"
+
+[[directory]]
+id = "design-systems-repo"
+url = "https://designsystemsrepo.com"
+use_for = "a maintained gallery of public systems, plus articles, books and tooling"
+
+[[directory]]
+id = "awesome-design-systems"
+url = "https://github.com/alexpate/awesome-design-systems"
+use_for = "160+ systems tagged by what they actually ship: components, voice & tone, designer kit, source"
+
+[[directory]]
+id = "design-systems-brasileiros"
+url = "https://designsystemsbrasileiros.com"
+use_for = "Brazilian systems by sector and which are open — the pt-BR conventions global systems do not carry"
 
 # ---------------------------------------------------------------------------
 # PATTERNS — the recurring jobs and where each is well solved
@@ -262,3 +337,74 @@ fits_when = "the range drives the whole screen and presets cover most uses"
 fails_when = "a single known date is wanted — three text inputs (GOV.UK) beat a calendar"
 states = ["presets vs custom", "invalid or inverted range", "timezone made explicit", "range exceeding retention"]
 a11y = "typed entry always possible; the calendar is keyboard-navigable; the selected range is announced in text"
+
+# --- added FWD-011: recurring jobs the base did not cover -------------------
+# `recurrence` records the evidence that earned the entry (component.gallery
+# counts how many systems implement a component). Present where measured;
+# a pattern without evidence has to justify itself some other way.
+
+[[pattern]]
+id = "progressive-disclosure"
+job = "reveal secondary detail in place, without losing the overview"
+platform = "all"
+canonical = ["carbon", "govuk", "material"]
+fits_when = "the detail is optional for the decision and the overview is what the user came for"
+fails_when = "every user needs the content — hiding it behind a click buys tidiness and costs the task"
+states = ["collapsed", "expanded", "one-at-a-time vs many open (declared, not accidental)", "deep-linked to an expanded item", "content still loading when expanded"]
+a11y = "APG disclosure/accordion; the trigger is a button carrying aria-expanded, never a div with a chevron"
+recurrence = "accordion/disclosure in 101 systems (component.gallery)"
+
+[[pattern]]
+id = "set-traversal"
+job = "move through a set too large for one screen without losing your place"
+platform = "all"
+canonical = ["polaris", "govuk", "primer"]
+fits_when = "the set has a knowable size, or the user must return to a position or cite it"
+fails_when = "infinite scroll on a set the user must audit — position becomes unaddressable and the footer unreachable"
+states = ["first and last page", "unknown total", "page size changed", "returning from a detail view to the same position", "loading the next page"]
+a11y = "the current page is announced; next/previous are real links or buttons, never icon-only; appended items announced"
+recurrence = "pagination in 48 systems (component.gallery)"
+
+[[pattern]]
+id = "typeahead-selection"
+job = "choose one value from a set too large to list"
+platform = "all"
+canonical = ["apg", "radix-shadcn", "carbon"]
+fits_when = "the option set is large, known to the system, and the user roughly knows what they want"
+fails_when = "the set is small (a select wins) or the user cannot name what they want (browse and facets win)"
+states = ["no input", "loading suggestions", "no match — offer to broaden or create", "selected", "free text allowed or not (declared)"]
+a11y = "APG combobox; result count announced; fully keyboard-operable; never silently discard input that matched nothing"
+recurrence = "combobox/autocomplete in 37 systems (component.gallery)"
+
+[[pattern]]
+id = "file-intake"
+job = "get a file from the user's device into the system, with certainty about what happened"
+platform = "all"
+canonical = ["polaris", "carbon", "govuk"]
+fits_when = "the system needs a document the user already has"
+fails_when = "the data could be typed or fetched — an upload is the most failure-prone input there is"
+states = ["idle stating accepted types and size", "uploading with progress and cancel", "rejected naming the reason", "uploaded and replaceable", "partial failure in a multi-file set"]
+a11y = "a real file input reachable by keyboard; drag-and-drop is an enhancement, never the only path; each error tied to the file that failed"
+recurrence = "file upload in 32 systems (component.gallery)"
+
+[[pattern]]
+id = "hierarchy-orientation"
+job = "know where you are in a structure and move up it"
+platform = "web"
+canonical = ["carbon", "govuk", "atlassian"]
+fits_when = "content nests more than two levels and users arrive by deep link"
+fails_when = "the structure is flat, or the path shown is not how the user got here — a breadcrumb that lies is worse than none"
+states = ["deep-linked arrival", "long path truncated in the middle", "current level not a link", "moving to a sibling at the current level"]
+a11y = "nav landmark with a label; the current item marked aria-current; truncation still exposes the full path"
+recurrence = "breadcrumbs in 55 systems, tree view in 14 (component.gallery)"
+
+[[pattern]]
+id = "adaptive-navigation"
+job = "keep primary navigation reachable as the viewport changes"
+platform = "all"
+canonical = ["material", "fluent", "cloudscape"]
+fits_when = "one product spans phone, tablet and desktop"
+fails_when = "the product lives in a single viewport — pick one form and commit to it"
+states = ["compact (bottom bar)", "medium (rail)", "expanded (drawer)", "current destination indicated in every form", "state preserved across the switch"]
+a11y = "the destination set is identical in every form; current announced as selected; switching never traps focus"
+recurrence = "Material 3 specifies navigation bar, rail and drawer as one adaptive family"

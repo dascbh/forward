@@ -178,8 +178,12 @@ implement the widget against its **APG** contract. If more than one
 pattern still survives, the choice is a recorded decision naming the
 trade, not a coin flip.
 
-**Novelty is a declared cost, not a default.** If no entry fits, say so
-and name what you are trading; a new pattern is a decision to record.
+**Novelty is a declared cost, not a default.** If no entry fits, consult
+the `[[directory]]` entries the base names — component.gallery for how
+many systems implement a thing and what they call it, the design-system
+galleries for breadth, designsystemsbrasileiros for pt-BR conventions the
+global systems do not carry. Only after that is inventing a decision to
+record, with what you are trading.
 
 ### Extending the base (client-side)
 
