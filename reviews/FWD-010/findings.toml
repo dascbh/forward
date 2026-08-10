@@ -1,0 +1,198 @@
+# Adversarial review — FWD-010 creative divergence + curated UI reference
+# base, commit 0d082ae. Reviewer received artifact + spec only (I2).
+# Findings only; no fixes (I3).
+
+[meta]
+demand_id = "FWD-010"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 2
+rounds_run = 2
+commit = "0d082ae"
+agent_transcript = "agent-a73ad34013ef95839"
+probed = """
+Ran the full suite (142 green), `verify.py --all` (all gates green), and
+scripted probes on a clone of this repo at 0d082ae with history intact.
+
+ROUND 1 — does the mechanism work? PROBE A: committed a fabricated
+M-sized UI demand (specs/FWD-999-new-screen/ with spec, dated
+acceptance, design/flow.md, design/wireframes/settings.html, and a
+review report) carrying ZERO How-Might-We reframes, ZERO alternatives,
+ZERO lens declarations and ZERO recorded discards → 142 tests OK and
+`verify --all` reports 'all gates passed'. Nothing detects the absent
+divergence. PROBE B: rewrote the skill to say 'Alternatives are OPTIONAL
+and may be skipped', 'the reframe step is not required', '(Ignore this
+if you prefer inventing.)' while keeping every word the tests assert on
+→ 142 tests still OK. PROBE C: appended a React arrow component with
+self-closing JSX, a CSS block and a SwiftUI struct to
+spec/references/ui-patterns.toml → 142 tests OK, `verify --all` all
+gates pass (only the naive `</tag>` control is caught). PROBE D: dropped
+an orphan `.fde/spec/references/stale-base.toml` with no source →
+test_install_sync green. PROBE E: implemented SKILL.md:139-145's stated
+selection order literally and ran it on 'bound a report by date, on an
+iPhone' → four patterns 'fit', the base declares no precedence. SAFE:
+spec/ ↔ .fde/spec/ and skills/ ↔ .claude/skills/ are byte-identical for
+every touched file; USE-10..12 are well-formed (unique ids, prefix maps
+to usability_accessibility, test_spec_integrity enforces it); the
+rglob-based install-sync does cover the new references/ dir in the
+source→copy direction; ADR-0012's three 'already here' claims verify
+(MNT-4 at quality-attributes.toml:146 does demand rejected alternatives,
+I4 is the dated acceptance, I8 + the USE catalog is the fixed-agenda
+critique) and the roles razor it cites is real (spec/roles.toml:4-7).
+
+ROUND 2 — the harder regime. PROBE F: bumped kernel_version to 0.11.0 in
+all three places test_spec_integrity knows about → 142 tests OK with
+ui-patterns.toml's `[meta] spec_version` left at 0.10.0; a fourth
+version carrier shipped outside the enumerated check, in the same commit
+whose message credits the S-004 retro rule against enumeration. Ran
+`graph.py --demand FWD-010`: 4 nodes, 3 edges — the provenance graph has
+no node kind for design artifacts at all, so a divergence record has
+nowhere to live even if written. Read AGENTS.md and
+templates/AGENTS.md.template: zero occurrences of lens / diverge /
+alternative / How might we / ui-patterns; AGENTS.md:95-98 still
+describes the design chain as flow+wireframe for M and PRD+IA+validation
+for L. FM-4 checked against FWD-003's per-demand triage in both
+directions.
+"""
+
+# ---------------------------------------------------------------------------
+# functional_correctness — weight 30, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "critical"
+probe = "the demand's central requirement has no enforcement of any kind, and the demand's own founding argument says that is exactly what fails. R1 and R2 are written as MUST; spec.md:29-30 defines the fix as 'structural — checkable requirements on the artifact'; SKILL.md:28 asserts 'The kernel enforces the second diamond structurally (below)'. PROBE A: a fabricated M-sized UI demand (specs/FWD-999-new-screen/) shipped with flow.md, wireframes/settings.html, dated acceptance and a review report but with no HMW reframe, no alternatives, no named lens and no recorded discard → `python3 -m unittest discover -s tests` = 142 OK; `python3 bin/fde/verify.py --all` = 'all gates passed'. There is no gate, no test, no artifact check, no guard rule that fires. Compare the two demands immediately preceding this one: FWD-008 shipped TRACE, FWD-009 shipped EROSION — both are gates in runtime/verify.py; `grep -n design runtime/*.py` returns nothing. What FWD-010 shipped is a paragraph in a skill file. ADR-0011 (quoted by ADR-0012 and by spec.md:24-28) establishes that instructing a model toward quality does not hold under pressure; FWD-010 answers that finding with an instruction. The word 'structurally' in SKILL.md:28 forward-references an enforcement that does not exist below it or anywhere else."
+evidence = "specs/FWD-010-creative-divergence/spec.md:29-30 and :47-57 (R1 MUST) and :54-57 (R2 MUST); skills/fde-design/SKILL.md:28 ('The kernel enforces the second diamond structurally (below)') vs skills/fde-design/SKILL.md:29-66 (prose only, no artifact, no check); runtime/verify.py — gate_* methods at :94,125,166,192,214,248,257,265,324,341,353, none of them design or divergence; reproduced: PROBE A commit c0a6e47 in the probe clone, 142 tests OK + all gates passed."
+blocking = true
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "high"
+probe = "R1's 'checkable requirements on the artifact' names no artifact, so there is nothing to check and the isolated reviewer cannot cite USE-10 or USE-12 at all. Every other phase of fde-design ends with an artifact path — SKILL.md:105 `specs/<demand-id>/design/flow.md`, :115 `design/ia.md`, :128 `design/wireframes/*.html`. The two-diamonds section (SKILL.md:22-66) ends with 'record what each discarded alternative traded' and names no file. USE-10 (quality-attributes.toml:199) says 'the discard is recorded' without saying where. Consequence, reproduced: nothing requires the artifact to state WHICH lens produced WHICH alternative, so the distinct-lens rule ('alternatives that share a lens count as one') is judged only by the builder who declared the lenses — the reviewer-approves-own-work shape I2 exists to prevent. Under I7 the reviewer receives artifacts on disk, never the builder's thread; if the divergence happened in conversation it is invisible and USE-10 is unfalsifiable. `python3 bin/fde/graph.py --demand FWD-010` returns 4 nodes / 3 edges and the graph has no node kind for design artifacts, so even the kernel's own provenance layer (ADR-0010) cannot hold the record. ADR-0012 claims the consequence is 'an auditable artifact instead of an invisible first draft'; no such artifact is defined."
+evidence = "skills/fde-design/SKILL.md:22-66 (no `Artifact:` line) against :105, :115, :128 (each phase names one); spec/dimensions/quality-attributes.toml:199 (USE-10 'the discard is recorded' — no location); docs/adr/0012-divergence-is-structural-references-are-criteria.md, Consequences para. 1; runtime/graph.py:281,291,295 (node kinds: demand, spec, acceptance, review, promotion, adr, sprint, architecture — no design); `graph.py --demand FWD-010` → 4 nodes, 3 edges."
+blocking = true
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "high"
+probe = "the eval that satisfies I1 for this behavior cannot fail for the behavior it claims to cover — it asserts that a file contains five words, not that any rule holds. PROBE B: edited skills/fde-design/SKILL.md (and its .claude/ copy) to read 'Alternatives are OPTIONAL and may be skipped whenever the first idea looks good enough; the table above is advisory', 'you MAY restate the problem as How might we… if time allows, but one framing is sufficient and the reframe step is not required', and '**Novelty is a declared cost, not a default.** (Ignore this if you prefer inventing.)' — every substring the four TestDivergenceDiscipline assertions look for is still present, so `python3 -m unittest discover -s tests` returns 142 OK on a skill that now says the opposite of R1, R2 and R3. The test detects deletion of vocabulary and nothing else. acceptance.md:19-21 credits it as verifying 'skill assertions for the lenses and per-size counts'; what it verifies is that a file says what it says."
+evidence = "tests/test_references.py:68-93 (TestDivergenceDiscipline — assertIn on 'subtract', 'invert', 'analogous', 'constraint-first', 'object-first', 'share a lens count as one', 'How might we', 'reframe', 'references/ui-patterns.toml', 'Novelty is a declared cost', 'design/patterns.md'; assertRegex on three table rows); reproduced: requirement inverted, 142 tests OK; specs/FWD-010-creative-divergence/acceptance.md:19-21."
+blocking = true
+
+[[finding]]
+id = "F4"
+attribute = "functional_correctness"
+severity = "high"
+probe = "the guard against FM-2 catches only the naive case; five realistic component pastes walk through it. PROBE C: appended to spec/references/ui-patterns.toml a `reference_implementation` string holding a React component (`const Toast = ({title, tone, onClose}) => (<Alert tone={tone} title={title} onDismiss={onClose} />)`), a `styles` string holding `.Polaris-Toast { position: fixed; bottom: 24px; ... }`, and a `swift_equivalent` string holding a `struct ToastView: View { ... }` → `python3 -m unittest discover -s tests` = 142 OK and `verify --all` = all gates passed. The regex `</\\w+>|=> *\\{|function \\w+\\(` requires a closing tag, an arrow with a brace body, or a `function name(` declaration; self-closing JSX, arrow bodies wrapped in parentheses, CSS rule blocks, SwiftUI structs, Vue SFC fragments and Flutter builders match none of them. Isolated harness over six candidates: 5 PASSED, 1 CAUGHT (the `</div>` control). The commit message promises 'a test fails the build if component code ever appears in it'; it fails the build if someone pastes 2015-era HTML."
+evidence = "tests/test_references.py:53-59 (assertNotIn('```') + re.search(r'</\\w+>|=> *\\{|function \\w+\\(')); spec/FWD-010 spec.md:36-39 (FM-2); specs/FWD-010-creative-divergence/acceptance.md:11 ('No component code anywhere in it'); reproduced: React + CSS + SwiftUI in the base, 142 tests OK, all gates passed."
+blocking = false
+
+[[finding]]
+id = "F5"
+attribute = "functional_correctness"
+severity = "high"
+probe = "R3's selection procedure is non-deterministic on the base as shipped, because three entries declare an unconditional fit and two declare no misfit at all. SKILL.md:139-145 states the order: 'name the job → find the pattern whose fits_when matches and whose fails_when does not'. PROBE E ran that literally against spec/references/ui-patterns.toml. Unconditional `fits_when`: empty-state-onboarding ('always — every collection surface has a first run'), error-recovery ('always — every request can fail'), mobile-primary-navigation ('always on mobile'). Vacuous `fails_when`: empty-state-onboarding ('never; …'), error-recovery ('never; …'). For the job 'let the user bound a report by date, on an iPhone' the procedure returns FOUR matches — date-range-selection plus the three unconditional entries — and the base declares no precedence, no priority and no tie-break. The schema conflates two different kinds of entry: choosable patterns (pick one) and mandatory obligations (every screen owes an empty state and an error path — those are not selections). test_every_pattern_carries_the_full_decision_criteria only asserts truthiness, so the string 'never' passes as a decision criterion."
+evidence = "spec/references/ui-patterns.toml:169-170 (empty-state-onboarding), :219-220 (mobile-primary-navigation), :229-230 (error-recovery); skills/fde-design/SKILL.md:139-145 (the stated order); tests/test_references.py:38-42 (assertTrue(p.get(key)) only); reproduced: 4 patterns matched one job."
+blocking = true
+
+[[finding]]
+id = "F6"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "following `fails_when` exits the base in 6 of 16 entries, and the skill's own escape hatch then reclassifies the most conventional choice as novelty. Each of these redirects to an alternative that is not an entry: progressive-form → 'one page with sections'; search-filter-facets → 'a single search box'; destructive-confirmation → 'undo'; inline-edit → 'use a form'; permission-role-editor → 'a checkbox'; command-palette → 'a discoverable menu'; date-range-selection → 'three text inputs (GOV.UK)'. SKILL.md:146-149 says 'If no entry fits, say so and name what you are trading; a new pattern is a decision to record'. Probe: job = 'let an admin toggle one permission for two roles' → permission-role-editor's fails_when applies, its named replacement (a checkbox) has no entry, so the agent must declare novelty and record a decision for a checkbox. R3's stated intent ('novelty is a declared cost, not a default') inverts: the base makes the conventional answer expensive and says nothing about it."
+evidence = "spec/references/ui-patterns.toml:120, :130, :140, :160, :190, :210, :250 (fails_when values naming non-entries); skills/fde-design/SKILL.md:146-149; specs/FWD-010-creative-divergence/spec.md:58-62 (R3)."
+blocking = false
+
+[[finding]]
+id = "F7"
+attribute = "functional_correctness"
+severity = "high"
+probe = "a declared acceptance criterion is unmet, and the gap makes the whole discipline invisible on every tool that is not Claude Code. acceptance.md:18-21 says tests/test_references.py verifies '… plus skill assertions for the lenses and per-size counts, and AGENTS parity'. `grep -n AGENTS tests/test_references.py` returns nothing — there is no AGENTS assertion in the file. And there is nothing to assert: `grep -n 'lens|diverge|alternativ|patterns.md|ui-patterns|How might we|HMW' AGENTS.md templates/AGENTS.md.template` returns zero hits, and AGENTS.md:95-98 still reads 'the design chain applies, proportional to size: M adds flow + wireframe before implementation; L adds PRD-grade spec, IA, and user validation' — the alternatives requirement introduced by R1 is absent from both the emitted file and the template every future install is generated from. SETUP.md:225 states that for advisory-tier tools 'AGENTS.md from step 7 is the layer', and SETUP.md:201 copies skills/ only into .claude/skills/, only under the claude-code branch (SETUP.md:177). On Codex, Cursor, Copilot, Gemini CLI, Kiro, Windsurf and Aider — the agents AGENTS.md line 4 explicitly addresses — FWD-010 shipped nothing at all."
+evidence = "specs/FWD-010-creative-divergence/acceptance.md:18-21 ('and AGENTS parity'); tests/test_references.py (no AGENTS reference anywhere in 108 lines); AGENTS.md:95-98; templates/AGENTS.md.template (no divergence content); SETUP.md:177,201 (skills/ copied only for claude-code) and :225 (advisory tier: AGENTS.md is the layer); `git show 0d082ae --stat` — AGENTS.md and templates/AGENTS.md.template are not in the changeset."
+blocking = true
+
+# ---------------------------------------------------------------------------
+# maintainability — weight 22, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F8"
+attribute = "maintainability"
+severity = "high"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting"
+probe = "R4's client-extension mechanism is a filename mentioned twice and defined nowhere, and its format guarantees the drift FM-3 was written to prevent. `design/patterns.md` appears exactly once in the skill (SKILL.md:148) and once more only as a string the test greps for (tests/test_references.py:93) — nowhere else in the repository. It has no schema, no required keys, no example, and no bootstrap rule: SKILL.md:84-86's uncovered-root rule covers `design/foundation.md` only, and SETUP.md:135-137 creates `design/` with `design/product.md` alone. The kernel's half of the base is schema-validated TOML with seven required fields (job, platform, canonical, fits_when, fails_when, states, a11y); the client's half is free-form markdown with none. The selection procedure at SKILL.md:139-145 consumes those fields by name, so it can be run against the kernel's entries and not against the client's. R4 declares extension 'without editing the kernel's copy' as the mitigation for FM-3 ('the base … contradicts the client's own foundation, becoming a second source of truth'); an unschematized markdown sibling that the same procedure cannot read is that second source, not its avoidance."
+evidence = "specs/FWD-010-creative-divergence/spec.md:63-66 (R4) and :40-41 (FM-3); skills/fde-design/SKILL.md:148 (the only mention), :84-86 (uncovered-root rule names foundation.md only), :139-145 (procedure consumes the TOML field names); tests/test_references.py:13-14 (REQUIRED lives in the test, applied to the kernel's file only) and :93; SETUP.md:135-137."
+blocking = false
+
+[[finding]]
+id = "F9"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting"
+probe = "the S-004 retro rule the commit message credits ('a drift detector that enumerates will miss the next file', generalized in sprints/S-004/retro.md:33-36 to 'any place the kernel lists artifacts to check should derive the list, not hardcode it') was applied to one detector and left broken in three places touched by this same commit. (a) SETUP.md:145-146 — the installer clients actually follow still enumerates `spec/invariants.toml, spec/roles.toml, spec/dimensions/*.toml, spec/references/*.toml`; the next spec subdirectory reaches no client, and test_install_sync (which does discover) is not shipped to clients. (b) PROBE F: `test_kernel_version_is_synced_everywhere` enumerates three version carriers; this commit introduced a fourth, `spec/references/ui-patterns.toml` `[meta] spec_version = \"0.10.0\"` — bumping kernel_version to 0.11.0 in invariants.toml, plugin.json, the template config and fde.config.toml leaves the base at 0.10.0 with 142 tests OK. (c) PROBE D: the new rglob walk is one-directional — writing `.fde/spec/references/stale-base.toml` with no source in `spec/` passes test_install_sync, and `.fde/spec/` is precisely what the installed kernel reads (SKILL.md:134 points the design chain at `.fde/spec/references/ui-patterns.toml`)."
+evidence = "SETUP.md:145-146; tests/test_spec_integrity.py:128-135 (three enumerated carriers) vs spec/references/ui-patterns.toml:19-21; tests/test_install_sync.py:30-37 (source→copy only); sprints/S-004/retro.md:33-36; reproduced: 0.11.0 bump with stale base version = 142 OK; orphan .fde file = test_install_sync green."
+blocking = false
+
+[[finding]]
+id = "F10"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting"
+probe = "the base restates two principles from the catalog verbatim, inside a second artifact, with no link back. spec/references/ui-patterns.toml:170 reads \"never; an empty state that only says 'no data' is a defect (USE-1)\" and :230 reads 'never; an error without a way out is a defect (USE-4)'. Those two entries are not patterns to choose between — they are USE-1 and USE-4 re-expressed in a file with a different schema, a different version field and a different review cadence. When USE-1 or USE-4 is reworded in spec/dimensions/quality-attributes.toml (as USE-8 and USE-9 were during S-002), nothing detects that the base now disagrees: tests/test_references.py never opens the catalog for these strings, and tests/test_spec_integrity.py never opens the base. It is also the mechanical cause of F5 — an obligation forced into a schema meant for choices produces `fits_when = always` / `fails_when = never`."
+evidence = "spec/references/ui-patterns.toml:164-172 (empty-state-onboarding) and :224-232 (error-recovery) against spec/dimensions/quality-attributes.toml:190,193 (USE-1, USE-4); no cross-file assertion exists in tests/test_references.py or tests/test_spec_integrity.py."
+blocking = false
+
+[[finding]]
+id = "F11"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting"
+probe = "R4's third MUST — entries 'earn by recurrence, not completeness' — is recorded nowhere and checkable by nothing, and FM-3's staleness half has no mitigation at all. The base's `[meta]` carries `kind` and `spec_version` only: no `reviewed` date, no `sources_checked` date, no per-entry recurrence evidence, no per-entry last-verified stamp. Ten design systems are asserted to be 'best at' something and sixteen patterns are asserted to recur, with zero evidence field for either claim, in a repository whose backlog already carries an evidence vocabulary for exactly this ('opinion < usage-data < user-test < production', AGENTS.md:124) — the vocabulary exists and was not applied. Probe: an entry whose canonical system has since deprecated the pattern (e.g. Material's navigation drawer guidance, cited at :218-220) is indistinguishable from a current one; nothing in the suite or the gate can tell them apart, and no artifact says when anyone last looked. FM-3 enumerates 'the base goes stale' first and R4 answers only the second half of that clause."
+evidence = "spec/references/ui-patterns.toml:19-21 ([meta] = kind + spec_version only); specs/FWD-010-creative-divergence/spec.md:40-41 (FM-3 'the base goes stale or contradicts…') and :63-66 (R4 answers only 'contradicts'); tests/test_references.py:28-33 (asserts best_at/study_when are non-empty, never that they are current); AGENTS.md:124 (the unused evidence ladder)."
+blocking = false
+
+[[finding]]
+id = "F12"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-3 names match the domain: a reader maps code to concept without a glossary"
+probe = "the `platform` field cannot express the distinction the skill's own platform rule is built on, and its vocabulary lives in a test file rather than in the artifact. SKILL.md:142-144 instructs 'respect the platform convention (`hig` on Apple, `material` on Android — deviating spends the user's existing muscle memory)'; the field's only legal values are web / mobile / all, so no entry can be filtered for Apple versus Android, and there is no value for desktop-native at all. Consequences visible in the shipped data: mobile-primary-navigation (:215-222) is platform='mobile' with canonical=[hig, material] — two conventions whose answers differ — and its fails_when then prescribes one of them ('a tab bar for 3-5 peers, a drawer only for secondary') for both; command-palette (:204-212) and data-entry-table (:234-242) are platform='web' while citing `fluent`, a desktop productivity suite. The allowed set is hardcoded at tests/test_references.py:51 and declared nowhere in the base, so a client extending the vocabulary must edit the kernel's test — the one thing R4 says they must never do."
+evidence = "spec/references/ui-patterns.toml:215-222, :204-212, :234-242; skills/fde-design/SKILL.md:142-144; tests/test_references.py:49-51 (assertIn(p['platform'], ('web','mobile','all'))); specs/FWD-010-creative-divergence/spec.md:63-66 (R4: extend without editing the kernel's copy)."
+blocking = false
+
+[[finding]]
+id = "F13"
+attribute = "maintainability"
+severity = "medium"
+probe = "FM-4's mitigation is one-directional: the alternative count keys off the DEMAND's triage score, which FWD-003 computes from surfaces + sensitive + irreversible + loc across API, data and infra — none of which measure the UI scope the alternatives are for. Probe, upward: a demand touching UI + API + data (3 surfaces), irreversible migration (+2), >300 loc (+2) scores 7 → L, so its UI part owes 3 alternatives from 3 distinct lenses even if that part is a relabeled button; nothing in SKILL.md:15-20 or R1 exempts it, and the table's only key is size. Probe, downward: a brand-new screen with no other surface and <50 loc scores 1 → XS, so it ships with no flow, no wireframe and no alternatives — a new screen designed by first draft. Both are plausible and neither is stated anywhere; FM-4 is declared mitigated at spec.md:47-53 by the size scaling alone."
+evidence = "specs/FWD-010-creative-divergence/spec.md:42-43 (FM-4) and :47-53 (R1 cites FM-4 as mitigated); skills/fde-design/SKILL.md:15-20 (table keyed on triage size only); AGENTS.md:76-89 (the score formula: surfaces, sensitive, irreversible, loc — no UI-scope term)."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# reliability_resilience — weight 12
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F14"
+attribute = "reliability_resilience"
+severity = "medium"
+probe = "an existing installation never receives the new file, and the failure is silent. SETUP.md:263 lists the re-sync triggers as 'When `fde.config.toml`, the tool set, or the stack changes' — a kernel version bump is not among them. A project installed at 0.9.0 therefore has no `.fde/spec/references/` directory; if the user updates skills for any other reason, `.claude/skills/fde-design/SKILL.md:134` points the whole pattern-selection procedure at `.fde/spec/references/ui-patterns.toml`, which is not there. Nothing reads that path at gate time, so no gate reddens, no test fails and no error surfaces — the agent proceeds through SKILL.md:139-149 'using the base' with no base, and the observable result is indistinguishable from a base that happened to contain no fitting entry (which SKILL.md:146 tells it to treat as a novelty declaration). Compare `.fde/spec/dimensions/quality-attributes.toml`, whose absence fails loudly because verify.py loads it."
+evidence = "SETUP.md:263-268 (re-sync triggers, no kernel-version trigger); SETUP.md:145-146 (step 6 copies references, reached only by a re-sync); skills/fde-design/SKILL.md:134, :139-149; no reader of spec/references/** exists in runtime/*.py (grep returns nothing), so the file's absence is unobservable to the gate."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# observability — weight 10
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F15"
+attribute = "observability"
+severity = "medium"
+principle = "OBS-1 every declared attribute emits a signal that can confirm or deny it"
+probe = "the demand adds three principles and a whole discipline to usability_accessibility and adds no signal that could confirm or deny that any of it happens. observability.toml:9 still declares the attribute's signal as 'field reports from installed projects (ergonomics findings become demands; e.g. voice doctrine, triage granularity)' — unchanged by this commit and unable to answer 'did a UI demand diverge before it converged?'. I5's gate is satisfied vacuously: gate_observability (runtime/verify.py:214-232) checks only that `[signals]` parses to a non-empty table, so the file passes with a signal written before USE-10..12 existed. The contrast with the immediately preceding demand is exact: FWD-009 shipped a measurable quantity (clone ratio, add/delete ratio, batch size) and a gate that reads it; FWD-010 ships a discipline whose occurrence leaves no trace of any kind — no artifact (F2), no gate (F1), no signal."
+evidence = "observability.toml:9 (unchanged; `git show 0d082ae --stat` does not list it); spec/dimensions/quality-attributes.toml:197-201 (USE-10..12 added); runtime/verify.py:214-232 (I5 passes on any non-empty [signals])."
+blocking = false
