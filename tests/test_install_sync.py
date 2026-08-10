@@ -96,6 +96,18 @@ class TestPluginDistribution(unittest.TestCase):
         self.assertIsInstance(self.plugin["author"], dict)
         self.assertTrue(self.plugin["author"].get("name"))
 
+    def test_sync_updates_the_kernel_before_re_emitting(self):
+        # "/forward:fde-sync" is the single update+sync command; if it only
+        # re-emitted, a user asking to update would silently rewrite the
+        # old artifacts
+        skill = read(ROOT / "skills" / "fde-sync" / "SKILL.md")
+        self.assertIn("claude plugin update forward@forward", skill)
+        self.assertIn("git -C", skill)          # the clone path too
+        self.assertLess(skill.index("Update the kernel"),
+                        skill.index("Re-emit the project"),
+                        "update must come before re-emit")
+        self.assertIn("update", skill.split("---")[1].lower())  # frontmatter trigger
+
     def test_the_published_licence_has_a_file_behind_it(self):
         # the manifests advertise Apache-2.0 in a public catalogue
         self.assertEqual(self.plugin["license"], "Apache-2.0")

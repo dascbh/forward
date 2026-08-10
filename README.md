@@ -225,7 +225,8 @@ use the explicit `https://github.com/dascbh/forward.git` instead.)
 Then, inside any project you want under the kernel:
 
 ```
-/forward:fde-init
+/forward:fde-init      # install here
+/forward:fde-sync      # later: update the kernel AND re-emit, in one step
 ```
 
 **The plugin IS the kernel** — installing it puts `runtime/`, `spec/`,
@@ -264,16 +265,22 @@ auditing the agent's own work. On a fresh project, I2/I4/I5 red is the
 designed result — those turn green when the first demand completes its
 cycle, not before.
 
-### Update — one prompt
+### Update
 
-When this repository gains a new version, in the installed project:
+In Claude Code, one command does both halves:
 
-> Update FORWARD: git pull the kernel clone (or re-clone
-> https://github.com/dascbh/forward) and re-run SETUP.md steps 6–8 from
-> the current sources — runtime and spec into `bin/fde/` and `.fde/spec/`,
-> AGENTS.md regenerated, roles and skills re-copied. Overwrite only files
-> carrying the FDE-KERNEL:GENERATED marker; merge user-owned files, never
-> clobber them. Close with `python3 bin/fde/verify.py --all` and report
+```
+/forward:fde-sync
+```
+
+It updates the kernel (plugin or clone) and then re-emits the project from
+it. Everywhere else, tell your agent:
+
+> Update FORWARD: pull the kernel (git pull in the clone, or re-clone
+> https://github.com/dascbh/forward) and then re-run SETUP.md steps 6–8
+> from the updated sources — copy directories, never a remembered list of
+> files. Overwrite only what carries the FDE-KERNEL:GENERATED marker;
+> merge the rest. Close with `python3 bin/fde/verify.py --all` and report
 > what changed in one status line.
 
 Installed projects pin nothing: updating is re-emitting from current
