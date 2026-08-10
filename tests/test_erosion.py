@@ -67,6 +67,37 @@ class TestMeasureDegrades(unittest.TestCase):
                 '{"dependencies":{"a":"1","b":"2"},"devDependencies":{"c":"3"}}')
             self.assertEqual(erosion.dependency_count(Path(t)), 3)
 
+    def test_pyproject_counts_distinct_packages_not_group_repeats(self):
+        with tempfile.TemporaryDirectory() as t:
+            (Path(t) / "pyproject.toml").write_text(
+                '[project]\ndependencies = ["flask>=2", "requests"]\n'
+                '[project.optional-dependencies]\n'
+                'dev = ["requests", "pytest"]\n')  # requests repeats
+            self.assertEqual(erosion.dependency_count(Path(t)), 3)  # flask, requests, pytest
+
+    def test_largest_change_excludes_root_commit(self):
+        with tempfile.TemporaryDirectory() as t:
+            run_git(t, "init", "-q")
+            run_git(t, "config", "user.email", "x@y")
+            run_git(t, "config", "user.name", "x")
+            big = "\n".join(f"line {i}" for i in range(900))
+            (Path(t) / "scaffold.py").write_text(big)      # huge root commit
+            run_git(t, "add", "-A")
+            run_git(t, "commit", "-q", "-m", "root")
+            (Path(t) / "small.py").write_text("one\ntwo\n")  # tiny 2nd commit
+            run_git(t, "add", "-A")
+            run_git(t, "commit", "-q", "-m", "small")
+            # largest NON-ROOT change is the 2-line commit, not the 900-line root
+            self.assertLessEqual(erosion.measure(Path(t))["largest_change"], 5)
+
+    def test_report_never_crashes_on_non_numeric_budget(self):
+        with tempfile.TemporaryDirectory() as t:
+            run_git(t, "init", "-q")
+            # check_budget must skip a bad value, not raise
+            self.assertEqual(
+                erosion.check_budget({"add_delete_ratio": 9.0},
+                                     {"max_add_delete_ratio": "lots"}), [])
+
 
 class TestGate(unittest.TestCase):
     def setUp(self):

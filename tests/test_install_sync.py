@@ -15,10 +15,17 @@ def read(p: Path) -> str:
 
 
 class TestRuntimeCopies(unittest.TestCase):
-    def test_bin_fde_is_identical_to_runtime(self):
-        for f in ("fde_lib.py", "verify.py", "guard.py"):
-            self.assertEqual(read(ROOT / "runtime" / f),
-                             read(ROOT / "bin" / "fde" / f), f)
+    def test_every_runtime_module_is_identical_in_bin_fde(self):
+        # ALL of runtime/, discovered — not a hardcoded list that silently
+        # omits new modules (erosion.py, graph.py) whose CI-executed copy
+        # could then drift (review finding, FWD-009)
+        modules = sorted(p.name for p in (ROOT / "runtime").glob("*.py"))
+        self.assertIn("erosion.py", modules)
+        self.assertIn("graph.py", modules)
+        for f in modules:
+            installed = ROOT / "bin" / "fde" / f
+            self.assertTrue(installed.exists(), f"{f} not installed in bin/fde/")
+            self.assertEqual(read(ROOT / "runtime" / f), read(installed), f)
 
     def test_fde_spec_is_identical_to_spec(self):
         for rel in ("invariants.toml", "roles.toml",

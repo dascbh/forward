@@ -49,12 +49,14 @@ window = 50                  # commits analyzed
 max_add_delete_ratio = 6.0
 max_duplication_pct = 8.0
 max_dependencies = 40
-max_change_lines = 600
+max_change_lines = 600       # largest NON-ROOT commit; root/scaffold excluded
 ```
 
-An undeclared budget is measured, not gated — never a false wall. A
-non-numeric threshold fails the config gate (a typo must not silently
-disarm the check).
+`max_change_lines` measures the largest non-root commit — a root or
+scaffold commit (a bulk import) is excluded, so the budget is safe to
+declare on a young repo. An undeclared budget is measured, not gated —
+never a false wall. A non-numeric threshold fails the config gate (a typo
+must not silently disarm the check).
 
 ## The doctrine — why measured, not prompted
 

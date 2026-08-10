@@ -59,8 +59,12 @@ governance, and the kernel is the governance. The papers validate the
 design — SlopCodeBench's code-state-only protocol is I2 + I7; SpecBench's
 "constraints on solution properties, not just acceptance criteria" is
 vector A + I8 — and FORWARD is a candidate for the tooling countermeasure
-SlopCodeBench calls untested. Exhibit A is this repository: built
-entirely by a generative model under its own governance across nine
-demands, with tests growing every demand, adversarial review catching
-real bugs, and complexity bounded — the monotonic decay the papers
-measure did not occur.
+SlopCodeBench calls untested. This repository is a partial datapoint,
+stated precisely: built by a generative model under its own governance
+across nine demands, its organic code (the install mirrors are
+byte-identical, test-enforced copies, excluded as expected duplication,
+not decay) holds ~1% duplicate-block density and a bounded add/delete
+ratio, with tests growing every demand and adversarial review catching
+real bugs each one — including, on this very demand, the overreach of an
+earlier draft of this paragraph. It is a governed trajectory, measured;
+not proof that governance makes decay impossible.

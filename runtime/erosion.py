@@ -114,8 +114,13 @@ def check_budget(metrics: dict, budget: dict) -> list:
     ]
     for bkey, mkey, label in checks:
         if bkey in budget and metrics.get(mkey) is not None:
-            if float(metrics[mkey]) > float(budget[bkey]):
-                out.append(f"{label} {metrics[mkey]} > budget {budget[bkey]}")
+            # a non-numeric budget is a config error (caught by the config
+            # gate); here it must never crash --report — skip it
+            try:
+                if float(metrics[mkey]) > float(budget[bkey]):
+                    out.append(f"{label} {metrics[mkey]} > budget {budget[bkey]}")
+            except (TypeError, ValueError):
+                continue
     return out
 
 
@@ -153,16 +158,23 @@ def _count_json_deps(text: str) -> int:
     return len(d.get("dependencies", {})) + len(d.get("devDependencies", {}))
 
 
+def _dep_name(spec: str) -> str:
+    return re.split(r"[<>=!~;\[\s]", spec.strip(), 1)[0].lower()
+
+
 def _count_pyproject_deps(text: str) -> int:
     try:
         d = tomllib.loads(text)
     except tomllib.TOMLDecodeError:
         return 0
     proj = d.get("project", {})
-    n = len(proj.get("dependencies", []))
+    # distinct package names — a package in two optional groups is one
+    # dependency, not two (review finding, FWD-009)
+    names = {_dep_name(s) for s in proj.get("dependencies", [])}
     for group in (proj.get("optional-dependencies", {}) or {}).values():
-        n += len(group)
-    return n
+        names |= {_dep_name(s) for s in group}
+    names.discard("")
+    return len(names)
 
 
 def _count_cargo_deps(text: str) -> int:
@@ -207,8 +219,12 @@ def measure(project: Path, window: int = DEFAULT_WINDOW) -> dict:
 
 
 def _largest_change(project: Path, window: int) -> int | None:
-    # %H marks each commit boundary; numstat lines follow it
-    out = _git(project, "log", f"-{window}", "--numstat", "--format=%H")
+    # batch size = the largest NON-ROOT commit. A root/scaffold commit
+    # (--min-parents=1 excludes 0-parent commits) is a bulk import, not a
+    # batch — counting it makes max_change_lines a false wall on any repo
+    # younger than the window (review finding, FWD-009).
+    out = _git(project, "log", f"-{window}", "--min-parents=1",
+               "--numstat", "--format=%H")
     if not out.strip():
         return None
     biggest, cur = 0, 0

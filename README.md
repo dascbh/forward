@@ -75,10 +75,14 @@ FORWARD's answer is [ADR-0011](docs/adr/0011-entropy-is-measured-not-assumed.md)
 **entropy is measured, not assumed.** Erosion, verbosity, and efficiency
 are first-class, gated concerns — `fde-erosion` and an opt-in `[erosion]`
 budget the gate enforces, because the papers prove instruction alone
-does not hold. And Exhibit A is this repository: built end to end by a
-generative model under its own governance, tests growing every demand,
-adversarial review catching real bugs, complexity bounded — the monotonic
-decay the papers measure did not happen here.
+does not hold. This repository is a partial datapoint, not proof: built
+end to end by a generative model under its own governance, its organic
+code (excluding the byte-identical, test-enforced install mirrors) holds
+~1% duplication and a bounded add/delete ratio across nine demands, with
+tests growing every demand and adversarial review catching real bugs each
+one. That is a governed trajectory, measured — not the monotonic decay
+the papers found in un-governed agents, and not a claim that governance
+makes decay impossible.
 
 ---
 
