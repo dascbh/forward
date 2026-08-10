@@ -13,11 +13,54 @@ symptom in code.
 
 ## What each size demands (UI surface touched)
 
-| size | design phases |
+| size | design phases | alternatives required |
+|---|---|---|
+| XS / S | build within the foundation, design QA | none |
+| M | + flow and wireframe before build | 2, from distinct lenses |
+| L | + PRD-grade spec, information architecture, user validation | 3, from distinct lenses |
+
+## The two diamonds
+
+Design alternates: **diverge, then converge — twice.** The first diamond
+is the problem space (discovery → a stated problem); the second is the
+solution space (alternatives → one chosen design). The rule that makes it
+real: **never converge without having diverged, and never diverge without
+a stated problem.** The kernel enforces the second diamond structurally
+(below), because instructing a model to "explore alternatives" is the
+same class of intervention the erosion research showed does not hold
+(ADR-0011, ADR-0012).
+
+### Reframe before you solve (the generative move)
+
+Before generating anything, restate the problem as **"How might we…"** in
+at least two ways, and name the framing you chose and why. The reframe is
+where an extraordinary solution comes from; the render is not. A flawless
+solution to the unquestioned problem statement is a well-drawn wrong
+answer.
+
+Example: "the export screen is slow" reframes to *HMW make waiting
+unnecessary?* (background job + notify) · *HMW make the wait productive?*
+(stream partial results) · *HMW avoid the export entirely?* (share a live
+link). Those are three different products, not three layouts.
+
+### The five lenses (alternatives must come from distinct ones)
+
+Each alternative is generated from a different lens. **Alternatives that
+share a lens count as one** — three variations of the same layout is one
+idea in three costumes, and satisfies nothing.
+
+| lens | the question it forces |
 |---|---|
-| XS / S | build within the foundation, design QA |
-| M | + flow and wireframe before build |
-| L | + PRD-grade spec, information architecture, user validation |
+| **subtract** | which step, field, or decision can disappear entirely — can the system infer it? |
+| **invert** | flip who acts or when: system-first instead of user-first, push instead of pull, after instead of before |
+| **analogous** | which other domain solved this job well, and what would borrowing its pattern look like here? |
+| **constraint-first** | design for the worst case (slow network, 10k rows, the error path, one hand) and let the happy path fall out |
+| **object-first** | reorganize around the domain object instead of the task sequence |
+
+Each alternative carries a **one-line hypothesis** (what it bets improves,
+for whom). Converging, record what each discarded alternative **traded** —
+the discard is evidence, and it is what makes the choice auditable
+instead of invisible.
 
 ## Foundation — the suite of the design domain
 
@@ -85,6 +128,25 @@ comprehension and density; only real code answers timing and keyboard.
 Artifact: `specs/<demand-id>/design/wireframes/*.html`. Once approved it
 is the contract — divergence during build reopens the wireframe, never
 gets improvised in code.
+
+## Choosing the pattern (the curated base)
+
+`.fde/spec/references/ui-patterns.toml` is the base: which design systems
+are worth studying for what, and for each recurring job the canonical
+implementations, the fit and misfit criteria, the states the pattern must
+resolve, and its accessibility contract. Use it before inventing.
+
+The order: name the **job** → find the pattern whose `fits_when` matches
+and whose `fails_when` does not → study the **canonical** systems it
+names (the base points; it never copies their code) → respect the
+**platform convention** (`hig` on Apple, `material` on Android — deviating
+spends the user's existing muscle memory) → resolve every state the entry
+lists → implement the widget against its **APG** contract.
+
+**Novelty is a declared cost, not a default.** If no entry fits, say so
+and name what you are trading; a new pattern is a decision to record
+(and, if it recurs, an entry the client adds to `design/patterns.md` —
+their extension, never an edit to the kernel's copy).
 
 ## Build rules (any size)
 

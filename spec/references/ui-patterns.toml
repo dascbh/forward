@@ -1,0 +1,252 @@
+# ============================================================================
+# UI REFERENCE BASE — curated criteria, never copied components
+# ============================================================================
+# What is curated here is DECISION CRITERIA and CANONICAL SOURCES. Never
+# component code: copied components rot, bloat (MNT-11, MNT-12), drag
+# licenses, and would need per-framework maintenance the kernel cannot
+# honor (I6). The reader studies the canonical implementation; the kernel
+# only says which one, for which job, and what it must resolve.
+#
+# A pattern earns an entry by RECURRENCE, not by completeness. This is a
+# curated base, not an encyclopedia — the same rule that governs the
+# principle catalogs.
+#
+# The client EXTENDS this in design/patterns.md with their own domain
+# patterns. They never edit this file: it syncs to .fde/spec/references/
+# and hand edits are drift.
+# ============================================================================
+
+[meta]
+kind = "reference_base"
+spec_version = "0.10.0"
+
+# ---------------------------------------------------------------------------
+# DESIGN SYSTEMS — which one to study, for what
+# ---------------------------------------------------------------------------
+# `best_at` is what the system solved better than the others; `study_when`
+# is the register/context that makes it the right reference (see the
+# register decision in design/foundation.md).
+
+[[system]]
+id = "material"
+label = "Material Design (Google)"
+best_at = "Android platform convention, motion and elevation semantics, adaptive layouts"
+study_when = "the surface is Android, or a cross-platform product that must feel native there"
+
+[[system]]
+id = "hig"
+label = "Apple Human Interface Guidelines"
+best_at = "iOS/macOS platform convention, navigation semantics, gesture and focus expectations"
+study_when = "the surface is Apple; deviating from HIG costs the user's existing muscle memory"
+
+[[system]]
+id = "carbon"
+label = "IBM Carbon"
+best_at = "dense operational data, data tables, complex multi-step forms, enterprise register"
+study_when = "the screen is a work console and density is the requirement, not a preference"
+
+[[system]]
+id = "primer"
+label = "GitHub Primer"
+best_at = "developer tooling, code-adjacent surfaces, keyboard-first interaction, diff and review UI"
+study_when = "the user is technical and lives in the product all day"
+
+[[system]]
+id = "polaris"
+label = "Shopify Polaris"
+best_at = "commerce admin, merchant workflows, resource lists, bulk operations, empty states that teach"
+study_when = "the product is an admin over business objects with recurring operational tasks"
+
+[[system]]
+id = "govuk"
+label = "GOV.UK Design System"
+best_at = "forms, error handling, plain language, accessibility as the default — the public-service gold standard"
+study_when = "the flow is a form, an application, or anything where failure excludes a person"
+
+[[system]]
+id = "atlassian"
+label = "Atlassian Design System"
+best_at = "collaboration surfaces, permissions and roles, cross-object navigation, notification density"
+study_when = "many people act on the same objects with different rights"
+
+[[system]]
+id = "fluent"
+label = "Microsoft Fluent"
+best_at = "productivity suites, command surfaces (ribbons, palettes), enterprise theming"
+study_when = "the product sits in a Microsoft-centric workplace or is command-dense"
+
+[[system]]
+id = "radix-shadcn"
+label = "Radix Primitives / shadcn-ui"
+best_at = "headless, accessible primitives (dialog, menu, combobox) with no visual opinion"
+study_when = "the project owns its visual language but must not reimplement interaction and a11y"
+
+[[system]]
+id = "apg"
+label = "W3C ARIA Authoring Practices Guide"
+best_at = "the normative keyboard and screen-reader behavior of every widget"
+study_when = "always, before implementing any non-trivial widget — it is the accessibility contract"
+
+# ---------------------------------------------------------------------------
+# PATTERNS — the recurring jobs and where each is well solved
+# ---------------------------------------------------------------------------
+
+[[pattern]]
+id = "resource-list-bulk-actions"
+job = "find, select and act on many records without leaving the list"
+platform = "web"
+canonical = ["polaris", "carbon", "primer"]
+fits_when = "the same operation applies to many objects and the user works in batches"
+fails_when = "actions are per-object and destructive — batch selection then multiplies the blast radius"
+states = ["empty", "loading", "no results for filter", "partial selection", "action in progress", "partial failure"]
+a11y = "APG grid; selection state announced; the action bar reachable without leaving the keyboard"
+
+[[pattern]]
+id = "master-detail"
+job = "scan a set and work one item deeply without losing place"
+platform = "all"
+canonical = ["hig", "fluent", "atlassian"]
+fits_when = "items are comparable and the user moves between them repeatedly"
+fails_when = "the detail is long-form or the flow is one-shot — a full page beats a cramped pane"
+states = ["nothing selected", "loading detail", "detail error", "item deleted while open"]
+a11y = "focus moves to the detail region on selection and is announced; back returns focus to the row"
+
+[[pattern]]
+id = "progressive-form"
+job = "collect a long or branching set of answers without overwhelming"
+platform = "all"
+canonical = ["govuk", "carbon"]
+fits_when = "questions branch, or the set is long enough that one page reads as a wall"
+fails_when = "the user needs to see all answers at once to decide — then one page with sections wins"
+states = ["per-step validation", "resume after abandon", "review before submit", "submit failure with input preserved"]
+a11y = "one h1 per step; errors summarized at the top and linked to fields; step position announced"
+
+[[pattern]]
+id = "search-filter-facets"
+job = "narrow a large set to the few that matter"
+platform = "web"
+canonical = ["polaris", "carbon"]
+fits_when = "the set exceeds what scrolling can serve and has stable dimensions to filter by"
+fails_when = "the set is small or the dimensions are unstable — a single search box beats dead facets"
+states = ["no query", "no results", "filters applied (visible and removable)", "slow query"]
+a11y = "result count announced on change; applied filters are focusable and removable"
+
+[[pattern]]
+id = "destructive-confirmation"
+job = "prevent an irreversible action taken by accident"
+platform = "all"
+canonical = ["govuk", "polaris", "hig"]
+fits_when = "the action is irreversible or expensive to undo"
+fails_when = "the action is reversible — then undo beats a confirmation nobody reads"
+states = ["confirm naming the object and the consequence", "in progress", "failure", "undo window when possible"]
+a11y = "focus trapped in the dialog and returned to the trigger; the confirm button names the action, never 'OK'"
+
+[[pattern]]
+id = "async-job-feedback"
+job = "start work that outlives the request and know how it ended"
+platform = "all"
+canonical = ["polaris", "carbon", "atlassian"]
+fits_when = "the operation exceeds a few seconds or continues after navigation"
+fails_when = "the operation is fast — a spinner that flashes is worse than nothing"
+states = ["queued", "running with progress or honest indeterminacy", "succeeded", "failed with cause and retry", "left the page and came back"]
+a11y = "progress via aria-live polite; completion announced; never rely on color alone for outcome"
+
+[[pattern]]
+id = "inline-edit"
+job = "correct one value without a context switch"
+platform = "web"
+canonical = ["primer", "atlassian"]
+fits_when = "the edit is a single low-risk field and the surrounding context is what makes it correct"
+fails_when = "the change has side effects or needs validation against other fields — use a form"
+states = ["idle", "editing", "saving", "save failed with the typed value preserved", "conflict with another editor"]
+a11y = "the control is a real input with a label; escape cancels; the saved state is announced"
+
+[[pattern]]
+id = "empty-state-onboarding"
+job = "turn an empty screen into the first step"
+platform = "all"
+canonical = ["polaris", "material"]
+fits_when = "always — every collection surface has a first run"
+fails_when = "never; an empty state that only says 'no data' is a defect (USE-1)"
+states = ["first run (teach and offer the action)", "emptied by a filter (offer to clear)", "emptied by permission (say so)", "error mistaken for empty"]
+a11y = "the primary action is reachable and described; illustration is decorative and hidden from assistive tech"
+
+[[pattern]]
+id = "notification-inbox"
+job = "know what happened while away, without losing what matters in noise"
+platform = "all"
+canonical = ["atlassian", "primer"]
+fits_when = "events accumulate and demand different responses"
+fails_when = "everything is equally urgent — then it is a feed, and it will be ignored"
+states = ["unread vs read", "grouped by object or actor", "muted", "empty", "action taken from the notification"]
+a11y = "unread conveyed beyond color; new-item count announced; no focus stealing on arrival"
+
+[[pattern]]
+id = "permission-role-editor"
+job = "grant and audit who can do what"
+platform = "web"
+canonical = ["atlassian", "carbon"]
+fits_when = "more than one role acts on the same objects"
+fails_when = "there are two roles and no delegation — a checkbox beats a matrix"
+states = ["effective permission shown (not just assigned)", "inherited vs direct", "self-lockout prevented", "change preview before apply"]
+a11y = "the matrix is a real table with headers; the effect of a change is announced, not inferred visually"
+
+[[pattern]]
+id = "dashboard-overview"
+job = "answer 'is anything wrong, and what do I do next'"
+platform = "all"
+canonical = ["carbon", "polaris"]
+fits_when = "the user opens the product to triage before acting"
+fails_when = "the metrics are decorative — a dashboard nobody acts on is a screensaver"
+states = ["no data yet", "stale data with its timestamp", "threshold breached", "drill-down to the underlying records"]
+a11y = "every chart has a text equivalent; numbers tabular; status conveyed beyond color"
+
+[[pattern]]
+id = "command-palette"
+job = "reach anything without learning the navigation"
+platform = "web"
+canonical = ["primer", "fluent"]
+fits_when = "the user is frequent, technical, or the surface area exceeds what navigation can hold"
+fails_when = "the audience is occasional — a discoverable menu serves them, a palette hides from them"
+states = ["empty prompt with suggestions", "no match", "recent and scoped results", "action requiring confirmation"]
+a11y = "APG combobox; results announced; every palette action also exists in the visible UI"
+
+[[pattern]]
+id = "mobile-primary-navigation"
+job = "move between the few places that matter, one-handed"
+platform = "mobile"
+canonical = ["hig", "material"]
+fits_when = "always on mobile — the choice is which form, not whether"
+fails_when = "a drawer hides the primary destinations: use a tab bar for 3-5 peers, a drawer only for secondary"
+states = ["current destination indicated", "badge on a peer", "deep-link arrival", "returning preserves per-tab position"]
+a11y = "targets at least 44pt; current tab announced as selected; reachable with one hand"
+
+[[pattern]]
+id = "error-recovery"
+job = "turn a failure into a next step instead of a dead end"
+platform = "all"
+canonical = ["govuk", "material"]
+fits_when = "always — every request can fail"
+fails_when = "never; an error without a way out is a defect (USE-4)"
+states = ["retryable (offer retry)", "permanent (explain and route)", "permission (say who to ask)", "partial (say what did land)"]
+a11y = "the error is announced, not only rendered; focus moves to it; the message names cause and action, never a code alone"
+
+[[pattern]]
+id = "data-entry-table"
+job = "edit many rows quickly, as in a spreadsheet"
+platform = "web"
+canonical = ["carbon", "fluent"]
+fits_when = "the user's mental model is already tabular and volume makes forms too slow"
+fails_when = "each row needs validation against distant context — use per-row forms"
+states = ["dirty rows marked", "per-cell validation", "bulk paste", "save partial failure identifying the rows"]
+a11y = "APG grid with real keyboard navigation; cell coordinates announced; never a div grid"
+
+[[pattern]]
+id = "date-range-selection"
+job = "bound a query in time without fighting the control"
+platform = "all"
+canonical = ["carbon", "material", "govuk"]
+fits_when = "the range drives the whole screen and presets cover most uses"
+fails_when = "a single known date is wanted — three text inputs (GOV.UK) beat a calendar"
+states = ["presets vs custom", "invalid or inverted range", "timezone made explicit", "range exceeding retention"]
+a11y = "typed entry always possible; the calendar is keyboard-navigable; the selected range is announced in text"

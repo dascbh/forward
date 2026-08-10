@@ -28,11 +28,13 @@ class TestRuntimeCopies(unittest.TestCase):
             self.assertEqual(read(ROOT / "runtime" / f), read(installed), f)
 
     def test_fde_spec_is_identical_to_spec(self):
-        for rel in ("invariants.toml", "roles.toml",
-                    "dimensions/quality-attributes.toml",
-                    "dimensions/technical-domains.toml"):
-            self.assertEqual(read(ROOT / "spec" / rel),
-                             read(ROOT / ".fde" / "spec" / rel), rel)
+        # discovered, not enumerated (S-004 retro): a new spec file must
+        # not be able to ship without its installed copy
+        for src in sorted((ROOT / "spec").rglob("*.toml")):
+            rel = src.relative_to(ROOT / "spec")
+            installed = ROOT / ".fde" / "spec" / rel
+            self.assertTrue(installed.exists(), f"{rel} not installed")
+            self.assertEqual(read(src), read(installed), str(rel))
 
 
 class TestClaudeLayerCopies(unittest.TestCase):

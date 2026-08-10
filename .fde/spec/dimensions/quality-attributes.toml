@@ -196,6 +196,9 @@ heuristic_principles = [
   "USE-7 one fact, one source: a state is stated once, authoritatively; a surface that only rephrases it merges or leaves",
   "USE-8 register discipline: density and finish match the product's register; one highlight per screen; no decoration that outranks the work",
   "USE-9 microcopy carries the action: buttons name verb + object; errors say what happened and what to do next; labels stay visible (a placeholder is not a label)",
+  "USE-10 converge only after diverging: alternatives come from distinct lenses (subtract, invert, analogous, constraint-first, object-first) — variants of one layout are one alternative — and the discard is recorded with what it traded",
+  "USE-11 the pattern is chosen for the job and the platform's convention, from the curated reference base; novelty is a declared cost, not a default",
+  "USE-12 the problem is reframed before it is solved: a flawless solution to the unquestioned problem statement is a well-drawn wrong answer",
 ]
 adversarial_probes = [
   "error path with no clear way out",
