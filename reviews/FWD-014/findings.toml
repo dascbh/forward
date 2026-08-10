@@ -1,0 +1,198 @@
+# Adversarial review — FWD-014 plugin distribution, commit ad959ae.
+# Reviewer received artifact + spec only (I2). XS = one round.
+# Findings only; no fixes (I3).
+
+[meta]
+demand_id = "FWD-014"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 1
+rounds_run = 1
+commit = "ad959ae"
+agent_transcript = "agent-a658f3fd9899c7baa"
+probed = """
+Baseline at ad959ae: 176 tests OK, `python3 bin/fde/verify.py` 16/16
+green. FWD-014 is XS so there is no spec dir; the declared justification
+is the Unplanned row at sprints/S-006/goal.md:19. The external
+specification the demand asserts conformance to was fetched and read in
+full: code.claude.com/docs/en/plugin-marketplaces.md and
+code.claude.com/docs/en/plugins-reference.md (fetched 2026-08-10).
+
+PROBE A — the official validator, which the docs name as the way to check
+a marketplace ("Validation and testing": `claude plugin validate .`).
+Claude Code 2.1.226 is on this machine. On the shipped artifact:
+"Validation passed with warnings" plus one warning nobody recorded —
+`plugins[0] plugin.json -> author: No author information provided`.
+Then mutated the manifest four ways at once: `owner` from an object to a
+plain string (the doc makes `owner` a required OBJECT with a required
+`name`), a top-level `"version": "9.9.9"` (a documented optional field),
+the entry `description` contradicting plugin.json's, and the entry
+`license` set to MIT against plugin.json's Apache-2.0. Result: 176 tests
+OK, all 16 gates green — and `claude plugin validate .` fails hard:
+`owner: Invalid input: expected object, received string`.
+
+PROBE B — I1 coverage of the new artifact. Repointed `plugins[0].source`
+to `{"source": "github", "repo": "someone-else/forward"}` — the field
+that decides which repository every `/plugin install forward@forward`
+downloads and executes — staged it, ran `python3 bin/fde/verify.py
+--staged`: "I1 no behavior change in this changeset", all gates passed.
+`.githooks/pre-commit:4` execs only `verify.py --staged`, so that commits
+green locally. (The unit suite does catch this one mutation; it does not
+catch PROBE A's.)
+
+PROBE C — the chicken-and-egg claim end to end. `git init` on an empty
+scratch project, then the literal step 1 of skills/fde-init/SKILL.md:10-12
+with cwd = that project. Result: the kernel lands at `<project>/forward/`,
+inside the repo being installed — not the "sibling directory" the same
+line promises.
+
+PROBE D — grepped the whole repo for `CLAUDE_PLUGIN_ROOT`: zero
+occurrences. The plugin ships SETUP.md, bin/, runtime/, spec/ and
+templates/ (source ".") and nothing in the kernel reads them.
+
+PROBE E — `claude plugin validate` against a plugin-shaped copy of
+agents/ + skills/ + plugin.json in a scratch dir: passes with the same
+author warning. Agent frontmatter (`model: inherit`, `isolation:
+worktree`) is accepted; no finding there.
+
+SAFE, and checked because the last three rounds each found a factual
+error here: `/forward:fde-init` IS the correct invocation — plugin skills
+are namespaced `/<plugin-name>:<skill-name>` (marketplace walkthrough,
+`/quality-review-plugin:quality-review`), the plugin name is the
+marketplace entry name, both manifests say "forward", and
+skills/fde-init/SKILL.md:2 sets `name: fde-init`. `forward:fde-adversarial`
+is also correct (plugins-reference, Agents: "Agents appear ... under their
+scoped name, such as `my-plugin:code-reviewer`"). `category`, `keywords`,
+`homepage`, `repository` and `license` are all valid keys on a plugin
+ENTRY ("You can include any field from the plugin manifest schema ...
+plus these marketplace-specific fields: `source`, `category`, `tags`,
+`strict`, `relevance`"), and unrecognized keys are ignored, not fatal.
+`source: "."` resolves in 2.1.226 (validator accepted it; the docs
+acknowledge entries "whose `source` is `.`"), though the source table
+still words the rule as "Must start with `./`" and writes the
+marketplace-root form as `"source": "./"` — the safer spelling. The
+marketplace name "forward" is not on the reserved list and is kebab-case.
+homepage/repository match `git remote -v` (github.com/dascbh/forward).
+plugin.json is the version authority over the entry, so omitting `version`
+from the entry does behave as the commit message claims.
+"""
+
+# ---------------------------------------------------------------------------
+# functional_correctness — weight 30, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "high"
+probe = "the demand's entire deliverable is one schema-governed file, and nothing in the repository can tell whether it satisfies the schema. PROBE A: replaced `owner` with a plain string — the doc's Marketplace schema makes `owner` a required OBJECT whose `name` is required — added a top-level `\"version\": \"9.9.9\"`, set the entry `description` to \"totally different from plugin.json\" and the entry `license` to MIT against plugin.json's Apache-2.0, all in one edit. `python3 -m unittest discover -s tests`: 176 tests, OK. `python3 bin/fde/verify.py`: all 16 gates passed. `claude plugin validate .` (Claude Code 2.1.226, the command the docs' own 'Validation and testing' section prescribes): `✘ owner: Invalid input: expected object, received string` — Validation failed. The three new tests are the tautology class this repo's last three reviews killed: test_install_sync.py:65 asserts `entry[\"source\"] == \".\"` against the literal it just read, :67-68 asserts the two names it just read are equal, :74 asserts a key it just read is absent — every one of them is the file compared with itself, so they can only detect an edit, never an error. Nothing runs the validator: not the suite, not `.github/workflows/fde-gate.yml`, not `.githooks/pre-commit`. Running it on the SHIPPED artifact right now already emits an unrecorded warning — `plugins[0] plugin.json → author: No author information provided` — which is the proof the tool was never run before the commit that claims 'Verified against the docs before promising anything'."
+evidence = ".claude-plugin/marketplace.json:1-17; tests/test_install_sync.py:61-84 (all three new tests); reproduced: mutated manifest → 176 tests OK + 16/16 gates green + `claude plugin validate .` → `owner: Invalid input: expected object, received string`; unmutated artifact → `plugins[0] plugin.json → author: No author information provided`; code.claude.com/docs/en/plugin-marketplaces.md 'Marketplace schema' (owner: object, required) and 'Validation and testing' (fetched 2026-08-10)."
+blocking = true
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "high"
+probe = "the one user journey the demand exists to create puts the kernel inside the project it is installing, and then hands SETUP.md the wrong tree to detect from. PROBE C: `git init` on an empty project, cwd = that project, run the literal command at skills/fde-init/SKILL.md:11 — `git clone https://github.com/dascbh/forward.git`. git's default target is the basename, so the kernel lands at `<project>/forward/`, flatly contradicting the parenthetical on the next line ('a sibling directory of the project is fine'). Nothing instructs a target directory, a `cd`, a `.gitignore` entry, or a removal afterwards. The consequence is not cosmetic: SETUP.md:29-33 then tells the agent to 'Read the project tree and record facts ... every fact you record must come from a file', and the tree now contains the kernel — `has_ci` becomes true from `forward/.github/workflows/`, and the code roots and eval/test roots are located from the kernel's own `bin/`, `runtime/` and `tests/`. SETUP.md:55-56 states exactly what that costs: 'The gate is only as good as these prefixes — I1 does not cover code outside them.' A brand-new project — the scenario README.md:228-229 advertises — therefore ends the install with an I1 gate pointed at the framework instead of at the user's code, and a stray clone in its first commit. Steps 2 and 3 compound it: `SETUP.md` (in the clone) and `bin/fde/verify.py` (in the project, after step 6) are written in the same bare-relative style with no cd between them, so the two roots are indistinguishable from the instruction."
+evidence = "skills/fde-init/SKILL.md:10-19; SETUP.md:29-33, :35-44 (detection table, `.github/workflows/` → has_ci), :46-56 (roots and the I1 warning); README.md:222-229; reproduced in a scratch dir: after `git init` + the literal clone, the project root contains `.git` and `forward`. Same defect in skills/fde-sync/SKILL.md:11-12."
+blocking = true
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "high"
+probe = "the plugin ships the kernel and the kernel never reads it, so the `version` the README sells as the update mechanism describes nothing the user receives. `source: \".\"` means the installed plugin at `${CLAUDE_PLUGIN_ROOT}` is the whole repo — SETUP.md, bin/, runtime/, spec/, templates/ are all sitting in `~/.claude/plugins/cache`, pinned at 0.11.0. PROBE D: `CLAUDE_PLUGIN_ROOT` appears ZERO times in the repository. fde-init and fde-sync instead clone `main` HEAD over the network. So a user who installs plugin 0.11.0 and runs `/forward:fde-init` a month later installs whatever `main` is that day, and a user who runs `/plugin update forward@forward` refreshes only a cached copy nothing reads. README.md:230-232 states the opposite as fact: '`/plugin update forward@forward` pulls a new kernel version (driven by the `version` field in the plugin manifest)'. It does not pull a kernel version in either sense — not for an already-installed project (README.md:257-270, the repo's own Update section, says that requires a git pull plus re-running SETUP steps 6-8), and not for a future install (which ignores the pin and clones main). The demand's stated premise — 'the gap was ONE file' — is what produced this: the plugin was made discoverable without making anything in the kernel plugin-aware. SETUP.md contains no occurrence of 'plugin' or 'marketplace'."
+evidence = "README.md:230-232 against README.md:257-270; skills/fde-init/SKILL.md:10-12 and skills/fde-sync/SKILL.md:8-12 (both clone main); grep `CLAUDE_PLUGIN_ROOT` over skills/, agents/, SETUP.md, README.md, .claude-plugin/ → no matches; grep 'plugin|marketplace' over SETUP.md → no matches; .claude-plugin/plugin.json:3 (version 0.11.0); code.claude.com/docs/en/plugins-reference.md 'Version management' (plugin.json version is the cache key)."
+blocking = true
+
+[[finding]]
+id = "F4"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "the five roles the README advertises as arriving with the plugin cannot do the job they describe in the only project state where the plugin is the sole install. agents/fde-adversarial.md:17-20 sends the heuristic pass to `.fde/spec/dimensions/quality-attributes.toml` and :62-65 sends the attack order to `[weights]` in `fde.config.toml` — both project-relative, both created only by fde-init. Invoke `forward:fde-adversarial` in a project that has not run it and the agent is told to cite principles from a file that does not exist, in a kernel whose I8 says in the same breath 'Judgment without a named principle is not a finding' — so the pass cannot be performed and cannot be skipped. The plugin ships `spec/dimensions/quality-attributes.toml` at its own root and the agent has no fallback to it (PROBE D). README.md:234-237 raises only the weaker caveat — the plugin roles are 'the generic ones' and project copies are 'concretized to that project's weights, prefer those' — which tells a reader the plugin roles are a slightly worse version of a working thing, not an inoperable one. Nothing in the suite exercises a role file against a project that lacks `.fde/`."
+evidence = "agents/fde-adversarial.md:17-20 and :61-65; README.md:234-237; AGENTS.md I8; the plugin's own copy at spec/dimensions/quality-attributes.toml is unreferenced (grep CLAUDE_PLUGIN_ROOT → no matches)."
+blocking = true
+
+[[finding]]
+id = "F5"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "the marketplace publishes a machine-readable licence grant that the repository does not make. `.claude-plugin/marketplace.json:12` declares `\"license\": \"Apache-2.0\"` in a distribution catalogue, where the field is what a consumer's policy tooling reads before installing — and `git ls-files` shows the repository contains no LICENSE, LICENSE.md, or COPYING file at all. The only other statements are prose: README.md:342-344 ('Apache-2.0.') and a comment at fde.config.toml:15 ('open Apache-2.0 repository'). With no licence text in the repository, the default is all-rights-reserved, so the catalogue entry asserts a grant of rights that no file in the artifact actually grants. FWD-014 is what turns this from an internal inconsistency into a published claim, and it adds a second copy of it (plugin.json:5 already carried one) without noticing the file behind it is missing. This is the same class the previous demand's review already charged against this repo ('the right licence')."
+evidence = ".claude-plugin/marketplace.json:12 and .claude-plugin/plugin.json:5 against `git ls-files | grep -i licen` → no matches; README.md:342-344; fde.config.toml:15."
+blocking = true
+
+# ---------------------------------------------------------------------------
+# maintainability — weight 22, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F6"
+attribute = "maintainability"
+severity = "medium"
+probe = "`.claude-plugin/` is absent from `behavior_paths`, so I1 — the invariant whose whole job is forcing a measure alongside a behavior change — is structurally blind to the file that decides what every installer downloads. PROBE B: repointed `plugins[0].source` to `{\"source\": \"github\", \"repo\": \"someone-else/forward\"}`, staged it, ran `python3 bin/fde/verify.py --staged`: `✓ I1 no behavior change in this changeset`, all gates passed. `.githooks/pre-commit:4` execs only `verify.py --staged`, so that commit lands green on the developer's machine; the suite is CI-only. The same hole covers `plugin.json`: a version bump — the field README.md:231-232 says drives updates for every user — is 'no behavior change' to the gate. fde.config.toml:31-34 enumerates twelve behavior prefixes and its own comment states the rule this breaks: 'The installed copies (bin/fde/, .fde/, .claude/, workflow, AGENTS.md) are what CI and agents actually execute: change-controlled too (finding F4)'. The plugin manifests are precisely that class — the surface a user actually executes — and the demand that created the distribution channel did not add its directory to the list it was already required to be on. MNT-1."
+evidence = "fde.config.toml:31-35 (no `.claude-plugin/`); runtime/verify.py:94-115 (gate_eval_coverage); .githooks/pre-commit:4; reproduced: staged source-repointing → `I1 no behavior change in this changeset`, all gates passed."
+blocking = true
+
+[[finding]]
+id = "F7"
+attribute = "maintainability"
+severity = "medium"
+probe = "the commit builds a guard against ONE duplicated fact while the same seventeen-line file duplicates three others, and the guard's own comment miscounts the thing it guards. tests/test_install_sync.py:70-75 exists solely to keep `version` single-sourced (MNT-1) — meanwhile marketplace.json:11 repeats plugin.json's `keywords` array verbatim (identical five elements), :12 repeats `license` verbatim, and :9 introduces a SECOND, DIFFERENT description for the same plugin ('Empirical, adversarial and heuristic review as gate invariants...' vs plugin.json:4 'FORWARD - a delivery kernel for forward-deployed engineering...'). No test asserts any of the three agree; PROBE A set the entry licence to MIT against plugin.json's Apache-2.0 and the suite stayed green. Then the comment: 'a version here would be a fifth carrier to keep in sync' — there are already five (fde.config.toml:12, spec/invariants.toml:13, spec/references/ui-patterns.toml:22, templates/fde.config.template.toml:10, .claude-plugin/plugin.json:3; test_spec_integrity.py:131-136 enumerates exactly those, and the FWD-012 review recorded 'All five version carriers'), so a version here would be the SIXTH. The rationale a future reader will rely on is off by one about its own subject. The guard is also scoped to `self.market[\"plugins\"][0]`, so a top-level `version` — a documented optional marketplace field — is an unguarded carrier: PROBE A added `\"version\": \"9.9.9\"` at the top level and 176 tests stayed OK. MNT-1, MNT-10."
+evidence = ".claude-plugin/marketplace.json:9, :11, :12 against .claude-plugin/plugin.json:4-5, :6; tests/test_install_sync.py:70-75 (comment 'a fifth carrier' and the `plugins[0]`-scoped assertion); tests/test_spec_integrity.py:128-136 (five carriers enumerated); reviews/FWD-012/findings.toml ('All five version carriers'); reproduced: top-level version 9.9.9 + entry licence MIT → 176 tests OK, 16/16 gates green."
+blocking = true
+
+[[finding]]
+id = "F8"
+attribute = "maintainability"
+severity = "medium"
+probe = "this demand landed inside the sprint whose dated goal is 'A claim the kernel makes about the world names its source, its date, and is verified against the artifact — and goes red when it ages', and it records neither source nor date for any of the six external claims it makes. The claims are real and load-bearing: that `source: \".\"` is a valid plugin source, that `category`/`keywords`/`homepage`/`repository`/`license` are valid ENTRY keys, that plugin skills are invoked `/<plugin>:<skill>`, that plugin agents appear as `plugin:agent`, that omitting the entry `version` leaves plugin.json authoritative, and that `/plugin update` semantics follow the manifest version. I verified them against code.claude.com/docs/en/plugin-marketplaces.md and plugins-reference.md and most hold — that is not the finding. The finding is that nothing in the artifact says WHICH document, at WHAT version of Claude Code, on WHAT date, so the next reader cannot re-check them and the suite cannot go red when the schema moves; the docs already carry per-version qualifiers ('As of Claude Code v2.1.196', 'Requires Claude Code v2.1.224 or later') that make silent drift the expected case, not the exception. The commit message asserts 'Verified against the docs before promising anything (the S-005 retro rule)' — an unfalsifiable claim about an unnamed source, which is the exact shape sprints/S-006/goal.md:10 was written in response to ('five factual errors in two demands, each one a confident claim about an external source that no test could falsify'). MNT-10, MNT-4."
+evidence = "sprints/S-006/goal.md:2 (the dated goal), :10 (the evidence that motivated it), :19 (the Unplanned row for this demand); .claude-plugin/marketplace.json:1-17 (no source, no date, no `$schema`); tests/test_install_sync.py:51-84 (no citation, no expiry); commit ad959ae message."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# usability_accessibility — weight 12
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F9"
+attribute = "usability_accessibility"
+severity = "medium"
+principle = "USE-4"
+probe = "the first command of the new Install section fails for the reader most likely to run it, and the README offers no way out. README.md:218 gives only `/plugin marketplace add dascbh/forward`, the `owner/repo` shorthand — and the documentation states: 'GitHub `owner/repo` shorthand sources clone over SSH by default; set `CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1` to clone them over HTTPS instead.' A first-time reader discovering an open framework has no reason to have a GitHub SSH key loaded in ssh-agent, and this repository's own remote is `git@github.com:dascbh/forward.git`. What they get is a git SSH authentication failure on step one of a public, read-only install. The README documents neither the HTTPS form (`/plugin marketplace add https://github.com/dascbh/forward.git`, valid per 'Host on other git services') nor the environment variable — while every other install path on the same page is HTTPS (README.md:245, :262). USE-4: every error names a way out; here the error surfaces from git, not from FORWARD, and nothing on the page connects it to a fix."
+evidence = "README.md:218 against README.md:245 and :262; `git remote -v` → git@github.com:dascbh/forward.git; code.claude.com/docs/en/plugin-marketplaces.md 'Private repositories → Commands you run' (SSH by default for owner/repo shorthand; CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1) and 'Host on other git services' (fetched 2026-08-10)."
+blocking = false
+
+[[finding]]
+id = "F10"
+attribute = "usability_accessibility"
+severity = "medium"
+principle = "USE-3"
+probe = "after `/forward:fde-init` every skill exists twice under two different names and the artifact states no rule for which to invoke. The project gets ten skills at `.claude/skills/fde-*` (invoked `/fde-verify`) while the plugin keeps all eleven as `/forward:fde-verify` — identical today, divergent the moment either side moves, which is guaranteed because the project copies are re-emitted by fde-sync and the plugin copy only by `/plugin update`. README.md:234-237 identifies exactly this hazard for the FIVE AGENTS and resolves it ('prefer those inside an installed project'), says nothing at all about the TEN SKILLS, and two lines earlier (README.md:230) actively instructs the plugin copy — '`/forward:fde-sync` re-emits everything from current sources' — i.e. the copy that will be stale relative to the project's own. The kernel's own truth-teller was not updated either: skills/fde-doctor/SKILL.md:19-22 checks 'the skills in `.claude/skills/fde-*`' as the claude-code native layer, so for a plugin-only user it reports the native layer missing while eleven working skills sit in front of them — a false report from the one skill whose stated purpose is that it 'keeps anyone from thinking they have a wall when they only have a recommendation'. USE-3 (same concept, same name and behaviour everywhere) and MNT-10 (when how to operate the system changes, the docs change in the same commit)."
+evidence = "README.md:230 and :234-237; skills/fde-doctor/SKILL.md:14-22; tests/test_install_sync.py:88-97 (ten project skill copies, fde-init excluded) against the eleven the plugin ships from skills/."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# observability — weight 10
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F11"
+attribute = "observability"
+severity = "medium"
+principle = "OBS-1"
+probe = "the demand creates a second, independently versioned distribution path and emits no signal that can confirm or deny which kernel a project is actually running. `kernel_version` appears NOWHERE in runtime/verify.py and nowhere in SETUP.md — the gate never reads it, the installer never records where it came from. So after FWD-014 there are two pins that can disagree (the plugin's `version`, cached per user, and the project's `fde.config.toml` `kernel_version`, copied from whatever `main` the clone caught) and no surface anywhere reports either one, let alone the gap. observability.toml was not touched by this commit; its maintainability signal (line 7) names test_spec_integrity and test_install_sync 'version sync' — which is version sync WITHIN this repo, and says nothing about an installed project's kernel version versus the source it came from. OBS-1: every declared attribute emits a signal that can confirm or deny it; the only new attribute surface this demand created has none. The practical failure it leaves undiagnosable: a user reports the kernel behaving like 0.9 and there is no command that answers 'which version is installed here, and against which does the gate you just ran belong'."
+evidence = "grep `kernel_version` over runtime/verify.py and SETUP.md → no matches; observability.toml:5-13 (unchanged by ad959ae); fde.config.toml:12 vs .claude-plugin/plugin.json:3 (two independent pins after this commit)."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# security_privacy — weight 8
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F12"
+attribute = "security_privacy"
+severity = "low"
+principle = "SEC-3"
+probe = "`source: \".\"` makes the plugin the whole repository, so every install and every update copies the complete delivery record into `~/.claude/plugins/cache`. Of 145 tracked files, 61 — 42% — are `reviews/`, `sprints/`, `promotions/`, `specs/` and `docs/`: eighty adversarial findings, every retro, the backlog, every promotion decision. For THIS public repo that is a choice, not a leak; the defect is that it is an unexamined default being demonstrated as the pattern, in a kernel whose entire purpose is to be installed and forked. A team that adopts FORWARD keeps client review reports in exactly those directories, and the moment they copy this seventeen-line manifest into their own repo — which the README now shows them how to do — `/plugin marketplace add` ships all of it to anyone who adds their marketplace. The documented containment exists and is unused: a subdirectory source (`\"source\": \"./plugins/forward\"` with only the shippable surface under it), or the entry's `skills`/`agents` path fields to bound what the plugin exposes. Neither the manifest nor the README records that the trade-off was considered. SEC-3 (data not shipped beyond need) and SEC-2 (the lazy path should be the safe path). Secondary cost: `${CLAUDE_PLUGIN_ROOT}` is a full repo copy re-materialised on every version bump, for a plugin whose useful payload is skills/ + agents/."
+evidence = ".claude-plugin/marketplace.json:8 (`source: \".\"`); `git ls-files | wc -l` = 145, `git ls-files | grep -cE '^(reviews|sprints|promotions|specs|docs)/'` = 61; code.claude.com/docs/en/plugin-marketplaces.md 'Relative paths' and 'Plugin entries → Component configuration fields' (fetched 2026-08-10)."
+blocking = false
