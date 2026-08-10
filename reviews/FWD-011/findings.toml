@@ -1,0 +1,172 @@
+# Adversarial review — FWD-011 amplify the UI reference base, commit 93ac411.
+# Reviewer received artifact + spec only (I2). XS = one round.
+# Findings only; no fixes (I3).
+
+[meta]
+demand_id = "FWD-011"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 1
+rounds_run = 1
+commit = "93ac411"
+agent_transcript = "agent-a3e27aa5ebaab0f64"
+probed = """
+Ran the full suite (160 green) and `python3 bin/fde/verify.py --all` (all
+16 gates green) at 93ac411. FWD-011 is XS so there is no spec dir; the
+declared justification is the row added to sprints/S-005/goal.md:11 and
+the governing doctrine is docs/adr/0012 plus the base's own header rules
+(ui-patterns.toml:1-17, :168-176).
+
+PROBE A — verified the six recurrence claims against their cited source
+by scraping component.gallery through a headless browser (the site 403s
+plain fetches). accordion: the page heading reads '101 Examples (101
+shown)', and 27 of those entries are second or third entries from a
+design system already listed (Lightning x3, Seek x3, Wanda x3, and 21
+systems with x2: Cauldron, Chakra UI, Clarity, Dell, eBay MIND, GOV.UK,
+generic-components, Instructure-UI, Jokul, Mozilla Protocol, NHS,
+Nucleus, ONS, Orbit, PatternFly, Radix, Reach UI, Red Hat, SEB, shadcn,
+West Midlands) -> 101 - 27 = 74 distinct design systems. pagination: '48
+Examples', duplicates Bolt x2 and Elisa x2 -> 46 distinct. breadcrumbs:
+'55 Examples', no repeats -> 55 distinct.
+
+PROBE B — implemented the documented selection order literally
+(ui-patterns.toml:168-176 = SKILL.md:168-179) and ran it on three jobs.
+Job 'a web-only operations console': step 1 applies all three
+baseline=true entries with no platform filter, so mobile-primary-
+navigation (platform=mobile) is owed on a surface with no mobile. Job
+'work through 5,000 support tickets on the web': job matches
+{resource-list-bulk-actions, search-filter-facets, set-traversal}; the
+rule 'an exact platform beats all' eliminates set-traversal. Job 'primary
+navigation on a product spanning phone/tablet/desktop': the obligation
+and adaptive-navigation are both in force and prescribe opposite things
+about the drawer.
+
+PROBE C — re-implemented the three new assertions in tests/test_
+references.py and fed them hostile input. The locale test passes on a
+base with ZERO Brazilian systems (any string containing 'brazil' will
+do, including 'not suitable for Brazil'), passes on exactly one, and
+goes RED on a base covering Japan + India + China. The recurrence test
+passes with all six values replaced by 17 junk characters and with all
+six inflated to '999999 systems'.
+
+PROBE D — computed the reverse of test_every_canonical_reference_
+resolves_to_a_declared_system: 7 of 18 systems are cited by no pattern.
+
+PROBE E — checked the three source claims that describe what a directory
+is good for, against the sources.
+
+SAFE: spec/references/ui-patterns.toml and .fde/spec/references/
+ui-patterns.toml are byte-identical, as are skills/fde-design/SKILL.md
+and .claude/skills/fde-design/SKILL.md. All five version carriers read
+0.10.1 and the base's spec_version is now inside
+test_kernel_version_is_synced_everywhere (tests/test_spec_integrity.py:
+132-136) — FWD-010's F9(b) is closed. Pattern ids are unique; every
+platform value is legal; the component-code guard still fires on all six
+of its samples. The system labels po-ui/TOTVS, nimbus/Nuvemshop-
+Tiendanube, cloudscape/AWS, ant, nhs and gestalt/Pinterest all check out
+as real systems in the register claimed.
+"""
+
+# ---------------------------------------------------------------------------
+# functional_correctness — weight 30, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "critical"
+probe = "the recurrence numbers — the demand's headline contribution, the thing that turns the inclusion rule 'from an assertion into auditable evidence' — are component.gallery's EXAMPLE counts transcribed as DESIGN-SYSTEM counts, and the largest one is wrong by 36%. PROBE A, scraping the cited pages: component.gallery/components/accordion/ heads its list '101 Examples (101 shown)', not '101 design systems'. Twenty-seven of those 101 entries are a second or third entry from a system already in the list — Lightning Design System contributes Accordion + Expandable Section + Summary Detail, Seek contributes Accordion Item + Read More + Toggle Content, Wanda contributes Disclosure + Accordion + Expander, and 21 more systems contribute two each (GOV.UK Accordion + Details, NHS Expander + Details, Radix Accordion + Collapsible, shadcn Accordion + Collapsible, ...). Distinct design systems: 101 - 27 = 74. The base asserts 101. The same misreading runs through the others: pagination reads '48 Examples' with Bolt x2 and Elisa x2, so 46 distinct, not 48; breadcrumbs reads '55 Examples' with no repeats, so that one is accidentally right. The cause is written into the artifact and will reproduce on every future entry: the directory entry defines the source as 'recurrence evidence — how many design systems implement a component' (ui-patterns.toml:148), and component.gallery publishes no such figure. Worse, the inflation is largest exactly where the base itself flagged the aliasing — the entry is labelled 'accordion/disclosure' because the component has ten names, and multi-name components are precisely the ones a single system lists twice. Nothing in the suite or the gate can see it: 160 tests OK, all 16 gates green."
+evidence = "spec/references/ui-patterns.toml:355 ('accordion/disclosure in 101 systems (component.gallery)') and :366 ('pagination in 48 systems') against https://component.gallery/components/accordion/ ('## 101 Examples (101 shown)', 74 distinct systems) and https://component.gallery/components/pagination/ ('## 48 Examples (48 shown)', 46 distinct); the mislabelled use_for at spec/references/ui-patterns.toml:148; commit message 93ac411 ('the most useful find is component.gallery's recurrence counts: they turn the base's own inclusion rule ... into auditable evidence')."
+blocking = true
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "high"
+principle = "DOM-5 no orphans, both ways: requirement without screen, screen without requirement, criterion without verification, state without representation"
+probe = "seven of the eight design systems this demand added are cited by no pattern, so the documented selection order can never reach them — the registers the demand was justified by are declared and unreachable. PROBE D: the union of every pattern's `canonical` is {polaris, carbon, primer, hig, fluent, atlassian, govuk, material, apg, radix-shadcn, cloudscape}; dsgov, po-ui, nimbus, spectrum, ant, nhs and gestalt appear in no list. The order at ui-patterns.toml:168-176 and SKILL.md:168-179 reaches a system only through a matched pattern's `canonical` ('study the canonical systems the entry names') — there is no step that reads the [[system]] table directly. The sprint row justifies the demand as widening the base 'with registers it did not cover ... Brazilian/pt-BR public sector and enterprise, cloud consoles, creative tools, clinical'; of those, only cloudscape is wired in (one citation, adaptive-navigation). The pt-BR case is the sharpest: dsgov exists because 'the global systems carry none of the pt-BR conventions or the local legal accessibility floor' and the place that bites is forms — yet progressive-form (:198-206) still cites only govuk and carbon, both of which encode en-GB conventions. The suite asserts this relation in one direction only (test_every_canonical_reference_resolves_to_a_declared_system, tests/test_references.py:44-47); nothing asserts a declared system is used by anything, so seven dead entries ship green."
+evidence = "spec/references/ui-patterns.toml:90-136 (the eight added systems) against the `canonical` lists at :182, :192, :202, :212, :222, :232, :242, :253, :263, :273, :283, :293, :304, :315, :325, :335, :350, :361, :372, :383, :394, :405; tests/test_references.py:44-47 (forward direction only); sprints/S-005/goal.md:11."
+blocking = true
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "high"
+probe = "both assertions this demand added to guard its own new content are the tautology class the previous review killed — neither can fail for the property its name states. PROBE C, re-implementing them verbatim. (a) test_systems_cover_more_than_one_locale_of_convention asserts `'brazil' in blob` over the concatenated best_at + study_when. Delete BOTH Brazilian systems and append the words 'not suitable for Brazil' to any remaining entry -> still green. Keep exactly one Brazilian system -> still green, on a test whose name says 'more than one'. Build a base covering Japan, India and China with no Brazilian system -> RED, on a base that covers three locales. It is a one-country substring check wearing the name of a diversity invariant, and it hardcodes Brazil into the kernel's suite as a permanent requirement no client can satisfy differently. (b) test_recurrence_evidence_is_substantive_where_claimed asserts `len(p['recurrence']) > 15` on at least five entries. Replace all six values with 'xxxxxxxxxxxxxxxxx' -> green. Inflate all six to 'accordion in 999999 systems (component.gallery)' -> green. That second case is not hypothetical: F1 is a real 36% inflation and this test is the only thing standing over it. The floor of five also freezes the shipped minority — six of 22 entries carry evidence and the assertion is satisfied forever."
+evidence = "tests/test_references.py:72-77 (locale) and :64-70 (recurrence); reproduced: zero Brazilian systems green, JP+IN+CN red, junk strings green, 999999 green; reviews/FWD-010/findings.toml F3 (the same class, previously found and fixed for the divergence assertions)."
+blocking = true
+
+[[finding]]
+id = "F4"
+attribute = "functional_correctness"
+severity = "high"
+probe = "progressive-disclosure names `material` as a canonical implementation of a component Material Design does not ship, so the step 'study the canonical systems the entry names' sends the reader to a system with nothing to study. Expansion panels were removed from Material Design at M2 and Material 3 documents no accordion, disclosure or expansion-panel component; the surviving implementations (Angular Material, MUI) are libraries, not the specification the base points at. Corroborated by the base's own cited source: component.gallery's accordion page lists 74 distinct design systems and Material Design is not among them — the one system the entry claims for the pattern is the one the recurrence evidence does not contain. The entry cites carbon, govuk and material; the first two are real (Carbon Accordion, GOV.UK Accordion + Details, both in the source list). Nothing checks this class of claim: test_every_canonical_reference_resolves_to_a_declared_system only verifies the string `material` is a declared id, never that the system implements the pattern."
+evidence = "spec/references/ui-patterns.toml:346-355 (progressive-disclosure, canonical = [carbon, govuk, material]); m1.material.io/components/expansion-panels.html is the last specification version, absent from m3.material.io/components; https://component.gallery/components/accordion/ (74 distinct systems, no Material Design entry); tests/test_references.py:44-47."
+blocking = true
+
+[[finding]]
+id = "F5"
+attribute = "functional_correctness"
+severity = "high"
+probe = "step 1 of the 'deterministic' order applies baseline obligations with no platform filter, and the pattern this demand added now contradicts one of them. PROBE B. (a) The order states baselines are satisfied FIRST and 'never compete for a job'; platform filtering is step 2 and applies only to 'the rest'. mobile-primary-navigation is baseline = true with platform = 'mobile'. Run the order for a web-only operations console: all three obligations are owed, including one whose a11y contract is 'targets at least 44pt; current tab announced as selected; reachable with one hand'. The reader must either honour a mobile navigation obligation on a desktop console or invent a platform filter the procedure does not contain. (b) Worse, for a responsive product the obligation and the new candidate prescribe opposite things and both are in force. mobile-primary-navigation.fails_when: 'a drawer hides the primary destinations: use a tab bar for 3-5 peers, a drawer only for secondary'. adaptive-navigation.states requires 'expanded (drawer)' as a form of the SAME primary navigation, and its a11y requires 'the destination set is identical in every form' — i.e. the drawer carries the primary destinations. The base's only tie-break covers 'if several survive' among candidates (:174-176); there is no rule for an obligation contradicting a candidate, and the platform vocabulary (web / mobile / all) cannot express the tablet/expanded viewport where the contradiction lands."
+evidence = "spec/references/ui-patterns.toml:168-176 (the order; step 1 unconditional, platform filter only at step 2) and skills/fde-design/SKILL.md:168-172; :299-308 (mobile-primary-navigation, baseline = true, platform = 'mobile'); :401-410 (adaptive-navigation, platform = 'all', states and a11y); reproduced by running the documented order on 'a web-only operations console' and on a phone/tablet/desktop product."
+blocking = true
+
+[[finding]]
+id = "F6"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "the platform tie-break systematically eliminates set-traversal on the exact surface where pagination lives. PROBE B, job 'work through 5,000 support tickets on the web'. Step 2 matches on job: resource-list-bulk-actions ('find, select and act on many records without leaving the list'), search-filter-facets ('narrow a large set to the few that matter') and set-traversal ('move through a set too large for one screen without losing your place') all match. Then 'an exact platform beats all': the first two are platform = 'web', set-traversal is platform = 'all', so set-traversal is dropped before its fails_when is ever consulted. The pattern added in this commit to cover pagination is unreachable for web lists — the single most common place pagination appears — because it was declared more broadly than its neighbours. The same shape hits typeahead-selection and file-intake (both 'all') whenever they co-match with a 'web' entry."
+evidence = "spec/references/ui-patterns.toml:171-173 ('match on `job` first, then filter by `platform` (an exact platform beats \"all\")'); :178-186 and :208-216 (platform = 'web') against :357-366 (set-traversal, platform = 'all'); reproduced by running the documented order on the stated job."
+blocking = false
+
+[[finding]]
+id = "F7"
+attribute = "functional_correctness"
+severity = "high"
+probe = "the base's declared job is to say WHICH implementation to study, and not one of its 18 systems carries an address — while all four directories do, and a test enforces theirs. The header states 'The reader studies the canonical implementation; the kernel only says which one, for which job' (:4-8) and the systems section is titled 'which one to study, for what' (:24). A reader following the order to 'study the canonical systems the entry names' gets a label and a search box. That was survivable while the ten original systems were globally famous; the eight added here are not, and three resolve wrong by name. `gestalt` searched as a design term returns the Gestalt principles of perception, not Pinterest's system at gestalt.pinterest.systems. `spectrum` is Adobe Spectrum here but is a common system name. `dsgov` is labelled 'DSGov — Design System do Governo Federal (Brazil)', a legacy name: the system's current identity is 'Padrao Digital de Governo' at gov.br/ds (v4), while 'DSGov' resolves first to the superseded dsgov.estaleiro.serpro.gov.br site, so the reader lands on the version the demand did not mean. test_directories_are_declared_for_when_no_entry_fits asserts every directory url startswith 'https://' (tests/test_references.py:61); no equivalent exists for systems, and none can, because the field does not exist."
+evidence = "spec/references/ui-patterns.toml:4-8, :24, :30-136 (18 [[system]] entries, zero url fields) against :145-163 (4 [[directory]] entries, all with url) and tests/test_references.py:53-62; :90-94 (dsgov label) against the current gov.br/ds identity."
+blocking = false
+
+[[finding]]
+id = "F8"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "two of the four directory entries describe their source inaccurately, so the reader sent there by the USE-11 path looks for an axis that is not there. (a) designsystemsbrasileiros is declared 'Brazilian systems by sector and which are open'. The site organises by tag — components, figma, open-source, repo, ux-writing, closed — and has no sector axis at all; sector is inferable only from company names. The 'which are open' half is right. (b) awesome-design-systems is declared '160+ systems tagged by what they actually ship'; the tag vocabulary quoted (components, voice and tone, designer kit, source) is correct, but the list today carries well over 300 entries, and the commit message pins it more precisely at '163 systems'. A count recorded for a list that only grows, with no as-of date, is wrong the day after it is written (see F9)."
+evidence = "spec/references/ui-patterns.toml:160-163 (designsystemsbrasileiros use_for) against https://designsystemsbrasileiros.com (tags: components, figma, open-source, repo, ux-writing, closed; no sector axis); :155-158 ('160+ systems') against https://github.com/alexpate/awesome-design-systems."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# maintainability — weight 22, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F9"
+attribute = "maintainability"
+severity = "high"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting"
+probe = "the demand's contribution is seven numbers copied out of remote catalogues, and every one is stored with no link back, no accessed date and no as-of stamp — so the copy and the source can diverge silently and forever. The six `recurrence` values cite '(component.gallery)' with no per-component URL, although those URLs exist (component.gallery/components/accordion/ etc.) and the directory entry three sections above stores a URL for the site. The seventh, '160+ systems', is in the awesome-design-systems use_for. All are counts over catalogues that only grow; component.gallery's own totals move as systems are added. [meta] still carries `kind` and `spec_version` only — no `reviewed`, no `sources_checked` — which the previous review already recorded (FWD-010 F11), and this commit multiplies the exposure from zero volatile facts to seven without touching it. Consequence, already realised: F1 is a 36% error and there is no artifact field, no test and no gate that can distinguish a number checked today from one checked never. The repository has the vocabulary for exactly this and did not apply it — the backlog's evidence ladder (opinion < usage-data < user-test < production, AGENTS.md) and the dated `date:` line every spec and sprint goal carries."
+evidence = "spec/references/ui-patterns.toml:19-21 ([meta] = kind + spec_version), :341-344 (the recurrence comment, no date requirement), :355, :366, :377, :388, :399, :410 (six counts, source named but not linked), :155-158 ('160+'); tests/test_references.py:64-70 (asserts length only); reviews/FWD-010/findings.toml F11 (the missing reviewed/sources_checked stamp, recorded and still open)."
+blocking = true
+
+[[finding]]
+id = "F10"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-4 decisions are written where the next reader will look (ADR, not memory) — and an ADR records the alternatives it rejected, or it is an announcement, not a rationale"
+probe = "the header rule that is supposed to keep the base from becoming an encyclopedia is now evidenced on 6 of 22 entries, and the escape clause this commit added names an escape that does not exist. :10-12 states 'A pattern earns an entry by RECURRENCE, not by completeness. This is a curated base, not an encyclopedia'. The new comment at :341-344 says recurrence is 'Present where measured; a pattern without evidence has to justify itself some other way'. There is no other way: no `justification` field, no `rationale`, no ADR entry per pattern, nothing in the schema, nothing in the tests. Sixteen entries — every pattern that predates this commit — now sit in a two-tier base where the tier without evidence is defined by a promise the artifact cannot keep. The test locks the ratio in rather than raising it: `assertGreaterEqual(len(claimed), 5)` is satisfied by the six that shipped, so the inclusion rule is enforceable on 27% of the base permanently. The demand grew the base 10 -> 18 systems and 16 -> 22 patterns; the rule that decides what may enter it got a comment, not a mechanism."
+evidence = "spec/references/ui-patterns.toml:10-12 (the inclusion rule) and :341-344 (the escape clause); the 16 entries without a recurrence field at :178-339; tests/test_references.py:64-70 (floor of 5); docs/adr/0012-divergence-is-structural-references-are-criteria.md:69-72 ('the discipline that keeps it from becoming an encyclopedia is the same recurrence rule that governs the principle catalogs')."
+blocking = false
+
+# ---------------------------------------------------------------------------
+# observability — weight 10
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F11"
+attribute = "observability"
+severity = "medium"
+principle = "OBS-1 every declared attribute emits a signal that can confirm or deny it"
+probe = "the base doubled in size and emits nothing that could confirm or deny that any of it is current or used. There is no signal for: when the five directories were last consulted, whether a recurrence number still matches its source, which entries a demand actually selected, or whether the [[directory]] fallback path was taken before novelty was declared. observability.toml's usability_accessibility signal is unchanged by this commit and still reads as field reports from installed projects, which cannot answer any of those. The consequence is F1's shape: a wrong number sat in a spec file behind 160 green tests and 16 green gates, and the only thing that surfaced it was an external reviewer scraping the source by hand. Contrast the kernel's own precedent — erosion ships a measured quantity and a gate that reads it; this ships facts about the outside world with no instrument pointed at them."
+evidence = "spec/dimensions/observability.toml (usability_accessibility signal, not in `git show 93ac411 --stat`); spec/references/ui-patterns.toml:19-21 ([meta] carries no reviewed/sources_checked); `python3 bin/fde/verify.py --all` = all gates passed with the F1 error present."
+blocking = false
