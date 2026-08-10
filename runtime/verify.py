@@ -40,7 +40,7 @@ EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "finding-discipline", "promotion-criteria", "observability",
                "portability", "artifact-handoff", "scrum", "traceability",
-               "erosion", "divergence")
+               "erosion", "divergence", "survey")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -349,6 +349,23 @@ class Gate:
                  "within the declared erosion budget" if not breaches
                  else "; ".join(breaches[:3]))
 
+    # -- survey: the brownfield map is complete, labeled and anchored -----
+    def gate_survey(self, explicit: bool = False) -> None:
+        try:
+            import survey
+            present, breaches = survey.check(self.project)
+        except Exception as e:
+            self.add("SURVEY", False, f"survey could not be checked: {e}")
+            return
+        if not present:
+            if explicit:
+                self.add("SURVEY", True, "no discovery/survey.md — a survey is "
+                                         "owed by brownfield demands, not by every project")
+            return
+        self.add("SURVEY", not breaches,
+                 "survey complete, every claim labeled, anchor recorded"
+                 if not breaches else "; ".join(breaches[:2]))
+
     # -- traceability: the artifact graph has no forbidden orphans --------
     def gate_traceability(self) -> None:
         try:
@@ -471,6 +488,8 @@ def main() -> int:
             g.gate_erosion(explicit=(only == "erosion"))
         if want("divergence"):
             g.gate_divergence()
+        if want("survey"):
+            g.gate_survey(explicit=(only == "survey"))
 
     if not g.results:
         print("\033[31m✗\033[0m no gate ran — check the flags", file=sys.stderr)

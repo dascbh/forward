@@ -1,6 +1,6 @@
 {
   "name": "forward",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "FORWARD - a delivery kernel for forward-deployed engineering: empirical review and adversarial review as gate invariants, portable across agentic tools.",
   "author": {
     "name": "Daniel Abraão Silva Costa",

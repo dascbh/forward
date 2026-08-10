@@ -76,6 +76,12 @@ writing code on request; start by sizing. Pick a short demand id first
    `failure-modes.toml`, and `acceptance.md` with a `date:` line —
    declared before any code exists (I4).
 3. **Architecture** (L only): `docs/adr/`, `specs/<demand-id>/architecture.md`.
+   *Inherited an undocumented system?* Before the first demand, survey it
+   (`fde-survey` → `discovery/survey.md`): how it runs, its real
+   boundaries, what the history shows, the seams, the decisions no ADR
+   records, the risk, and what stays unknown — every claim labeled
+   `[observed]`/`[inferred]`/`[to confirm]`. A greenfield project owes
+   nothing.
    *UI surface touched?* The design chain (`fde-design` skill) applies,
    proportional to size: M adds flow + wireframe before implementation;
    L adds PRD-grade spec, IA, and user validation. The approved wireframe

@@ -304,6 +304,8 @@ tools; installed into the project for Claude Code):
   query a demand's context, mine recurring findings, enforce traceability
 - `fde-erosion` — measure and gate long-term decay: clone ratio,
   add/delete ratio, batch size, against an opt-in `[erosion]` budget
+- `fde-survey` — architectural reconnaissance of a system nobody
+  documented: the map a team needs when it takes over, evidence-labeled
 - `fde-verify` — the gate: `python3 bin/fde/verify.py --all` (same as CI)
 - `fde-doctor` — what is actually enforced vs. merely suggested
 - `fde-sync` — regenerate after config, stack, or tool changes

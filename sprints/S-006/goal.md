@@ -16,4 +16,5 @@ promotion decision, and the owner runs the review + retro sitting.
 
 | demand | size | why it bypassed the backlog |
 |---|---|---|
+| FWD-015 brownfield survey | M | the owner is taking over an undocumented project and the kernel had nothing for it: fde-init classifies a stack to configure the gate and never reads architecture or history. The `discovery/` slot has been declared as the spec role's input since day one and never written to. Does not serve the sprint goal — second unplanned this sprint, which the S-005 retro said to watch |
 | FWD-014 plugin distribution | XS | the owner is starting a new project and needs `/forward:fde-init` to exist; the repo already shipped `.claude-plugin/plugin.json`, `skills/` and `agents/` in the right places, so the gap was one file (`marketplace.json`) making the repo its own marketplace. Does not serve the sprint goal — recorded here, surfaces at the retro |

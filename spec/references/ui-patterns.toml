@@ -19,7 +19,7 @@
 [meta]
 kind = "reference_base"
 sources_checked = "2026-08-09"
-spec_version = "0.11.0"
+spec_version = "0.12.0"
 
 # ---------------------------------------------------------------------------
 # DESIGN SYSTEMS — which one to study, for what
