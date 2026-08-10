@@ -35,7 +35,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from fde_lib import project_root  # noqa: E402
+from fde_lib import gate_paths, path_matches, project_root  # noqa: E402
 
 DEFAULT_WINDOW = 50
 CLONE_K = 6  # line-window size for duplicate-block detection
@@ -61,13 +61,14 @@ MANIFESTS = {
 # ---------------------------------------------------------------------------
 # pure cores — no git, no fs; unit-tested directly
 # ---------------------------------------------------------------------------
-def parse_numstat(text: str) -> tuple[int, int]:
-    """Sum (added, deleted) from `git log --numstat` output. Binary files
-    show '-' and are skipped."""
+def parse_numstat(text: str, scope: tuple | None = None) -> tuple[int, int]:
+    """Sum (added, deleted) from `git log --numstat`. Binary files show
+    '-' and are skipped. `scope` is the declared churn scope; paths
+    outside it are not counted (FWD-016)."""
     added = deleted = 0
     for line in text.splitlines():
-        m = re.match(r"^(\d+)\t(\d+)\t", line)
-        if m:
+        m = re.match(r"^(\d+)\t(\d+)\t(.+)$", line)
+        if m and in_churn_scope(m.group(3).strip(), scope):
             added += int(m.group(1))
             deleted += int(m.group(2))
     return added, deleted
@@ -195,30 +196,67 @@ def dependency_count(project: Path) -> int | None:
     return total if seen else None
 
 
-def measure(project: Path, window: int = DEFAULT_WINDOW) -> dict:
-    """All stdlib signals. Every one degrades to None when unavailable —
-    a repo with no git history, no manifests, or an empty tree never
-    crashes the measurement (FM-4)."""
-    m: dict = {"window": window}
+def churn_scope(project: Path) -> tuple | None:
+    """The paths churn is measured over: the roots the project ALREADY
+    declared for I1 (`[gate] behavior_paths` + `eval_paths`), minus the
+    generated mirrors. Not a scope invented for this metric — decay is
+    measured where the project said its behavior lives. Artifacts
+    (reviews, specs, sprints, promotions) are outside it by construction:
+    an append-only audit trail that never shrinks is the record, not
+    accretion. None when no config declares them."""
+    cfg = project / "fde.config.toml"
+    if not cfg.exists():
+        return None
+    try:
+        raw = tomllib.loads(cfg.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError:
+        return None
+    bp, ep = gate_paths(raw)
+    return tuple(bp) + tuple(ep)
 
-    log = _git(project, "log", f"-{window}", "--numstat", "--format=")
-    if log.strip():
-        added, deleted = parse_numstat(log)
-        m["added"], m["deleted"] = added, deleted
-        m["add_delete_ratio"] = add_delete_ratio(added, deleted)
-        m["largest_change"] = _largest_change(project, window)
-    else:
-        m["add_delete_ratio"] = None
-        m["largest_change"] = None
+
+def in_churn_scope(path: str, scope: tuple | None) -> bool:
+    if path.startswith(EXCLUDED_PREFIXES):
+        return False           # generated mirrors are not organic growth
+    if scope is None:
+        return True            # no declaration: measure everything tracked
+    return path_matches(path, scope)
+
+
+def measure(project: Path, window: int = DEFAULT_WINDOW) -> dict:
+    """All stdlib signals. Duplication is measured over tracked code
+    files; churn (add/delete, largest change) over the declared behavior
+    and eval roots. Both exclude the generated mirrors, so the two agree
+    about what is organic. Every metric degrades to None when
+    unavailable — no git history, no manifests, empty tree — instead of
+    crashing.
+    """
+    m: dict = {"window": window}
 
     contents = _tracked_code(project)
     m["duplication_pct"] = duplicate_block_pct(contents) if contents else None
     m["files_scanned"] = len(contents)
+
+    scope = churn_scope(project)
+    m["churn_scope"] = ", ".join(scope) if scope else "everything tracked"
+
+    log = _git(project, "log", f"-{window}", "--numstat", "--format=")
+    if log.strip():
+        added, deleted = parse_numstat(log, scope)
+        m["added"], m["deleted"] = added, deleted
+        m["add_delete_ratio"] = (add_delete_ratio(added, deleted)
+                                 if (added or deleted) else None)
+        m["largest_change"] = _largest_change(project, window, scope)
+    else:
+        m["add_delete_ratio"] = None
+        m["largest_change"] = None
+
     m["dependencies"] = dependency_count(project)
     return m
 
 
-def _largest_change(project: Path, window: int) -> int | None:
+def _largest_change(project: Path, window: int,
+                    scope: tuple | None = None) -> int | None:
     # batch size = the largest NON-ROOT commit. A root/scaffold commit
     # (--min-parents=1 excludes 0-parent commits) is a bulk import, not a
     # batch — counting it makes max_change_lines a false wall on any repo
@@ -233,8 +271,8 @@ def _largest_change(project: Path, window: int) -> int | None:
             biggest = max(biggest, cur)
             cur = 0
             continue
-        mt = re.match(r"^(\d+)\t(\d+)\t", line)
-        if mt:
+        mt = re.match(r"^(\d+)\t(\d+)\t(.+)$", line)
+        if mt and in_churn_scope(mt.group(3).strip(), scope):
             cur += int(mt.group(1)) + int(mt.group(2))
     return max(biggest, cur)
 
@@ -291,7 +329,10 @@ def main() -> int:
 
     def fmt(v):
         return "n/a" if v is None else v
-    print(f"\nerosion signals (last {window} commits, {m['files_scanned']} code files)\n")
+    print(f"\nerosion signals (last {window} commits)")
+    print(f"  duplication over {m['files_scanned']} code files; churn over "
+          f"the declared roots: {m['churn_scope']}")
+    print(f"  (generated mirrors and the audit trail are outside both)\n")
     print(f"  add/delete ratio      {fmt(m['add_delete_ratio'])}   "
           f"(growth by accretion; lower is healthier)")
     print(f"  duplicate-block %     {fmt(m['duplication_pct'])}   "
