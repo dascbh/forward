@@ -36,6 +36,17 @@ class TestRuntimeCopies(unittest.TestCase):
             self.assertTrue(installed.exists(), f"{rel} not installed")
             self.assertEqual(read(src), read(installed), str(rel))
 
+    def test_no_orphan_files_in_the_installed_copies(self):
+        # the walk is bidirectional: a file deleted from the source but
+        # left installed is drift the one-directional check never sees
+        for installed in sorted((ROOT / ".fde" / "spec").rglob("*.toml")):
+            rel = installed.relative_to(ROOT / ".fde" / "spec")
+            self.assertTrue((ROOT / "spec" / rel).exists(),
+                            f"orphan installed copy: {rel}")
+        for installed in sorted((ROOT / "bin" / "fde").glob("*.py")):
+            self.assertTrue((ROOT / "runtime" / installed.name).exists(),
+                            f"orphan runtime copy: {installed.name}")
+
 
 class TestClaudeLayerCopies(unittest.TestCase):
     def test_skills_are_installed_identically_except_init(self):

@@ -54,8 +54,10 @@ def make_project(dir, data_class="internal", behavior='["src/"]',
     (p / "fde.config.toml").write_text(body, encoding="utf-8")
     dest = p / "bin" / "fde"
     dest.mkdir(parents=True, exist_ok=True)
-    for f in ("fde_lib.py", "verify.py", "guard.py", "graph.py", "erosion.py"):
-        shutil.copy(ROOT / "runtime" / f, dest / f)
+    # discovered, not enumerated (S-004 retro) — a new runtime module is
+    # in every fixture the moment it exists
+    for src in (ROOT / "runtime").glob("*.py"):
+        shutil.copy(src, dest / src.name)
     ks = p / ".fde" / "spec" / "dimensions"
     ks.mkdir(parents=True, exist_ok=True)
     for rel in ("invariants.toml", "roles.toml"):

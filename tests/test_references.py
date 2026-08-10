@@ -51,12 +51,40 @@ class TestReferenceBase(unittest.TestCase):
             self.assertIn(p["platform"], ("web", "mobile", "all"), p["id"])
 
     def test_the_base_contains_no_component_code(self):
-        # criteria and pointers only — a code fence or a tag means someone
-        # started bundling a component library (ADR-0012 rejects that)
-        text = BASE.read_text(encoding="utf-8")
-        self.assertNotIn("```", text)
-        self.assertFalse(re.search(r"</\w+>|=> *\{|function \w+\(", text),
-                         "component code found in the reference base")
+        # criteria and pointers only (ADR-0012). The guard must catch what
+        # a contributor would actually paste: JSX/HTML, arrow or classic
+        # components, CSS rule blocks, SwiftUI/Kotlin declarations.
+        self.assertFalse(self._code_hits(BASE.read_text(encoding="utf-8")))
+
+    @staticmethod
+    def _code_hits(text: str) -> list:
+        patterns = [
+            r"```",                              # fenced block
+            r"</\w+>|<\w+[^>]*/>",               # closing or self-closing tag
+            r"=>\s*[({]",                        # arrow component/function
+            r"\bfunction\s+\w+\s*\(",            # classic function
+            r"\bconst\s+\w+\s*=\s*\(",           # const component
+            r"\bclass\s+\w+\s*[({:]",            # class decl
+            r"\bstruct\s+\w+\s*:\s*View",        # SwiftUI
+            r"\bfun\s+\w+\s*\(.*\)\s*\{",        # Kotlin
+            r"[.#][\w-]+\s*\{[^}]*:",            # CSS rule block
+            r"\b(import|export)\s+[{\w]",        # module syntax
+        ]
+        return [p for p in patterns if re.search(p, text, re.M)]
+
+    def test_the_code_guard_actually_catches_pasted_components(self):
+        # the guard is only worth having if it fires — a guard nobody
+        # tested against real input is theater (review finding, FWD-010)
+        samples = [
+            'x = "const Btn = ({label}) => (<button>{label}</button>)"',
+            'x = "function Table(props) { return null }"',
+            'x = ".card { padding: 8px; }"',
+            'x = "struct CardView: View { var body: some View { Text(1) } }"',
+            'x = "import { Dialog } from radix"',
+            'x = """```tsx\nfoo\n```"""',
+        ]
+        for s in samples:
+            self.assertTrue(self._code_hits(s), f"guard missed: {s[:40]}")
 
     def test_base_is_installed_byte_identical(self):
         installed = ROOT / ".fde" / "spec" / "references" / "ui-patterns.toml"

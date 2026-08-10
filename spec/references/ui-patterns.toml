@@ -90,6 +90,15 @@ study_when = "always, before implementing any non-trivial widget — it is the a
 # ---------------------------------------------------------------------------
 # PATTERNS — the recurring jobs and where each is well solved
 # ---------------------------------------------------------------------------
+# SELECTION IS DETERMINISTIC, in this order:
+#   1. `baseline = true` entries are OBLIGATIONS, not candidates — every UI
+#      surface must resolve them (empty state, error recovery). They never
+#      compete for a job.
+#   2. Among the rest, match on `job` first, then filter by `platform`
+#      (an exact platform beats "all").
+#   3. If more than one still matches, the one whose `fails_when` does NOT
+#      describe the case wins. If several survive, the choice is a
+#      recorded decision, not a coin flip: name the trade (USE-11).
 
 [[pattern]]
 id = "resource-list-bulk-actions"
@@ -163,6 +172,7 @@ a11y = "the control is a real input with a label; escape cancels; the saved stat
 
 [[pattern]]
 id = "empty-state-onboarding"
+baseline = true
 job = "turn an empty screen into the first step"
 platform = "all"
 canonical = ["polaris", "material"]
@@ -213,6 +223,7 @@ a11y = "APG combobox; results announced; every palette action also exists in the
 
 [[pattern]]
 id = "mobile-primary-navigation"
+baseline = true
 job = "move between the few places that matter, one-handed"
 platform = "mobile"
 canonical = ["hig", "material"]
@@ -223,6 +234,7 @@ a11y = "targets at least 44pt; current tab announced as selected; reachable with
 
 [[pattern]]
 id = "error-recovery"
+baseline = true
 job = "turn a failure into a next step instead of a dead end"
 platform = "all"
 canonical = ["govuk", "material"]

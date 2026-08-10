@@ -40,7 +40,7 @@ EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "finding-discipline", "promotion-criteria", "observability",
                "portability", "artifact-handoff", "scrum", "traceability",
-               "erosion")
+               "erosion", "divergence")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -320,6 +320,18 @@ class Gate:
                  else f"no retro, no next sprint — missing or empty: "
                       f"{', '.join(unclosed[:3])}")
 
+    # -- divergence: M/L design surfaces converged only after diverging ---
+    def gate_divergence(self) -> None:
+        try:
+            import design
+            found = design.breaches(self.project)
+        except Exception as e:
+            self.add("DIVERGE", False, f"divergence could not be checked: {e}")
+            return
+        self.add("DIVERGE", not found,
+                 "every M/L design surface records its divergence" if not found
+                 else "; ".join(found[:3]))
+
     # -- erosion: decay stays within the declared budget (opt-in) ---------
     def gate_erosion(self, explicit: bool = False) -> None:
         try:
@@ -447,6 +459,8 @@ def main() -> int:
             g.gate_traceability()
         if want("erosion"):
             g.gate_erosion(explicit=(only == "erosion"))
+        if want("divergence"):
+            g.gate_divergence()
 
     if not g.results:
         print("\033[31m✗\033[0m no gate ran — check the flags", file=sys.stderr)

@@ -25,10 +25,39 @@ Design alternates: **diverge, then converge — twice.** The first diamond
 is the problem space (discovery → a stated problem); the second is the
 solution space (alternatives → one chosen design). The rule that makes it
 real: **never converge without having diverged, and never diverge without
-a stated problem.** The kernel enforces the second diamond structurally
-(below), because instructing a model to "explore alternatives" is the
-same class of intervention the erosion research showed does not hold
-(ADR-0011, ADR-0012).
+a stated problem.**
+
+This is enforced, not requested. The second diamond produces an artifact
+— `specs/<demand-id>/design/alternatives.md` — and the **`divergence`
+gate** (`python3 bin/fde/verify.py --gate divergence`) fails any M/L
+demand that has a design surface without it, or whose alternatives share
+a lens, lack a hypothesis, or record no discard. Instructing a model to
+"explore alternatives" is the class of intervention the research showed
+does not hold (ADR-0011, ADR-0012), so the discipline lives in a file the
+gate can read.
+
+### The artifact
+
+`specs/<demand-id>/design/alternatives.md`, in this shape (the gate reads
+the `Lens:`, `Hypothesis:`, `Traded:` and `Chose:` lines):
+
+```
+## How might we…
+- HMW make waiting unnecessary?
+- HMW make the wait productive?
+
+## Alternatives
+### A. Background job + notify
+Lens: subtract
+Hypothesis: removing the wait removes the abandonment it causes.
+### B. Stream partial results
+Lens: invert
+Hypothesis: results-as-they-arrive beats a faster total.
+Traded: gives up a single stable snapshot to review.
+
+## Convergence
+Chose: A — the wait is the problem, not its length.
+```
 
 ### Reframe before you solve (the generative move)
 
@@ -136,17 +165,43 @@ are worth studying for what, and for each recurring job the canonical
 implementations, the fit and misfit criteria, the states the pattern must
 resolve, and its accessibility contract. Use it before inventing.
 
-The order: name the **job** → find the pattern whose `fits_when` matches
-and whose `fails_when` does not → study the **canonical** systems it
-names (the base points; it never copies their code) → respect the
-**platform convention** (`hig` on Apple, `material` on Android — deviating
-spends the user's existing muscle memory) → resolve every state the entry
-lists → implement the widget against its **APG** contract.
+The order is deterministic: satisfy every **`baseline = true`** entry
+first (they are obligations for any UI surface — empty state, error
+recovery, mobile navigation — never candidates competing for a job) →
+then name the **job** and match on it → filter by **platform** (an exact
+platform beats `all`) → among survivors, drop those whose `fails_when`
+describes your case → study the **canonical** systems the entry names
+(the base points; it never copies their code) → respect the platform
+convention (`hig` on Apple, `material` on Android — deviating spends the
+user's existing muscle memory) → resolve every state the entry lists →
+implement the widget against its **APG** contract. If more than one
+pattern still survives, the choice is a recorded decision naming the
+trade, not a coin flip.
 
 **Novelty is a declared cost, not a default.** If no entry fits, say so
-and name what you are trading; a new pattern is a decision to record
-(and, if it recurs, an entry the client adds to `design/patterns.md` —
-their extension, never an edit to the kernel's copy).
+and name what you are trading; a new pattern is a decision to record.
+
+### Extending the base (client-side)
+
+A pattern that RECURS in the project earns an entry in
+`design/patterns.md` — the client's extension, never an edit to the
+kernel's copy (that is drift). Same fields as the base, so the two read
+alike:
+
+```
+## <pattern-id>
+Job: <the user job it serves>
+Platform: web | mobile | all
+Canonical: <internal reference screen, or the external system studied>
+Fits when: <the case that makes it right>
+Fails when: <the case that makes it wrong>
+States: <every state it must resolve>
+A11y: <the APG pattern or the keyboard/SR contract>
+```
+
+Created on the first UI demand that needs it; read alongside the kernel
+base at selection time. One entry per recurrence — never a speculative
+catalog.
 
 ## Build rules (any size)
 

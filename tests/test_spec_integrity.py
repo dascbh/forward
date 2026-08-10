@@ -126,14 +126,19 @@ class TestTemplatesAndVersions(unittest.TestCase):
             self.assertIn(ph, config, ph)
 
     def test_kernel_version_is_synced_everywhere(self):
+        # every file that carries a kernel_version/version, discovered —
+        # enumerating carriers is how the 4th one shipped unchecked
         spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
-        plugin_v = json.loads(
-            (ROOT / ".claude-plugin" / "plugin.json").read_text())["version"]
-        m = re.search(r'kernel_version = "([^"]+)"',
-                      (ROOT / "templates" / "fde.config.template.toml").read_text())
-        self.assertEqual(spec_v, plugin_v)
-        self.assertEqual(spec_v, m.group(1))
-
-
-if __name__ == "__main__":
-    unittest.main()
+        carriers = {
+            ".claude-plugin/plugin.json": r'"version":\s*"([^"]+)"',
+            "templates/fde.config.template.toml": r'kernel_version = "([^"]+)"',
+            "fde.config.toml": r'kernel_version = "([^"]+)"',
+            "spec/references/ui-patterns.toml": r'spec_version = "([^"]+)"',
+        }
+        for rel, pat in carriers.items():
+            path = ROOT / rel
+            if not path.exists():
+                continue
+            m = re.search(pat, path.read_text())
+            self.assertIsNotNone(m, rel)
+            self.assertEqual(m.group(1), spec_v, rel)

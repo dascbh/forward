@@ -81,7 +81,14 @@ writing code on request; start by sizing. Pick a short demand id first
    L adds PRD-grade spec, IA, and user validation. The approved wireframe
    is the build contract; design-QA baselines live in the eval suite (I1).
    No `design/foundation.md` yet → the first UI demand pays that
-   bootstrap.
+   bootstrap. **Diverge before converging**: at M/L, reframe the problem
+   ("How might we…", ≥2 framings) and produce alternatives from DISTINCT
+   lenses — subtract, invert, analogous, constraint-first, object-first
+   (M: 2, L: 3; alternatives sharing a lens count as one) — recorded in
+   `specs/<demand-id>/design/alternatives.md` with each hypothesis, what
+   each discard traded, and the choice. The `divergence` gate enforces
+   it. Patterns are chosen from the curated base in
+   `.fde/spec/references/ui-patterns.toml`; novelty is a declared cost.
 4. **Implementation**: code and its eval entries in the same change (I1).
    If the touched root has no suite at all, the demand includes
    bootstrapping the minimal one (runner + first smoke eval). Never
