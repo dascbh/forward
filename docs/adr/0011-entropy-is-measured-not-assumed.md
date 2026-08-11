@@ -68,3 +68,42 @@ ratio, with tests growing every demand and adversarial review catching
 real bugs each one — including, on this very demand, the overreach of an
 earlier draft of this paragraph. It is a governed trajectory, measured;
 not proof that governance makes decay impossible.
+
+## Amendment — 2026-08-10 (FWD-016): what "the codebase" means
+
+The decision above says what is measured and left *where* implicit. On
+the first demand where it mattered — the gate fired at 15.11 — the
+implicit answer turned out to be two answers: duplication read tracked
+code files with mirrors excluded, churn read every tracked path. The
+adversarial round showed the gap decided red versus green, so the
+population is now part of the decision rather than a detail of it.
+
+**One population, declared by the project, for every metric.** It is
+`[gate] behavior_paths + eval_paths` — the roots already declared for I1
+— minus `[erosion] generated_paths`, minus vendor trees. Three rules
+follow, each answering a way the first implementation was wrong:
+
+- **The kernel hardcodes no project-specific exclusion.** A carve-out
+  worth 12.13 → 11.06 on this repository cannot live in a constant in a
+  source file while the threshold it clears is declared in config. It is
+  declared, diffable, contestable, and retargetable — a client whose
+  generated tree is `gen/` or `.terraform/` says so.
+- **A missing declaration widens, never narrows.** No `[gate]` roots
+  means everything tracked. Falling back to kernel defaults would take a
+  project that declared nothing and measure it over eight roots it does
+  not have — a green gate over an accreting repository.
+- **A threshold that measured nothing is not a pass.** The gate says
+  "not measured" and names the declaration that produced the silence.
+
+Erosion measurement is therefore coupled to `[gate]`: retargeting I1
+retargets decay measurement. That coupling is deliberate — decay is
+measured where the project said behavior lives — and it is the operative
+fact for anyone tuning either one.
+
+The claim in Consequences above about this repository still holds and now
+has a stated population: over the declared roots minus the declared
+mirrors, ~0.5% duplicate-block density and an add/delete ratio of 11.06
+against a budget of 12.0 that has never been raised. Over the declared
+roots *including* the mirrors it is 12.13 — over budget. Both numbers are
+part of the record; the second is why the exclusion had to become a
+declaration instead of a constant.

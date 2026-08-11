@@ -163,3 +163,8 @@ Long-term decay is measured, not assumed (`fde-erosion`, ADR-0011):
 `erosion.py` reports the clone ratio, add/delete ratio, and batch size,
 and the opt-in `[erosion]` budget gates them — because the evidence shows
 instruction alone does not stop the rot; only measurement and review do.
+Every metric reads ONE population: the roots `[gate]` declares, minus the
+copies `[erosion] generated_paths` declares, minus vendor. Retargeting
+`[gate]` retargets decay measurement; declaring no roots measures
+everything. A threshold with nothing to measure reports "not measured",
+never "within budget".

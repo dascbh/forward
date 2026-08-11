@@ -9,7 +9,7 @@
 
 [project]
 name = "forward"
-kernel_version = "0.12.1"
+kernel_version = "0.12.2"
 
 [triage]
 data_class = "public"             # open Apache-2.0 repository, no third-party data
@@ -81,4 +81,12 @@ enabled = true
 window = 50
 max_add_delete_ratio = 12.0
 max_duplication_pct = 6.0
+# The installed copies are byte-identical mirrors of runtime/, spec/,
+# skills/ and agents/ — tests/test_install_sync.py fails if they ever
+# diverge. Counting them doubles every change and makes the mirror read
+# as duplication. They stay in behavior_paths (I1 change-controls them);
+# they are declared here so erosion measures the source once.
+# WITHOUT this line the ratio is 12.13 (over budget) and duplication
+# 75.9% — the comparison the review demanded be published (FWD-016 F5).
+generated_paths = ["bin/fde/", ".fde/", ".claude/skills/", ".claude/agents/"]
 

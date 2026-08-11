@@ -219,9 +219,23 @@ def validate(cfg: Config, spec: Spec) -> list[Violation]:
         )
 
     # 6b. [erosion] budget values are numbers — a typo'd threshold must
-    #     not silently disable the gate it was meant to arm
+    #     not silently disable the gate it was meant to arm. The one
+    #     non-numeric key is generated_paths: the paths the project
+    #     declares as generated copies, excluded from churn.
     erosion = cfg.raw.get("erosion", {}) or {}
     for key, val in erosion.items():
+        if key == "generated_paths":
+            if not isinstance(val, list) or not all(
+                isinstance(x, str) and x.strip() for x in val
+            ):
+                v.append(
+                    Violation(
+                        "EROSION-BUDGET",
+                        "[erosion] generated_paths must be a list of "
+                        "non-empty path strings.",
+                    )
+                )
+            continue
         if not isinstance(val, (int, float)) or isinstance(val, bool):
             v.append(
                 Violation(

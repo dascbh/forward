@@ -336,7 +336,7 @@ class Gate:
     def gate_erosion(self, explicit: bool = False) -> None:
         try:
             import erosion
-            declared, breaches = erosion.gate(self.project)
+            declared, breaches, unmeasured = erosion.gate(self.project)
         except Exception as e:
             self.add("EROSION", False, f"erosion could not be measured: {e}")
             return
@@ -345,9 +345,10 @@ class Gate:
                 self.add("EROSION", True,
                          "no [erosion] budget declared — trend measured, not gated")
             return
+        # passing with an unmeasured threshold still says so: a green that
+        # measured nothing is the failure mode this gate exists to avoid
         self.add("EROSION", not breaches,
-                 "within the declared erosion budget" if not breaches
-                 else "; ".join(breaches[:3]))
+                 erosion.verdict(breaches[:3], unmeasured))
 
     # -- survey: the brownfield map is complete, labeled and anchored -----
     def gate_survey(self, explicit: bool = False) -> None:
