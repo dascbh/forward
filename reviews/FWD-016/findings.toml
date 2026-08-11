@@ -1,0 +1,491 @@
+# Adversarial review — FWD-016 erosion churn scope, commit f4af1fb.
+# Reviewer received artifact + spec only (I2). XS = one round.
+# Findings only; no fixes (I3).
+
+[meta]
+demand_id = "FWD-016"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 1
+rounds_run = 1
+commit = "f4af1fb"
+agent_transcript = "agent-a086870ff69dff385"
+probed = '''
+Baseline at f4af1fb: 200 tests OK, `python3 bin/fde/verify.py` 17/17
+green, `python3 bin/fde/erosion.py --gate` green at 10.86 against 12.0.
+runtime/erosion.py and bin/fde/erosion.py are byte-identical (diff empty),
+as are runtime/fde_lib.py and bin/fde/fde_lib.py — no mirror drift.
+
+THE CENTRAL QUESTION was attacked arithmetically, not rhetorically. The
+add/delete ratio was recomputed from `git log -50 --numstat` under
+thirteen scopes at three window positions (33d55da, the red baseline the
+fix was made from; 8b30405, the fix; f4af1fb, HEAD). All three numbers
+the commit message publishes reproduce exactly at 33d55da: everything
+tracked 15.11, code files with mirrors excluded 16.15, declared roots
+minus mirrors 10.77. The record is honest about what it states. Full
+table at 33d55da: A everything 15.11 (+15093 -999) · B code files 16.15
+(+9995 -619) · C SHIPPED 10.77 (+6442 -598) · D declared roots AS
+DECLARED, no mirror carve-out, 12.14 (+11318 -932) · E everything minus
+mirrors 15.36 · F everything minus the audit trail 11.75 · G minus both
+10.31 · H source dirs only 11.09 · I python only 15.39 · J mirrors only
+14.60 (+4876 -334) · K audit trail only 430.50 (+3444 -8). See F5.
+
+R4 verified directly: `git show 8b30405 -- fde.config.toml` changes one
+line, `kernel_version` 0.12.0 -> 0.12.1. max_add_delete_ratio stays 12.0,
+max_duplication_pct stays 6.0, window stays 50, max_change_lines stays
+omitted. Checked the three other loosening routes named as candidates —
+the `--min-parents=1` root-commit exclusion at runtime/erosion.py:264 is
+context in the diff, unchanged from FWD-009; parse_numstat still sums
+group(2) as deletions and still skips binary `-` rows; the window is not
+touched. The budget was not raised and nothing adjacent was relaxed to
+compensate. Whatever else is wrong here, it is not a threshold bump.
+
+DEGRADATION was probed with four scratch repos (fresh `git init`, six to
+ten commits of pure accretion, an [erosion] budget declared): no [gate]
+section at all, a typo'd root, `behavior_paths = []`, and
+`behavior_paths = "src/"` as a string. See F1. `behavior_paths = []` is
+separately caught by the config gate (GATE-EMPTY, runtime/fde_lib.py:236-245),
+so that one shape is defended elsewhere; the other three are not.
+
+PATH PARSING was probed against what git actually emits: renames render
+as `{src => attic}/old.py`, non-ASCII names render quoted and
+octal-escaped. Both new regexes now consume that field. See F3, F4.
+
+THE TESTS were probed by mutation, not by reading: four mutants of
+runtime/erosion.py against `python3 -m unittest discover -s tests -p
+test_erosion.py`. Three are killed. One survives. See F2.
+
+PRECEDENCE, asked explicitly: `.claude/` is in behavior_paths AND in
+EXCLUDED_PREFIXES. Exclusion wins — in_churn_scope tests the prefixes
+first (runtime/erosion.py:219-220) — and that IS tested
+(tests/test_erosion.py:143-145 asserts in_churn_scope("bin/fde/verify.py",
+("bin/",)) is False). The precedence is stated in the code comment and in
+R1's "minus the generated mirrors". It is contradicted by the report the
+same change prints (F9) and by fde.config.toml's own comment on those
+roots (F5).
+
+files_excluded: the acceptance criterion asks for it; it exists in no
+file and in no revision. It was never built, not removed. See F6.
+
+SAFE, and checked: the duplication metric is untouched by this change
+(_tracked_code and duplicate_block_pct are unmodified; the diff only
+moves their call site earlier in measure()). check_budget still skips
+undeclared keys. The report still never crashes on a non-numeric budget.
+`add_delete_ratio` returning None instead of 0.0 when nothing moved is
+not itself a loosening — check_budget skipped a 0.0 and skips a None to
+the same effect — but it is the silence F10 is about. No security,
+performance or cost finding: the change adds one tomllib read per
+measurement and no new surface.
+'''
+
+# ---------------------------------------------------------------------------
+# functional_correctness — weight 30, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "high"
+probe = '''
+R2 is violated in the shape a client is most likely to have, and when it
+is violated the gate reports green on a repository doing nothing but
+accreting. Built a scratch repo with `git init`, an fde.config.toml
+carrying ONLY [project] and an [erosion] budget (window 50,
+max_add_delete_ratio 12.0, max_change_lines 600) and NO [gate] section at
+all — a project that has declared no roots, which R2 says "MUST be
+measured over everything tracked" — then six commits that only add:
+packages/core/m0..m5.py, 1200 lines added, 0 deleted. Measured:
+churn_scope = "src/, lib/, app/, services/, prompts/, agents/, evals/,
+tests/", added=0, deleted=0, add_delete_ratio=None, largest_change=0.
+erosion.gate() returns (True, []) — "within the declared erosion budget",
+exit 0. churn_scope never reaches its None branch: the config EXISTS and
+parses, so gate_paths hands back DEFAULT_BEHAVIOR_PATHS, and the project
+is measured over eight roots none of which it has. Control with
+behavior_paths = ["packages/"]: ratio 1200.0, gate blocks. Two more
+shapes fail identically: a typo'd or stale root (behavior_paths =
+["srcs/"] with the code in src/) — 2000 lines added, ratio None, gate
+green; and behavior_paths declared as a string rather than a list
+(`behavior_paths = "src/"`), where tuple() splits it into the characters
+"s", "r", "c", "/" and the scope matches nothing — gate green. Before
+this change all three measured the whole tree and blocked. Both churn
+budgets are disarmed at once, because check_budget skips a None metric
+and largest_change degrades to 0 rather than None, so max_change_lines
+silently compares against zero. This is FM-2 in the spec's own words —
+"a repo that declares no roots must keep being measured whole, not
+quietly reduced to nothing" — and the module's own doctrine says the same
+thing about the adjacent case: "a typo must not silently disarm the
+check" (skills/fde-erosion/SKILL.md:59).
+'''
+evidence = '''
+runtime/erosion.py:207-215 (churn_scope returns None only when
+fde.config.toml is absent or unparseable — never when it is present and
+silent); runtime/fde_lib.py:46-47 with :25-26 (a missing or empty key
+falls back to DEFAULT_BEHAVIOR_PATHS, a fallback that WIDENS I1 and
+NARROWS this metric — the helper's fail-safe direction inverts in the new
+consumer); runtime/erosion.py:247-248 (ratio None when nothing in scope
+moved) and :117 (check_budget skips a None metric); reproduced in four
+scratch repos as above. Identical in bin/fde/erosion.py.
+'''
+blocking = true
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "high"
+probe = '''
+The one test named for R1 cannot fail on R1. Mutation, not reading:
+replaced `bp, ep = gate_paths(raw)` with `gate_paths({})` at
+runtime/erosion.py:214 — churn_scope now ignores fde.config.toml entirely
+and always returns the kernel's hardcoded defaults, which is the precise
+negation of the demand ("the roots the project ALREADY declared"). Ran
+`python3 -m unittest discover -s tests -p test_erosion.py`: 21 tests, OK.
+The mutant survives, and it survives test_scope_comes_from_the_declared_roots
+specifically, because the fixture declares behavior='["src/"]' and
+evals='["tests/"]' (tests/support.py:45-47) and BOTH strings are already
+members of DEFAULT_BEHAVIOR_PATHS / DEFAULT_EVAL_PATHS — the three
+assertions (`"src/" in scope`, `"tests/" in scope`, `"reviews/" not in
+scope`) all hold under the defaults, so they cannot distinguish reading
+the declaration from ignoring it. Confirmed against the no-[gate] repo
+from F1, whose scope is exactly "src/, lib/, app/, services/, prompts/,
+agents/, evals/, tests/": every assertion in that test passes on a
+project that declared nothing. test_the_report_states_the_scope_it_measured
+asserts the same "src/" and is tautological for the same reason. No test
+anywhere declares a root outside the defaults (e.g. "packages/") and
+asserts it is honoured, and no test asserts a ratio VALUE — the
+"code growth does move the ratio" test asserts only assertIsNotNone plus
+added > 200, so it holds whatever population was summed. Three sibling
+mutants ARE killed (in_churn_scope ignoring the scope; deleting the
+mirror exclusion; counting additions unscoped while scoping deletions),
+so the suite is not worthless — but the single behavior this demand
+exists to create is the one it does not constrain, and under I1 the eval
+entry is what licenses the merge.
+'''
+evidence = '''
+tests/test_erosion.py:137-141 (test_scope_comes_from_the_declared_roots),
+:153-155 (test_the_report_states_the_scope_it_measured), :131-135
+(test_code_growth_does_move_the_ratio); tests/support.py:45-47 (fixture
+defaults); runtime/fde_lib.py:25-26 and :46-47; mutation run: mutant
+`gate_paths(raw)` -> `gate_paths({})` at runtime/erosion.py:214 survives
+21/21 OK, mutants at :223, :219-220 and :71-73 each fail 1 test.
+'''
+blocking = true
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "medium"
+probe = '''
+Paths that git quotes are silently dropped from churn — a regression this
+change introduces, because before it the regex stopped at the two counts
+and never looked at the path, so every file counted regardless of its
+name. git quotes any path with non-ASCII or special characters
+(core.quotePath defaults to true). In a fixture declaring
+behavior_paths = ["src/"], created src/avaliação.py (100 lines). `git log
+--numstat` emits the row with the path field wrapped in double quotes and
+octal-escaped. in_churn_scope receives that literal string; it begins with
+a quote character, so path_matches fails against "src/" AND the
+EXCLUDED_PREFIXES test fails too — the file belongs to no population.
+Measured on that fixture: parse_numstat in scope +200, unscoped +330; 100
+added lines vanish. Any repository with accented, spaced or otherwise
+quoted filenames under a declared root is undercounted, with no signal,
+and the undercount is one-sided per file rather than proportional.
+'''
+evidence = '''
+runtime/erosion.py:70-71 (parse_numstat) and :274-275 (_largest_change) —
+both feed the raw numstat field to in_churn_scope; reproduced: numstat row
+for src/avaliação.py arrives quoted and octal-escaped, in_churn_scope
+returns False, +100 lost from a 300-line window.
+'''
+blocking = false
+
+[[finding]]
+id = "F4"
+attribute = "functional_correctness"
+severity = "medium"
+probe = '''
+Rename rows escape both the declared scope and the mirror carve-out the
+change is built on. `git log --numstat` renders a rename as
+`{old => new}/f.py` or `dir/{a => b}/f.py`. In the same fixture,
+`git mv src/old.py attic/old.py` produced the row `0	0	{src =>
+attic}/old.py`: in_churn_scope returns False because the string matches
+neither the declared roots nor EXCLUDED_PREFIXES, so the row is
+attributed to nobody. The carve-out fails the same way and it matters
+more there: a module moved between runtime/ and bin/fde/ — exactly what
+this repo's sync history produces when a runtime file is renamed — emits
+`{runtime => bin/fde}/x.py`, which is neither counted nor excluded, so
+the mirror exclusion that F5 shows to be load-bearing does not hold on
+renames. Same-directory renames survive only by accident of the prefix
+surviving the brace form (`src/{nested => moved}/deep.py` matched "src/").
+When the moved file is also edited, numstat carries its real add/delete
+counts on that row, so real churn is lost — and the loss is not symmetric
+between additions and deletions, so it moves the ratio in an
+unpredictable direction.
+'''
+evidence = '''
+runtime/erosion.py:218-223 (in_churn_scope) with :70-71 and :274-275;
+reproduced: `0	0	{src => attic}/old.py` -> in_churn_scope False;
+`src/{nested => moved}/deep.py` -> True only because the leading segment
+happens to be intact.
+'''
+blocking = false
+
+# ---------------------------------------------------------------------------
+# maintainability — weight 22, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F5"
+attribute = "maintainability"
+severity = "high"
+principle = "MNT-4"
+probe = '''
+THE ROUND'S CENTRAL QUESTION. The scope is not a threshold bump — R4
+holds and every published number reproduces — but the principle the
+change leads with is not what turns the gate green, and the number that
+would have shown this is the one number the record does not contain.
+
+R1 has two clauses: use the roots the project already declared, MINUS the
+generated mirrors. Ran the SHIPPED tool with only the second clause
+removed (erosion.EXCLUDED_PREFIXES = (); erosion.measure(ROOT)) at HEAD:
+the declared roots exactly as declared give 12.01 (+11303 -941) against
+the 12.0 budget — STILL RED. The shipped figure is 10.86. At 33d55da,
+the red baseline the correction was made from, the same comparison is
+12.14 versus 10.77. (The duplication line in that run is meaningless and
+is not part of the probe: emptying the constant also un-excludes the
+literal mirror copies from the clone scan.) So the first clause — "we
+measure decay where the project said behavior lives", the sentence the
+commit message defends the change with — does not clear the budget on its
+own, in either window. What clears it is the second clause, which
+contradicts the declaration the first clause invokes: fde.config.toml:29-35
+lists bin/fde/, .fde/ and .claude/ inside behavior_paths with the comment
+"what CI and agents actually execute: change-controlled too (finding F4)".
+The project declared the mirrors to be behavior; this change quietly
+un-declares them for this one metric, and that quiet exception is the
+difference between red and green.
+
+Decomposition of the drop, which the record also does not contain. The
+mirrors are +4876 -334 over the window and excluding them RAISES the
+ratio (everything minus mirrors 15.36 > everything 15.11) — the commit
+message says this and it is true. The audit trail is +3444 -8, and
+excluding it ALONE, mirrors kept and everything else kept, already gives
+11.75: green, with no scope argument about behavior at all. Every
+plausible scope that contains the artifacts breaches (15.11, 15.36,
+15.39, 16.15); every scope that excludes them passes (10.77, 10.31,
+11.09, 11.75). The chosen scope is therefore NOT a lone outlier tuned to
+clear 12.0 — it sits inside a coherent passing family, and that is the
+change's strongest defence and should be recorded as such. But it means
+the whole result rests on the classification of the audit trail, while
+the argument presented foregrounds the mirrors, whose exclusion pushes
+the other way and whose real function is to buy the last 1.2 points.
+
+MNT-4: the decision is not written where the next reader will look. The
+one comparison that tests the demand's central claim — declared roots as
+declared, 12.14 > 12.0 — appears in no commit message, no spec, no ADR.
+ADR-0011 governs what erosion measures and was not amended. A reader in
+six months cannot tell whether the mirror carve-out was reasoned or
+reached for.
+'''
+evidence = '''
+Reproduced at HEAD through the shipped tool: shipped 10.86 (+6365 -586)
+vs declared-roots-as-declared 12.01 (+11303 -941), budget 12.0 —
+check_budget returns a breach for the second. Recomputed over the same
+50-commit window at 33d55da: A everything 15.11 · B code files 16.15 · C
+shipped 10.77 · D as-declared 12.14 · E minus mirrors 15.36 · F minus the
+audit trail 11.75 · G minus both 10.31 · H source dirs only 11.09 · J
+mirrors alone 14.60 (+4876 -334) · K audit trail alone 430.50 (+3444 -8).
+fde.config.toml:26-36 (mirrors declared as behavior, with the F4 comment)
+against runtime/erosion.py:45-47 and :219-220 (mirrors excluded);
+specs/FWD-016-erosion-scope/spec.md R1; docs/adr/0011-entropy-is-measured-not-assumed.md
+unchanged by 8b30405.
+'''
+blocking = true
+
+[[finding]]
+id = "F6"
+attribute = "maintainability"
+severity = "high"
+principle = "DOM-5"
+probe = '''
+The shipped behavior does not meet the acceptance criteria declared
+before construction, and the artifact it does meet was written after it.
+acceptance.md carries date: 2026-08-09 and is the I4 declaration. It
+names the target twice and unambiguously: churn measured "over the SAME
+file set the duplication metric already uses: tracked code files, mirrors
+and vendor excluded. One definition of 'the codebase', used by every
+metric." That set is measurable: 16.15 at the baseline — a breach, and
+the hypothesis spec.md records as wrong. What shipped is a third set: 47
+files in the churn scope against 116 in the duplication scope, symmetric
+difference 69. So the defect the demand exists to fix — "the two metrics
+disagree about what they measure ... One tool, two definitions of 'the
+codebase'" — is not fixed. Two definitions were replaced by two different
+definitions, which is FM-3 ("the scope becomes a third definition to
+maintain") arriving through the front door. Two further acceptance items
+are simply absent: "The report states the scope it measured and the count
+of files excluded" — `files_excluded` appears in no file in the tree and
+in no revision of either copy of erosion.py (`git log --all -S
+files_excluded -- runtime/erosion.py bin/fde/erosion.py` returns nothing;
+it was never built, not removed) — and "the excluded-scope count is
+asserted", for which no test exists. Finally the ordering: spec.md, the
+artifact that restates the target as the declared roots and thereby makes
+the shipped code conformant, was committed AFTER the implementation
+(f4af1fb 20:26:32 against 8b30405 20:25:54). DOM-5, no orphans both ways
+— a criterion without verification, and here three of them: the
+same-file-set criterion contradicted by the code, the files_excluded
+criterion with nothing implementing it, the excluded-count assertion with
+no test. Under I4 the point of the date is the ordering, and here the
+criteria that survived are the ones written last.
+'''
+evidence = '''
+specs/FWD-016-erosion-scope/acceptance.md:22-29 against the shipped
+scope; specs/FWD-016-erosion-scope/spec.md, "The defect that is still a
+defect"; measured at HEAD: churn scope 47 files, duplication scope 116
+files, symmetric difference 69, of which 66 duplication-scanned files are
+reviews/, specs/, sprints/, promotions/, docs/, discovery/, backlog.md;
+grep files_excluded over the tree -> no match, git log -S over both
+copies -> no revision; git log timestamps 8b30405 (code) 20:25:54,
+f4af1fb (spec) 20:26:32.
+'''
+blocking = true
+
+[[finding]]
+id = "F7"
+attribute = "maintainability"
+severity = "high"
+principle = "MNT-1"
+probe = '''
+The churn population is `declared roots MINUS a hardcoded constant`, a
+composite that exists in no declaration and cannot be retargeted by the
+project it measures. runtime/erosion.py:45-47 is a literal tuple of
+eleven prefixes; the module's own docstring, twenty lines above it, states
+the opposite rule: "Thresholds are project-specific, so they are DECLARED
+in `[erosion]` (I4 pattern), never hardcoded". The threshold is declared;
+the population is not. The consequences are client-side and silent: a
+project whose generated tree is `gen/`, `packages/generated/`, `target/`
+or `.terraform/` double-counts it against a budget calibrated without it,
+and has no key to say so; a project whose vendor tree is `third_party/`
+likewise. Meanwhile a project that declares a mirror as behavior — as
+this repo does, deliberately, for I1 — gets it counted for I1 and
+uncounted for erosion, with no artifact anywhere stating that the same
+declaration means two different things to two gates in the same
+verifier. MNT-1: the roots now live in two places that must agree,
+fde.config.toml and a constant in a source file, and one of them is
+invisible to the person tuning the other. This is FM-3 as the spec
+itself defined it, and R1's own prohibition — "MUST NOT introduce a scope
+defined only for this metric" — is satisfied only on a technicality,
+because the constant is shared with the duplication scan rather than
+being new.
+'''
+evidence = '''
+runtime/erosion.py:45-47 (EXCLUDED_PREFIXES, hardcoded) against
+runtime/erosion.py:20-22 (the docstring rule) and fde.config.toml:80-83
+([erosion] declares thresholds only, no path key);
+runtime/erosion.py:218-223; specs/FWD-016-erosion-scope/spec.md FM-3 and
+R1.
+'''
+blocking = false
+
+[[finding]]
+id = "F8"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-10"
+probe = '''
+The operator documentation for this exact tool was not updated in the
+same change, so it now describes a metric that no longer exists.
+skills/fde-erosion/SKILL.md is the runbook: it documents the exclusion
+precisely, and attaches it ONLY to duplicate-block % — "Generated mirrors
+(`bin/fde/`, `.fde/`, `.claude/`) and vendor trees are excluded" sits
+under the duplication bullet, and the add/delete bullet three lines later
+carries no scope statement at all. A reader following the skill will
+believe, correctly for 0.12.0 and wrongly for 0.12.1, that add/delete
+covers the repository. Nothing in the skill tells a client that
+retargeting `[gate]` also retargets their erosion measurement, which
+after F1 is the difference between a live gate and a silent one — the
+single most operationally important fact this change creates. ADR-0011,
+the decision record for what erosion measures, is likewise unamended.
+MNT-10: when how to operate the system changes, the runbook changes in
+the same change. The kernel's own AGENTS.md step 4 states the same rule
+and cites this principle by name.
+'''
+evidence = '''
+skills/fde-erosion/SKILL.md:24-32 (exclusion documented under
+duplicate-block % only; add/delete has no scope statement) and :44-60
+(the budget section, which never mentions [gate]);
+docs/adr/0011-entropy-is-measured-not-assumed.md unchanged; `git show
+--stat 8b30405` touches no skills/ file and no docs/adr file.
+'''
+blocking = false
+
+# ---------------------------------------------------------------------------
+# observability — weight 10
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F9"
+attribute = "observability"
+severity = "high"
+principle = "OBS-1"
+probe = '''
+R3 is the change's own answer to the rationalisation charge — "the report
+MUST state the scope it measured, so a reader sees what was left out
+instead of trusting the number" — and the report states a scope it did
+not measure. `python3 bin/fde/erosion.py --report` at HEAD prints:
+"churn over the declared roots: runtime/, spec/, skills/, agents/,
+templates/, SETUP.md, bin/fde/, .fde/, .claude/, .claude-plugin/,
+.github/workflows/, AGENTS.md, CLAUDE.md, tests/, evals/". Three of those
+fifteen — bin/fde/, .fde/, .claude/ — contributed exactly zero: they are
+in EXCLUDED_PREFIXES and in_churn_scope drops them before the scope is
+ever consulted. The string is built from churn_scope() alone
+(runtime/erosion.py:241), which never applies the exclusion, so the
+report NAMES the carve-out's victims as included. The following line then
+states as fact something that is false for half the sentence: "(generated
+mirrors and the audit trail are outside both)" — the audit trail is
+inside the duplication scan, because CODE_SUFFIXES contains .md and .toml
+and _tracked_code excludes only EXCLUDED_PREFIXES. Measured: 66 of the
+116 files in the duplication scan are reviews/, specs/, sprints/,
+promotions/, docs/, discovery/ and backlog.md. A reader doing exactly
+what R3 asks — reading the scope line instead of trusting the number —
+is told the opposite of what happened, in both directions at once: told
+that excluded roots were measured, and that measured artifacts were
+excluded. OBS-1: the one signal this demand added to confirm or deny its
+own scope claim reports a scope that is not the scope.
+'''
+evidence = '''
+runtime/erosion.py:240-241 (churn_scope string built without the
+exclusion) and :332-335 (the two printed lines) against :218-223 and
+:140-151; `python3 bin/fde/erosion.py --report` output at HEAD; measured:
+116 files in the duplication scan, 66 of them audit trail, 47 files in
+the churn scope.
+'''
+blocking = false
+
+[[finding]]
+id = "F10"
+attribute = "observability"
+severity = "medium"
+principle = "OBS-2"
+probe = '''
+When the churn scope matches nothing, nothing says so. The report prints
+"add/delete ratio      n/a" and then "✓ within the declared [erosion]
+budget"; `--gate` prints "within the declared erosion budget" and exits
+0. The n/a is indistinguishable from the pre-existing legitimate n/a
+(a repository with no git history at all), because both arrive as the
+same None through the same formatter — the change added a second, wholly
+different cause for the identical symptom (runtime/erosion.py:247-248
+versus :250-252) and no way to tell them apart. On the F1 repos an
+operator sees a green erosion gate, an n/a, and a scope line listing
+eight roots the project does not have, with nothing connecting the three.
+OBS-2: a failure names its cause; this one names nothing, and the failure
+it hides is a disarmed gate. The module's own doctrine states the
+standard for the adjacent case and meets it there — "A non-numeric
+threshold fails the config gate (a typo must not silently disarm the
+check)" — which is exactly what a scope matching zero tracked files
+should do and does not.
+'''
+evidence = '''
+runtime/erosion.py:247-248 (None from an empty in-scope window) against
+:250-252 (None from no history), :330-331 (fmt collapses both to "n/a"),
+:317-323 (gate prints the green line regardless); skills/fde-erosion/SKILL.md:57-60
+(the stated standard); reproduced on all three F1 repos.
+'''
+blocking = false
