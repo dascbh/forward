@@ -61,10 +61,20 @@ F1) already demonstrated that telling a model not to do something in a
 prompt is not enforcement. The owner decided directly: the new role's
 agent definition declares a `tools:` frontmatter allowlist containing
 only browser-automation tools — no `Read`, `Grep`, `Glob`, `Bash`, `Edit`,
-`Write`, `NotebookEdit`. This makes filesystem access **structurally
-impossible**, not best-effort blocked, for exactly the reason `guard.py`'s
-own module docstring admits its role branch is honesty-dependent on the
-harness sending an identity. This is decided, not reopened here: no new
+`Write`, `NotebookEdit`. On the `loop` tier — this project, whose
+`[tooling]` declares `tools = ["claude-code"]` — the harness reads and
+enforces that `tools:` field before a write is even attempted, so this
+makes filesystem access **structurally impossible**, not best-effort
+blocked, for exactly the reason `guard.py`'s own module docstring admits
+its role branch is honesty-dependent on the harness sending an identity.
+That guarantee is tier-scoped, not universal: it does not hold on
+`commit`/`advisory` tiers (Cursor, Codex, Copilot, Kiro, Gemini CLI,
+Windsurf, Aider), where no native mechanism restricts a role's tool
+access and the allowlist holds only as an instruction the run is asked to
+follow — the same "prompt instruction alone" class this paragraph's own
+FWD-010 citation rejects. See ADR-0014's "Amendment — 2026-08-22
+(FWD-018 F4)" for the full account and why the allowlist remains the
+right mechanism regardless. This is decided, not reopened here: no new
 `guard.py` read-interception mechanism is built as an alternative.
 
 ## Boundaries

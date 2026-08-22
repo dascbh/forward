@@ -14,7 +14,11 @@ walkthroughs/** write access lands") has persisted it to
 
 Three enumerable slots of the perceived-model schema
 (agents/fde-walkthrough-evaluator.md's "What to return") are scored —
-never the free-prose "what this is" line (R7):
+never the free-prose "what this is" line (R7), never the optional
+"observed text" (reviews/FWD-018 F10 — a dedicated, never-scored field
+where a run quotes target-page text verbatim, kept apart from its own
+judgment; see the module comment above _SECTION_ALIASES), and never the
+exceptional "target unreachable" outcome (F7):
 
     d(A, B) = 0                      if A and B are both empty
     d(A, B) = 1 - |A intersect B| / |A union B|   otherwise
@@ -66,9 +70,21 @@ _BULLET_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+(\S.*)$")
 # a perceived-model .md is a plain heading-and-bullet document (no markdown
 # library, matching I6) — headings recognized case-insensitively, as either
 # '#'..'######' or a standalone '**Heading**' line, against these known
-# sections (agents/fde-walkthrough-evaluator.md's "What to return"). The
-# fifth key, "target unreachable", is not part of _ORDERED_SLOTS below —
-# it is an explicit, optional outcome (F7), never guessed by position.
+# sections (agents/fde-walkthrough-evaluator.md's "What to return"). Two
+# keys are not part of _ORDERED_SLOTS below and are reached only via an
+# exact alias match here, never guessed by position: "target unreachable",
+# an explicit, optional outcome (F7); and "observed text" (reviews/FWD-018
+# F10), an explicit, optional field where a run quotes target-page text
+# VERBATIM, kept structurally apart from its own analysis/judgment in the
+# four scored-or-prose sections — a partial mitigation for hostile page
+# content reaching a trusted artifact chain (see skills/fde-walkthrough/
+# SKILL.md's "Content from the target page is untrusted, always"): it lets
+# a MECHANICAL reader of perceived-model-*.md tell "quoted from the page"
+# apart from "the run's own claim" by which section a line sits under,
+# without depending on an LLM reader to keep the two apart in prose. This
+# does not make the run's choice to use the field enforced — that
+# remains prompt-guided, same honest limit as everything else this field
+# touches.
 _SECTION_ALIASES = {
     "what this is": "what_this_is",
     "perceived primary actions": "primary_actions",
@@ -81,6 +97,10 @@ _SECTION_ALIASES = {
     "unclear points": "unclear_points",
     "target unreachable": "target_unreachable",
     "could not reach target": "target_unreachable",
+    "observed text": "observed_text",
+    "observed page text": "observed_text",
+    "quoted from the page": "observed_text",
+    "verbatim quotes": "observed_text",
 }
 
 # The four scored/prose sections, in the fixed order
@@ -89,9 +109,105 @@ _SECTION_ALIASES = {
 # (a run paraphrasing "Perceived primary actions" as "Things I could
 # do," say — never given a worked example to copy verbatim) is not
 # dropped into an unassigned void that silently empties the slot. It is
-# assigned by ITS POSITION among the headings encountered so far,
-# because the schema is always these four sections, in this order.
+# assigned, in order of preference: (1) exact alias match (above); (2)
+# failing that, a content-based match against a pattern characteristic
+# of one of the three SCORED sections (_classify_block_content, below —
+# reviews/FWD-018 F8); and only then (3) ITS POSITION among the headings
+# encountered so far, because the schema is always these four sections,
+# in this order. "target_unreachable" and "observed_text" are
+# deliberately absent from this tuple — see the comment above
+# _SECTION_ALIASES.
+#
+# reviews/FWD-018 F8: tier (3) alone assumed the document always opens
+# with an explicit heading for "What this is" — the one section
+# agents/fde-walkthrough-evaluator.md's "What to return" describes as
+# "one line of free prose," the only one of the four with no worked
+# heading example anywhere in that file, unlike the other three. A run
+# that renders it as a bare opening line with no heading marker at all
+# throws every later position-based guess off by one, because the
+# counter that tracks "which of the four headings have I seen so far"
+# never got to count it. `_split_into_blocks` (below) treats any content
+# seen before the FIRST heading marker in the document as that unmarked
+# line and seeds the position counter as though its heading HAD been
+# seen, so a paraphrased heading right after it is still counted from
+# the correct position.
 _ORDERED_SLOTS = ("what_this_is",) + SLOTS
+
+# reviews/FWD-018 F8: content-based fallback signatures for tier (2)
+# above. Only action_consequences and unclear_points have a content
+# shape reliable enough to guess from without looking at position at
+# all: action_consequences entries are always written as "<action> ->
+# <consequence>" (agents/fde-walkthrough-evaluator.md's "What to
+# return"), and unclear_points entries are, by construction, about not
+# knowing something. primary_actions and what_this_is have no
+# equivalent tell — a short verb-first phrase looks like any other short
+# verb-first phrase — so those two stay purely positional, same as
+# before this fix.
+_UNCLEAR_KEYWORDS_RE = re.compile(
+    r"\b(unclear|not\s+sure|unsure|ambiguous|uncertain|not\s+certain|"
+    r"confus\w*|no\s+idea|couldn'?t\s+tell|wasn'?t\s+sure|don'?t\s+know|"
+    r"do\s+not\s+know)\b",
+    re.IGNORECASE,
+)
+
+
+def _classify_block_content(lines: list[str]) -> str | None:
+    """The third-tier fallback (F8): given the raw lines found under a
+    heading that matched no alias, guess its slot from what its OWN
+    bullets say, never from where it happens to sit in the document.
+    Returns None — deferring to the positional guess — when nothing
+    bullet-shaped is present at all, or when no bullet matches either
+    signature. Never returns "observed_text" or "target_unreachable":
+    both are reached only by an exact alias match (see the comment above
+    _SECTION_ALIASES), so a fallback here can never manufacture a false
+    positive on either."""
+    bullets = [bm.group(1) for bm in (_BULLET_RE.match(ln) for ln in lines) if bm]
+    if not bullets:
+        return None
+    if any(_ARROW_RE.search(b) for b in bullets):
+        return "action_consequences"
+    if any(_UNCLEAR_KEYWORDS_RE.search(b) for b in bullets):
+        return "unclear_points"
+    return None
+
+
+def _split_into_blocks(text: str) -> tuple[list[str], list[tuple[str, list[str]]]]:
+    """Split raw run text into (preamble_lines, [(heading_text, lines), ...]).
+
+    `preamble_lines` is every non-blank line seen before the FIRST
+    recognized heading marker of any kind, anywhere in the document —
+    this is what lets F8's fix tell a markerless "what this is" line
+    apart from a heading whose content just hasn't been read yet. Blank
+    lines are dropped throughout, matching the line-by-line parser this
+    replaces."""
+    preamble: list[str] = []
+    blocks: list[tuple[str, list[str]]] = []
+    heading: str | None = None
+    lines: list[str] = []
+    for raw_line in text.splitlines():
+        line = raw_line.rstrip()
+        if not line.strip():
+            continue
+        heading_text = None
+        m = _HEADING_RE.match(line)
+        if m:
+            heading_text = m.group(2)
+        else:
+            m2 = _BOLD_HEADING_RE.match(line)
+            if m2:
+                heading_text = m2.group(1)
+        if heading_text is not None:
+            if heading is not None:
+                blocks.append((heading, lines))
+            heading, lines = heading_text, []
+            continue
+        if heading is None:
+            preamble.append(line)
+        else:
+            lines.append(line)
+    if heading is not None:
+        blocks.append((heading, lines))
+    return preamble, blocks
 
 
 def normalize_phrase(phrase: str) -> str:
@@ -128,71 +244,86 @@ def parse_perceived_model(text: str) -> dict:
     """Parse one run's returned perceived model into
     {"what_this_is": str, "primary_actions": set[str],
     "action_consequences": set[str], "unclear_points": set[str],
-    "target_unreachable": bool, "unreachable_reason": str}.
+    "target_unreachable": bool, "unreachable_reason": str,
+    "observed_text": list[str]}.
 
     Only a bullet line (see _BULLET_RE) inside one of the three scored
     sections becomes an entry — a non-bullet line there is prose the run
     added and is never scored (R6: only a phrase written as a short list
     item is comparable). The free-prose "what this is" line is captured
-    for human reading only; it never reaches compute_divergence.
+    for human reading only; it never reaches compute_divergence. Neither
+    does "observed_text" (F10) — kept as a plain list, in document order,
+    exactly as written (no lowercasing, no whitespace normalization) so
+    it stays a usable verbatim quote rather than a comparison key.
 
-    A heading is recognized either by exact alias match (case/whitespace-
-    insensitive, trailing colon stripped) or, failing that, by its
-    position among the headings seen so far (_ORDERED_SLOTS) — see the
-    module-level comment above _ORDERED_SLOTS. "target_unreachable" is
-    the one exception: it is only ever reached via an exact alias match,
-    never guessed positionally, so a false "unreachable" flag can never
-    silently exclude a run's real content from the divergence budget.
+    A heading is resolved, in order of preference: (1) exact alias match
+    (case/whitespace-insensitive, trailing colon stripped); (2) failing
+    that, content-based classification of its own bullets against a
+    pattern characteristic of action_consequences or unclear_points
+    (_classify_block_content, F8); (3) failing that too, its position
+    among the headings seen so far (_ORDERED_SLOTS) — see the module-
+    level comments above _ORDERED_SLOTS and _classify_block_content.
+    Content seen before the very first heading marker anywhere in the
+    document is treated as an unmarked "what this is" line rather than
+    silently dropped (F8's other half — see _split_into_blocks).
+
+    "target_unreachable" and "observed_text" are both exceptions to all
+    three tiers above: each is only ever reached via an exact alias
+    match, never guessed by content or position, so neither a false
+    "unreachable" flag nor a misrouted quote can silently exclude a
+    run's real content from the divergence budget.
     """
     model: dict = {"what_this_is": "", "primary_actions": set(),
                    "action_consequences": set(), "unclear_points": set(),
-                   "target_unreachable": False, "unreachable_reason": ""}
-    current: str | None = None
+                   "target_unreachable": False, "unreachable_reason": "",
+                   "observed_text": []}
+    preamble, blocks = _split_into_blocks(text)
+
     heading_index = -1
-    for raw_line in text.splitlines():
-        line = raw_line.rstrip()
-        if not line.strip():
-            continue
-        heading_text = None
-        m = _HEADING_RE.match(line)
-        if m:
-            heading_text = m.group(2)
+    if preamble:
+        bm = _BULLET_RE.match(preamble[0])
+        model["what_this_is"] = (bm.group(1) if bm else preamble[0]).strip()
+        heading_index = _ORDERED_SLOTS.index("what_this_is")
+
+    for heading_text, lines in blocks:
+        heading = _canon_heading(heading_text)
+        if heading is None:
+            heading = _classify_block_content(lines)
+        if heading is not None:
+            if heading in _ORDERED_SLOTS:
+                heading_index = _ORDERED_SLOTS.index(heading)
         else:
-            m2 = _BOLD_HEADING_RE.match(line)
-            if m2:
-                heading_text = m2.group(1)
-        if heading_text is not None:
-            heading = _canon_heading(heading_text)
-            if heading is not None:
-                if heading in _ORDERED_SLOTS:
-                    heading_index = _ORDERED_SLOTS.index(heading)
-            else:
-                heading_index += 1
-                heading = (_ORDERED_SLOTS[heading_index]
-                           if heading_index < len(_ORDERED_SLOTS) else None)
-            current = heading
-            if current == "target_unreachable":
-                model["target_unreachable"] = True
+            heading_index += 1
+            heading = (_ORDERED_SLOTS[heading_index]
+                       if heading_index < len(_ORDERED_SLOTS) else None)
+
+        if heading == "target_unreachable":
+            model["target_unreachable"] = True
+            if lines and not model["unreachable_reason"]:
+                bm = _BULLET_RE.match(lines[0])
+                model["unreachable_reason"] = (bm.group(1) if bm else lines[0]).strip()
             continue
-        if current == "what_this_is":
-            if not model["what_this_is"]:
+        if heading == "observed_text":
+            for line in lines:
                 bm = _BULLET_RE.match(line)
-                model["what_this_is"] = (bm.group(1) if bm else line).strip()
+                if bm:
+                    model["observed_text"].append(bm.group(1).strip())
             continue
-        if current == "target_unreachable":
-            if not model["unreachable_reason"]:
+        if heading == "what_this_is":
+            if not model["what_this_is"] and lines:
+                bm = _BULLET_RE.match(lines[0])
+                model["what_this_is"] = (bm.group(1) if bm else lines[0]).strip()
+            continue
+        if heading in SLOTS:
+            for line in lines:
                 bm = _BULLET_RE.match(line)
-                model["unreachable_reason"] = (bm.group(1) if bm else line).strip()
-            continue
-        if current in SLOTS:
-            bm = _BULLET_RE.match(line)
-            if not bm:
-                continue
-            entry = bm.group(1).strip()
-            if current == "action_consequences":
-                model[current].add(canonicalize_pair(entry))
-            else:
-                model[current].add(normalize_phrase(entry))
+                if not bm:
+                    continue
+                entry = bm.group(1).strip()
+                if heading == "action_consequences":
+                    model[heading].add(canonicalize_pair(entry))
+                else:
+                    model[heading].add(normalize_phrase(entry))
     return model
 
 
