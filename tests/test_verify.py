@@ -226,6 +226,64 @@ class TestI1RequirementCoverage(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("R1", r.stdout)
 
+    # -- F10: `script` must resolve inside the demand's own
+    # evals/journeys/<demand-id>/ tree — a bare .is_file() on the
+    # manifest-relative join let it trace to a file the demand never
+    # authored
+    def test_script_escaping_via_parent_traversal_does_not_satisfy(self):
+        """A manifest's script pointing outside the demand's own
+        evals/journeys/<demand-id>/ tree — even to another real,
+        legitimate demand's own script — must not satisfy this demand's
+        own obligation."""
+        self._demand("FWD-400", "R1: WHEN...\n")
+        # FWD-999's own real, legitimate journey
+        self._journeys("FWD-999", ["R1"], script_name="real.spec.ts")
+        jdir = self.p / "evals" / "journeys" / "FWD-400"
+        jdir.mkdir(parents=True)
+        (jdir / "main.journey.toml").write_text(
+            '[meta]\nid = "main"\ndemand_id = "FWD-400"\n'
+            'requirements = ["R1"]\nscript = "../FWD-999/real.spec.ts"\n'
+            'authored_with = "claude-code"\n')
+        r = verify(self.p, "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("FWD-400", r.stdout)
+        self.assertIn("R1", r.stdout)
+
+    def test_script_as_absolute_path_does_not_satisfy(self):
+        """An absolute script path (e.g. a binary that merely happens to
+        exist on the host) replaces the manifest-relative join entirely
+        under Path.__truediv__ and must not satisfy the check."""
+        self._demand("FWD-401", "R1: WHEN...\n")
+        jdir = self.p / "evals" / "journeys" / "FWD-401"
+        jdir.mkdir(parents=True)
+        (jdir / "main.journey.toml").write_text(
+            '[meta]\nid = "main"\ndemand_id = "FWD-401"\n'
+            'requirements = ["R1"]\nscript = "/bin/sh"\n'
+            'authored_with = "claude-code"\n')
+        r = verify(self.p, "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("FWD-401", r.stdout)
+        self.assertIn("R1", r.stdout)
+
+    def test_script_via_symlink_pointing_outside_does_not_satisfy(self):
+        """A script file that is itself a symlink resolving outside the
+        demand's own evals/journeys/<demand-id>/ tree must not satisfy
+        the check either — containment follows real paths, not just the
+        manifest-declared relative name."""
+        self._demand("FWD-402", "R1: WHEN...\n")
+        self._journeys("FWD-999", ["R1"], script_name="real.spec.ts")
+        jdir = self.p / "evals" / "journeys" / "FWD-402"
+        jdir.mkdir(parents=True)
+        link = jdir / "escape.spec.ts"
+        link.symlink_to(self.p / "evals" / "journeys" / "FWD-999" / "real.spec.ts")
+        (jdir / "main.journey.toml").write_text(
+            '[meta]\nid = "main"\ndemand_id = "FWD-402"\n'
+            'requirements = ["R1"]\nscript = "escape.spec.ts"\n'
+            'authored_with = "claude-code"\n')
+        r = verify(self.p, "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("FWD-402", r.stdout)
+
     # -- F3: staged/since scoping — an old, unrelated demand's real gap
     # must not block a commit that never touches that demand
     def test_staged_unrelated_change_is_not_blocked_by_an_old_demands_gap(self):
@@ -266,6 +324,38 @@ class TestI1RequirementCoverage(unittest.TestCase):
         # broken demand did not swallow the whole check
         self.assertIn("FWD-061", row["detail"])
         self.assertIn("R2", row["detail"])
+
+    # -- F11: --staged is the only tier that scopes down to touched
+    # demands; --since alone (CI's diff-range flag) no longer does, and an
+    # explicit --all always forces the unscoped audit even when --since is
+    # also passed (this is CI's real, exact invocation)
+    def test_all_with_since_still_catches_an_old_unrelated_demands_gap(self):
+        self._demand("FWD-070", "R1: WHEN...\nR2: WHEN...\n")
+        self._journeys("FWD-070", ["R1"])  # R2 has always been missing
+        old_sha = commit_all(self.p, "FWD-070 shipped, R2 gap and all")
+        (self.p / "README.md").write_text("later, unrelated PR\n")
+        commit_all(self.p, "unrelated readme fix")
+        r = verify(self.p, "--all", "--since", old_sha,
+                   "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("FWD-070", r.stdout)
+        self.assertIn("R2", r.stdout)
+
+    def test_bare_since_without_staged_or_all_also_catches_the_gap(self):
+        """FWD-017 F11 design decision: `--since` alone no longer scopes
+        the R#-completeness check down — only `--staged` (the pre-commit,
+        don't-block-unrelated-work tier) does. An old, untouched demand's
+        real gap must still surface through the plain `--since` path,
+        since that is what CI's audit tier ultimately relies on."""
+        self._demand("FWD-071", "R1: WHEN...\nR2: WHEN...\n")
+        self._journeys("FWD-071", ["R1"])
+        old_sha = commit_all(self.p, "FWD-071 shipped, R2 gap and all")
+        (self.p / "README.md").write_text("later, unrelated commit\n")
+        commit_all(self.p, "unrelated readme fix")
+        r = verify(self.p, "--since", old_sha, "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("FWD-071", r.stdout)
+        self.assertIn("R2", r.stdout)
 
 
 class TestGateNameValidation(unittest.TestCase):

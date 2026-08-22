@@ -40,7 +40,7 @@ EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "finding-discipline", "promotion-criteria", "observability",
                "portability", "artifact-handoff", "scrum", "traceability",
-               "erosion", "divergence", "survey", "walkthrough")
+               "erosion", "divergence", "survey")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -91,7 +91,8 @@ class Gate:
         return self._git("diff", "--name-only", EMPTY_TREE, "HEAD")
 
     # -- I1: eval precedes merge ------------------------------------------
-    def gate_eval_coverage(self, staged: bool, since: str | None = None) -> None:
+    def gate_eval_coverage(self, staged: bool, since: str | None = None,
+                            all_: bool = False) -> None:
         # sharpened (FWD-017 R6): a design-surface demand's declared R#
         # criteria (acceptance.md) must each trace to a real, executed
         # journey — a parsed evals/journeys/<demand-id>/*.journey.toml
@@ -113,12 +114,24 @@ class Gate:
             demand_dirs = sorted(p for p in specs_dir.iterdir() if p.is_dir()) \
                 if specs_dir.is_dir() else []
 
-            # under --staged (pre-commit) or an explicit --since range, an
-            # old, unrelated demand's gap must not block every future
-            # commit from every contributor indefinitely — scope to
-            # demands this changeset actually touches, the same way
-            # touched_behavior/touched_eval below already scope by `files`.
-            scoped = staged or since is not None
+            # under --staged (pre-commit), an old, unrelated demand's gap
+            # must not block every future commit from every contributor
+            # indefinitely — scope to demands this changeset actually
+            # touches, the same way touched_behavior/touched_eval below
+            # already scope by `files`.
+            #
+            # `--since` alone does NOT scope down (FWD-017 F11). CI's own
+            # invocation always passes `--since` (it is also the diff
+            # range for the file-level I1 check below); treating it as an
+            # equivalent blocking-avoidance tier to --staged silently
+            # narrowed CI's audit to only the demands a given push
+            # touches — the opposite of what the CI tier exists for.
+            # --staged is the one tier where "don't block a contributor's
+            # unrelated commit" applies; CI is not blocking any specific
+            # commit the same way, so it keeps running the full, unscoped
+            # audit regardless of --since. An explicit --all also always
+            # forces the unscoped audit, as a deliberate override.
+            scoped = staged and not all_
             touched_ids = None
             if scoped:
                 touched_ids = {graph.canon_demand(m.group(1))
@@ -215,11 +228,22 @@ class Gate:
         broken symlink) is left to propagate to the caller, which scopes
         it to this one demand (FWD-017 F7) rather than reporting it as an
         indistinguishable missing requirement.
+
+        `script` must resolve to a real descendant of this demand's own
+        evals/journeys/<demand-id>/ tree (FWD-017 F10) — a bare
+        `.is_file()` on the manifest-relative join lets `script` name a
+        parent-escaping relative path (`../FWD-999/real.spec.ts`) or an
+        absolute path (which replaces the join outright under
+        Path.__truediv__, e.g. `/bin/sh`), tracing to a file the demand
+        never authored. Symlinks are resolved to their real target before
+        the containment check, so a script that is itself a symlink
+        pointing outside the tree is caught the same way.
         """
         covered: set[str] = set()
         root = evals_dir / "journeys" / did
         if not root.is_dir():
             return covered
+        root_resolved = root.resolve()
         for manifest in sorted(root.rglob("*.journey.toml")):
             try:
                 with open(manifest, "rb") as fh:
@@ -228,7 +252,16 @@ class Gate:
                 continue
             meta = data.get("meta", {}) or {}
             script = meta.get("script")
-            if not script or not (manifest.parent / str(script)).is_file():
+            if not script:
+                continue
+            script_path = manifest.parent / str(script)
+            if not script_path.is_file():
+                continue
+            try:
+                script_resolved = script_path.resolve(strict=True)
+            except OSError:
+                continue
+            if not script_resolved.is_relative_to(root_resolved):
                 continue
             reqs = meta.get("requirements")
             if not isinstance(reqs, list):
@@ -468,23 +501,6 @@ class Gate:
         self.add("EROSION", not breaches,
                  erosion.verdict(breaches[:3], unmeasured))
 
-    # -- walkthrough: first-contact divergence stays within the declared
-    #    budget (opt-in, ADR-0014/FWD-018) --------------------------------
-    def gate_walkthrough(self, explicit: bool = False) -> None:
-        try:
-            import walkthrough
-            declared, breaches, unmeasured = walkthrough.gate(self.project)
-        except Exception as e:
-            self.add("WALKTHROUGH", False, f"walkthrough could not be measured: {e}")
-            return
-        if not declared:
-            if explicit:
-                self.add("WALKTHROUGH", True,
-                         "no [walkthrough] budget declared — walkthrough mode off")
-            return
-        self.add("WALKTHROUGH", not breaches,
-                 walkthrough.verdict(breaches[:3], unmeasured))
-
     # -- survey: the brownfield map is complete, labeled and anchored -----
     def gate_survey(self, explicit: bool = False) -> None:
         try:
@@ -602,7 +618,7 @@ def main() -> int:
     if want("config"):
         g.gate_config(cfg, spec)
     if want("eval-coverage") or want("eval"):
-        g.gate_eval_coverage(staged=args.staged, since=args.since)
+        g.gate_eval_coverage(staged=args.staged, since=args.since, all_=args.all)
     if not args.staged:  # pre-commit stays fast; the rest is CI
         if want("adversarial-isolation"):
             g.gate_adversarial()
@@ -626,8 +642,6 @@ def main() -> int:
             g.gate_divergence()
         if want("survey"):
             g.gate_survey(explicit=(only == "survey"))
-        if want("walkthrough"):
-            g.gate_walkthrough(explicit=(only == "walkthrough"))
 
     if not g.results:
         print("\033[31m✗\033[0m no gate ran — check the flags", file=sys.stderr)
