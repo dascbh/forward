@@ -37,7 +37,7 @@ DEFAULT_EVAL = ("evals/", "tests/")
 # These roles write ONLY inside their scope; everything else is blocked.
 ALLOWED = {
     "fde-spec": ("specs/", "discovery/"),
-    "fde-architecture": ("docs/adr/", "specs/"),
+    "fde-architecture": ("docs/adr/", "specs/", "walkthroughs/"),
     "fde-adversarial": ("reviews/",),
     "fde-promotion": ("promotions/",),
 }

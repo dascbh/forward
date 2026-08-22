@@ -9,7 +9,7 @@
 
 [project]
 name = "forward"
-kernel_version = "0.13.0"
+kernel_version = "0.14.0"
 
 [triage]
 data_class = "public"             # open Apache-2.0 repository, no third-party data
@@ -89,3 +89,14 @@ max_duplication_pct = 6.0
 # WITHOUT this line the ratio is 12.13 (over budget) and duplication
 # 75.9% — the comparison the review demanded be published (FWD-016 F5).
 generated_paths = ["bin/fde/", ".fde/", ".claude/skills/", ".claude/agents/"]
+
+# [walkthrough]
+# optional first-contact divergence budget (fde-walkthrough skill) — the
+# gate enforces only the keys you declare, and is silent when this
+# section is absent
+# enabled = true
+# divergence_threshold = 0.30
+# Not enabled here: this kernel repo has no UI to run a walkthrough
+# against (user_facing = false, above) — nothing to generate a
+# divergence.toml from yet (ADR-0014).
+

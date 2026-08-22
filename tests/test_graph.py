@@ -206,5 +206,139 @@ class TestForbiddenOrphans(unittest.TestCase):
         self.assertEqual(self.gate().returncode, 0)
 
 
+class TestWalkthroughGraph(unittest.TestCase):
+    """ADR-0014 section 8 / FWD-018: intended-model, perceived-model, and
+    divergence as pure analytics, plus the three impossible states
+    forbidden_orphans() must catch."""
+
+    def setUp(self):
+        self._t = tempfile.TemporaryDirectory()
+        self.p = make_project(self._t.name)
+
+    def tearDown(self):
+        self._t.cleanup()
+
+    def gate(self):
+        return verify(self.p, "--gate", "traceability")
+
+    def _intended(self, did, text="# intended\n"):
+        d = Path(self.p) / "specs" / did / "design"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "intended-model.md").write_text(text)
+
+    def _perceived(self, did, letter, text="perceived\n"):
+        d = Path(self.p) / "walkthroughs" / did
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"perceived-model-{letter}.md").write_text(text)
+        return d / f"perceived-model-{letter}.md"
+
+    def _divergence(self, did, score=0.2, a=None, b=None):
+        d = Path(self.p) / "walkthroughs" / did
+        d.mkdir(parents=True, exist_ok=True)
+        a = a or f"walkthroughs/{did}/perceived-model-a.md"
+        b = b or f"walkthroughs/{did}/perceived-model-b.md"
+        (d / "divergence.toml").write_text(
+            f'demand = "{did}"\nscore = {score}\n'
+            f'intended_model = "specs/{did}/design/intended-model.md"\n'
+            f'perceived_model_a = "{a}"\nperceived_model_b = "{b}"\n')
+
+    def test_complete_chain_has_no_orphans_and_appears_in_the_graph(self):
+        demand(self.p, "FWD-200")
+        self._intended("FWD-200")
+        self._perceived("FWD-200", "a")
+        self._perceived("FWD-200", "b")
+        self._divergence("FWD-200")
+        self.assertEqual(graph.forbidden_orphans(Path(self.p)), [])
+        self.assertEqual(self.gate().returncode, 0)
+
+        g = graph.build_graph(Path(self.p))
+        self.assertIn(graph._node("intended-model", "FWD-200"), g.nodes)
+        self.assertIn(graph._node("perceived-model", "FWD-200#a"), g.nodes)
+        self.assertIn(graph._node("perceived-model", "FWD-200#b"), g.nodes)
+        self.assertIn(graph._node("divergence", "FWD-200"), g.nodes)
+        etypes = {e for _s, e, _d, _w in g.edges}
+        self.assertEqual({"modeled_by", "walked_by", "confronted_by"} & etypes,
+                         {"modeled_by", "walked_by", "confronted_by"})
+        # both runs confront the same divergence node — its in-degree of
+        # 2 is the structural signature the ADR names
+        dvnode = graph._node("divergence", "FWD-200")
+        confronted = [s for s, e, d, _w in g.edges if e == "confronted_by" and d == dvnode]
+        self.assertEqual(len(confronted), 2)
+
+    def test_demand_ego_graph_surfaces_the_whole_chain(self):
+        demand(self.p, "FWD-205")
+        self._intended("FWD-205")
+        self._perceived("FWD-205", "a")
+        self._perceived("FWD-205", "b")
+        self._divergence("FWD-205")
+        g = graph.build_graph(Path(self.p))
+        ego = g.ego(graph._node("demand", "FWD-205"))
+        kinds = {n["kind"] for n in ego.nodes.values()}
+        self.assertTrue({"intended-model", "perceived-model", "divergence"} <= kinds)
+
+    def test_perceived_model_without_intended_model_is_forbidden(self):
+        # R4's ordering requirement (intended model compiled BEFORE either
+        # run) made an observable graph failure, not a documentation promise
+        demand(self.p, "FWD-201")
+        self._perceived("FWD-201", "a")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("no specs/FWD-201/design/intended-model.md counterpart", r.stdout)
+
+    def test_a_demand_untouched_by_walkthrough_stays_green(self):
+        # normal mid-loop state: no walkthrough evidence at all
+        demand(self.p, "FWD-206")
+        self.assertEqual(self.gate().returncode, 0)
+
+    def test_divergence_pointing_at_a_missing_perceived_model_is_forbidden(self):
+        demand(self.p, "FWD-202")
+        self._intended("FWD-202")
+        self._perceived("FWD-202", "a")
+        self._perceived("FWD-202", "b")
+        self._divergence("FWD-202",
+                         b="walkthroughs/FWD-202/perceived-model-MISSING.md")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("points at a missing file", r.stdout)
+
+    def test_divergence_with_fewer_than_two_runs_on_record_is_forbidden(self):
+        # only run "a" is actually on disk; the toml's own pointers both
+        # resolve (to the same existing file) so this isolates check #7
+        # (confronted_by in-degree) from check #5 (dangling pointer)
+        demand(self.p, "FWD-203")
+        self._intended("FWD-203")
+        self._perceived("FWD-203", "a")
+        self._divergence("FWD-203",
+                         a="walkthroughs/FWD-203/perceived-model-a.md",
+                         b="walkthroughs/FWD-203/perceived-model-a.md")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("only 1 confronted_by edge", r.stdout)
+
+    def test_use15_finding_cites_the_divergence_it_traces_to(self):
+        demand(self.p, "FWD-204")
+        self._intended("FWD-204")
+        self._perceived("FWD-204", "a")
+        self._perceived("FWD-204", "b")
+        self._divergence("FWD-204")
+        review(self.p, "FWD-204",
+              [("usability_accessibility", "medium",
+                "USE-15 interpretive divergence is evidence about the artifact")])
+        g = graph.build_graph(Path(self.p))
+        fnode = graph._node("finding", "FWD-204#1")
+        dvnode = graph._node("divergence", "FWD-204")
+        self.assertIn((fnode, "cites", dvnode),
+                      [(s, e, d) for s, e, d, _w in g.edges])
+
+    def test_a_finding_unrelated_to_any_divergence_does_not_cite_one(self):
+        demand(self.p, "FWD-207")
+        review(self.p, "FWD-207", [("maintainability", "low", "MNT-1")])
+        g = graph.build_graph(Path(self.p))
+        cites_divergence = [(s, e, d) for s, e, d, _w in g.edges
+                            if e == "cites"
+                            and g.nodes.get(d, {}).get("kind") == "divergence"]
+        self.assertEqual(cites_divergence, [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,7 +1,7 @@
 # ============================================================================
 # ROLES
 # ============================================================================
-# Five roles. They are not job titles — each one exists because it has
+# Six roles. They are not job titles — each one exists because it has
 # DIFFERENT ACCESS (tools, context, artifacts). A role running the same model,
 # in the same context, with the same tools as another role is the same role in
 # a different hat, and the "architect" approves what they themselves designed.
@@ -48,7 +48,7 @@ it becomes a dev with a different prompt and the decision never gets written.
 """
 inputs = ["specs/**", "fde.config.toml", "src/**:read"]
 outputs = ["docs/adr/*.md", "specs/<demand-id>/architecture.md"]
-write_scope = ["docs/adr/**", "specs/**"]
+write_scope = ["docs/adr/**", "specs/**", "walkthroughs/**"]
 denied_paths = ["src/**", "tests/**"]
 isolation = false
 satisfies = ["I7"]
@@ -109,3 +109,32 @@ denied_paths = ["src/**", "tests/**", "evals/**", "specs/**", "reviews/**"]
 isolation = true
 isolation_mode = "worktree"
 satisfies = ["I4", "I5", "I6"]
+
+# ----------------------------------------------------------------------------
+[[role]]
+id = "walkthrough-evaluator"
+label = "Walkthrough evaluator"
+purpose = """
+Explore a running target cold, as a first-time visitor, and report what
+the interface communicates it is, what it implies you can do, and what
+happens if you do it. Never told the spec, the wireframe, the glossary,
+the code, or the builder's intent — structurally incapable of seeing any
+of it. Two independent instances of this role produce two perceived
+models; where they diverge on the same interface, that divergence is
+evidence about the artifact, never a claim about real users.
+"""
+inputs = ["target-url (supplied at invocation; not a repository artifact)"]
+outputs = ["perceived-model (returned as the run's own final message; nothing written to disk by this role)"]
+write_scope = []
+denied_paths = ["src/**", "tests/**", "evals/**", "infra/**", "specs/**",
+                "discovery/**", "docs/**", "reviews/**", "promotions/**",
+                "walkthroughs/**"]
+isolation = true
+isolation_mode = "fresh-agent"
+context_policy = "blind"
+tools = ["mcp__claude-in-chrome__navigate", "mcp__claude-in-chrome__computer",
+         "mcp__claude-in-chrome__find", "mcp__claude-in-chrome__form_input",
+         "mcp__claude-in-chrome__get_page_text", "mcp__claude-in-chrome__read_page",
+         "mcp__claude-in-chrome__resize_window", "mcp__claude-in-chrome__tabs_context_mcp",
+         "mcp__claude-in-chrome__tabs_create_mcp", "mcp__claude-in-chrome__tabs_close_mcp"]
+satisfies = []

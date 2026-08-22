@@ -259,7 +259,8 @@ def build_graph(project: Path) -> Graph:
             if d.is_dir() else {}
 
     specs, reviews, proms = dir_index("specs"), dir_index("reviews"), dir_index("promotions")
-    demand_ids = set(specs) | set(reviews) | set(proms)
+    walkthroughs = dir_index("walkthroughs")
+    demand_ids = set(specs) | set(reviews) | set(proms) | set(walkthroughs)
     demand_ids |= {n["id"] for n in g.nodes.values() if n["kind"] == "demand"}
 
     for did in sorted(demand_ids):
@@ -281,8 +282,39 @@ def build_graph(project: Path) -> Graph:
             g.add_edge(dnode, "designed_by", g.add_node("architecture", did))
         if did in proms and (proms[did] / "decision.md").exists():
             g.add_edge(dnode, "promoted_by", g.add_node("promotion", did))
+
+        # first-contact walkthrough evidence (ADR-0014, FWD-018): the
+        # intended model architecture compiles, the two blind runs'
+        # perceived models, and their confrontation. Pure analytics —
+        # "graph as evidence, not graph as program" (ADR-0010); the
+        # matching enforcement lives in forbidden_orphans() below.
+        intended_exists = bool(sdir) and (sdir / "design" / "intended-model.md").exists()
+        if intended_exists:
+            g.add_edge(dnode, "modeled_by", g.add_node("intended-model", did))
+        has_divergence = False
+        wdir = walkthroughs.get(did)
+        if wdir:
+            intended_node = _node("intended-model", did)
+            for letter in ("a", "b"):
+                pfile = wdir / f"perceived-model-{letter}.md"
+                if not pfile.exists():
+                    continue
+                pnode = g.add_node("perceived-model", f"{did}#{letter}")
+                if intended_exists:
+                    # a perceived model on record with NO intended-model
+                    # counterpart gets no walked_by edge — that missing
+                    # edge is exactly what forbidden_orphans() flags
+                    g.add_edge(intended_node, "walked_by", pnode)
+            has_divergence = (wdir / "divergence.toml").is_file()
+            if has_divergence:
+                dvnode = g.add_node("divergence", did)
+                for letter in ("a", "b"):
+                    if (wdir / f"perceived-model-{letter}.md").exists():
+                        g.add_edge(g.add_node("perceived-model", f"{did}#{letter}"),
+                                  "confronted_by", dvnode)
+
         if did in reviews and (reviews[did] / "findings.toml").exists():
-            _build_review(g, dnode, did, reviews[did] / "findings.toml")
+            _build_review(g, dnode, did, reviews[did] / "findings.toml", has_divergence)
 
     # ADRs + supersedes edges (the one authored edge)
     adr_dir = project / "docs" / "adr"
@@ -303,7 +335,8 @@ def build_graph(project: Path) -> Graph:
     return g
 
 
-def _build_review(g: Graph, dnode: str, did: str, findings: Path) -> None:
+def _build_review(g: Graph, dnode: str, did: str, findings: Path,
+                  has_divergence: bool = False) -> None:
     try:
         data = tomllib.loads(findings.read_text(encoding="utf-8", errors="ignore"))
     except tomllib.TOMLDecodeError:
@@ -322,14 +355,29 @@ def _build_review(g: Graph, dnode: str, did: str, findings: Path) -> None:
         g.add_edge(rnode, "contains", fnode, w)
         if f.get("attribute"):
             g.add_edge(fnode, "against", g.add_node("attribute", f["attribute"]), w)
+        cited_use15 = False
         if f.get("principle"):
             pid = canon_principle(str(f["principle"]))
             g.add_edge(fnode, "cites", g.add_node("principle", pid), w)
+            cited_use15 = pid == "USE-15"
         elif f.get("probe"):
             # keyed by full text so distinct probes never merge; truncate
             # only for display (--central)
             full = str(f["probe"])
             g.add_edge(fnode, "cites", g.add_node("probe", full), w)
+        # ADR-0014 R11: demand -> intended-model -> (walked_by) ->
+        # perceived-model (x2) -> (confronted_by) -> divergence ->
+        # (cites) -> finding — direction kept finding-sourced like every
+        # other `cites` edge (a finding cites its OWN justification), not
+        # reversed for this one artifact type. A USE-15 citation always
+        # traces to a recorded divergence by definition (the catalog id
+        # names exactly this judgment); a functional_correctness finding
+        # that traces to the same divergence declares it explicitly with
+        # `divergence = true` in findings.toml, since a DOM-* id alone
+        # does not distinguish a divergence-sourced bug from an ordinary
+        # one.
+        if has_divergence and (cited_use15 or f.get("divergence")):
+            g.add_edge(fnode, "cites", g.add_node("divergence", did), w)
 
 
 # ---------------------------------------------------------------------------
@@ -365,6 +413,49 @@ def forbidden_orphans(project: Path, g: Graph | None = None) -> list:
             out.append(f"ADR supersedes points at a missing ADR {n['id']}")
     for cyc in g.cycles_in("supersedes"):
         out.append("supersedes cycle: " + " -> ".join(cyc))
+
+    # 5-7. walkthrough (ADR-0014 section 8, FWD-018): three impossible
+    # states for first-contact evidence, never incomplete ones — a demand
+    # midway through the loop with no walkthrough at all stays green.
+    walkthroughs = _dir_index(project, "walkthroughs")
+    for did, wdir in sorted(walkthroughs.items()):
+        dv = wdir / "divergence.toml"
+        if not dv.is_file():
+            continue
+        try:
+            data = tomllib.loads(dv.read_text(encoding="utf-8", errors="ignore"))
+        except tomllib.TOMLDecodeError:
+            out.append(f"{did}: divergence.toml unparseable")
+            continue
+        # 5. a pointer to a perceived-model file that does not exist
+        for key in ("perceived_model_a", "perceived_model_b"):
+            ptr = data.get(key)
+            if ptr and not (project / ptr).exists():
+                out.append(f"{did}: divergence.toml {key} points at a missing "
+                           f"file ({ptr})")
+        # 7. fewer than two runs actually on record for this divergence —
+        # the graph-level form of "the two runs were genuinely independent
+        # AND both happened" (FM-3)
+        inc = sum(1 for _s, e, d, _w in g.edges
+                  if e == "confronted_by" and d == _node("divergence", did))
+        if inc < 2:
+            out.append(f"{did}: divergence recorded with only {inc} "
+                       f"confronted_by edge(s) — both runs must be on record")
+
+    # 6. a perceived model on record with no intended-model counterpart for
+    # its demand — makes R4's ordering requirement (intended model compiled
+    # BEFORE either run) an observable graph failure, not a documentation
+    # promise (FM-4, FM-9)
+    for did, wdir in sorted(walkthroughs.items()):
+        has_perceived = any((wdir / f"perceived-model-{letter}.md").exists()
+                            for letter in ("a", "b"))
+        if not has_perceived:
+            continue
+        sdir = specs.get(did)
+        if not (sdir and (sdir / "design" / "intended-model.md").exists()):
+            out.append(f"{did}: perceived model(s) on record with no "
+                       f"specs/{did}/design/intended-model.md counterpart")
+
     return out
 
 

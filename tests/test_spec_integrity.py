@@ -1,6 +1,7 @@
 """FM-2/R2: the spec and every surface derived from it stay coherent."""
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
 import tomllib
@@ -8,6 +9,17 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def load_guard_allowed() -> dict:
+    """Load runtime/guard.py's ALLOWED dict without shelling out — the
+    module has no side effects at import time (main() only runs under
+    __main__)."""
+    spec = importlib.util.spec_from_file_location(
+        "_guard_for_spec_integrity_test", ROOT / "runtime" / "guard.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.ALLOWED
 
 PREFIX_TO_ATTRIBUTE = {
     "USE": "usability_accessibility",
@@ -91,14 +103,52 @@ class TestRolesAgentsSkills(unittest.TestCase):
     def setUpClass(cls):
         cls.roles = load("spec/roles.toml")["role"]
 
-    def test_five_roles_with_write_scope(self):
+    def test_six_roles_with_write_scope(self):
         self.assertEqual({r["id"] for r in self.roles},
                          {"spec", "architecture", "implementation",
-                          "adversarial", "promotion"})
+                          "adversarial", "promotion", "walkthrough-evaluator"})
+        # walkthrough-evaluator is the ONE permitted-empty write_scope
+        # (ADR-0014, FM-5): structurally incapable of writing anywhere,
+        # by design, not by omission. Every other role's non-empty
+        # assertion must still fail on regression.
         for r in self.roles:
-            self.assertTrue(r.get("write_scope"), r["id"])
+            if r["id"] == "walkthrough-evaluator":
+                self.assertEqual(r.get("write_scope"), [], r["id"])
+            else:
+                self.assertTrue(r.get("write_scope"), r["id"])
         adv = next(r for r in self.roles if r["id"] == "adversarial")
         self.assertTrue(adv["isolation"])
+        wte = next(r for r in self.roles if r["id"] == "walkthrough-evaluator")
+        self.assertTrue(wte["isolation"])
+        self.assertEqual(wte.get("satisfies"), [])
+
+    def test_write_scope_has_matching_guard_allowed_entry(self):
+        """Regression guard for the drift risk ADR-0014 §7 names directly:
+        runtime/guard.py's ALLOWED dict is hand-maintained, not derived
+        from spec/roles.toml (FM-5/FM-1). Checks the four judging roles
+        that appear in both files (spec, architecture, adversarial,
+        promotion — implementation and walkthrough-evaluator are not
+        ALLOWED-dict roles). For each, every write_scope prefix declared
+        in roles.toml must have a matching enforcement entry in guard.py's
+        ALLOWED tuple for that role: a roles.toml grant with no matching
+        guard.py entry is an unenforced write scope, exactly the gap
+        ADR-0014's own decision (§7) went unapplied until this fix."""
+        allowed = load_guard_allowed()
+        checked_any = False
+        for r in self.roles:
+            agent = f"fde-{r['id']}"
+            if agent not in allowed:
+                continue
+            checked_any = True
+            guard_prefixes = {p.rstrip("/") + "/" for p in allowed[agent]}
+            for entry in r["write_scope"]:
+                prefix = entry[:-2] if entry.endswith("**") else entry
+                prefix = prefix.rstrip("/") + "/"
+                self.assertIn(
+                    prefix, guard_prefixes,
+                    f"{r['id']}: write_scope {entry!r} has no matching "
+                    f"runtime/guard.py ALLOWED entry for {agent!r}")
+        self.assertTrue(checked_any)
 
     def test_every_role_has_an_agent_file_with_matching_name(self):
         for r in self.roles:

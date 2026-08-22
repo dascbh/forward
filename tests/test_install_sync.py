@@ -117,12 +117,15 @@ class TestPluginDistribution(unittest.TestCase):
 
     def test_the_plugin_ships_the_skills_and_roles_it_promises(self):
         # a plugin install must carry fde-init (the bootstrap skill the
-        # project-level install deliberately excludes) and the five roles
+        # project-level install deliberately excludes) and the six roles
+        # (ADR-0014/FWD-018 added walkthrough-evaluator, its write_scope
+        # empty by design — spec/roles.toml's own header now reads "Six
+        # roles")
         skills = {d.name for d in (ROOT / "skills").iterdir() if d.is_dir()}
         self.assertIn("fde-init", skills)
         self.assertIn("fde-sync", skills)
         roles = {p.stem for p in (ROOT / "agents").glob("fde-*.md")}
-        self.assertEqual(len(roles), 5, sorted(roles))
+        self.assertEqual(len(roles), 6, sorted(roles))
 
 
 class TestClaudeLayerCopies(unittest.TestCase):

@@ -7,7 +7,7 @@
 
 [project]
 name = "{{PROJECT_NAME}}"
-kernel_version = "0.13.0"
+kernel_version = "0.14.0"
 
 [triage]
 data_class = "{{DATA_CLASS}}"           # public | internal | personal | financial | health
@@ -76,3 +76,10 @@ tools = {{TOOLS}}   # e.g.: ["claude-code"] - which native layers step 8 emitted
 # max_duplication_pct = 8.0
 # max_dependencies = 40
 # max_change_lines = 600
+
+# [walkthrough]
+# optional first-contact divergence budget (fde-walkthrough skill) — the
+# gate enforces only the keys you declare, and is silent when this
+# section is absent
+# enabled = true
+# divergence_threshold = 0.30

@@ -40,7 +40,7 @@ EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "finding-discipline", "promotion-criteria", "observability",
                "portability", "artifact-handoff", "scrum", "traceability",
-               "erosion", "divergence", "survey")
+               "erosion", "divergence", "survey", "walkthrough")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -546,6 +546,23 @@ class Gate:
         self.add("EROSION", not breaches,
                  erosion.verdict(breaches[:3], unmeasured))
 
+    # -- walkthrough: first-contact divergence stays within the declared
+    #    budget (opt-in, ADR-0014/FWD-018) --------------------------------
+    def gate_walkthrough(self, explicit: bool = False) -> None:
+        try:
+            import walkthrough
+            declared, breaches, unmeasured = walkthrough.gate(self.project)
+        except Exception as e:
+            self.add("WALKTHROUGH", False, f"walkthrough could not be measured: {e}")
+            return
+        if not declared:
+            if explicit:
+                self.add("WALKTHROUGH", True,
+                         "no [walkthrough] budget declared — walkthrough mode off")
+            return
+        self.add("WALKTHROUGH", not breaches,
+                 walkthrough.verdict(breaches[:3], unmeasured))
+
     # -- survey: the brownfield map is complete, labeled and anchored -----
     def gate_survey(self, explicit: bool = False) -> None:
         try:
@@ -687,6 +704,8 @@ def main() -> int:
             g.gate_divergence()
         if want("survey"):
             g.gate_survey(explicit=(only == "survey"))
+        if want("walkthrough"):
+            g.gate_walkthrough(explicit=(only == "walkthrough"))
 
     if not g.results:
         print("\033[31m✗\033[0m no gate ran — check the flags", file=sys.stderr)
