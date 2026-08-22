@@ -208,6 +208,49 @@ class Gate:
         return False
 
     @staticmethod
+    def _no_symlink_descendant(base: Path, target: Path) -> bool:
+        """True only when `target` is a proper, non-symlinked descendant
+        of `base`: every path component strictly between `base` and
+        `target`, and `target` itself, is a real directory/file — never a
+        symlink — and the relationship holds lexically (no `..` component
+        anywhere in between), never merely after resolving.
+
+        This is a categorical, per-component walk, not a
+        resolve()-and-compare containment check (FWD-017 F10's original
+        fix: `script_path.resolve(strict=True)
+        .is_relative_to(root.resolve())`). That check only hardens the
+        one leaf it resolves. It is blind to a symlink ABOVE that leaf —
+        a symlinked demand-id directory, or any symlinked intermediate
+        directory — because such a symlink's own resolved target still
+        trivially "contains" everything walked through it. FWD-017 F13:
+        `evals/journeys/<demand-id>` itself was a directory symlink to a
+        different demand's real tree; every manifest and script under it
+        passed the old check, which only ever compared the SCRIPT's
+        resolved path against the SYMLINK'S OWN resolved target — never
+        checked the root of the containment relationship at all.
+
+        Walking every component individually from `base` down through
+        `target` — the demand-id directory, any intermediate directory,
+        the manifest file, the script file — and checking
+        `Path.is_symlink()` on each is structurally different: a symlink
+        anywhere in the chain is rejected the same way, closing the whole
+        class of escape (this defect's third recurrence: F1/F2, then F10,
+        then F13) instead of hardening one instance of it at a time.
+        """
+        try:
+            rel_parts = target.relative_to(base).parts
+        except ValueError:
+            return False
+        if not rel_parts or ".." in rel_parts:
+            return False
+        current = base
+        for part in rel_parts:
+            current = current / part
+            if current.is_symlink():
+                return False
+        return True
+
+    @staticmethod
     def _journey_coverage(evals_dir: Path, did: str) -> set[str]:
         """R# tokens actually traced to a real journey for demand `did`:
         parses evals/journeys/<demand-id>/**/*.journey.toml (the manifest
@@ -229,22 +272,28 @@ class Gate:
         it to this one demand (FWD-017 F7) rather than reporting it as an
         indistinguishable missing requirement.
 
-        `script` must resolve to a real descendant of this demand's own
-        evals/journeys/<demand-id>/ tree (FWD-017 F10) — a bare
-        `.is_file()` on the manifest-relative join lets `script` name a
-        parent-escaping relative path (`../FWD-999/real.spec.ts`) or an
-        absolute path (which replaces the join outright under
-        Path.__truediv__, e.g. `/bin/sh`), tracing to a file the demand
-        never authored. Symlinks are resolved to their real target before
-        the containment check, so a script that is itself a symlink
-        pointing outside the tree is caught the same way.
+        Every path component from evals/journeys/ down through and
+        including the manifest, and separately down through and including
+        the `script` file it names, must be a real, non-symlinked
+        directory/file with no `..` in between (FWD-017 F10, hardened to
+        close F13: see `_no_symlink_descendant`) — this is what stops
+        `script` naming a parent-escaping relative path
+        (`../FWD-999/real.spec.ts`), an absolute path (which replaces the
+        join outright under Path.__truediv__, e.g. `/bin/sh`), a symlinked
+        script file, a symlinked manifest file, a symlinked intermediate
+        directory, or — F13's exact case — the demand-id directory itself
+        (`evals/journeys/<demand-id>`) being a symlink into a different
+        demand's real tree. Any one of those makes the journey uncounted,
+        the same as if it were never authored.
         """
         covered: set[str] = set()
         root = evals_dir / "journeys" / did
         if not root.is_dir():
             return covered
-        root_resolved = root.resolve()
+        journeys_root = evals_dir / "journeys"
         for manifest in sorted(root.rglob("*.journey.toml")):
+            if not Gate._no_symlink_descendant(journeys_root, manifest):
+                continue
             try:
                 with open(manifest, "rb") as fh:
                     data = tomllib.load(fh)
@@ -255,13 +304,9 @@ class Gate:
             if not script:
                 continue
             script_path = manifest.parent / str(script)
+            if not Gate._no_symlink_descendant(journeys_root, script_path):
+                continue
             if not script_path.is_file():
-                continue
-            try:
-                script_resolved = script_path.resolve(strict=True)
-            except OSError:
-                continue
-            if not script_resolved.is_relative_to(root_resolved):
                 continue
             reqs = meta.get("requirements")
             if not isinstance(reqs, list):

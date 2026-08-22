@@ -284,6 +284,57 @@ class TestI1RequirementCoverage(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("FWD-402", r.stdout)
 
+    # -- F13: F10's fix hardened `script` but not the containment ROOT
+    # itself — evals/journeys/<demand-id> can be a directory-level symlink
+    # pointing at a different demand's real tree, so every manifest and
+    # script found under it trivially "contains" against the SYMLINK'S OWN
+    # resolved target. Fixed with a categorical, per-component symlink
+    # walk (Gate._no_symlink_descendant) instead of a fourth resolve()-
+    # and-compare patch on top of F10's.
+    def test_demand_id_directory_symlinked_to_another_demands_tree_does_not_satisfy(self):
+        """FWD-500 authors NO manifest and NO script of its own — instead
+        its whole evals/journeys/FWD-500 directory is a symlink pointing
+        at FWD-999's real, legitimate journeys tree. A demand must not be
+        able to borrow another demand's entire authored work through a
+        directory-level pointer one layer above where F10's fix checks."""
+        self._demand("FWD-999", "R1: WHEN...\n")
+        self._journeys("FWD-999", ["R1"], script_name="real.spec.ts")
+        self._demand("FWD-500", "R1: WHEN...\n")
+        link = self.p / "evals" / "journeys" / "FWD-500"
+        link.symlink_to(self.p / "evals" / "journeys" / "FWD-999",
+                        target_is_directory=True)
+        commit_all(self.p, "FWD-500 points its journeys dir at FWD-999's")
+        r = verify(self.p, "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("FWD-500", r.stdout)
+        self.assertIn("R1", r.stdout)
+
+    def test_symlinked_intermediate_directory_in_scripts_own_path_does_not_satisfy(self):
+        """A symlink strictly BETWEEN the manifest and the script leaf —
+        neither the demand-id root (F13) nor the script file itself (F10)
+        — must also make the journey uncounted. This one even resolves to
+        a location genuinely inside the demand's own tree, so a
+        resolve()-and-compare containment check would have let it pass;
+        the categorical rule rejects it purely on the symlink's presence,
+        confirming the walk checks every component, not just the two
+        levels the earlier two findings already reported."""
+        self._demand("FWD-600", "R1: WHEN...\n")
+        jdir = self.p / "evals" / "journeys" / "FWD-600"
+        jdir.mkdir(parents=True)
+        real_target = jdir / "real_target"
+        real_target.mkdir()
+        (real_target / "real.spec.ts").write_text(
+            "// real, inside FWD-600's own tree\n")
+        (jdir / "linked").symlink_to(real_target, target_is_directory=True)
+        (jdir / "main.journey.toml").write_text(
+            '[meta]\nid = "main"\ndemand_id = "FWD-600"\n'
+            'requirements = ["R1"]\nscript = "linked/real.spec.ts"\n'
+            'authored_with = "claude-code"\n')
+        r = verify(self.p, "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("FWD-600", r.stdout)
+        self.assertIn("R1", r.stdout)
+
     # -- F3: staged/since scoping — an old, unrelated demand's real gap
     # must not block a commit that never touches that demand
     def test_staged_unrelated_change_is_not_blocked_by_an_old_demands_gap(self):
