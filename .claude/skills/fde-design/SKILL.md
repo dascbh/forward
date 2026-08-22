@@ -266,6 +266,32 @@ These checks live in `eval_paths` — they ARE the frontend eval suite:
   instance, no duplicated requests. Touch targets ≥ 44px; text survives
   200% zoom.
 
+### Browser-executed journeys
+
+A journey end to end — not one route in isolation — is verified the same
+way this section verifies everything else: execution, committed and
+gated, never narrated. The artifact is a manifest at
+`evals/journeys/<demand-id>/<slug>.journey.toml`, paired with a committed
+Playwright script:
+
+```toml
+[meta]
+id = "guest-checkout"
+demand_id = "FWD-0XX"
+requirements = ["R2", "R3"]          # the R# tokens from spec.md this journey verifies
+script = "guest-checkout.spec.ts"    # the client-runnable artifact CI executes (I6)
+authored_with = "claude-in-chrome"   # how the flow was discovered — never how it is gated
+```
+
+`authored_with` names the technique that found the flow — a live agent
+session (Claude Code, Codex, the `claude-in-chrome` tool family, or
+equivalent) driving a real browser — and it is never on the gated
+critical path. CI runs `script`, always; an agent session never runs
+during promotion or CI (I6). The interactive session is authorship, the
+same way a designer's hand is authorship of a wireframe: what the gate
+reads back is the deterministic file the session produced, not the
+session itself.
+
 ## User validation (L, or whenever the premise is a bet)
 
 Value before usability — impeccable usability on an unwanted feature is
@@ -275,7 +301,12 @@ the UI. 5 participants per profile; fix between sessions; stop at
 saturation. Severity is 0–4 by frequency × impact × persistence. The
 chain observation → finding → change must be auditable. Synthetic users
 generate hypotheses and tasks, never findings — stamp their artifacts
-"[synthetic — not evidence]".
+"[synthetic — not evidence]". The same limit holds for an agent that
+drives a real browser: completing a journey along a planned path proves
+the path exists, never that an unprepared human finds it without
+hesitation (Suchman) — "the agent succeeded" does not by itself close a
+usability_accessibility finding; only a demonstrated friction (probe) or
+a cited principle does.
 
 ## Findings and reopening
 

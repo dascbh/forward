@@ -92,6 +92,46 @@ class Gate:
 
     # -- I1: eval precedes merge ------------------------------------------
     def gate_eval_coverage(self, staged: bool, since: str | None = None) -> None:
+        # sharpened (FWD-017 R6): a design-surface demand's declared R#
+        # criteria (acceptance.md) must each appear, as a whole token,
+        # under that demand's own evals/** namespace — the file-level
+        # check below only proves an eval was touched, never that it
+        # verifies what it claims to. Silent when no demand has a design
+        # surface with R# tokens declared.
+        try:
+            import design
+            import graph
+            specs_dir = self.project / "specs"
+            evals_dir = self.project / "evals"
+            demand_dirs = sorted(p for p in specs_dir.iterdir() if p.is_dir()) \
+                if specs_dir.is_dir() else []
+            checked, r_missing = 0, []
+            for d in demand_dirs:
+                if not design.has_design_surface(d):
+                    continue
+                acc = d / "acceptance.md"
+                acc_text = acc.read_text(encoding="utf-8", errors="ignore") if acc.is_file() else ""
+                tokens = sorted(set(re.findall(r"\bR\d+\b", acc_text)))
+                if not tokens:
+                    continue
+                checked += 1
+                did = graph.canon_demand(d.name)
+                own = "".join(f.read_text(encoding="utf-8", errors="ignore")
+                             for f in evals_dir.rglob("*")
+                             if f.is_file() and did in f.relative_to(self.project).as_posix()) \
+                    if evals_dir.is_dir() else ""
+                gone = [t for t in tokens if not re.search(rf"\b{t}\b", own)]
+                if gone:
+                    r_missing.append(f"{d.name}: {', '.join(gone)}")
+            if checked:
+                self.add("I1-REQS", not r_missing,
+                         f"{checked} design-surface demand(s), every declared R# "
+                         f"present under its own evals/**" if not r_missing else
+                         f"declared R# missing from its own evals/**: "
+                         f"{'; '.join(r_missing[:3])}")
+        except Exception as e:
+            self.add("I1-REQS", False, f"requirement coverage could not be checked: {e}")
+
         files = self.changed(staged, since)
         touched_behavior = [f for f in files if path_matches(f, self.behavior_paths)]
         # .gitkeep is structure, not a measure

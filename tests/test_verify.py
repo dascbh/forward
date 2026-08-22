@@ -1,6 +1,7 @@
 """FM-1/R1/R2: the gate as subprocess, on fixture projects."""
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -97,6 +98,75 @@ class TestI1CIMode(unittest.TestCase):
         r = verify(self.p, "--gate", "eval-coverage",
                    "--since", "0" * 40)
         self.assertEqual(r.returncode, 1, r.stdout)
+
+
+class TestI1RequirementCoverage(unittest.TestCase):
+    """FWD-017 R6/R7: gate_eval_coverage() sharpened — a design-surface
+    demand's declared R# criteria must each show up, as a whole token,
+    under that demand's own evals/** tree."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _demand(self, did, acceptance_r="", with_design=True):
+        d = self.p / "specs" / did
+        d.mkdir(parents=True, exist_ok=True)
+        if with_design:
+            (d / "design").mkdir(parents=True, exist_ok=True)
+            (d / "design" / "flow.md").write_text("# flow\n")
+        (d / "acceptance.md").write_text(
+            f"---\ndate: 2026-08-09\n---\n# ok\n{acceptance_r}\n")
+        return d
+
+    def _journeys(self, did, content):
+        jdir = self.p / "evals" / "journeys" / did
+        jdir.mkdir(parents=True)
+        (jdir / "main.journey.toml").write_text(content)
+
+    def test_green_when_every_r_token_is_under_the_demands_own_evals(self):
+        self._demand("FWD-200", "R1: WHEN...\nR2: WHEN...\n")
+        self._journeys("FWD-200", 'requirements = ["R1", "R2"]\n')
+        r = verify(self.p, "--gate", "eval-coverage", "--format", "json")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        row = next(g for g in json.loads(r.stdout)["gates"] if g["id"] == "I1-REQS")
+        self.assertTrue(row["passed"], row)
+
+    def test_red_when_a_declared_r_token_is_missing(self):
+        self._demand("FWD-201", "R1: WHEN...\nR2: WHEN...\n")
+        self._journeys("FWD-201", 'requirements = ["R1"]\n')
+        r = verify(self.p, "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("R2", r.stdout)
+
+    def test_silent_for_a_demand_without_a_design_surface(self):
+        self._demand("FWD-202", "R1: WHEN...\n", with_design=False)
+        r = verify(self.p, "--gate", "eval-coverage", "--format", "json")
+        gates = json.loads(r.stdout)["gates"]
+        self.assertFalse(any(g["id"] == "I1-REQS" for g in gates), gates)
+
+    def test_silent_for_a_design_surface_with_zero_r_tokens(self):
+        self._demand("FWD-203", "")
+        r = verify(self.p, "--gate", "eval-coverage", "--format", "json")
+        gates = json.loads(r.stdout)["gates"]
+        self.assertFalse(any(g["id"] == "I1-REQS" for g in gates), gates)
+
+    def test_token_boundary_r1_is_not_satisfied_by_r10(self):
+        self._demand("FWD-204", "R1: WHEN...\n")
+        self._journeys("FWD-204", 'requirements = ["R10"]\n')
+        r = verify(self.p, "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("R1", r.stdout)
+
+    def test_token_present_only_under_an_unrelated_demands_evals_is_still_red(self):
+        self._demand("FWD-205", "R1: WHEN...\n")
+        self._journeys("FWD-999", 'requirements = ["R1"]\n')  # wrong demand
+        r = verify(self.p, "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("R1", r.stdout)
 
 
 class TestGateNameValidation(unittest.TestCase):

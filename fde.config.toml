@@ -9,7 +9,7 @@
 
 [project]
 name = "forward"
-kernel_version = "0.12.2"
+kernel_version = "0.13.0"
 
 [triage]
 data_class = "public"             # open Apache-2.0 repository, no third-party data
@@ -89,4 +89,3 @@ max_duplication_pct = 6.0
 # WITHOUT this line the ratio is 12.13 (over budget) and duplication
 # 75.9% — the comparison the review demanded be published (FWD-016 F5).
 generated_paths = ["bin/fde/", ".fde/", ".claude/skills/", ".claude/agents/"]
-

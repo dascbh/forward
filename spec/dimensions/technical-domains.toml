@@ -56,8 +56,10 @@ min_depth_when = "has_frontend => >= 1"
 [[domain]]
 id = "usability_research"
 label = "Usability & research"
-artifacts = ["main flow mapped", "user success criteria"]
+artifacts = ["main flow mapped", "user success criteria",
+             "journey manifest under evals/journeys/** tracing to R#"]
 derived_from = ["has_frontend", "user_facing"]
+min_depth_when = "user_facing and has_frontend => >= 1"
 
 [[domain]]
 id = "qa_test_strategy"

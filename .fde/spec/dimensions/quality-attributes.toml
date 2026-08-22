@@ -44,6 +44,7 @@ heuristic_principles = [
   "DOM-4 every cited navigation path exists label-by-label in the real navigation",
   "DOM-5 no orphans, both ways: requirement without screen, screen without requirement, criterion without verification, state without representation",
   "DOM-6 contracts evolve additively: one error shape everywhere; every observable behavior — ordering, error text, timing — is a de facto contract, so expose it intentionally",
+  "DOM-7 a flow's cross-screen consistency is verified by executing it end to end, not by inspecting screens one at a time: a label, count, or state that reads consistent in isolation can still drift step to step — a journey run that catches the drift is functional_correctness evidence, distinct from USE-3's static, one-screen-at-a-time judgment",
 ]
 adversarial_probes = [
   "valid input at domain boundaries",
@@ -199,9 +200,14 @@ heuristic_principles = [
   "USE-10 converge only after diverging: alternatives come from distinct lenses (subtract, invert, analogous, constraint-first, object-first) — variants of one layout are one alternative — and the discard is recorded with what it traded",
   "USE-11 the pattern is chosen for the job and the platform's convention, from the curated reference base; novelty is a declared cost, not a default",
   "USE-12 the problem is reframed before it is solved: a flawless solution to the unquestioned problem statement is a well-drawn wrong answer",
+  "USE-13 hesitation is a finding in itself: an ambiguous next step, a pause to reread, or a wrong click later self-corrected is friction whether or not the journey eventually completes — a completed run does not erase what it cost to get there",
+  "USE-14 agent completion is not usability evidence (Suchman): a plan executed to its end proves the path exists, never that an unprepared human finds it without hesitation — closing a finding needs a demonstrated friction (probe) or a cited principle, never 'the agent succeeded' alone",
 ]
 adversarial_probes = [
   "error path with no clear way out",
   "keyboard navigation and screen reader on the main flow",
   "loading and failure states visible to the user",
+  "ambiguous next action with multiple plausible controls",
+  "irreversible action taken with no confirmation or undo",
+  "state change with no visible feedback",
 ]
