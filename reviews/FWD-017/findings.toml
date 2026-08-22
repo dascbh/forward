@@ -1,0 +1,460 @@
+# Adversarial review — FWD-017 journeys are verified by execution, not
+# narrated. Commit bcbb734, "0.13.0 / FWD-017: journeys are executed, not
+# narrated". Reviewer received artifact + spec only (I2). M = two rounds;
+# this is round 1. Findings only; no fixes (I3).
+
+[meta]
+demand_id = "FWD-017"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 2
+rounds_run = 1
+commit = "bcbb734"
+agent_transcript = "agent-a234c494a82702ac6"
+probed = '''
+Baseline at bcbb734: worktree confirmed at the target commit (`git log -1`
+== bcbb734, matches the task). `python3 -m unittest discover -s tests` —
+218 tests, OK. `python3 bin/fde/verify.py --all` — 17/17 gates green.
+runtime/verify.py and bin/fde/verify.py byte-identical (diff empty), as
+are skills/fde-design/SKILL.md vs .claude/skills/fde-design/SKILL.md and
+spec/dimensions/*.toml vs .fde/spec/dimensions/*.toml — no mirror drift.
+tests/test_spec_integrity.py is untouched (R7). `specs/*/design/` does
+not exist anywhere in this repository today, so the sharpened check
+(I1-REQS) never fires live here — confirms the ADR's own "structural
+proof only" claim. The six tests R7 requires (green, red, silent x2,
+token-boundary, unrelated-demand-still-red) are present and pass.
+
+THE NEW MECHANISM — runtime/verify.py:94-132, gate_eval_coverage()'s
+added block — was attacked directly, against the same fixture harness
+its own tests use (tests/support.py: make_project/verify), because that
+is the only way to exercise it: this repo has no demand with a design
+surface of its own.
+
+DEMAND-ID ALIASING was probed first because R6 explicitly guards the
+adjacent case ("R1 MUST NOT be satisfied by R10 or R11") with a
+word-boundary regex, but the demand-id match one level up
+(runtime/verify.py:118,121) is a bare Python `in` substring test, not a
+segment-boundary check. Built a fixture: demand FWD-1 (design surface,
+declares R1, authors NO journey of its own) alongside unrelated demand
+FWD-17 (owns a journey manifest mentioning "R1"). `verify(p, "--gate",
+"eval-coverage", "--format", "json")` returns passed=true, I1-REQS
+"every declared R# present under its own evals/**" — false: FWD-1 has no
+evals at all. See F1.
+
+NARRATION VS EXECUTION was probed next because it is the demand's own
+thesis. The gate never parses the manifest as TOML and never checks that
+`script` exists — it concatenates the raw bytes of every file under the
+demand's evals path and regex-searches the blob for the token. Built a
+fixture: demand FWD-300, design surface, declares R1; its evals/journeys/
+directory holds one file, notes.txt, containing only "TODO: still need to
+write R1 someday" — no *.journey.toml, no requirements=[], no script, no
+Playwright anywhere. Gate: passed=true. See F2.
+
+SCOPE was probed against the pre-commit tier specifically, because
+spec.md's own "Ask first" boundary names this exact risk ("If walking
+specs/** inside a staged/pre-commit-tier check turns out costly at
+scale, ask whether the sharpened check belongs at the CI tier instead").
+`.githooks/pre-commit` runs `bin/fde/verify.py --staged` on every commit,
+and `--staged --gate` only allows ("config", "eval", "eval-coverage") —
+eval-coverage, carrying I1-REQS, is one of them
+(bin/fde/verify.py:478-480). The new block ignores `staged`/`since`
+entirely and walks the whole specs/ tree every call. Built a fixture:
+demand FWD-050, already "shipped" months ago, declares R1+R2, authors a
+journey for R1 only (R2 always was, and remains, missing) — then staged
+one unrelated file, README.md, "fix a typo". `verify(p, "--staged")`:
+returncode 1, "declared R# missing from its own evals/**: FWD-050: R2".
+The typo fix cannot land without first touching FWD-050. Timed at
+somewhat larger scale (60 demands / 20 design-surface / 100 journey
+files): 76ms, not itself alarming — the finding is the blast radius, not
+the latency. See F3.
+
+CATALOG SELF-CONSISTENCY (R3/R4, FM-3) was checked by reading the full
+existing USE-1..12/DOM-1..6 text before comparing against the six new
+entries (USE-13, USE-14, DOM-7, plus three new bare probes). USE-13/14
+are genuinely new judgment (hesitation-as-finding; agent-completion is
+not evidence). The three new probe phrases about ambiguous action / no
+confirmation / no feedback were correctly left as probes under existing
+USE-1/USE-4 rather than forced into new ids — matches the ADR's own
+reasoning about USE-4 exactly. DOM-7's own justifying clause reads
+"distinct from USE-3's static, one-screen-at-a-time judgment" — but
+USE-3's actual text is "the same concept has the same name and behavior
+everywhere" (explicitly cross-screen), and the ADR itself calls USE-3
+"static cross-screen consistency" two paragraphs earlier. DOM-7
+mischaracterizes the very principle it distinguishes itself from. See F4.
+
+usability_research's `min_depth_when` (R5) was checked by diffing it
+against every other domain's own field, not by trusting the prose. It IS
+`"user_facing and has_frontend => >= 1"`, matches R5 exactly, is not
+derived from journey-manifest existence (FM-5 avoided), and Vector B
+stays at 9 domains (grep confirms). But the ADR/acceptance.md both assert
+"the same trigger design_system already uses" — design_system's actual
+trigger (technical-domains.toml:54) is `"has_frontend => >= 1"`, with no
+`user_facing` clause. The claimed precedent is not the real precedent
+(usability_research's own pre-existing `derived_from` already listed
+both signals — that would have been the true justification). See F5.
+
+FAILURE HANDLING was probed by making the new block fail: chmod 000 on
+one journey file inside a demand's evals tree, then staging an unrelated
+README change. `except Exception` at runtime/verify.py:132 wraps the
+entire cross-demand loop (not per-demand), so the PermissionError on one
+file's read takes down I1-REQS checking for every demand, not just the
+one that failed, and turns the whole check into a hard block for the
+unrelated commit too — same blast radius as F3, by a different route.
+The message happened to include the failing path this time (incidental
+to PermissionError's own __str__, not a designed diagnostic), so it is
+not itself a total black box — but nothing in the code guarantees that
+for other exception shapes. See F6.
+
+SCALING SHAPE was checked by reading before timing: the per-demand loop
+calls `evals_dir.rglob("*")` — a walk of the WHOLE evals/ tree — inside
+the loop over design-surface demands, filtering by substring match
+afterward, instead of scoping the walk to that demand's own
+evals/journeys/<demand-id>/ subtree. That is O(demands × total eval
+files), not O(total eval files). Measured on the fixture harness: 20
+demands / 100 files -> 76.9ms; 80 demands / 400 files (4x/4x) ->
+462.5ms (~6x) — consistent with the quadratic shape the code implies,
+not incidental. See F8.
+
+SAFE, and checked: no regex-injectable input reaches `re.search` (the
+token is pre-extracted by `\bR\d+\b`, so it is always digits; the
+demand-id feeds a plain substring test, not a pattern). No shell, no
+eval, no fetch of anything user- or web-controlled. `import design` /
+`import graph` resolve correctly from bin/fde/ at runtime (verified live
+against this repo, not just the fixture). Manifest field names (`id`,
+`demand_id`, `requirements`, `script`, `authored_with`) match R1 exactly
+in the SKILL.md example. R2's placement is genuinely additive — diffed
+byte-for-byte, the original "[synthetic — not evidence]" sentence is
+untouched, the Suchman sentence is appended after it in the same
+paragraph, never replacing or rewording it. R8's "never" list (no new
+skill file, role, invariant, domain, gate id, config section) holds —
+KNOWN_GATES unchanged, spec/roles.toml and spec/invariants.toml
+untouched by this diff, technical-domains.toml still declares exactly 9
+`[[domain]]` entries.
+'''
+
+# ---------------------------------------------------------------------------
+# functional_correctness — weight 30, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "high"
+probe = '''
+A demand's declared R# criterion can be satisfied by a completely
+unrelated demand's evals, defeating the whole point of R6, whenever one
+demand-id is a string prefix of another (FWD-1 / FWD-17, FWD-1 / FWD-10,
+or any numeric prefix pair — nothing in the kernel enforces fixed-width
+demand-id padding; AGENTS.md only says "pick a short demand id"). The
+match at runtime/verify.py:121, `did in
+f.relative_to(self.project).as_posix()`, is a bare substring test against
+the WHOLE relative path string, not a path-segment boundary check —
+exactly the class of bug R6 itself calls out and fixes at the token
+level ("R1 MUST NOT be satisfied by R10 or R11") one line below, but does
+not fix at the demand-id level.
+
+Reproduced against the shipped CLI via the project's own fixture harness
+(tests/support.py: make_project/verify — the same helpers
+tests/test_verify.py uses): demand FWD-1 has a design surface, declares
+R1 in acceptance.md, and authors NO journey manifest of its own. Demand
+FWD-17 is unrelated and owns evals/journeys/FWD-17/main.journey.toml with
+`requirements = ["R1"]` (FWD-17's own R1, nothing to do with FWD-1).
+`verify(p, "--gate", "eval-coverage", "--format", "json")` returns:
+{"passed": true, "gates": [{"id": "I1-REQS", "passed": true, "detail":
+"1 design-surface demand(s), every declared R# present under its own
+evals/**"}]}. FWD-1 has zero evals of its own; the gate reports the
+opposite. The check's core promise — "every declared R# criterion traces
+to a real eval for THIS demand" — is false exactly where it matters most:
+a demand that authored no journey at all can still show green, as long
+as a numerically-adjacent demand happens to mention the same token
+somewhere in its own tree.
+'''
+evidence = '''
+runtime/verify.py:118 (did = graph.canon_demand(d.name)) and :121 (did in
+f.relative_to(self.project).as_posix()) — substring, not segment-bounded;
+contrast :123 (re.search(rf"\\b{t}\\b", own)) which IS word-bounded for
+the R# token itself. Reproduced live: fixture with specs/FWD-1/{design/,
+acceptance.md declaring "R1: WHEN..."} and
+evals/journeys/FWD-17/main.journey.toml declaring
+requirements = ["R1"] -> `python3 bin/fde/verify.py --gate eval-coverage
+--format json` (run from the fixture project root, bin/fde copied from
+this repo's runtime/ by make_project) returns I1-REQS passed=true.
+'''
+blocking = true
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "high"
+probe = '''
+The gate's own name for this demand is "journeys are executed, not
+narrated" — but the check it adds can be satisfied by narration alone.
+runtime/verify.py:119-122 never parses the manifest as TOML, never checks
+that a `*.journey.toml` file exists, never checks that `requirements =
+[...]` contains the token (as opposed to any other line in any other
+file), and never checks that the `script` field names a file that
+exists. It concatenates the full raw text of EVERY file under the
+demand's own evals/** path segment into one string and regex-searches
+that blob for the bare token.
+
+Reproduced: demand FWD-300, design surface, acceptance.md declares "R1:
+WHEN...". evals/journeys/FWD-300/ holds exactly one file, notes.txt,
+containing only "TODO: still need to write R1 someday" — no manifest, no
+`[meta]` table, no `requirements` array, no `script` field, no Playwright
+file, nothing executable anywhere in the tree. `verify(p, "--gate",
+"eval-coverage", "--format", "json")`: I1-REQS passed=true, "1
+design-surface demand(s), every declared R# present under its own
+evals/**". A demand can close its own traceability obligation with a
+stray comment mentioning the requirement number, which is precisely the
+practice ADR-0013's Options section rejects for usability evidence
+("the agent succeeded" is not itself a finding) but the implementation
+does not reject for coverage evidence — a TODO mentioning "R1" is treated
+as equivalent to an executed, committed journey verifying R1.
+'''
+evidence = '''
+runtime/verify.py:119-123 (own = concatenated raw text of every file
+under the demand's evals/** path; gone = tokens absent from that raw
+text via \\b-bounded regex — no TOML parse, no field-level check, no
+existence check on `script`). Reproduced: fixture with
+specs/FWD-300/{design/, acceptance.md "R1: WHEN..."} and
+evals/journeys/FWD-300/notes.txt = "TODO: still need to write R1
+someday\\n" -> I1-REQS passed=true.
+'''
+blocking = true
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "high"
+probe = '''
+I1-REQS is not scoped to the current change the way the rest of
+gate_eval_coverage() is (and the way I1 itself is framed: "no CHANGE that
+alters observable behavior lands ... without a corresponding eval
+entry"). The existing file-level check reads self.changed(staged, since)
+— only the files touched by this commit/push. The new block
+(runtime/verify.py:103-108) ignores both parameters and walks the ENTIRE
+specs/ tree on every single invocation, including under --staged, which
+is what .githooks/pre-commit runs on every `git commit`
+(`exec python3 bin/fde/verify.py --staged`), and eval-coverage is one of
+the three gates --staged still allows to run
+(bin/fde/verify.py:478-480: only "config", "eval", "eval-coverage").
+
+Reproduced: demand FWD-050 ("shipped months ago") has a design surface,
+declares R1+R2, and authors a journey only for R1 — R2 has always been
+missing and nobody working on it today. Staged one unrelated file,
+README.md, "fix a typo". `verify(p, "--staged")`: returncode 1, "declared
+R# missing from its own evals/**: FWD-050: R2". The typo fix — zero
+relationship to FWD-050, to design, or to journeys — cannot be committed
+until someone fixes (or reverts, or deletes) FWD-050's old gap. Once any
+demand in a repository's history accrues an unmapped R# token, EVERY
+future commit from EVERY contributor is blocked, repo-wide, with no
+scoping, no owner assigned to the old gap, and no override (I1 by
+design has no bypass key). This is a materially different contract than
+the rest of the gate: previously, --staged only ever judged what you
+were about to commit. FM-1 in spec.md anticipates the adjacent false
+positive ("a demand with no design surface... flagged as if it owed
+journey coverage") but not this one — an unrelated demand's true, old
+gap blocking someone else's unrelated work indefinitely.
+'''
+evidence = '''
+runtime/verify.py:94 (gate_eval_coverage(self, staged, since) — staged
+and since are the function's own scoping mechanism) against :103-108
+(specs_dir.iterdir() / evals_dir.rglob(), no staged/since check anywhere
+in the new block) and bin/fde/verify.py:478-480 (eval-coverage runs
+under --staged) with .githooks/pre-commit:4 (`exec python3
+bin/fde/verify.py --staged`, unconditional on every commit). Reproduced:
+fixture with specs/FWD-050/{design/, acceptance.md "R1...R2..."},
+evals/journeys/FWD-050/main.journey.toml requirements=["R1"] only, then
+`git add README.md` (unrelated) -> `verify(p, "--staged")` returncode 1
+naming FWD-050:R2.
+'''
+blocking = true
+
+[[finding]]
+id = "F4"
+attribute = "functional_correctness"
+severity = "low"
+probe = '''
+R3/FM-3 require each new heuristic_principles id to be checked against
+the full existing catalog text and to cover judgment "none of them
+already do" — read in full before comparing. DOM-7's own justifying
+clause misdescribes the principle it claims to be distinct from. DOM-7:
+"...a journey run that catches the drift is functional_correctness
+evidence, distinct from USE-3's static, one-screen-at-a-time judgment."
+USE-3's actual text (spec/dimensions/quality-attributes.toml:193): "the
+same concept has the same name and behavior everywhere" — explicitly
+cross-screen ("everywhere"), not "one-screen-at-a-time". ADR-0013 itself,
+two paragraphs before the Decision section states it the correct way:
+"USE-3 already owns static cross-screen consistency". DOM-7's shipped
+text contradicts the ADR's own accurate description of the principle it
+is drawing the boundary against. The real, defensible distinction is
+verification METHOD (execution vs. static inspection), which DOM-7's
+first clause states correctly — but the parenthetical mischaracterizes
+USE-3's SCOPE (implying single-screen) rather than its method, which is
+exactly the kind of imprecision that will send a future reviewer
+deciding "does this drift belong under DOM-7 or USE-3?" toward the wrong
+answer, reading DOM-7 alone without ADR-0013 open beside it.
+'''
+evidence = '''
+spec/dimensions/quality-attributes.toml:49 (DOM-7, shipped) vs. :193
+(USE-3, unchanged, pre-existing text) vs.
+docs/adr/0013-journeys-are-executed-not-narrated.md line ~121-124
+("USE-3 ... already owns static cross-screen consistency") — the
+catalog entry and the ADR that is supposed to justify it disagree about
+what the principle being distinguished actually says.
+'''
+blocking = false
+
+# ---------------------------------------------------------------------------
+# maintainability — weight 22, BLOCKS MERGE
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F5"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-4"
+probe = '''
+spec.md's own Boundaries section names, verbatim, the exact risk F3
+demonstrates as real: "Ask first: If walking specs/** inside a
+staged/pre-commit-tier check turns out costly at scale, ask whether the
+sharpened check belongs at the CI tier instead — a speed regression on
+--staged is a cost this demand did not budget." Neither the commit, the
+ADR, nor acceptance.md records that this question was ever asked,
+answered, or consciously deferred. `grep -rn -i "staged\\|pre-commit
+tier\\|CI tier" docs/adr/0013-*.md specs/FWD-017-journey-verification/
+acceptance.md` returns nothing. Under I2 isolation this reviewer cannot
+tell whether the builder weighed this and decided the current repo's
+scale makes it moot (true today — this repo has zero design-surface
+demands) or never considered it at all — and that gap IS the finding:
+MNT-4 requires the decision be written where the next reader will look,
+and for a boundary the demand's own spec flagged as needing explicit
+confirmation before shipping, nothing is written anywhere. The shipped
+behavior (F3: unconditional, unscoped, on the staged tier, blocking
+unrelated commits repo-wide once triggered) is exactly the shape the
+"ask first" clause exists to catch.
+'''
+evidence = '''
+specs/FWD-017-journey-verification/spec.md, "Ask first" bullet 2;
+docs/adr/0013-journeys-are-executed-not-narrated.md (no mention of
+staged/pre-commit cost tradeoffs anywhere in Options or Consequences);
+specs/FWD-017-journey-verification/acceptance.md (same, no mention);
+runtime/verify.py:94-133 (the shipped block, unconditional on
+staged/since).
+'''
+blocking = false
+
+[[finding]]
+id = "F6"
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-4"
+probe = '''
+R5 required the trigger `min_depth_when = "user_facing and has_frontend
+=> >= 1"` verbatim, and the shipped value matches R5 exactly — that part
+is compliant. But both docs/adr/0013-journeys-are-executed-not-narrated.md
+and specs/FWD-017-journey-verification/acceptance.md justify it with a
+precedent that is not accurate: "the same trigger `design_system` already
+uses" / "unchanged from what `design_system` already uses". Read
+design_system's actual entry (spec/dimensions/technical-domains.toml:54):
+`min_depth_when = "has_frontend => >= 1"` — no `user_facing` clause at
+all. The two triggers are not the same. The genuinely accurate precedent
+was sitting one line above the changed one the whole time:
+usability_research's own pre-existing `derived_from = ["has_frontend",
+"user_facing"]` (unchanged by this diff) already names both signals — THAT
+is why the compound trigger is non-circular and consistent, not
+design_system's simpler one. A reader who checks the ADR's citation
+against the file it cites (which is exactly the kind of check I8/MNT-4
+exist to reward) finds the record's stated rationale does not hold up,
+even though the underlying decision (R5, FM-5 avoided) is sound on its
+own, independent grounds.
+'''
+evidence = '''
+docs/adr/0013-journeys-are-executed-not-narrated.md (Decision section,
+technical-domains.toml paragraph: "the same trigger `design_system`
+already uses") and specs/FWD-017-journey-verification/acceptance.md
+("The trigger is unchanged from what `design_system` already uses") vs.
+spec/dimensions/technical-domains.toml:54 (design_system: "has_frontend
+=> >= 1", no user_facing) and :62 (usability_research, shipped:
+"user_facing and has_frontend => >= 1") and :61 (derived_from =
+["has_frontend", "user_facing"], pre-existing, unchanged by this diff).
+'''
+blocking = false
+
+# ---------------------------------------------------------------------------
+# reliability_resilience — weight 12
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F7"
+attribute = "reliability_resilience"
+severity = "medium"
+probe = '''
+Partial failure in a multi-step operation: the `try` at
+runtime/verify.py:100 wraps the ENTIRE loop over every design-surface
+demand, not each demand's check individually. One demand's I/O failure
+(a permission error, a symlink loop, any exception design.py or graph.py
+can raise on a malformed spec directory) aborts traceability checking for
+every OTHER demand too and converts the whole thing into a hard I1-REQS
+failure — indistinguishable, from the gate's report, from a project where
+every demand genuinely has a missing R#. Reproduced: chmod 000 on one
+journey file inside demand FWD-060's evals tree (which itself correctly
+declares R1 with a matching manifest — nothing wrong with FWD-060's OWN
+traceability), then staged an unrelated README change. `verify(p,
+"--staged")`: returncode 1, "I1-REQS requirement coverage could not be
+checked: [Errno 13] Permission denied: '.../evals/journeys/FWD-060/
+main.journey.toml'". In this instance the message happens to name the
+file, because PermissionError's own __str__ includes the path — but that
+is incidental to whichever exception type actually fires, not a designed
+diagnostic; nothing in the code catches per-demand and reports which
+demand failed versus which demand is missing a token. The blast radius is
+the same shape as F3 (any commit, anywhere, blocked) reached by a
+different route (an I/O error instead of a genuine gap), and unlike F3 it
+is not even a real traceability problem — it is the checker itself
+breaking and reporting the breakage as if it were the thing being
+checked.
+'''
+evidence = '''
+runtime/verify.py:100 (try:) through :132 (except Exception as e: ...) —
+one except clause for the whole cross-demand loop, no per-demand
+isolation. Reproduced: fixture demand FWD-060 (design surface, R1
+declared, evals/journeys/FWD-060/main.journey.toml correctly declares
+requirements=["R1"]) with that file chmod 000, plus an unrelated staged
+README.md -> `verify(p, "--staged")` returncode 1, I1-REQS message is the
+raw PermissionError text.
+'''
+blocking = false
+
+# ---------------------------------------------------------------------------
+# performance_scale — weight 3
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F8"
+attribute = "performance_scale"
+severity = "low"
+probe = '''
+Pathological query / hidden N+1: the per-demand loop (runtime/verify.py:
+109-125) calls `evals_dir.rglob("*")` — a walk of the WHOLE evals/ tree,
+reading every matching file's full contents — INSIDE the loop over
+design-surface demands, instead of scoping the walk to that demand's own
+evals/journeys/<demand-id>/ subtree once. That is O(demands ×
+total_eval_files) file opens/reads, not O(total_eval_files). Measured on
+the project's own fixture harness: 20 design-surface demands / 100 total
+eval files -> 76.9ms; 80 demands / 400 files (4x demands, 4x files) ->
+462.5ms (~6.0x) — worse than the ~4x a linear scan would show, consistent
+with the quadratic shape the code implies. Not alarming at this repo's
+current size (it is 0 today — no demand here has a design surface at
+all), but it grows in the one direction this demand's own thesis
+predicts usage will grow: more executed journeys, more demands with
+design surfaces, larger evals/ trees, on every single staged commit
+(see F3 for why this runs on every commit at all).
+'''
+evidence = '''
+runtime/verify.py:116 (for d in demand_dirs: ...) enclosing :119
+(evals_dir.rglob("*"), re-walked once per iteration) instead of scoping
+to evals_dir / "journeys" / did or equivalent. Measured via the fixture
+harness (tests/support.py make_project/verify): 20 demands/100 files
+76.9ms; 80 demands/400 files 462.5ms.
+'''
+blocking = false
