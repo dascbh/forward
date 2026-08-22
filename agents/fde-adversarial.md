@@ -23,6 +23,7 @@ Two passes, same isolation:
 - `src/**:read`
 - `specs/**:read`
 - `evals/**:read`
+- `walkthroughs/**:read`
 
 ## Outputs (write only here)
 - `reviews/<demand-id>/findings.toml`

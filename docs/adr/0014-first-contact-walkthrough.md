@@ -643,3 +643,93 @@ two blind runs against a *real* interface produce a divergence score
 that actually tracks real ambiguity — the question the project owner's
 production cases exist to answer — is proven in the client projects
 where `fde-walkthrough` actually runs against a real target, not here.
+
+## Amendment — 2026-08-22 (FWD-018 F4): the isolation claim is tier-scoped, not universal
+
+The isolated adversarial round (`reviews/FWD-018/findings.toml`, round 1,
+F4, `maintainability`, critical, MNT-4) found that "Isolation
+mechanism," above, and its restatement in `spec.md` ("structurally
+impossible, not best-effort blocked") state the `tools:` allowlist's
+guarantee with no scope limit, anywhere in this ADR, the spec, or
+`skills/fde-walkthrough/SKILL.md`. It is not universal. Nothing about
+the decision changes — the allowlist is still the right mechanism, still
+correctly rejected against "prompt instruction alone" and against
+extending `guard.py` — but the claim as written promises a guarantee
+this repository's own pre-existing doctrine already says the mechanism
+cannot deliver everywhere it ships. That is corrected here, not by
+rewriting "Isolation mechanism" above.
+
+**What was actually claimed.** "Absence of a capability is checkable by
+inspecting one file; best-effort blocking of its use is not. This is the
+only option that turns 'cannot read the spec' from a claim about
+behavior into a claim about the tool list" — stated flatly, as a
+property of the `tools:` field itself.
+
+**What is actually true.** A `tools:` frontmatter allowlist is a
+property of the *harness*, not of the file that declares it. This
+repository already carries the doctrine that says so:
+`skills/fde-doctor/SKILL.md`'s tier table (`:26-30`), written before this
+demand and unmodified by it —
+
+| tier | tools | meaning |
+|---|---|---|
+| `loop` | claude-code | hook + per-role tool restriction. Blocks before the write. |
+| `commit` | cursor, codex | no hook, but subagents/worktrees exist. Real roles, gate in git. |
+| `advisory` | everything else | instruction file only. Roles are convention, the gate is CI. |
+
+Only `loop` names tool restriction as part of its guarantee. `commit`
+and `advisory` do not — and `SETUP.md` section 8 confirms this is true
+by construction, not merely an unexercised gap: the `tools:`-bearing
+`.claude/agents/fde-walkthrough-evaluator.md` file is installed only
+under the **claude-code** paragraph (`:181-216`). The **cursor**
+paragraph (`:218-222`) writes an eval-gate rule file, nothing that
+restricts tool access. The **codex** paragraph (`:224-227`) writes
+`.codex/AGENTS.md` summarizing roles in prose — label, purpose, write
+scope, denied paths, isolation requirement for adversarial and
+promotion — with no tool-restriction field in that list, for any role.
+The **advisory** paragraph (`:229-232`) is `AGENTS.md`, or a pointer to
+it, and nothing else. On `commit` and `advisory` tiers this kernel has
+no mechanism, native or improvised, that makes "cannot read the spec" a
+property of the tool list rather than of the model's compliance — which
+is exactly the *"prompt instruction alone"* option this ADR's own
+"Isolation mechanism" rejects above, for the reason its own Context
+section opens with: FWD-010 F1 is this repository's receipt that an
+instruction the model can ignore under pressure is not enforcement. That
+option was named once, rejected once, and — outside `loop` — is what
+this role actually runs on, undisclosed.
+
+**Where this project stands, named plainly, and where it does not.**
+`fde.config.toml`'s `[tooling]` declares which native layers a project
+actually uses; this repository declares `tools = ["claude-code"]`. On
+`loop`, the claim as shipped is accurate: `SETUP.md` step 8.4 merges the
+`PreToolUse` guard hook and the `tools:` field is read and enforced by
+the harness before a write is even attempted, so "structurally
+impossible, not best-effort blocked" is a true sentence about *this*
+project, on *this* tool, today. It is not a true sentence about a
+project whose `[tooling]` names `cursor`, `codex`, or nothing native at
+all — `AGENTS.md:9-11` states, near the top of the file, that its
+instructions "apply to any coding agent (Codex, Cursor, Claude Code,
+Copilot, Kiro, Gemini CLI, Windsurf, Aider)"; `README.md:6-9`'s "Portable
+across agentic tools" repeats the identical list. Nothing in this ADR
+previously said the isolation guarantee does not travel with that
+portability claim.
+
+**In practice, for a `commit`- or `advisory`-tier project.** Running
+`fde-walkthrough` there, `walkthrough-evaluator`'s "structurally
+incapable of seeing the spec, the wireframe, the glossary, the code" —
+the premise `skills/fde-design/SKILL.md`'s admissibility sentence
+(§10 above) rests the entire evidentiary claim on — "a claim about the
+artifact via demonstrated blind replication," not a claim earned by
+merely asking for one — does not structurally hold. It
+holds as an instruction in `agents/fde-walkthrough-evaluator.md` that a
+run is asked to follow and can, under exactly the pressure FWD-010
+already demonstrated, fail to. A divergence score computed from such a
+run is evidence of the same *kind* this ADR claims, produced under a
+weaker guarantee than this ADR discloses anywhere the next reader would
+look before relying on it. Naming this is as far as this amendment
+goes: whether and how to close the gap on `commit`/`advisory` tiers —
+a harness-level enforcement primitive neither tier currently has,
+narrowing the admissibility claim itself when running there, or
+something else — is not decided here. It is a future demand's decision
+to make, against evidence, the same way this ADR declined to guess at
+real-case calibration weights in §4 above.

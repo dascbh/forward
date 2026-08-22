@@ -56,12 +56,19 @@ _ARROW_RE = re.compile(r"\s*(?:->|→)\s*")
 _WS_RE = re.compile(r"\s+")
 _HEADING_RE = re.compile(r"^\s{0,3}(#{1,6})\s+(.+?)\s*$")
 _BOLD_HEADING_RE = re.compile(r"^\s{0,3}\*\*\s*(.+?)\s*\*\*\s*:?\s*$")
-_BULLET_RE = re.compile(r"^\s*[-*•]\s+(\S.*)$")
+# '-', '*', or a Unicode bullet, OR a numbered-list marker ('1.', '2)') —
+# reviews/FWD-018 F3: a run was never given a worked example of list-marker
+# syntax (agents/fde-walkthrough-evaluator.md's "What to return" is prose
+# only), so a numbered list is not a violation of any stated instruction
+# and must count as a bullet exactly like '-' does.
+_BULLET_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+(\S.*)$")
 
 # a perceived-model .md is a plain heading-and-bullet document (no markdown
 # library, matching I6) — headings recognized case-insensitively, as either
-# '#'..'######' or a standalone '**Heading**' line, against these four
-# sections (agents/fde-walkthrough-evaluator.md's "What to return")
+# '#'..'######' or a standalone '**Heading**' line, against these known
+# sections (agents/fde-walkthrough-evaluator.md's "What to return"). The
+# fifth key, "target unreachable", is not part of _ORDERED_SLOTS below —
+# it is an explicit, optional outcome (F7), never guessed by position.
 _SECTION_ALIASES = {
     "what this is": "what_this_is",
     "perceived primary actions": "primary_actions",
@@ -72,7 +79,19 @@ _SECTION_ALIASES = {
     "perceived action -> consequence pairs": "action_consequences",
     "action -> consequence pairs": "action_consequences",
     "unclear points": "unclear_points",
+    "target unreachable": "target_unreachable",
+    "could not reach target": "target_unreachable",
 }
+
+# The four scored/prose sections, in the fixed order
+# agents/fde-walkthrough-evaluator.md's "What to return" lists them —
+# reviews/FWD-018 F2: a heading whose text is not a recognized alias
+# (a run paraphrasing "Perceived primary actions" as "Things I could
+# do," say — never given a worked example to copy verbatim) is not
+# dropped into an unassigned void that silently empties the slot. It is
+# assigned by ITS POSITION among the headings encountered so far,
+# because the schema is always these four sections, in this order.
+_ORDERED_SLOTS = ("what_this_is",) + SLOTS
 
 
 def normalize_phrase(phrase: str) -> str:
@@ -108,36 +127,62 @@ def _canon_heading(raw: str) -> str | None:
 def parse_perceived_model(text: str) -> dict:
     """Parse one run's returned perceived model into
     {"what_this_is": str, "primary_actions": set[str],
-    "action_consequences": set[str], "unclear_points": set[str]}.
+    "action_consequences": set[str], "unclear_points": set[str],
+    "target_unreachable": bool, "unreachable_reason": str}.
 
-    Only a bullet line ('-', '*', or a Unicode bullet) inside one of the
-    three scored sections becomes an entry — a non-bullet line there is
-    prose the run added and is never scored (R6: only a phrase written as
-    a short list item is comparable). The free-prose "what this is" line
-    is captured for human reading only; it never reaches compute_divergence.
+    Only a bullet line (see _BULLET_RE) inside one of the three scored
+    sections becomes an entry — a non-bullet line there is prose the run
+    added and is never scored (R6: only a phrase written as a short list
+    item is comparable). The free-prose "what this is" line is captured
+    for human reading only; it never reaches compute_divergence.
+
+    A heading is recognized either by exact alias match (case/whitespace-
+    insensitive, trailing colon stripped) or, failing that, by its
+    position among the headings seen so far (_ORDERED_SLOTS) — see the
+    module-level comment above _ORDERED_SLOTS. "target_unreachable" is
+    the one exception: it is only ever reached via an exact alias match,
+    never guessed positionally, so a false "unreachable" flag can never
+    silently exclude a run's real content from the divergence budget.
     """
     model: dict = {"what_this_is": "", "primary_actions": set(),
-                   "action_consequences": set(), "unclear_points": set()}
+                   "action_consequences": set(), "unclear_points": set(),
+                   "target_unreachable": False, "unreachable_reason": ""}
     current: str | None = None
+    heading_index = -1
     for raw_line in text.splitlines():
         line = raw_line.rstrip()
         if not line.strip():
             continue
-        heading = None
+        heading_text = None
         m = _HEADING_RE.match(line)
         if m:
-            heading = _canon_heading(m.group(2))
+            heading_text = m.group(2)
         else:
             m2 = _BOLD_HEADING_RE.match(line)
             if m2:
-                heading = _canon_heading(m2.group(1))
-        if heading:
+                heading_text = m2.group(1)
+        if heading_text is not None:
+            heading = _canon_heading(heading_text)
+            if heading is not None:
+                if heading in _ORDERED_SLOTS:
+                    heading_index = _ORDERED_SLOTS.index(heading)
+            else:
+                heading_index += 1
+                heading = (_ORDERED_SLOTS[heading_index]
+                           if heading_index < len(_ORDERED_SLOTS) else None)
             current = heading
+            if current == "target_unreachable":
+                model["target_unreachable"] = True
             continue
         if current == "what_this_is":
             if not model["what_this_is"]:
                 bm = _BULLET_RE.match(line)
                 model["what_this_is"] = (bm.group(1) if bm else line).strip()
+            continue
+        if current == "target_unreachable":
+            if not model["unreachable_reason"]:
+                bm = _BULLET_RE.match(line)
+                model["unreachable_reason"] = (bm.group(1) if bm else line).strip()
             continue
         if current in SLOTS:
             bm = _BULLET_RE.match(line)
@@ -171,7 +216,13 @@ def compute_divergence(model_a: dict, model_b: dict) -> dict:
     four are structural properties of this function.
 
     Returns {"score": float, "per_slot": {slot: {"intersection": int,
-    "union": int, "distance": float}}}."""
+    "union": int, "distance": float}}, "status": "measured"|"unreachable"}.
+
+    `status` is "unreachable" whenever either model reports
+    `target_unreachable` (F7, reviews/FWD-018): the score is still
+    computed, for a human reading the file, but a caller (the gate) MUST
+    NOT treat it as evidence of divergence — a run that never reached the
+    target is an infra failure, not an interpretation."""
     per_slot, distances = {}, []
     for slot in SLOTS:
         a, b = model_a.get(slot, set()), model_b.get(slot, set())
@@ -179,19 +230,28 @@ def compute_divergence(model_a: dict, model_b: dict) -> dict:
         per_slot[slot] = {"intersection": len(a & b), "union": len(a | b), "distance": d}
         distances.append(d)
     score = round(sum(distances) / len(distances), 3)
-    return {"score": score, "per_slot": per_slot}
+    status = ("unreachable"
+              if model_a.get("target_unreachable") or model_b.get("target_unreachable")
+              else "measured")
+    return {"score": score, "per_slot": per_slot, "status": status}
 
 
 def render_divergence_toml(demand: str, score: float, per_slot: dict,
                             intended_model: str, perceived_model_a: str,
                             perceived_model_b: str,
-                            threshold: float | None = None) -> str:
+                            threshold: float | None = None,
+                            status: str | None = None) -> str:
     """The exact shape ADR-0014 section 3 and skills/fde-walkthrough/SKILL.md
     document — plain, hand-editable, `tomllib`-parseable TOML, never
     produced by anything non-deterministic. `threshold` is omitted
     entirely when the caller has none declared — an absent key, not a
-    guessed default (the same silence discipline as [walkthrough] itself)."""
+    guessed default (the same silence discipline as [walkthrough] itself).
+    `status` is likewise omitted when the run measured normally
+    ("measured" or None) and written only for the exceptional case (F7,
+    e.g. "unreachable") — an absent key means business as usual."""
     lines = [f'demand = "{demand}"', f"score = {score}"]
+    if status not in (None, "measured"):
+        lines.append(f'status = "{status}"')
     if threshold is not None:
         lines.append(f"threshold = {threshold}")
     lines += [f'intended_model = "{intended_model}"',
@@ -245,13 +305,20 @@ def gate(project: Path) -> tuple[bool, list, list]:
     files = find_divergence_files(project)
     if not files:
         return True, [], ["divergence.toml (none found under walkthroughs/**)"]
-    breaches = []
+    breaches, unmeasured = [], []
     for f in files:
         rel = f.relative_to(project).as_posix()
         try:
             data = tomllib.loads(f.read_text(encoding="utf-8", errors="ignore"))
         except tomllib.TOMLDecodeError:
             breaches.append(f"{rel}: unparseable")
+            continue
+        status = str(data.get("status", "measured")).lower()
+        if status != "measured":
+            # F7 (reviews/FWD-018): a run that never reached the target is
+            # not evidence of divergence — excluded from the breach check
+            # entirely, counted as not measured, never as a pass either.
+            unmeasured.append(f"{rel}: {status} — excluded from the divergence budget")
             continue
         try:
             score = float(data.get("score"))
@@ -260,7 +327,7 @@ def gate(project: Path) -> tuple[bool, list, list]:
             continue
         if score > thr:
             breaches.append(f"{rel}: score {score} > threshold {thr}")
-    return True, breaches, []
+    return True, breaches, unmeasured
 
 
 def verdict(breaches: list, unmeasured: list) -> str:
@@ -305,7 +372,8 @@ def main() -> int:
         toml_text = render_divergence_toml(
             demand=args.demand, score=result["score"], per_slot=result["per_slot"],
             intended_model=args.intended_model or "", perceived_model_a=str(a_path),
-            perceived_model_b=str(b_path), threshold=threshold)
+            perceived_model_b=str(b_path), threshold=threshold,
+            status=result["status"])
         if args.out:
             Path(args.out).write_text(toml_text, encoding="utf-8")
         if args.format == "json":
@@ -336,7 +404,9 @@ def main() -> int:
         for f in files:
             try:
                 data = tomllib.loads(f.read_text(encoding="utf-8", errors="ignore"))
-                print(f"  {f.relative_to(project)}: score={data.get('score')}")
+                status = data.get("status", "measured")
+                suffix = "" if status == "measured" else f" status={status}"
+                print(f"  {f.relative_to(project)}: score={data.get('score')}{suffix}")
             except tomllib.TOMLDecodeError:
                 print(f"  {f.relative_to(project)}: unparseable")
         return 0

@@ -85,7 +85,7 @@ writing code on request; start by sizing. Pick a short demand id first
    true; torn between two sizes → take the larger.
    score ≤ 1 → **XS**: implementation, adversarial, 1 round ·
    2–3 → **S**: + spec · 4–6 → **M**: + promotion, 2 rounds, ADR ·
-   ≥ 7 → **L**: all five roles, 3 rounds, ADR.
+   ≥ 7 → **L**: all six roles, 3 rounds, ADR.
    Announce the sizing in ONE line (e.g. `FORWARD: M — spec + impl +
    adversarial(2r) + promotion`), then start.
 2. **Spec** (unless XS): `specs/<demand-id>/spec.md`,

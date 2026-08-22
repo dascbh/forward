@@ -18,6 +18,9 @@ it becomes a dev with a different prompt and the decision never gets written.
 ## Outputs (write only here)
 - `docs/adr/*.md`
 - `specs/<demand-id>/architecture.md`
+- `walkthroughs/<demand-id>/perceived-model-a.md`
+- `walkthroughs/<demand-id>/perceived-model-b.md`
+- `walkthroughs/<demand-id>/divergence.toml`
 
 ## Denied paths
 - `src/**`

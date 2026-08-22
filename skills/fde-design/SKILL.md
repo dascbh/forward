@@ -308,6 +308,16 @@ hesitation (Suchman) — "the agent succeeded" does not by itself close a
 usability_accessibility finding; only a demonstrated friction (probe) or
 a cited principle does.
 
+A narrower claim IS admissible from a synthetic source: not "users will
+feel X" (still inadmissible) and not "the agent completed the plan"
+(still not evidence by itself, USE-14) — but "this interface sustains
+two reasonable, independently-arrived-at interpretations," demonstrated
+by `fde-walkthrough`'s two isolated, blind runs reading the same
+first-contact surface and diverging. This is a claim about the artifact
+via demonstrated blind replication, never a population claim, and it is
+satisfied only by two genuinely independent runs — one run's confusion
+is an anecdote, not a finding.
+
 ## Findings and reopening
 
 Product findings cite the I8 catalogs (USE-*, DOM-*, MNT-5) in

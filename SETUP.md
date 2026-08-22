@@ -179,7 +179,7 @@ Only for the tool(s) actually in use in this project — yourself, plus any
 the user names.
 
 **claude-code** (tier `loop`):
-1. Copy the five role files from the kernel's `agents/` to `.claude/agents/`.
+1. Copy the six role files from the kernel's `agents/` to `.claude/agents/`.
 2. In `.claude/agents/fde-adversarial.md`, replace the `## Attack order`
    pointer with the concrete plan: attributes sorted by this project's
    weights descending; per attribute `rounds = max(1, weight/10 rounded)`,
@@ -221,7 +221,7 @@ frontmatter `description: FDE kernel eval gate (I1)`, `globs: src/**`,
 corresponding entry in `evals/` in the same change; the pre-commit blocks it
 otherwise; acceptance criteria live in `specs/<demand-id>/acceptance.md`.
 
-**codex** (tier `commit`): write `.codex/AGENTS.md` summarizing the five
+**codex** (tier `commit`): write `.codex/AGENTS.md` summarizing the six
 roles (label, first line of purpose, write scope, denied paths, isolation
 requirement for adversarial and promotion) and "before any commit:
 `python3 bin/fde/verify.py`".

@@ -47,7 +47,10 @@ Produces recorded decisions, not code — if it could edit the implementation,
 it becomes a dev with a different prompt and the decision never gets written.
 """
 inputs = ["specs/**", "fde.config.toml", "src/**:read"]
-outputs = ["docs/adr/*.md", "specs/<demand-id>/architecture.md"]
+outputs = ["docs/adr/*.md", "specs/<demand-id>/architecture.md",
+           "walkthroughs/<demand-id>/perceived-model-a.md",
+           "walkthroughs/<demand-id>/perceived-model-b.md",
+           "walkthroughs/<demand-id>/divergence.toml"]
 write_scope = ["docs/adr/**", "specs/**", "walkthroughs/**"]
 denied_paths = ["src/**", "tests/**"]
 isolation = false
@@ -82,7 +85,7 @@ finding cites its principle, I8). Success is findings, not approval. It
 CANNOT fix what it found — a reviewer who silently fixes destroys the
 record of the finding.
 """
-inputs = ["src/**:read", "specs/**:read", "evals/**:read"]
+inputs = ["src/**:read", "specs/**:read", "evals/**:read", "walkthroughs/**:read"]
 outputs = ["reviews/<demand-id>/findings.toml"]
 write_scope = ["reviews/**"]
 denied_paths = ["src/**", "tests/**", "evals/**", "specs/**", "infra/**"]

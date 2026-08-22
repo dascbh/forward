@@ -202,6 +202,7 @@ heuristic_principles = [
   "USE-12 the problem is reframed before it is solved: a flawless solution to the unquestioned problem statement is a well-drawn wrong answer",
   "USE-13 hesitation is a finding in itself: an ambiguous next step, a pause to reread, or a wrong click later self-corrected is friction whether or not the journey eventually completes — a completed run does not erase what it cost to get there",
   "USE-14 agent completion is not usability evidence (Suchman): a plan executed to its end proves the path exists, never that an unprepared human finds it without hesitation — closing a finding needs a demonstrated friction (probe) or a cited principle, never 'the agent succeeded' alone",
+  "USE-15 interpretive divergence is evidence about the artifact: two independently isolated, blind runs disagreeing on the primary action, the primary object, or the expected consequence of the same first-contact surface is an ambiguity finding in the interface itself — never a claim about how real users would read it, and never satisfied by one run alone",
 ]
 adversarial_probes = [
   "error path with no clear way out",

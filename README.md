@@ -175,9 +175,9 @@ vector B, QA is never 0.
 
 ---
 
-## The five roles
+## The six roles
 
-A role is not a job title. `spec/roles.toml` defines five because each one has
+A role is not a job title. `spec/roles.toml` defines six because each one has
 **different access** — tools, context, artifacts. A role running the same
 model, in the same context, with the same tools as another is the same role in
 a different hat, and the "architect" approves what they themselves designed.
@@ -236,7 +236,7 @@ this work in a brand-new project, and it is what makes
 `/plugin update forward@forward` meaningful: it moves the kernel the next
 `/forward:fde-sync` will re-emit from.
 
-The five roles also arrive as subagents (`forward:fde-adversarial` and
+The six roles also arrive as subagents (`forward:fde-adversarial` and
 friends). They are the **generic** ones. A project that has run
 `fde-init` gets its own copies in `.claude/agents/` and `.claude/skills/`,
 concretized to that project's weights — so after an install both exist and
