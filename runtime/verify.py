@@ -40,7 +40,7 @@ EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "finding-discipline", "promotion-criteria", "observability",
                "portability", "artifact-handoff", "scrum", "traceability",
-               "erosion", "divergence", "survey")
+               "erosion", "divergence", "survey", "walkthrough")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -93,46 +93,79 @@ class Gate:
     # -- I1: eval precedes merge ------------------------------------------
     def gate_eval_coverage(self, staged: bool, since: str | None = None) -> None:
         # sharpened (FWD-017 R6): a design-surface demand's declared R#
-        # criteria (acceptance.md) must each appear, as a whole token,
-        # under that demand's own evals/** namespace — the file-level
-        # check below only proves an eval was touched, never that it
-        # verifies what it claims to. Silent when no demand has a design
-        # surface with R# tokens declared.
+        # criteria (acceptance.md) must each trace to a real, executed
+        # journey — a parsed evals/journeys/<demand-id>/*.journey.toml
+        # manifest whose `script` file actually exists on disk — not to a
+        # file that merely mentions the token as text. The file-level check
+        # below only proves an eval was touched, never that it verifies
+        # what it claims to. Silent when no demand has a design surface
+        # with R# tokens declared.
+        files = self.changed(staged, since)
+
         try:
             import design
             import graph
+        except Exception as e:
+            self.add("I1-REQS", False, f"requirement coverage could not be checked: {e}")
+        else:
             specs_dir = self.project / "specs"
             evals_dir = self.project / "evals"
             demand_dirs = sorted(p for p in specs_dir.iterdir() if p.is_dir()) \
                 if specs_dir.is_dir() else []
-            checked, r_missing = 0, []
-            for d in demand_dirs:
-                if not design.has_design_surface(d):
-                    continue
-                acc = d / "acceptance.md"
-                acc_text = acc.read_text(encoding="utf-8", errors="ignore") if acc.is_file() else ""
-                tokens = sorted(set(re.findall(r"\bR\d+\b", acc_text)))
-                if not tokens:
-                    continue
-                checked += 1
-                did = graph.canon_demand(d.name)
-                own = "".join(f.read_text(encoding="utf-8", errors="ignore")
-                             for f in evals_dir.rglob("*")
-                             if f.is_file() and did in f.relative_to(self.project).as_posix()) \
-                    if evals_dir.is_dir() else ""
-                gone = [t for t in tokens if not re.search(rf"\b{t}\b", own)]
-                if gone:
-                    r_missing.append(f"{d.name}: {', '.join(gone)}")
-            if checked:
-                self.add("I1-REQS", not r_missing,
-                         f"{checked} design-surface demand(s), every declared R# "
-                         f"present under its own evals/**" if not r_missing else
-                         f"declared R# missing from its own evals/**: "
-                         f"{'; '.join(r_missing[:3])}")
-        except Exception as e:
-            self.add("I1-REQS", False, f"requirement coverage could not be checked: {e}")
 
-        files = self.changed(staged, since)
+            # under --staged (pre-commit) or an explicit --since range, an
+            # old, unrelated demand's gap must not block every future
+            # commit from every contributor indefinitely — scope to
+            # demands this changeset actually touches, the same way
+            # touched_behavior/touched_eval below already scope by `files`.
+            scoped = staged or since is not None
+            touched_ids = None
+            if scoped:
+                touched_ids = {graph.canon_demand(m.group(1))
+                               for f in files for m in [graph.DEMAND_RE.search(f)] if m}
+
+            checked, r_missing, errored = 0, [], []
+            for d in demand_dirs:
+                did = graph.canon_demand(d.name)
+                if scoped and did not in touched_ids:
+                    continue
+                try:
+                    if not design.has_design_surface(d):
+                        continue
+                    acc = d / "acceptance.md"
+                    acc_text = acc.read_text(encoding="utf-8", errors="ignore") \
+                        if acc.is_file() else ""
+                    tokens = sorted(set(re.findall(r"\bR\d+\b", acc_text)))
+                    if not tokens:
+                        continue
+                    checked += 1
+                    covered = self._journey_coverage(evals_dir, did)
+                    gone = [t for t in tokens if t not in covered]
+                    if gone:
+                        r_missing.append(f"{d.name}: {', '.join(gone)}")
+                except Exception as e:
+                    # a single demand's I/O failure (permission error,
+                    # symlink loop, malformed tree) must not take down
+                    # traceability checking for every OTHER demand too —
+                    # isolate the blast radius to the demand that broke.
+                    errored.append(f"{d.name}: {e}")
+
+            if errored or r_missing:
+                parts = []
+                if r_missing:
+                    parts.append("declared R# missing a real journey under "
+                                 f"its own evals/**: {'; '.join(r_missing[:3])}")
+                if errored:
+                    parts.append("requirement coverage could not be checked "
+                                 f"for {len(errored)} demand(s): "
+                                 f"{'; '.join(errored[:3])}")
+                self.add("I1-REQS", False, "; ".join(parts))
+            elif checked:
+                self.add("I1-REQS", True,
+                         f"{checked} design-surface demand(s), every declared R# "
+                         f"traces to a real, executed journey under its own "
+                         f"evals/**")
+
         touched_behavior = [f for f in files if path_matches(f, self.behavior_paths)]
         # .gitkeep is structure, not a measure
         touched_eval = [f for f in files
@@ -160,6 +193,51 @@ class Gate:
             if d.exists() and any(f.is_file() and f.name != ".gitkeep" for f in d.rglob("*")):
                 return True
         return False
+
+    @staticmethod
+    def _journey_coverage(evals_dir: Path, did: str) -> set[str]:
+        """R# tokens actually traced to a real journey for demand `did`:
+        parses evals/journeys/<demand-id>/**/*.journey.toml (the manifest
+        shape skills/fde-design/SKILL.md's "Design QA" section documents —
+        a `[meta]` table carrying `id`, `demand_id`, `requirements`,
+        `script`, `authored_with`) and counts a requirement covered only
+        when the manifest's own `script` file exists on disk next to it.
+        Scoped to the exact `<demand-id>` path segment under
+        evals/journeys/ — never a substring match against the whole path
+        (FWD-017 F1) — so a demand-id that is a prefix of another
+        (FWD-1/FWD-17) cannot alias. A file that only mentions the R#
+        token as narrative text never satisfies this — only a parsed,
+        executable manifest does (FWD-017 F2, ADR-0013).
+
+        A malformed manifest (bad TOML) or a missing `script` file simply
+        contributes nothing — that read as a genuine gap, not a checker
+        failure. An OSError reading a manifest (permission denied, a
+        broken symlink) is left to propagate to the caller, which scopes
+        it to this one demand (FWD-017 F7) rather than reporting it as an
+        indistinguishable missing requirement.
+        """
+        covered: set[str] = set()
+        root = evals_dir / "journeys" / did
+        if not root.is_dir():
+            return covered
+        for manifest in sorted(root.rglob("*.journey.toml")):
+            try:
+                with open(manifest, "rb") as fh:
+                    data = tomllib.load(fh)
+            except tomllib.TOMLDecodeError:
+                continue
+            meta = data.get("meta", {}) or {}
+            script = meta.get("script")
+            if not script or not (manifest.parent / str(script)).is_file():
+                continue
+            reqs = meta.get("requirements")
+            if not isinstance(reqs, list):
+                continue
+            for r in reqs:
+                m = re.fullmatch(r"R\d+", str(r).strip())
+                if m:
+                    covered.add(m.group(0))
+        return covered
 
     # -- I2/I3: adversarial review isolated, unable to fix ----------------
     def gate_adversarial(self) -> None:
@@ -390,6 +468,23 @@ class Gate:
         self.add("EROSION", not breaches,
                  erosion.verdict(breaches[:3], unmeasured))
 
+    # -- walkthrough: first-contact divergence stays within the declared
+    #    budget (opt-in, ADR-0014/FWD-018) --------------------------------
+    def gate_walkthrough(self, explicit: bool = False) -> None:
+        try:
+            import walkthrough
+            declared, breaches, unmeasured = walkthrough.gate(self.project)
+        except Exception as e:
+            self.add("WALKTHROUGH", False, f"walkthrough could not be measured: {e}")
+            return
+        if not declared:
+            if explicit:
+                self.add("WALKTHROUGH", True,
+                         "no [walkthrough] budget declared — walkthrough mode off")
+            return
+        self.add("WALKTHROUGH", not breaches,
+                 walkthrough.verdict(breaches[:3], unmeasured))
+
     # -- survey: the brownfield map is complete, labeled and anchored -----
     def gate_survey(self, explicit: bool = False) -> None:
         try:
@@ -531,6 +626,8 @@ def main() -> int:
             g.gate_divergence()
         if want("survey"):
             g.gate_survey(explicit=(only == "survey"))
+        if want("walkthrough"):
+            g.gate_walkthrough(explicit=(only == "walkthrough"))
 
     if not g.results:
         print("\033[31m✗\033[0m no gate ran — check the flags", file=sys.stderr)

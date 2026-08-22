@@ -172,3 +172,53 @@ synthetic-user doctrine, now written down instead of left implicit. The
 silently, for demands that never claimed a UI surface. Nothing is added
 that a fourth demand would need to keep in sync by hand: no new file for
 `fde-sync` to regenerate, no new toggle for a client to discover missing.
+
+## Amendment — 2026-08-22 (FWD-017 F5/F6)
+
+The isolated adversarial round (`reviews/FWD-017/findings.toml`, round 1)
+raised two `maintainability` findings against this ADR, both citing
+MNT-4. Neither changes the decision above — the sharpened gate, the two
+socket edits, R5's shipped trigger all stand — but the record was wrong
+in one place and silent in another, and MNT-4 does not accept "the
+outcome is fine so the citation doesn't matter." Both are corrected here
+rather than by rewriting the Decision or Consequences sections above.
+
+**F6 — the cited precedent was wrong.** The Decision section's
+`technical-domains.toml` paragraph justified `usability_research`'s new
+`min_depth_when = "user_facing and has_frontend => >= 1"` as "the same
+trigger `design_system` already uses." It is not: `design_system`'s own
+entry (`spec/dimensions/technical-domains.toml:54`) reads `"has_frontend
+=> >= 1"` — no `user_facing` clause. The two triggers differ in exactly
+the clause that makes the compound one non-circular. The actual
+precedent was sitting one line above the changed one the whole time:
+`usability_research`'s own pre-existing `derived_from = ["has_frontend",
+"user_facing"]` (`:61`, unchanged by this demand) already named both
+signals — that is why the shipped trigger is consistent, not
+`design_system`'s simpler one. R5 itself is unaffected: the shipped value
+is correct on its real, sound grounds; only the sentence citing why was
+wrong. `specs/FWD-017-journey-verification/acceptance.md` carried the
+same error and is corrected directly, in place, with its own brief note
+of the same date.
+
+**F5 — a boundary the spec asked about was never recorded as asked or
+answered.** `spec.md`'s "Ask first" section named the exact risk that
+materialized: "If walking `specs/**` inside a staged/pre-commit-tier
+check turns out costly at scale, ask whether the sharpened check belongs
+at the CI tier instead." Neither this ADR nor `acceptance.md` recorded
+that the question was asked, answered, or consciously deferred before
+shipping — the finding is the silence itself, not a wrong answer. What
+actually happened: the question was raised by the spec role at
+spec-writing time and received no standalone decision at merge. It
+surfaced again as F3 in the same adversarial round — the shipped check
+walked the entire `specs/` tree on every `--staged` invocation, unscoped
+to the current change, so one demand's old, unmapped `R#` gap could block
+an unrelated commit from any contributor indefinitely. Fixing F3
+(`runtime/verify.py`, `gate_eval_coverage()`: under `staged` or an
+explicit `since` range, the per-demand loop now skips any demand not
+touched by the changeset — the same scoping `touched_behavior`/
+`touched_eval` already applied one paragraph below it) resolves the cost
+risk the open question was about, as a side effect of closing a blocking
+correctness gap, not by anyone weighing the question spec.md actually
+asked. That is the honest record: asked once, not engaged, closed later
+by a fix aimed at a different, more serious problem that happened to
+cover the same ground.

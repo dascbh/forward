@@ -51,8 +51,10 @@ open a new role, skill, invariant, or config surface.
   gains `"journey manifest under evals/journeys/** tracing to R#"` in its
   `artifacts` list and `min_depth_when = "user_facing and has_frontend
   => >= 1"` — bringing it to parity with the other 8 domains that
-  already declare the field. The trigger is unchanged from what
-  `design_system` already uses: not derived from whether journeys exist,
+  already declare the field. The trigger draws on signals
+  `usability_research` already declared for itself — its own pre-existing
+  `derived_from = ["has_frontend", "user_facing"]` (unchanged by this
+  demand) already named both — not derived from whether journeys exist,
   so the addition is documentary consistency, not new enforcement (no
   gate reads `min_depth_when` automatically today, same as every other
   domain).
@@ -98,3 +100,19 @@ open a new role, skill, invariant, or config surface.
   rejecting any finding backed only by a synthetic persona without
   `probe`/`principle` — a regression there is a blocking finding.
   `promotions/FWD-017/decision.md` confronts this list.
+
+---
+
+## Amendment — 2026-08-22, after the adversarial round (F6)
+
+The `usability_research` bullet above is corrected from what shipped in
+this file: it cited `design_system`'s trigger as the precedent for
+`min_depth_when` ("The trigger is unchanged from what `design_system`
+already uses"). `design_system`'s actual entry
+(`spec/dimensions/technical-domains.toml:54`) is `"has_frontend => >=
+1"`, with no `user_facing` clause — not the same trigger. The genuine
+precedent was `usability_research`'s own pre-existing `derived_from =
+["has_frontend", "user_facing"]`, unchanged by this demand. The shipped
+trigger itself (R5) was never wrong; only the sentence citing why. Full
+record in `docs/adr/0013-journeys-are-executed-not-narrated.md`'s own
+amendment of the same date, which also covers F5.

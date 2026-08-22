@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -122,14 +123,27 @@ class TestI1RequirementCoverage(unittest.TestCase):
             f"---\ndate: 2026-08-09\n---\n# ok\n{acceptance_r}\n")
         return d
 
-    def _journeys(self, did, content):
+    def _journeys(self, did, requirements, script_exists=True,
+                  slug="main", script_name="main.spec.ts"):
+        """Writes a spec-shaped manifest (skills/fde-design/SKILL.md's
+        Design QA section: a [meta] table with id/demand_id/requirements/
+        script/authored_with) under evals/journeys/<did>/, and — unless
+        told otherwise — the script file it names, so the fixture matches
+        what a real journey looks like on disk, not just its requirements
+        line in isolation."""
         jdir = self.p / "evals" / "journeys" / did
-        jdir.mkdir(parents=True)
-        (jdir / "main.journey.toml").write_text(content)
+        jdir.mkdir(parents=True, exist_ok=True)
+        reqs = ", ".join(f'"{r}"' for r in requirements)
+        (jdir / f"{slug}.journey.toml").write_text(
+            f'[meta]\nid = "{slug}"\ndemand_id = "{did}"\n'
+            f'requirements = [{reqs}]\nscript = "{script_name}"\n'
+            f'authored_with = "claude-code"\n')
+        if script_exists:
+            (jdir / script_name).write_text("// journey script\n")
 
     def test_green_when_every_r_token_is_under_the_demands_own_evals(self):
         self._demand("FWD-200", "R1: WHEN...\nR2: WHEN...\n")
-        self._journeys("FWD-200", 'requirements = ["R1", "R2"]\n')
+        self._journeys("FWD-200", ["R1", "R2"])
         r = verify(self.p, "--gate", "eval-coverage", "--format", "json")
         self.assertEqual(r.returncode, 0, r.stdout)
         row = next(g for g in json.loads(r.stdout)["gates"] if g["id"] == "I1-REQS")
@@ -137,7 +151,7 @@ class TestI1RequirementCoverage(unittest.TestCase):
 
     def test_red_when_a_declared_r_token_is_missing(self):
         self._demand("FWD-201", "R1: WHEN...\nR2: WHEN...\n")
-        self._journeys("FWD-201", 'requirements = ["R1"]\n')
+        self._journeys("FWD-201", ["R1"])
         r = verify(self.p, "--gate", "eval-coverage")
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("R2", r.stdout)
@@ -156,17 +170,102 @@ class TestI1RequirementCoverage(unittest.TestCase):
 
     def test_token_boundary_r1_is_not_satisfied_by_r10(self):
         self._demand("FWD-204", "R1: WHEN...\n")
-        self._journeys("FWD-204", 'requirements = ["R10"]\n')
+        self._journeys("FWD-204", ["R10"])
         r = verify(self.p, "--gate", "eval-coverage")
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("R1", r.stdout)
 
     def test_token_present_only_under_an_unrelated_demands_evals_is_still_red(self):
         self._demand("FWD-205", "R1: WHEN...\n")
-        self._journeys("FWD-999", 'requirements = ["R1"]\n')  # wrong demand
+        self._journeys("FWD-999", ["R1"])  # wrong demand
         r = verify(self.p, "--gate", "eval-coverage")
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("R1", r.stdout)
+
+    # -- F1: demand-id match is a path-segment boundary, never a substring
+    def test_demand_id_prefix_is_not_a_substring_match(self):
+        """FWD-1 authors no journey of its own; FWD-17 (an unrelated demand
+        whose id has FWD-1 as a string prefix) owns a journey mentioning
+        FWD-17's own R1. FWD-1 must stay red — the bare `in` substring
+        match this used to run on would have let FWD-17's tree satisfy
+        FWD-1's own obligation."""
+        self._demand("FWD-1", "R1: WHEN...\n")
+        self._journeys("FWD-17", ["R1"])  # FWD-17's own R1, nothing to do with FWD-1
+        r = verify(self.p, "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("FWD-1:", r.stdout)
+        self.assertIn("R1", r.stdout)
+
+    # -- F2: narration is not execution
+    def test_narration_mentioning_the_token_does_not_satisfy(self):
+        """A stray text file mentioning the R# token is not a journey — no
+        *.journey.toml, no [meta] table, no script, nothing executable."""
+        self._demand("FWD-300", "R1: WHEN...\n")
+        jdir = self.p / "evals" / "journeys" / "FWD-300"
+        jdir.mkdir(parents=True)
+        (jdir / "notes.txt").write_text("TODO: still need to write R1 someday\n")
+        r = verify(self.p, "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("R1", r.stdout)
+
+    def test_manifest_whose_script_file_does_not_exist_does_not_satisfy(self):
+        """A manifest can declare requirements=["R1"] and still not verify
+        anything if the `script` file it names was never committed."""
+        self._demand("FWD-301", "R1: WHEN...\n")
+        self._journeys("FWD-301", ["R1"], script_exists=False)
+        r = verify(self.p, "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("R1", r.stdout)
+
+    def test_unparseable_manifest_does_not_satisfy(self):
+        self._demand("FWD-302", "R1: WHEN...\n")
+        jdir = self.p / "evals" / "journeys" / "FWD-302"
+        jdir.mkdir(parents=True)
+        (jdir / "main.journey.toml").write_text("not = valid = toml = at = all\n")
+        r = verify(self.p, "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("R1", r.stdout)
+
+    # -- F3: staged/since scoping — an old, unrelated demand's real gap
+    # must not block a commit that never touches that demand
+    def test_staged_unrelated_change_is_not_blocked_by_an_old_demands_gap(self):
+        self._demand("FWD-050", "R1: WHEN...\nR2: WHEN...\n")
+        self._journeys("FWD-050", ["R1"])  # R2 has always been missing
+        commit_all(self.p, "FWD-050 shipped, R2 gap and all")
+        (self.p / "README.md").write_text("fix a typo\n")
+        run_git(self.p, "add", "README.md")
+        r = verify(self.p, "--staged")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertNotIn("FWD-050", r.stdout)
+
+    def test_staged_change_touching_the_gappy_demand_still_catches_it(self):
+        self._demand("FWD-051", "R1: WHEN...\nR2: WHEN...\n")
+        self._journeys("FWD-051", ["R1"])  # R2 missing
+        run_git(self.p, "add", "specs/FWD-051")
+        r = verify(self.p, "--gate", "eval-coverage", "--staged")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("FWD-051", r.stdout)
+        self.assertIn("R2", r.stdout)
+
+    # -- F7: one demand's I/O failure must not mask coverage for the rest
+    def test_one_demands_io_error_does_not_mask_another_demands_coverage(self):
+        self._demand("FWD-060", "R1: WHEN...\n")
+        self._journeys("FWD-060", ["R1"])
+        self._demand("FWD-061", "R1: WHEN...\nR2: WHEN...\n")
+        self._journeys("FWD-061", ["R1"])  # FWD-061's own, real gap: R2
+        broken = self.p / "evals" / "journeys" / "FWD-060" / "main.journey.toml"
+        os.chmod(broken, 0o000)
+        try:
+            r = verify(self.p, "--gate", "eval-coverage", "--format", "json")
+        finally:
+            os.chmod(broken, 0o644)
+        row = next(g for g in json.loads(r.stdout)["gates"] if g["id"] == "I1-REQS")
+        self.assertFalse(row["passed"], row)
+        self.assertIn("FWD-060", row["detail"])
+        # FWD-061's own, unrelated, genuine gap is still visible — the
+        # broken demand did not swallow the whole check
+        self.assertIn("FWD-061", row["detail"])
+        self.assertIn("R2", row["detail"])
 
 
 class TestGateNameValidation(unittest.TestCase):
