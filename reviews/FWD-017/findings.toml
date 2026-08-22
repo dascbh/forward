@@ -1,175 +1,224 @@
 # Adversarial review — FWD-017 journeys are verified by execution, not
-# narrated. Round 2 of 2 (M). Round 1 (commit 160fe04, against bcbb734)
-# found 8 findings, 3 blocking, all functional_correctness. This round
-# reviews the reconciliation commit ea1822d ("F1-F4, F7 fixed, F5/F6
-# recorded") against the same spec + ADR (now amended). Reviewer received
+# narrated. Round 3 — UNPLANNED, beyond the M sizing's declared 2 rounds.
+# This project's own review doctrine (fde-review skill) treats three
+# review cycles as the hard bound before escalating to the user; this
+# round was explicitly commissioned as that deciding round. Round 1
+# (commit 160fe04, against bcbb734) found 8 findings, 3 blocking. Round 2
+# (commit 9ecf9ac, against ea1822d) found 4 new findings, 3 blocking
+# (F9 critical, F10/F11 high) plus F12 (maintainability, blocking). This
+# round reviews the reconciliation commit 146dbfc ("F9-F11 fixed") against
+# the same spec + ADR (unchanged by this commit). Reviewer received
 # artifact + spec only (I2). Findings only; no fixes (I3). This file
-# replaces round 1's — round-1 finding IDs are preserved as historical
+# replaces round 2's — round 1/2 finding IDs are preserved as historical
 # reference in `probed` below, not restated as [[finding]] entries once
-# verified closed, so the numbering for round 2's new findings continues
-# from F9.
+# verified closed. Round 3's new finding continues the numbering: F13.
 
 [meta]
 demand_id = "FWD-017"
 context_policy = "artifact_only"
 isolation_mode = "worktree"
 rounds_planned = 2
-rounds_run = 2
-commit = "ea1822d"
-agent_transcript = "agent-a66ecfc4eafa37e29"
+rounds_run = 3
+commit = "146dbfc"
+agent_transcript = "agent-ada4d2f4db9493139"
 probed = '''
-Baseline at ea1822d: worktree confirmed at the target commit (`git log -1`
-== ea1822d). `python3 -m unittest discover -s tests` — 225 tests (was
-218 at bcbb734, +7 for F1/F2/F3/F7 regression coverage), OK.
-`bin/fde/verify.py` and `runtime/verify.py` byte-identical; the two
-quality-attributes.toml mirrors byte-identical — no mirror drift.
+Baseline at 146dbfc: worktree confirmed at the target commit (`git log -1`
+== 146dbfc1f831725d0375057c2eb4bc9302ce502f). `python3 -m unittest
+discover -s tests` — 230 tests (was 225 at ea1822d, +5 for the F10/F11
+reconciliation tests), OK. `runtime/verify.py` and `bin/fde/verify.py`
+byte-identical (`cmp`). `python3 bin/fde/verify.py` and `python3
+bin/fde/verify.py --all` both exit 0, 17/17 gates green, no walkthrough
+line anywhere — this alone closes the exact reproduction F9 used.
 
-ROUND 1 DISPOSITION — each blocking/non-blocking finding re-probed
-independently against ea1822d, using the SAME fixture shape round 1 used
-(tests/support.py make_project/verify) but written fresh, not by trusting
-the reconciliation's own added tests in tests/test_verify.py:
+ROUND 2 DISPOSITION — each blocking finding re-probed independently
+against 146dbfc, using fresh fixtures built from tests/support.py
+make_project/verify (not by trusting the reconciliation's own added
+tests in tests/test_verify.py, though those were read and found to match
+the shape of what I independently reproduced):
 
-  F1 (demand-id substring aliasing, blocking) — FIXED, verified. Rebuilt
-  the FWD-1/FWD-17 fixture: FWD-1 declares R1, authors no journey of its
-  own; FWD-17 (unrelated) owns a real manifest+script under its own tree
-  declaring its own R1. `verify(p, "--gate", "eval-coverage", "--format",
-  "json")` now returns I1-REQS passed=false, "FWD-1: R1" — FWD-1 correctly
-  stays red. The match is now `evals_dir / "journeys" / did`
-  (runtime/verify.py:220, _journey_coverage) — an exact path-segment join,
-  not the old `did in path_string` substring test. No aliasing surface
-  remains at the demand-id level.
+  F9 (walkthrough gate imports a nonexistent module, critical) — FIXED,
+  verified cleanly, no adjacent gap. `git diff ea1822d 146dbfc --
+  runtime/verify.py` shows KNOWN_GATES loses "walkthrough" (:43),
+  `gate_walkthrough()` is deleted entirely (was :471-486), and its
+  dispatch line in main() is gone. Reproduced directly: `python3
+  bin/fde/verify.py` now exits 0 with 17/17 gates, matching round 1's
+  original clean baseline exactly. Grepped the whole worktree for
+  residual "walkthrough" references outside the (untouched, unrelated)
+  fde-walkthrough skill and FWD-014's own review file — none found. The
+  commit message discloses the fix accurately: "removed the walkthrough
+  gate wiring... that leaked into this demand's commits from FWD-018
+  during git surgery."
 
-  F2 core case (narration satisfies the check, blocking) — FIXED for the
-  reproduced case, but see F10 below for a new, adjacent gap the fix
-  introduces. Rebuilt the FWD-300 fixture: notes.txt containing only
-  "TODO: still need to write R1 someday", no manifest anywhere.
-  I1-REQS now correctly reports passed=false, "FWD-300: R1". The gate now
-  parses TOML (runtime/verify.py:223-228), requires `requirements` to be
-  a list of tokens (:233-234) and `script` to name a file that exists
-  (:231) — a bare text mention no longer satisfies it.
+  F10 (script existence check has no containment — path traversal,
+  absolute path, symlink escape, high) — FIXED for every case round 2
+  reproduced, verified independently with fresh fixtures, but see F13
+  below for an adjacent, unfixed gap at one level up the same tree. Built
+  three fixtures against 146dbfc (not the shipped tests): (a) demand
+  FWD-400 declares R1, `script = "../FWD-999/real.spec.ts"` (traversal to
+  a real, unrelated demand's real script) — now I1-REQS passed=false,
+  "FWD-400: R1"; (b) same shape, `script = "/bin/sh"` (absolute path) —
+  passed=false, "FWD-401: R1"; (c) `script` is itself a symlink resolving
+  outside the demand's tree to another demand's real script — passed=
+  false, "FWD-402: R1". All three now correctly red. Read the fix:
+  `root_resolved = root.resolve()` plus, per candidate script,
+  `script_resolved = script_path.resolve(strict=True)` followed by
+  `script_resolved.is_relative_to(root_resolved)` (runtime/verify.py
+  around :231-243) — containment is checked against REAL, symlink-
+  resolved paths on both sides, not the nominal manifest-relative join,
+  which is exactly what defeats a symlinked script file. Confirmed this
+  closes the literal reproductions round 2 gave.
 
-  F3 (unscoped staged-tier check blocks unrelated commits, blocking) —
-  FIXED for the pre-commit tier, verified, but see F11 below for what the
-  same fix does at the CI tier. Rebuilt the FWD-050 fixture (R1+R2
-  declared, only R1 has a real journey, committed as "shipped"), staged
-  an unrelated README typo fix, ran `verify(p, "--staged")`: returncode
-  0, "all gates passed" — the old demand's real gap no longer blocks the
-  unrelated commit. `scoped = staged or since is not None` (:121) and the
-  per-demand `if scoped and did not in touched_ids: continue` (:130) is
-  the mechanism.
+  F11 (--since scoping silently narrows CI's audit to only the demands a
+  push touches, high) — FIXED, verified independently with a probe matrix
+  round 2 did not run in full: built demand FWD-070 (R1+R2 declared, R1
+  journeyed, R2 always missing), committed as old_sha, then an unrelated
+  README-only commit on top. Ran five variants of `verify()`: (1) `--all
+  --since old_sha` — CI's REAL, exact invocation
+  (.github/workflows/fde-gate.yml:17) — now passed=false, "FWD-070: R2"
+  (was the false pass round 2 caught); (2) bare `--since old_sha`, no
+  `--all` — also passed=false, "FWD-070: R2" (the ADR/commit message's own
+  claim that "--since alone does NOT scope down" holds); (3) `--staged
+  --all` together (an untested combination) — `--all` correctly overrides
+  `--staged`'s scoping, passed=false, "FWD-070: R2" — `scoped = staged and
+  not all_` gives the intended precedence; (4) `--staged` alone (no other
+  flags, nothing staged that touches FWD-070) — correctly scopes down and
+  passes, matching F3's original, still-intended behavior at the
+  pre-commit tier; (5) fully unscoped (no flags) — correctly red. Cross-
+  checked against the actual hook and workflow files: `.githooks/pre-
+  commit` and `templates/pre-commit` both run bare `verify.py --staged`
+  (never `--all`); `.github/workflows/fde-gate.yml` and its template both
+  run `verify.py --all --since "<base>"` (never `--staged`) — the fix's
+  behavior matches both real, automated invocation paths exactly, not
+  just the reproduction round 2 gave.
 
-  F4 (DOM-7 mischaracterizes USE-3, non-blocking) — FIXED, verified by
-  re-reading both catalog entries after the edit. DOM-7 now reads
-  "distinct from USE-3's cross-screen consistency by verification method
-  (execution vs. static inspection), never by scope" — matches USE-3's
-  actual text and the ADR's own accurate description; the "one-screen-
-  at-a-time" mischaracterization is gone. Byte-identical in both
-  spec/dimensions/ and .fde/spec/dimensions/ mirrors.
+  F12 (walkthrough scaffolding merged in-band with no disclosure,
+  maintainability, blocking) — RESOLVED as a side effect of F9's removal,
+  verified. The commit message for 146dbfc is scoped accurately to what
+  it actually changed (F9/F10/F11, explicitly named, plus "F12 resolved
+  as a side effect of F9" — disclosed, not silent). `git diff ea1822d
+  146dbfc` touches only runtime/verify.py, bin/fde/verify.py (identical),
+  and tests/test_verify.py — no spec, ADR, or skill file touched, matching
+  the commit's own stated scope. No new undisclosed capability shipped
+  this round.
 
-  F5 (staged-tier cost question never recorded as asked, non-blocking) —
-  RESOLVED as recorded, verified. ADR-0013's new "Amendment — 2026-08-22
-  (FWD-017 F5/F6)" section (lines ~178-230) gives the honest account: the
-  question was raised at spec time, not engaged as its own decision, and
-  closed as a side effect of the F3 fix — stated as exactly that, not
-  papered over as if it had been deliberately weighed. This is candid
-  record-keeping, not just a fix; it holds up under I8/MNT-4.
+ROUND 3 — new probes against 146dbfc, in weight order.
 
-  F6 (wrong precedent cited for usability_research's trigger, non-
-  blocking) — RESOLVED, verified. Both the ADR amendment and
-  acceptance.md's own dated amendment now correctly cite
-  usability_research's pre-existing `derived_from = ["has_frontend",
-  "user_facing"]` (technical-domains.toml:61, unchanged) as the real
-  precedent, and no longer claim `design_system` uses the same trigger.
-  Checked technical-domains.toml directly: design_system (:54) is still
-  `"has_frontend => >= 1"`, unchanged — the correction is accurate.
+PROBE (functional_correctness, weight 30): F10's fix hardens the `script`
+field's resolved path against the demand's own root. Does it also harden
+the ROOT itself — i.e., can `evals/journeys/<demand-id>` be a directory-
+level symlink pointing at another demand's real journeys tree, letting a
+demand claim R# coverage by pointing its whole journeys directory at
+someone else's real, legitimate work instead of authoring its own? YES —
+this is the adjacent gap F10's own reproduction language anticipated
+("does it require the script to belong to, or even be inside, the
+demand's own directory?") but the shipped fix answers only for the
+`script` leaf, not the `evals/journeys/<demand-id>` root itself. See F13.
 
-  F7 (one demand's I/O error masks coverage for every other demand,
-  non-blocking-but-real) — FIXED, verified independently (not the
-  shipped test — a fresh fixture, unscoped so both demands are actually
-  visited): FWD-060's manifest chmod 000, FWD-061 (unrelated) has a real,
-  genuine gap (declares R1+R2, only R1 has a journey). Unscoped
-  `verify(p, "--gate", "eval-coverage", "--format", "json")`:
-  I1-REQS passed=false, detail names BOTH "FWD-061: R2" (the real gap)
-  AND "FWD-060: [Errno 13] Permission denied: ...main.journey.toml" (the
-  I/O failure) — FWD-060's breakage no longer swallows FWD-061's own,
-  unrelated, genuine finding. The try/except is now per-demand
-  (runtime/verify.py:132-151), not wrapped around the whole loop.
+PROBE (functional_correctness): does a broken/self-referential symlink at
+`evals/journeys/<demand-id>` crash the gate instead of reporting a clean
+gap? Built a fixture with `evals/journeys/FWD-777` symlinked to itself.
+`root.is_dir()` (Path.is_dir catches OSError, including ELOOP, and
+returns False) — the demand correctly falls through to reporting its R#
+as missing, no crash, no vacuous pass. Safe.
 
-  F8 (O(demands x total_files) rglob, non-blocking, weight 3) — RESOLVED
-  by construction, verified by reading (not re-timed — lowest-weighted
-  attribute, commit message's own reasoning holds up): `_journey_coverage`
-  scopes its rglob to `evals_dir / "journeys" / did` (:220-223), walking
-  only that one demand's own subtree, not the whole evals/ tree, once per
-  demand in the loop. The quadratic shape round 1 measured is gone by
-  construction.
+PROBE (functional_correctness): does an OSError from `root.rglob(...)`
+itself (as opposed to `open(manifest)`, which F7's fix already isolates)
+escape the per-demand try/except and corrupt a sibling demand's result,
+regressing F7? No — `_journey_coverage(evals_dir, did)` is called INSIDE
+the same per-demand `try/except Exception` block that wraps
+`design.has_design_surface`, the acceptance.md read, and the token match
+(runtime/verify.py, the loop body in gate_eval_coverage) — any exception
+raised during `root.rglob()` is caught at the same per-demand granularity
+F7 established, not the whole-loop granularity round 1 broke on. Read,
+not separately reproduced (round 2's F7 re-probe already established this
+call site's isolation; this diff does not change that call site's
+try/except boundary).
 
-ROUND 2 — new probes against the reconciliation commit itself, in weight
-order.
+PROBE (maintainability, weight 22, MNT-9/MNT-4): is the reconciliation
+commit itself disclosed accurately, or does it bundle anything
+undisclosed the way ea1822d bundled the walkthrough scaffolding (F12)? No
+— `git diff ea1822d 146dbfc --stat` touches exactly three files
+(runtime/verify.py, bin/fde/verify.py, tests/test_verify.py), all
+described in the commit message, which names F9/F10/F11/F12 explicitly
+and gives the actual reasoning for the F11 design choice inline (why
+--staged and --since are no longer treated as equivalent). No spec, ADR,
+or skill file was touched and none needed to be — F9-F11 were pure
+code/test fixes with no behavior the spec didn't already describe. No
+finding.
 
-PROBE: does `python3 bin/fde/verify.py` — the exact command CLAUDE.md
-names ("Before any commit") and AGENTS.md names twice (Commands section,
-and step 7 of the demand loop: "python3 bin/fde/verify.py --all — the
-same one CI runs") — still pass on ea1822d with zero setup? No.
-`python3 bin/fde/verify.py` and `python3 bin/fde/verify.py --all` both
-exit 1: "WALKTHROUGH walkthrough could not be measured: No module named
-'walkthrough'". See F9.
+PROBE (maintainability): does F11's fix leave any comment explaining WHY
+`--all` forces unscoped even under `--staged` (the untested-by-round-2
+`--staged --all` combination)? Read runtime/verify.py's comment block
+above `scoped = staged and not all_` — it explains the --staged vs
+--since distinction at length but does not explicitly call out the
+--staged+--all interaction as a deliberate case. Not filed as a finding
+(MNT-10 asks comments explain why code exists, and the operative
+precedence IS explained by the boolean logic's plain reading; this is a
+documentation-completeness nit below the bar for a blocking or even
+recorded finding at this weight, given three prior rounds already spent
+real budget here).
 
-PROBE: is `--all` actually doing anything different from no flag at all?
-`grep -n "args\\.all" runtime/verify.py` — zero matches anywhere past the
-argparse declaration (:566). The flag is parsed and never read. AGENTS.md
-and CLAUDE.md's own "--all" instruction is cosmetic.
+PROBE (reliability_resilience, weight 12): partial failure — if
+`script_path.resolve(strict=True)` raises OSError for a reason other than
+FileNotFoundError (e.g., a symlink loop in the script path itself, or a
+permission-denied directory in the resolution chain), is it caught? Yes —
+`except OSError: continue` (runtime/verify.py, in the per-manifest loop)
+treats it as "this manifest contributes nothing," the same graceful-
+degradation shape as the missing-script case, not a crash. Verified by
+reading; the shape matches F7's established pattern of "I/O failure reads
+as a gap, not a checker crash." No finding.
 
-PROBE: does the actual CI workflow reproduce this? Read
-.github/workflows/fde-gate.yml:17 directly: `python bin/fde/verify.py
---all --since "${{ github.event.pull_request.base.sha ||
-github.event.before }}"`. Since `--all` is a no-op and `--staged` is not
-passed, `if not args.staged:` (:606) is true, so gate_walkthrough runs.
-CI is broken on this commit, unconditionally, on every push and PR,
-starting now.
+PROBE (usability_accessibility, weight 12): for the new F13 case (a
+demand's journeys directory symlinked to another demand's real tree), what
+does the PASSING message say? "2 design-surface demand(s), every declared
+R# traces to a real, executed journey under its own evals/**" — false on
+both counts for the symlinked demand: nothing was executed by this check
+(same as F10's original wording problem), and "its own" is contradicted
+by the demand directory itself being a pointer elsewhere. Folded into F13
+rather than filed separately — it is the same defect's downstream
+symptom, not a second cause.
 
-PROBE: does the SAME `--since` flag interact with the F3 fix in a way
-spec.md's own boundary anticipated but the shipped fix doesn't record?
-Built a fixture matching exactly what the CI workflow's `--since <base>`
-does: demand FWD-070 declares R1+R2, ships a real journey for R1 only
-(R2 always missing), committed as `old_sha`. A LATER, unrelated commit
-("later, unrelated PR") changes only README.md. Ran
-`verify(p, "--all", "--since", old_sha, "--gate", "eval-coverage",
-"--format", "json")` — i.e. the CI workflow's own invocation, scoped to
-just the eval-coverage gate for a clean read: passed=true, "no behavior
-change in this changeset" — FWD-070's real, undisputed gap is invisible.
-The SAME fixture run fully unscoped (no --staged, no --since) correctly
-reports I1-REQS passed=false, "FWD-070: R2". See F11 — `scoped = staged
-or since is not None` (:121) treats CI's `--since` identically to
-pre-commit's `--staged`, so the unscoped, catch-everything check
-spec.md/ADR-0013 describe as the CI-tier fallback for exactly this
-scenario never runs through any automated path.
+PROBE (observability, weight 10): does removing the walkthrough gate
+(F9's fix) leave any stale signal or declared-but-unmeasured attribute
+behind — e.g. an observability.toml entry, a spec cross-reference —
+implying a capability the repo no longer wires? Grepped observability.toml
+and spec/roles.toml/invariants.toml for "walkthrough": no hits; both were
+already untouched by FWD-017's earlier commits per round 2's own check,
+confirmed still untouched by 146dbfc. No finding.
 
-PROBE: F2's fix requires a real, parsed manifest with an existing
-`script` file — does it require the script to belong to, or even be
-inside, the demand's own directory? No containment check exists.
-`manifest.parent / str(script)` (:231) is a plain path join. Built two
-fixtures: (a) demand FWD-400 declares R1, its own manifest sets
-`script = "../FWD-999/real.spec.ts"` — a relative path-traversal to a
-COMPLETELY UNRELATED demand's real script file, nothing FWD-400 authored
-itself; (b) same demand, `script = "/bin/sh"` — an absolute path to a
-binary present on virtually every host, chosen at random, unrelated to
-any journey. Both: I1-REQS passed=true, "1 design-surface demand(s),
-every declared R# traces to a real, executed journey under its own
-evals/**". Neither script is ever executed by this check — only
-`.is_file()` is called — so the passing message's own wording ("traces
-to a real, executed journey") is false in both cases: nothing executed,
-and in case (a) the file traced to is not even under evals/journeys/
-FWD-400/. See F10.
+PROBE (security_privacy, weight 8): the F13 escape (directory-level
+symlink) is git-committable and survives a normal `git add -A && git
+commit` + checkout (git tracks symlinks as mode 120000 blobs) — confirmed
+via the fixture itself: `commit_all` succeeded and the checked-out
+worktree presented the symlink as a real symlink to verify.py's plain
+filesystem walk, no special handling needed on either side. Filed under
+functional_correctness (F13), not security_privacy, for continuity with
+how F1/F2/F10 — the same "false green without authored work" defect
+class — were classified in rounds 1-2, not because the mechanism (a
+symlink) is any less real as an attack primitive.
 
-SAFE, and checked: `re.fullmatch(r"R\\d+", ...)` on the requirements list
-values is not attacker-controlled in any exploitable way (spec-author
-controlled, same trust boundary as before this diff). tomllib.load is
-stdlib, no eval/exec anywhere in the new code. The per-demand
-try/except (F7's fix) correctly isolates OSError from a chmod'd file
-without swallowing sibling demands' real findings (re-verified above).
-KNOWN_GATES/roles/invariants untouched except for the "walkthrough"
-addition itself (F9) — spec/roles.toml and spec/invariants.toml
-byte-unchanged by this diff.
+PROBE (performance_scale, weight 3 / operational_cost, weight 3): the
+added `.resolve()` calls are one extra stat-ish syscall per demand
+(root) and per candidate script — no change to the O(1)-per-demand shape
+F8 already fixed in round 1. Not re-measured (lowest-weighted attributes,
+no plausible regression surface introduced by this diff). No finding.
+
+HEURISTIC PASS (I8): read all eight attributes' `heuristic_principles`
+against this diff. Nothing rises to a citable violation beyond what is
+already covered by the F13 adversarial finding above: the commit is
+small, its own stated scope matches its actual diff (MNT-9/MNT-4, clean
+this round), comments explain reasoning inline (MNT-10), no UI or
+config-facing surface changed (USE-*/design-system principles do not
+apply to this diff), no schema or migration exists to judge against REL-*,
+no LLM/agent-loop cost surface exists to judge against COST-*.
+
+SAFE, and checked this round: `is_relative_to` (Python 3.9+) matches the
+project's stated stack requirement (CI runs 3.12); `.resolve(strict=True)`
+correctly raises/continue's on a genuinely broken symlink rather than
+silently resolving to a nonexistent path; the F11 fix's `scoped = staged
+and not all_` was cross-checked against both real automated invocations
+(pre-commit hook, CI workflow) rather than only the flag combinations
+round 2's own fixtures exercised.
 '''
 
 # ---------------------------------------------------------------------------
@@ -177,228 +226,70 @@ byte-unchanged by this diff.
 # ---------------------------------------------------------------------------
 
 [[finding]]
-id = "F9"
-attribute = "functional_correctness"
-severity = "critical"
-probe = '''
-The reconciliation commit — whose own message is scoped to "F1-F4, F7
-fixed, F5/F6 recorded" — also adds a full gate wiring for something
-neither round 1's findings, FWD-017's spec.md, nor FWD-017's acceptance.md
-asked for: "walkthrough" is added to KNOWN_GATES (runtime/verify.py:43),
-a `gate_walkthrough()` method is added (:473-486) that unconditionally
-does `import walkthrough`, and main() wires it into every non-`--staged`
-run (:629-630, inside the same `if not args.staged:` block as every other
-CI-tier gate). No `runtime/walkthrough.py` module exists anywhere in this
-commit or this worktree. The method's own comment names what it actually
-is: "opt-in, ADR-0014/FWD-018" — and FWD-017's OWN acceptance.md says,
-verbatim, "is out of scope for FWD-017 and named as the next demand
-(FWD-018)" (acceptance.md:90), and spec.md says the same
-(spec.md:49). Docs/adr/0014 does not exist. This is FWD-018's shape,
-shipped incomplete, inside FWD-017's reconciliation commit, with zero
-disclosure in the commit message.
-
-Reproduced directly, no fixture needed — this repository's own real state
-is the reproduction: `python3 bin/fde/verify.py` exits 1:
-"[31m✗[0m WALKTHROUGH walkthrough could not be measured: No module named
-'walkthrough'". Same for `python3 bin/fde/verify.py --all` — confirmed
-`--all` is a dead flag (`grep -n "args\\.all" runtime/verify.py` matches
-only the argparse declaration at :566, never read anywhere else), so
-`--all` changes nothing. This is the EXACT command CLAUDE.md names
-("Before any commit: python3 bin/fde/verify.py") and AGENTS.md names
-twice (Commands section; demand-loop step 7, "python3 bin/fde/verify.py
---all — the same one CI runs"). It is also, byte-for-byte, what
-.github/workflows/fde-gate.yml:17 actually runs in CI:
-`python bin/fde/verify.py --all --since "${{ ... }}"` — not `--staged`,
-so the walkthrough gate is on the execution path there too. CI is broken
-on this commit. At bcbb734/160fe04, round 1 recorded `verify.py --all` as
-17/17 gates green; it is now 17/18, hard failure, on every invocation
-that is not `--staged` or a `--gate` naming something other than
-"walkthrough".
-
-This is a regression in previously accepted behavior (round 1's own
-baseline), introduced by the very commit meant to close round 1's
-findings, and it is the single easiest thing to have caught: running the
-command the project's own documentation says to run before any commit.
-'''
-evidence = '''
-runtime/verify.py:43 (KNOWN_GATES gains "walkthrough"); :471-486
-(gate_walkthrough, `import walkthrough` inside try/except, no such
-module in this repo); :629-630 (main() wires it into every run except
-`--staged`); specs/FWD-017-journey-verification/acceptance.md:90 ("is
-out of scope for FWD-017 and named as the next demand (FWD-018)");
-specs/FWD-017-journey-verification/spec.md:49 (same); no docs/adr/0014*
-file exists; no runtime/walkthrough.py file exists.
-.github/workflows/fde-gate.yml:17 (`python bin/fde/verify.py --all
---since "..."`, no --staged). Reproduced live against this worktree at
-ea1822d: `python3 bin/fde/verify.py` exit code 1; `python3
-bin/fde/verify.py --all` exit code 1, same message.
-'''
-blocking = true
-
-[[finding]]
-id = "F10"
+id = "F13"
 attribute = "functional_correctness"
 severity = "high"
 probe = '''
-F2's fix (runtime/verify.py `_journey_coverage`, :198-238) requires a
-real, parsed manifest whose `script` field names a file that
-`.is_file()` — a real improvement over round 1's raw-text grep. But the
-existence check at :231, `(manifest.parent / str(script)).is_file()`,
-applies no containment constraint: it never checks that the resolved
-path stays inside the demand's own evals/journeys/<demand-id>/ tree, and
-it never executes the script or checks its contents — only that SOME
-file exists at the joined path. Two independent ways to satisfy "traces
-to a real, executed journey" without the demand owning, authoring, or
-running anything of its own:
+F10's fix (runtime/verify.py `_journey_coverage`) hardens the `script`
+field: the resolved script path must be a real descendant of
+`evals_dir / "journeys" / did`, closing parent-traversal, absolute-path,
+and script-level symlink escapes. It does not harden the ROOT of that
+containment check. `root = evals_dir / "journeys" / did` is used as-is;
+`root.is_dir()` returns true for a directory-level symlink; `root_resolved
+= root.resolve()` then resolves to whatever that symlink points at. If
+`evals/journeys/<demand-id>` is ITSELF a symlink to another demand's real
+journeys directory, every manifest and script under the target directory
+is walked and containment-checked against the SYMLINK'S OWN resolved
+target — which trivially contains everything under it. The demand
+borrows another demand's entire, real, legitimately-authored journey
+without authoring a single file of its own under its own tree.
 
-(a) Path traversal to another demand's real script. Demand FWD-400
-declares R1, its own manifest (evals/journeys/FWD-400/main.journey.toml)
-sets `script = "../FWD-999/real.spec.ts"` — FWD-999's own real,
-legitimate script, which verifies FWD-999's own journey, not FWD-400's.
-`verify(p, "--gate", "eval-coverage", "--format", "json")`: I1-REQS
-passed=true, "traces to a real, executed journey under its own
-evals/**". FWD-400 authored nothing executable of its own.
+Reproduced: demand FWD-999 has a real, legitimate manifest
+(evals/journeys/FWD-999/main.journey.toml, requirements=["R1"],
+script="real.spec.ts", a real file next to it) and a design surface.
+Demand FWD-500 also declares R1 in its own acceptance.md and has its own
+design surface, but authors NO manifest and NO script anywhere — instead,
+`evals/journeys/FWD-500` is committed as a symlink pointing at
+`evals/journeys/FWD-999` (a directory symlink, `target_is_directory=True`,
+committed via ordinary `git add -A && git commit`, which git tracks as a
+normal mode-120000 symlink blob and checks out as a real symlink — no
+special git configuration needed). `verify(p, "--gate", "eval-coverage",
+"--format", "json")`: I1-REQS passed=true, "2 design-surface demand(s),
+every declared R# traces to a real, executed journey under its own
+evals/**" — FWD-500 shows fully green having authored nothing of its own,
+by borrowing FWD-999's real work through a directory-level pointer one
+level above the boundary F10's fix actually checks.
 
-(b) Absolute path to any file that happens to exist on the host. Same
-demand, `script = "/bin/sh"` — a binary that exists on virtually every
-Unix machine, chosen for being unrelated to anything. Python's
-`Path.__truediv__` replaces the whole path when the right operand is
-absolute (`manifest.parent / "/bin/sh" == Path("/bin/sh")`), so the
-containing-directory join gives no protection at all.
-`verify(...)` again: I1-REQS passed=true, same message.
+This is the identical defect class F1, F2, and F10 already named across
+three rounds — a demand can show coverage it did not itself author —
+reached through the one boundary layer (the demand-directory root passed
+into `_journey_coverage`, not the `script` leaf inside it) that the F10
+fix left unguarded. The passing message's own wording, "traces to a real,
+executed journey under its own evals/**," is false on both the "executed"
+clause (same as F10 — nothing is ever run, only `.is_file()`/`.rglob()`)
+and the "its own" clause (the directory is not FWD-500's own; it is a
+pointer to FWD-999's).
 
-Neither script is ever run — `_journey_coverage` never invokes anything,
-it only calls `.is_file()` — so the passing detail string's own wording,
-"traces to a real, EXECUTED journey," is false in both reproductions:
-nothing was executed, and in case (a) the file that satisfied the check
-belongs to a different demand entirely. This is the same class of defect
-round 1's F1 and F2 named (a demand can show green without having
-authored real, own-demand coverage) reached through the one field the F2
-fix newly trusts without validating: `script`.
+Not a hypothetical: this requires no more sophistication than F10's own
+reproduced cases did — a single `ln -s` (or `os.symlink` from any tool,
+including an agent trying to make a red gate go green without doing the
+work this demand's own title says the gate exists to require: "journeys
+are executed, not narrated").
 '''
 evidence = '''
-runtime/verify.py:198-238 (_journey_coverage), specifically :231
-(`if not script or not (manifest.parent / str(script)).is_file():
-continue` — no containment/resolve-and-check-prefix step, no execution).
-Reproduced against the fixture harness (tests/support.py
-make_project/verify): demand FWD-400, acceptance.md declares "R1:
-WHEN...", evals/journeys/FWD-400/main.journey.toml with `[meta]
-demand_id = "FWD-400"` `requirements = ["R1"]` and, in turn,
-`script = "../FWD-999/real.spec.ts"` (FWD-999's own real file existing at
-evals/journeys/FWD-999/real.spec.ts) and, separately, `script =
-"/bin/sh"` — both give I1-REQS passed=true.
-'''
-blocking = true
-
-[[finding]]
-id = "F11"
-attribute = "functional_correctness"
-severity = "high"
-probe = '''
-F3's fix scopes I1-REQS checking to the demands a changeset actually
-touches whenever `scoped = staged or since is not None` (runtime/
-verify.py:121) is true. This correctly closes round 1's F3 (an old
-demand's gap blocking an unrelated commit at the pre-commit tier) — but
-it scopes the SAME way for `--since`, and this project's own CI workflow
-(.github/workflows/fde-gate.yml:17) always invokes verify.py with
-`--since "<base sha>"`, never bare. Since `--all` is a dead flag (see
-F9's evidence — never read past argparse), there is no automated
-invocation anywhere in this repository — not pre-commit, not CI — that
-runs I1-REQS unscoped. The genuinely unscoped, catch-every-demand check
-is only reachable by a human manually typing `python3 bin/fde/verify.py`
-with no flags at all, which is neither what CLAUDE.md/AGENTS.md document
-("python3 bin/fde/verify.py --all") nor what CI runs.
-
-Consequence, reproduced: a demand whose real coverage gap predates a PR's
-base commit — or simply isn't touched by the current diff — is
-permanently invisible to both automated gates, not just the pre-commit
-one F3's fix was scoped to fix. Built a fixture reproducing the exact CI
-invocation: demand FWD-070 declares R1+R2, ships a journey for R1 only
-(R2 always missing), committed as `old_sha`. A later, unrelated commit
-touches only README.md. `verify(p, "--all", "--since", old_sha, "--gate",
-"eval-coverage", "--format", "json")` — i.e. exactly what CI runs, gate
-narrowed to eval-coverage for a clean signal — returns passed=true, "no
-behavior change in this changeset". The identical fixture run fully
-unscoped (no flags) correctly reports "FWD-070: R2" missing.
-
-ADR-0013's own amendment (added by this same reconciliation commit,
-closing F5) describes the mechanism accurately — "under `staged` or an
-explicit `since` range, the per-demand loop now skips any demand not
-touched by the changeset" — but neither the ADR nor acceptance.md records
-the consequence that CI's actual, permanent invocation IS an explicit
-`since` range, every time, so the record itself is technically accurate
-and still misses the point spec.md's own "ask first" clause was raised
-to protect: "ask whether the sharpened check belongs at the CI tier
-instead" presupposes the CI tier keeps running the full check. It no
-longer does. This is not a new instance of F3 — F3 was about blast
-radius (a real gap blocking unrelated work); this is about disappearance
-(a real gap never surfacing to anyone, ever, through any automated path).
-'''
-evidence = '''
-runtime/verify.py:121 (`scoped = staged or since is not None` — no
-distinction between the pre-commit tier and the CI tier once a `since`
-value is present) and :566 (`--all` declared, never read — confirmed via
-`grep -n "args\\.all" runtime/verify.py`, zero hits past the
-declaration). .github/workflows/fde-gate.yml:17 (`python bin/fde/verify.py
---all --since "${{ github.event.pull_request.base.sha ||
-github.event.before }}"` — every CI run passes `--since`, never bare).
-docs/adr/0013-journeys-are-executed-not-narrated.md, Amendment section
-(describes the staged/since skip mechanism accurately but not this
-consequence). Reproduced: fixture FWD-070 (R1+R2 declared, R1 journeyed,
-R2 never), `verify(p, "--all", "--since", <old_sha>, "--gate",
-"eval-coverage", "--format", "json")` -> passed=true; same fixture,
-`verify(p, "--gate", "eval-coverage", "--format", "json")` (unscoped) ->
-passed=false, "FWD-070: R2".
-'''
-blocking = true
-
-# ---------------------------------------------------------------------------
-# maintainability — weight 22, BLOCKS MERGE
-# ---------------------------------------------------------------------------
-
-[[finding]]
-id = "F12"
-attribute = "maintainability"
-severity = "medium"
-principle = "MNT-9"
-probe = '''
-MNT-9: "scope discipline: adjacent improvements are noted for later,
-never fixed in-band." The reconciliation commit's own message describes
-its scope precisely: "F1-F4, F7 fixed, F5/F6 recorded." Nothing in that
-message discloses that the same commit also adds a new gate id to
-KNOWN_GATES, a new Gate method, and new main() wiring for a capability
-(walkthrough/FWD-018) that FWD-017's own acceptance.md (line 90) and
-spec.md (line 49) both explicitly name as the NEXT demand, out of scope
-for this one. Judged against MNT-9: this is the opposite of "noted for
-later" — it is merged in-band, silently, inside a commit whose stated
-purpose is narrower, with no ADR entry, no spec note, and no commit-
-message disclosure anywhere a future reader (or `git log -1 --
-runtime/verify.py`) would find it. MNT-4 ("decisions are written where
-the next reader will look") compounds this: there is no decision record
-for "why does FWD-017's reconciliation commit also ship FWD-018's gate
-skeleton" — not in the ADR (which was amended in this same commit, and
-had the natural place to say so), not in acceptance.md, not in the
-commit message. A future reader diffing bcbb734..ea1822d to understand
-"what did reconciling round 1's findings change" has to independently
-discover the walkthrough addition is unrelated — nothing tells them.
-
-Independent of F9's breakage (this would be a finding even if
-runtime/walkthrough.py did exist and the gate worked correctly): a
-demand's fix-round commit is not the place to also land a different,
-future demand's scaffolding. The two are now impossible to review,
-revert, or reason about separately — reverting F9's breakage cleanly
-means picking apart which of ea1822d's hunks belong to FWD-017 and which
-belong to FWD-018, work the commit boundary was supposed to make
-unnecessary.
-'''
-evidence = '''
-git commit message for ea1822d (scoped to "F1-F4, F7 fixed, F5/F6
-recorded", no mention of walkthrough/FWD-018) vs. its actual diff
-(runtime/verify.py:43,471-486,629-630 — KNOWN_GATES, gate_walkthrough,
-main() wiring). specs/FWD-017-journey-verification/acceptance.md:90 and
-specs/FWD-017-journey-verification/spec.md:49 (FWD-018 named as the next,
-out-of-scope demand). docs/adr/0013-journeys-are-executed-not-narrated.md
-Amendment section (added by this same commit, covers F5/F6 only, silent
-on walkthrough).
+runtime/verify.py, `_journey_coverage` (around :215-245): `root =
+evals_dir / "journeys" / did`; `root.is_dir()`; `root_resolved =
+root.resolve()` — no check that `root` itself (as opposed to `script`,
+which the F10 fix does check) is a real, non-symlinked descendant of
+`evals_dir / "journeys"`, or that it is not a pointer to a DIFFERENT
+demand-id's own tree. Reproduced against the fixture harness
+(tests/support.py make_project/verify): FWD-999 (real manifest+script,
+own design surface) and FWD-500 (own acceptance.md declares R1, own
+design surface, `evals/journeys/FWD-500` is a directory symlink to
+`evals/journeys/FWD-999`, committed via `git add -A && git commit`) —
+`verify(p, "--gate", "eval-coverage", "--format", "json")` returns
+`{"passed": true, "gates": [{"id": "I1-REQS", "passed": true, "detail":
+"2 design-surface demand(s), every declared R# traces to a real, executed
+journey under its own evals/**"}, ...]}`.
 '''
 blocking = true
