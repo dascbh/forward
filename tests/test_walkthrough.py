@@ -381,6 +381,198 @@ A storefront for buying a single digital product.
                          {"unclear if tax is included",
                           "unclear how to remove an item"})
 
+# reviews/FWD-018 F11: the F8 fix's new content-based tier
+# (_classify_block_content) ran BEFORE the positional fallback with no
+# check that the two agreed, so a paraphrased heading whose own bullets
+# happened to carry the OTHER scored section's content signature (an
+# arrow anywhere -> action_consequences; an "unclear/not sure/..."
+# keyword anywhere -> unclear_points) was silently misrouted into that
+# other slot instead of the one it actually occupies — reproducing the
+# exact "silently emptied slot" failure mode F2 and F8 were each filed
+# to close, now through a gap in F8's OWN new mechanism. The fix routes
+# any block where tier 2 (content) and tier 3 (position) disagree into
+# an explicit "ambiguous" bucket instead of guessing.
+
+# F11's own first repro: "Unclear points" paraphrased, its one entry
+# phrased with an arrow — exactly the shape
+# agents/fde-walkthrough-evaluator.md's own "a consequence you could not
+# predict" definition invites, especially once the run has already used
+# arrow notation for the sibling action_consequences section two
+# paragraphs above.
+F11_UNCLEAR_ARROW_EXACT = """\
+## What this is
+A storefront for buying a single digital product.
+
+## Perceived primary actions
+- buy product
+- view cart
+
+## Perceived action -> consequence
+- buy product -> completes the purchase
+- view cart -> shows items added
+
+## Unclear points
+- cancel order -> not sure if a refund is issued
+"""
+
+F11_UNCLEAR_ARROW_PARAPHRASED = """\
+## What this is
+A storefront for buying a single digital product.
+
+## Perceived primary actions
+- buy product
+- view cart
+
+## Perceived action -> consequence
+- buy product -> completes the purchase
+- view cart -> shows items added
+
+**Things I wasn't sure about**
+- cancel order -> not sure if a refund is issued
+"""
+
+# F11's second, independent repro: "Perceived primary actions" itself
+# paraphrased, with entries blending an action and its immediate
+# navigation target — a plausible phrasing when the run is given no
+# worked example to copy (same F2/F3/F8 lineage).
+F11_PRIMARY_ARROW_EXACT = """\
+## What this is
+A storefront for buying a single digital product.
+
+## Perceived primary actions
+- browse products
+- buy product
+
+## Perceived action -> consequence
+- browse products -> see catalog
+- buy product -> go to checkout
+
+## Unclear points
+- unclear if tax is included
+"""
+
+F11_PRIMARY_ARROW_PARAPHRASED = """\
+## What this is
+A storefront for buying a single digital product.
+
+**Actions I noticed**
+- browse products -> see catalog
+- buy product -> go to checkout
+
+## Perceived action -> consequence
+- browse products -> see catalog
+- buy product -> go to checkout
+
+## Unclear points
+- unclear if tax is included
+"""
+
+
+class TestParsePerceivedModelContentPositionAgreementGate(unittest.TestCase):
+    """Regression coverage for reviews/FWD-018 F11: tier 2
+    (_classify_block_content) and tier 3 (position) must AGREE before
+    either classifies a block whose heading missed the exact-alias tier.
+    On disagreement the block lands in `model["ambiguous"]`, never
+    guessed into either field — a structural change to the tier
+    priority, not another one-off content-signature patch."""
+
+    def test_paraphrased_unclear_points_with_an_arrow_entry_lands_in_ambiguous(self):
+        b = walkthrough.parse_perceived_model(F11_UNCLEAR_ARROW_PARAPHRASED)
+        self.assertEqual(len(b["ambiguous"]), 1)
+        entry = b["ambiguous"][0]
+        self.assertEqual(entry["content_guess"], "action_consequences")
+        self.assertEqual(entry["position_guess"], "unclear_points")
+        self.assertEqual(entry["entries"],
+                         ["cancel order -> not sure if a refund is issued"])
+        # the critical guarantee: NOT misrouted into action_consequences
+        # (F11's actual bug), and NOT force-guessed into unclear_points
+        # either (what a naive "just trust position" fix would do).
+        self.assertEqual(b["unclear_points"], set())
+        self.assertEqual(
+            b["action_consequences"],
+            {"buy product -> completes the purchase",
+             "view cart -> shows items added"})
+
+    def test_paraphrased_unclear_points_case_does_not_pollute_the_score(self):
+        a = walkthrough.parse_perceived_model(F11_UNCLEAR_ARROW_EXACT)
+        b = walkthrough.parse_perceived_model(F11_UNCLEAR_ARROW_PARAPHRASED)
+        result = walkthrough.compute_divergence(a, b)
+        # action_consequences now reads as full agreement (0.0) — the
+        # misrouted entry no longer inflates its union the way F11's own
+        # probe measured (distance 0.5) before this gate existed.
+        self.assertEqual(result["per_slot"]["action_consequences"]["distance"], 0.0)
+        self.assertEqual(result["per_slot"]["primary_actions"]["distance"], 0.0)
+        self.assertEqual(result["score"], 0.333)
+        self.assertNotEqual(result["score"], 1.0)
+        self.assertEqual(result["ambiguous"], {"a": 0, "b": 1})
+
+    def test_paraphrased_primary_actions_with_arrow_entries_lands_in_ambiguous(self):
+        b = walkthrough.parse_perceived_model(F11_PRIMARY_ARROW_PARAPHRASED)
+        self.assertEqual(len(b["ambiguous"]), 1)
+        entry = b["ambiguous"][0]
+        self.assertEqual(entry["content_guess"], "action_consequences")
+        self.assertEqual(entry["position_guess"], "primary_actions")
+        self.assertEqual(
+            entry["entries"],
+            ["browse products -> see catalog", "buy product -> go to checkout"])
+        self.assertEqual(b["primary_actions"], set())
+        self.assertEqual(
+            b["action_consequences"],
+            {"browse products -> see catalog", "buy product -> go to checkout"})
+
+    def test_paraphrased_primary_actions_case_does_not_pollute_the_score(self):
+        a = walkthrough.parse_perceived_model(F11_PRIMARY_ARROW_EXACT)
+        b = walkthrough.parse_perceived_model(F11_PRIMARY_ARROW_PARAPHRASED)
+        result = walkthrough.compute_divergence(a, b)
+        self.assertEqual(result["per_slot"]["action_consequences"]["distance"], 0.0)
+        self.assertEqual(result["per_slot"]["unclear_points"]["distance"], 0.0)
+        self.assertEqual(result["score"], 0.333)
+        self.assertNotEqual(result["score"], 1.0)
+        self.assertEqual(result["ambiguous"], {"a": 0, "b": 1})
+
+    def test_both_sides_making_the_same_ambiguous_paraphrase_scores_zero(self):
+        # neither run is guessed into a slot, but both are EQUALLY
+        # ambiguous — proves the agreement gate does not manufacture a
+        # false divergence between two runs reporting identical
+        # judgment, the same guarantee every prior F2/F3/F8 fixture in
+        # this file already holds for its own failure mode.
+        a = walkthrough.parse_perceived_model(F11_UNCLEAR_ARROW_PARAPHRASED)
+        b = walkthrough.parse_perceived_model(F11_UNCLEAR_ARROW_PARAPHRASED)
+        result = walkthrough.compute_divergence(a, b)
+        self.assertEqual(result["score"], 0.0)
+        self.assertEqual(result["ambiguous"], {"a": 1, "b": 1})
+
+    def test_f8_regression_fixtures_are_unaffected_none_land_in_ambiguous(self):
+        # F8's own regression coverage (TestParsePerceivedModelUnmarkedIntroFallback,
+        # above) has no genuine tier-2/tier-3 conflict in any of its
+        # fixtures — this proves the new agreement gate does not regress
+        # the common case F8's fix was built for: content and position
+        # agreeing is still resolved, not shunted into "ambiguous" out
+        # of excess caution.
+        for text in (UNMARKED_INTRO_PARAPHRASED_B, PARAPHRASED_HEADINGS_A,
+                     PARAPHRASED_HEADINGS_B):
+            m = walkthrough.parse_perceived_model(text)
+            self.assertEqual(m["ambiguous"], [], msg=text)
+        # the same review's own "stress-test beyond the reported case"
+        # mixed fixture (alias + content-classified + content-classified)
+        mixed = """\
+A storefront for buying a single digital product.
+
+## Perceived primary actions
+- buy product
+- view cart
+
+**What happens next**
+- buy product -> completes the purchase
+- view cart -> shows items added
+
+**Things I was not sure about**
+- unclear if tax is included
+- unclear how to remove an item
+"""
+        self.assertEqual(walkthrough.parse_perceived_model(mixed)["ambiguous"], [])
+
+
 class TestComputeDivergence(unittest.TestCase):
     def test_identical_models_score_zero(self):
         m = walkthrough.parse_perceived_model(MODEL_A)
@@ -639,6 +831,96 @@ class TestRenderDivergenceToml(unittest.TestCase):
             status="unreachable")
         data = tomllib.loads(text)
         self.assertEqual(data["status"], "unreachable")
+
+
+# reviews/FWD-018 F11's design decision for how an ambiguous block
+# should be treated by the divergence metric: NOT one of the three
+# scored slots (routing it into one on a guess is exactly the
+# misclassification F11 exists to stop), NOT force-matched against the
+# other run's ambiguous blocks by raw text (two runs' differently-worded
+# ambiguous entries are not known to be "the same slot"), and NOT
+# silently dropped either (that would recreate the exact "information
+# quietly discarded" shape every round of this defect has been about,
+# one level up). The chosen treatment: a visible COUNT, per run,
+# returned by compute_divergence and written into divergence.toml as an
+# `[ambiguous]` table of counts only — never the raw text, mirroring
+# F10's posture toward `observed_text` — surfaced for a human or the
+# isolated adversarial role (who already has `walkthroughs/**:read`
+# access to the raw perceived-model-*.md files) to judge directly,
+# rather than the automated score silently absorbing or dropping it.
+class TestAmbiguousBucketScoringTreatment(unittest.TestCase):
+    """Direct coverage of the ambiguous bucket's own scoring treatment —
+    reviews/FWD-018 F11's design decision, not a mechanical default."""
+
+    def test_ambiguous_is_never_one_of_the_scored_slots(self):
+        self.assertNotIn("ambiguous", walkthrough.SLOTS)
+
+    def test_an_ambiguous_block_is_excluded_from_every_per_slot_computation(self):
+        # F11_UNCLEAR_ARROW_PARAPHRASED's ambiguous entry never appears
+        # in ANY per_slot intersection/union on either side — it is not
+        # folded into unclear_points, not into action_consequences, and
+        # not counted as a phantom fourth slot.
+        a = walkthrough.parse_perceived_model(F11_UNCLEAR_ARROW_EXACT)
+        b = walkthrough.parse_perceived_model(F11_UNCLEAR_ARROW_PARAPHRASED)
+        result = walkthrough.compute_divergence(a, b)
+        self.assertEqual(set(result["per_slot"]), set(walkthrough.SLOTS))
+        total_entries_seen = sum(s["union"] for s in result["per_slot"].values())
+        # 2 primary_actions + 2 action_consequences + 1 unclear_points
+        # (A's real entry alone — B's identical-content entry is the one
+        # withheld into "ambiguous", not counted here or anywhere else)
+        self.assertEqual(total_entries_seen, 5)
+
+    def test_ambiguous_counts_are_reported_per_run_not_merged(self):
+        # a run's own ambiguous count is not force-matched against the
+        # other run's — each side's count is reported independently, the
+        # same way per_slot never presumes the two runs agree.
+        a = walkthrough.parse_perceived_model(F11_UNCLEAR_ARROW_EXACT)
+        b = walkthrough.parse_perceived_model(F11_UNCLEAR_ARROW_PARAPHRASED)
+        result = walkthrough.compute_divergence(a, b)
+        self.assertEqual(result["ambiguous"], {"a": 0, "b": 1})
+        # symmetry check: swapping run order swaps the counts, exactly
+        # as it should — this is a per-run tally, not a symmetric
+        # divergence measure like slot_distance.
+        swapped = walkthrough.compute_divergence(b, a)
+        self.assertEqual(swapped["ambiguous"], {"a": 1, "b": 0})
+
+    def test_render_divergence_toml_omits_the_ambiguous_table_when_both_zero(self):
+        text = walkthrough.render_divergence_toml(
+            demand="FWD-018", score=0.0,
+            per_slot={s: {"intersection": 0, "union": 0, "distance": 0.0}
+                     for s in walkthrough.SLOTS},
+            intended_model="x", perceived_model_a="a", perceived_model_b="b",
+            ambiguous={"a": 0, "b": 0})
+        self.assertNotIn("ambiguous", tomllib.loads(text))
+
+    def test_render_divergence_toml_writes_ambiguous_counts_only_never_text(self):
+        a = walkthrough.parse_perceived_model(F11_UNCLEAR_ARROW_EXACT)
+        b = walkthrough.parse_perceived_model(F11_UNCLEAR_ARROW_PARAPHRASED)
+        result = walkthrough.compute_divergence(a, b)
+        text = walkthrough.render_divergence_toml(
+            demand="FWD-018", score=result["score"], per_slot=result["per_slot"],
+            intended_model="specs/FWD-018-x/design/intended-model.md",
+            perceived_model_a="walkthroughs/FWD-018-x/perceived-model-a.md",
+            perceived_model_b="walkthroughs/FWD-018-x/perceived-model-b.md",
+            ambiguous=result["ambiguous"])
+        data = tomllib.loads(text)
+        self.assertEqual(data["ambiguous"], {"a": 0, "b": 1})
+        # F10's posture, extended to this new table: the raw ambiguous
+        # heading/entry text never reaches a file later re-parsed by
+        # tomllib in gate() — only the count does.
+        self.assertNotIn("Things I wasn't sure about", text)
+        self.assertNotIn("cancel order", text)
+
+    def test_omitting_ambiguous_entirely_defaults_to_no_table(self):
+        # a caller (e.g. an older script) that never passes `ambiguous`
+        # at all gets the same silent-by-default behavior as omitting
+        # `threshold` or `status` — no crash, no table.
+        text = walkthrough.render_divergence_toml(
+            demand="FWD-018", score=0.0,
+            per_slot={s: {"intersection": 0, "union": 0, "distance": 0.0}
+                     for s in walkthrough.SLOTS},
+            intended_model="x", perceived_model_a="a", perceived_model_b="b")
+        self.assertNotIn("ambiguous", tomllib.loads(text))
 
 
 class TestGate(unittest.TestCase):

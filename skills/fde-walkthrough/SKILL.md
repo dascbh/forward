@@ -216,6 +216,85 @@ from two runs that both reached a genuinely confusing interface and read
 it two different ways (the FM-6 confusion this ADR already names, here
 arriving through infra rather than through the interface).
 
+## When a heading resolves ambiguously
+
+A heading whose text misses the exact-alias match (F2 — a run
+paraphrasing "Perceived primary actions" as "Things I could do," never
+given a worked example to copy verbatim) falls to two independent
+heuristics: a content-based guess — does a bullet under it carry an
+arrow, or an "unclear/not sure/..." keyword? (F8) — and a positional
+guess — where does it sit among the four headings seen so far? The F8
+fix that introduced the content-based guess ran it AHEAD of the
+positional one, unconditionally: the moment a run's natural phrasing for
+one section happened to carry the OTHER section's content signature
+(`agents/fde-walkthrough-evaluator.md`'s own definition of "Unclear
+points" — "a consequence you could not predict" — reads as exactly the
+arrow-shaped phrasing the action_consequences signature is built to
+detect, especially once the run has already used arrow notation for the
+sibling action -> consequence section two paragraphs above), the content
+guess won unconditionally and the block landed in the WRONG slot,
+silently emptying the right one. Reviews/FWD-018 F11 reproduced this
+directly: a paraphrased "Unclear points" heading whose one entry read
+"cancel order -> not sure if a refund is issued" was misrouted into
+`action_consequences`, and a paraphrased "Perceived primary actions"
+heading whose entries blended an action with its consequence was
+misrouted the same way — the exact "silently discarded content" shape
+F2 and F8 were each filed to close, recurring a third time through a gap
+in F8's OWN new mechanism.
+
+The general principle this recurrence forced: **two heuristics that CAN
+disagree must not let either silently pick a winner.** `runtime/
+walkthrough.py`'s `parse_perceived_model` now computes both guesses for
+every alias-miss and classifies the block only when they AGREE — the
+common, unambiguous case F8's fix was built for, and still the ordinary
+path for most real perceived-model documents. When they disagree (or
+the content guess has an opinion the position guess cannot confirm —
+tier 3 has already been exhausted), the block is not classified into
+either field. It is recorded verbatim in that run's `ambiguous` list
+instead — `{"heading": <raw text>, "content_guess": <slot or null>,
+"position_guess": <slot or null>, "entries": [<raw bullet text>, ...]}`
+per block — for a human, or the isolated `adversarial` role (who
+already has `walkthroughs/**:read`), to read directly rather than trust
+a guess.
+
+This is a deliberate trade against completeness, not a free lunch: a
+block correctly recognized under its exact heading on one side and
+landed in "ambiguous" on the other still shows nonzero divergence for
+that slot — the honest reading of "the parser genuinely could not tell
+which run said what," not a bug to paper over. What the fix actually
+buys is that the DISAGREEING slot never gets silently POLLUTED with a
+wrong entry borrowed from the other side — the specific failure F11
+reported, and the one that inflated `action_consequences`'s union
+against two runs that had in fact reported identical judgment.
+
+`compute_divergence` never scores the ambiguous count itself: it is not
+one of the three slots in `SLOTS`, and it is never force-matched between
+the two runs' ambiguous entries either — two runs' differently-worded
+ambiguous blocks are not known to be "the same slot," so treating them
+as directly comparable would just relocate the same unproven assumption
+this whole fix exists to remove. But the count is never allowed to
+silently vanish either, which would recreate the exact "information
+quietly discarded" shape every round of this defect has been about, one
+level up. It is returned as `{"a": int, "b": int}` alongside `score`,
+and `render_divergence_toml` writes it as an `[ambiguous]` table of
+COUNTS ONLY — never the raw heading or entry text, the same posture that
+already keeps `observed_text` out of this file (F10, below) — omitted
+entirely when both counts are zero, the same silence discipline
+`threshold` and `status` already use:
+
+```toml
+[ambiguous]
+a = 0
+b = 1
+```
+
+A nonzero count is not itself a `functional_correctness` or
+`usability_accessibility` finding on its own. It is a third outcome
+alongside "the two runs agree" and "the two runs diverge" — flagged for
+the isolated `adversarial` role's own judgment (I8) against the raw
+`perceived-model-*.md` text it already has read access to, never folded
+into the automated score as if it were a resolved comparison.
+
 ## The divergence metric (stdlib, deterministic — `runtime/walkthrough.py`)
 
 Three enumerable slots are scored — `primary_actions`,
@@ -223,7 +302,8 @@ Three enumerable slots are scored — `primary_actions`,
 `"<action> -> <consequence>"` before comparison, so agreeing on the
 action but not the consequence still counts as divergence on that pair),
 and `unclear_points`. The free-prose "what this is" line is never fed to
-the number.
+the number, and neither is a block the parser could not confidently
+classify at all — see "When a heading resolves ambiguously," above.
 
 Per phrase: `phrase.strip().lower()`, internal whitespace collapsed to
 one space. Each slot becomes a `set[str]`. Per-slot distance, Jaccard-
@@ -327,6 +407,22 @@ each recorded divergence as EITHER:
 Never both for the same divergence; never silently dropped once the
 configured threshold is crossed (I8 — judgment without a named principle
 or probe is not a finding).
+
+A block recorded in either perceived model's `ambiguous` list ("When a
+heading resolves ambiguously," above — reviews/FWD-018 F11) is a third,
+distinct case from either bullet above: not evidence of a two-run
+divergence by itself (the parser reports its own genuine uncertainty
+about where one heading belongs, not a disagreement between the two
+runs), but not nothing either, and never silently absorbed into the
+automated score as if it had been resolved one way or the other. The
+isolated `adversarial` role reads the raw entry directly from the
+perceived-model file the ambiguous count points at and judges, by hand,
+which section it actually belongs to (or whether the ambiguity itself is
+evidence of something — a run reaching for arrow notation outside
+"Perceived action -> consequence" may be signalling the interface itself
+blurred the line between an action and its consequence) — the same I8
+judgment-against-a-named-principle discipline the two bullets above
+already use, applied to a case neither of them covers.
 
 ## Calibration — structural here, real in the client repo
 

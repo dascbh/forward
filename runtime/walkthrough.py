@@ -17,8 +17,13 @@ Three enumerable slots of the perceived-model schema
 never the free-prose "what this is" line (R7), never the optional
 "observed text" (reviews/FWD-018 F10 — a dedicated, never-scored field
 where a run quotes target-page text verbatim, kept apart from its own
-judgment; see the module comment above _SECTION_ALIASES), and never the
-exceptional "target unreachable" outcome (F7):
+judgment; see the module comment above _SECTION_ALIASES), never the
+exceptional "target unreachable" outcome (F7), and never a block the
+parser could not confidently classify at all (reviews/FWD-018 F11 — a
+heading that missed the exact-alias tier, where the content-based guess
+and the positional guess then disagree, lands in an "ambiguous" bucket
+instead of being risked into either field; see parse_perceived_model's
+and compute_divergence's docstrings):
 
     d(A, B) = 0                      if A and B are both empty
     d(A, B) = 1 - |A intersect B| / |A union B|   otherwise
@@ -109,14 +114,38 @@ _SECTION_ALIASES = {
 # (a run paraphrasing "Perceived primary actions" as "Things I could
 # do," say — never given a worked example to copy verbatim) is not
 # dropped into an unassigned void that silently empties the slot. It is
-# assigned, in order of preference: (1) exact alias match (above); (2)
-# failing that, a content-based match against a pattern characteristic
-# of one of the three SCORED sections (_classify_block_content, below —
-# reviews/FWD-018 F8); and only then (3) ITS POSITION among the headings
-# encountered so far, because the schema is always these four sections,
-# in this order. "target_unreachable" and "observed_text" are
-# deliberately absent from this tuple — see the comment above
-# _SECTION_ALIASES.
+# assigned, in order of preference: (1) exact alias match (above),
+# always trusted outright — no other tier is even consulted; failing
+# that, (2) a content-based match against a pattern characteristic of
+# one of the three SCORED sections (_classify_block_content, below —
+# reviews/FWD-018 F8) and (3) ITS POSITION among the headings
+# encountered so far (because the schema is always these four sections,
+# in this order) are computed TOGETHER and must AGREE before either is
+# trusted (reviews/FWD-018 F11 — see the paragraph below). "target_
+# unreachable" and "observed_text" are deliberately absent from this
+# tuple — see the comment above _SECTION_ALIASES.
+#
+# reviews/FWD-018 F11: tiers (2) and (3) are two independent heuristics,
+# each with its own real failure mode — content classification has no
+# regard for where the block actually sits, and position assumes strict
+# document order — so ranking one ahead of the other (as the F8 fix
+# originally did, content before position, unconditionally) just trades
+# one silent misclassification for another: the moment a run's natural
+# phrasing for one section happens to contain another section's content
+# signature (agents/fde-walkthrough-evaluator.md's own definition of
+# "Unclear points" — "a consequence you could not predict" — reads as
+# exactly the arrow-shaped phrasing action_consequences is detected by),
+# a paraphrased heading resolves via content instead of position and
+# lands in the WRONG slot instead of the one it actually occupies. This
+# is a structural fix to the tier PRIORITY, not another one-off content-
+# signature patch (the same category of move F13 made for FWD-017's
+# symlink class): neither heuristic is trusted alone on an alias miss.
+# Both are computed, and only when they agree is a block classified.
+# When they genuinely disagree, the block is not guessed into either
+# field — it is recorded in `model["ambiguous"]` (see
+# parse_perceived_model's docstring and compute_divergence's "ambiguous"
+# key) for a human or the isolated adversarial role to read directly,
+# never silently risked into a slot that then feeds the automated score.
 #
 # reviews/FWD-018 F8: tier (3) alone assumed the document always opens
 # with an explicit heading for "What this is" — the one section
@@ -152,15 +181,21 @@ _UNCLEAR_KEYWORDS_RE = re.compile(
 
 
 def _classify_block_content(lines: list[str]) -> str | None:
-    """The third-tier fallback (F8): given the raw lines found under a
-    heading that matched no alias, guess its slot from what its OWN
-    bullets say, never from where it happens to sit in the document.
-    Returns None — deferring to the positional guess — when nothing
-    bullet-shaped is present at all, or when no bullet matches either
-    signature. Never returns "observed_text" or "target_unreachable":
-    both are reached only by an exact alias match (see the comment above
-    _SECTION_ALIASES), so a fallback here can never manufacture a false
-    positive on either."""
+    """The content-based guess (F8) for a heading that matched no alias:
+    what does its OWN bullets say, never where it happens to sit in the
+    document. Returns None when nothing bullet-shaped is present at all,
+    or when no bullet matches either signature — the caller then has
+    only the positional guess to go on. Never returns "observed_text" or
+    "target_unreachable": both are reached only by an exact alias match
+    (see the comment above _SECTION_ALIASES), so a guess here can never
+    manufacture a false positive on either.
+
+    reviews/FWD-018 F11: this function's guess is no longer trusted on
+    its own. The caller (parse_perceived_model) also computes the
+    positional guess for the same block and classifies only when the
+    two agree — see the comment above _ORDERED_SLOTS for the full
+    rationale and parse_perceived_model's docstring for the resulting
+    "ambiguous" bucket when they don't."""
     bullets = [bm.group(1) for bm in (_BULLET_RE.match(ln) for ln in lines) if bm]
     if not bullets:
         return None
@@ -245,7 +280,7 @@ def parse_perceived_model(text: str) -> dict:
     {"what_this_is": str, "primary_actions": set[str],
     "action_consequences": set[str], "unclear_points": set[str],
     "target_unreachable": bool, "unreachable_reason": str,
-    "observed_text": list[str]}.
+    "observed_text": list[str], "ambiguous": list[dict]}.
 
     Only a bullet line (see _BULLET_RE) inside one of the three scored
     sections becomes an entry — a non-bullet line there is prose the run
@@ -257,26 +292,38 @@ def parse_perceived_model(text: str) -> dict:
     it stays a usable verbatim quote rather than a comparison key.
 
     A heading is resolved, in order of preference: (1) exact alias match
-    (case/whitespace-insensitive, trailing colon stripped); (2) failing
-    that, content-based classification of its own bullets against a
-    pattern characteristic of action_consequences or unclear_points
-    (_classify_block_content, F8); (3) failing that too, its position
-    among the headings seen so far (_ORDERED_SLOTS) — see the module-
-    level comments above _ORDERED_SLOTS and _classify_block_content.
+    (case/whitespace-insensitive, trailing colon stripped) — trusted
+    outright, no further check. Failing that, the block's content-based
+    guess (_classify_block_content, F8) and its positional guess (its
+    place among the headings seen so far, _ORDERED_SLOTS) are BOTH
+    computed and must AGREE before either is trusted (reviews/FWD-018
+    F11 — see the module-level comment above _ORDERED_SLOTS for the full
+    rationale). When the content guess has no opinion at all (returns
+    None), the positional guess is used alone, exactly as before F11 —
+    there is nothing for it to conflict with. When both have an opinion
+    and they disagree, the block is NOT classified into either field: it
+    is appended to `model["ambiguous"]` as
+    `{"heading": <raw heading text>, "content_guess": <slot or None>,
+    "position_guess": <slot or None>, "entries": [<raw bullet text>, ...]}`
+    instead, for a human or the isolated adversarial role to read
+    directly (the raw perceived-model-*.md file, not just the divergence
+    score — see compute_divergence's docstring for how the count is
+    surfaced without the text itself ever reaching a re-parsed TOML).
     Content seen before the very first heading marker anywhere in the
     document is treated as an unmarked "what this is" line rather than
     silently dropped (F8's other half — see _split_into_blocks).
 
-    "target_unreachable" and "observed_text" are both exceptions to all
-    three tiers above: each is only ever reached via an exact alias
-    match, never guessed by content or position, so neither a false
-    "unreachable" flag nor a misrouted quote can silently exclude a
-    run's real content from the divergence budget.
+    "target_unreachable" and "observed_text" are both exceptions to the
+    whole scheme above: each is only ever reached via an exact alias
+    match, never guessed by content, position, or landed in "ambiguous"
+    either, so neither a false "unreachable" flag nor a misrouted quote
+    can silently exclude a run's real content from the divergence
+    budget.
     """
     model: dict = {"what_this_is": "", "primary_actions": set(),
                    "action_consequences": set(), "unclear_points": set(),
                    "target_unreachable": False, "unreachable_reason": "",
-                   "observed_text": []}
+                   "observed_text": [], "ambiguous": []}
     preamble, blocks = _split_into_blocks(text)
 
     heading_index = -1
@@ -286,16 +333,57 @@ def parse_perceived_model(text: str) -> dict:
         heading_index = _ORDERED_SLOTS.index("what_this_is")
 
     for heading_text, lines in blocks:
-        heading = _canon_heading(heading_text)
-        if heading is None:
-            heading = _classify_block_content(lines)
-        if heading is not None:
+        alias = _canon_heading(heading_text)
+        if alias is not None:
+            # Tier 1: exact alias match. Always trusted outright — never
+            # subject to the tier 2/tier 3 agreement gate below. This is
+            # also the ONLY way "target_unreachable" and "observed_text"
+            # are ever reached (see the _SECTION_ALIASES comment); an
+            # alias miss never routes through this branch at all.
+            heading = alias
             if heading in _ORDERED_SLOTS:
                 heading_index = _ORDERED_SLOTS.index(heading)
         else:
-            heading_index += 1
-            heading = (_ORDERED_SLOTS[heading_index]
-                       if heading_index < len(_ORDERED_SLOTS) else None)
+            # Tier 1 missed. reviews/FWD-018 F11: compute BOTH the
+            # content-based guess (tier 2) and the positional guess
+            # (tier 3) without committing to either yet.
+            content_guess = _classify_block_content(lines)
+            candidate_index = heading_index + 1
+            position_guess = (_ORDERED_SLOTS[candidate_index]
+                               if candidate_index < len(_ORDERED_SLOTS)
+                               else None)
+            if content_guess is None:
+                # Tier 2 has no opinion at all (no arrow, no unclear-
+                # keyword bullet) — nothing to disagree with, so defer
+                # to tier 3 alone, exactly as before F11. This is the
+                # common case for primary_actions/what_this_is blocks,
+                # which have no content signature by design (see the
+                # comment above _UNCLEAR_KEYWORDS_RE).
+                heading_index = candidate_index
+                heading = position_guess
+            elif content_guess == position_guess:
+                # The common, unambiguous case F8 was built for: the
+                # block's own content and its place in the document
+                # point to the same slot. Classify it there.
+                heading_index = candidate_index
+                heading = content_guess
+            else:
+                # Genuine conflict (or tier 3 has nothing left to offer
+                # while tier 2 does) — do not guess. The position
+                # counter still advances as though this block occupied
+                # its natural place in the document, so a LATER
+                # unresolved block's positional guess is not thrown off
+                # by this one being withheld.
+                model["ambiguous"].append({
+                    "heading": heading_text,
+                    "content_guess": content_guess,
+                    "position_guess": position_guess,
+                    "entries": [bm.group(1).strip()
+                                for bm in (_BULLET_RE.match(ln) for ln in lines)
+                                if bm],
+                })
+                heading_index = candidate_index
+                heading = None
 
         if heading == "target_unreachable":
             model["target_unreachable"] = True
@@ -347,13 +435,37 @@ def compute_divergence(model_a: dict, model_b: dict) -> dict:
     four are structural properties of this function.
 
     Returns {"score": float, "per_slot": {slot: {"intersection": int,
-    "union": int, "distance": float}}, "status": "measured"|"unreachable"}.
+    "union": int, "distance": float}}, "status": "measured"|"unreachable",
+    "ambiguous": {"a": int, "b": int}}.
 
     `status` is "unreachable" whenever either model reports
     `target_unreachable` (F7, reviews/FWD-018): the score is still
     computed, for a human reading the file, but a caller (the gate) MUST
     NOT treat it as evidence of divergence — a run that never reached the
-    target is an infra failure, not an interpretation."""
+    target is an infra failure, not an interpretation.
+
+    `ambiguous` (reviews/FWD-018 F11) is the count of blocks each run's
+    parse could not classify — tier 2 and tier 3 disagreed (see
+    parse_perceived_model's docstring). This is a DESIGN DECISION, not a
+    mechanical default: an ambiguous block is deliberately NOT one of the
+    three scored slots (`SLOTS`), so it never enters `per_slot` or
+    `score` at all — routing it into a slot on a guess is exactly the
+    misclassification F11 exists to stop, and force-matching it against
+    the OTHER run's ambiguous blocks by raw text would bake in the same
+    unproven field-identity assumption for a second, unrelated reason
+    (two runs' differently-worded ambiguous entries are not known to be
+    "the same slot," so comparing them as a set would silently assert
+    that). But an ambiguous block must not silently vanish either — that
+    would recreate the exact "information quietly discarded" shape every
+    round of this defect has been about, just one level up. The count
+    returned here is the visible trace: it is written into
+    render_divergence_toml's output (a `[ambiguous]` table, counts only —
+    never the raw heading/entry text, the same F10 posture that keeps
+    `observed_text` out of a file later re-parsed by `tomllib`) and
+    printed by `--report`, so a human or the isolated adversarial role —
+    who already has `walkthroughs/**:read` access to the raw perceived-
+    model-*.md files — is told to go look, rather than the automated
+    score silently absorbing or silently dropping the block either way."""
     per_slot, distances = {}, []
     for slot in SLOTS:
         a, b = model_a.get(slot, set()), model_b.get(slot, set())
@@ -364,14 +476,17 @@ def compute_divergence(model_a: dict, model_b: dict) -> dict:
     status = ("unreachable"
               if model_a.get("target_unreachable") or model_b.get("target_unreachable")
               else "measured")
-    return {"score": score, "per_slot": per_slot, "status": status}
+    ambiguous = {"a": len(model_a.get("ambiguous", [])),
+                 "b": len(model_b.get("ambiguous", []))}
+    return {"score": score, "per_slot": per_slot, "status": status, "ambiguous": ambiguous}
 
 
 def render_divergence_toml(demand: str, score: float, per_slot: dict,
                             intended_model: str, perceived_model_a: str,
                             perceived_model_b: str,
                             threshold: float | None = None,
-                            status: str | None = None) -> str:
+                            status: str | None = None,
+                            ambiguous: dict | None = None) -> str:
     """The exact shape ADR-0014 section 3 and skills/fde-walkthrough/SKILL.md
     document — plain, hand-editable, `tomllib`-parseable TOML, never
     produced by anything non-deterministic. `threshold` is omitted
@@ -379,7 +494,17 @@ def render_divergence_toml(demand: str, score: float, per_slot: dict,
     guessed default (the same silence discipline as [walkthrough] itself).
     `status` is likewise omitted when the run measured normally
     ("measured" or None) and written only for the exceptional case (F7,
-    e.g. "unreachable") — an absent key means business as usual."""
+    e.g. "unreachable") — an absent key means business as usual.
+
+    `ambiguous` (reviews/FWD-018 F11 — see compute_divergence's
+    docstring for the full design reasoning) is written as a `[ambiguous]`
+    table of COUNTS only (`a`, `b`) — never the raw ambiguous heading or
+    entry text, deliberately, the same posture that already keeps
+    `observed_text` out of this file (F10): this TOML is re-parsed by
+    `tomllib` in `gate()`, so nothing derived from a target page's own
+    content belongs in it. The table is omitted entirely when both counts
+    are zero — an absent table means "nothing was ambiguous," the same
+    silence discipline as `threshold`/`status` above."""
     lines = [f'demand = "{demand}"', f"score = {score}"]
     if status not in (None, "measured"):
         lines.append(f'status = "{status}"')
@@ -393,6 +518,10 @@ def render_divergence_toml(demand: str, score: float, per_slot: dict,
         s = per_slot[slot]
         lines.append(f'{slot} = {{ intersection = {s["intersection"]}, '
                      f'union = {s["union"]}, distance = {s["distance"]} }}')
+    if ambiguous and (ambiguous.get("a") or ambiguous.get("b")):
+        lines += ["", "[ambiguous]",
+                  f"a = {ambiguous.get('a', 0)}",
+                  f"b = {ambiguous.get('b', 0)}"]
     return "\n".join(lines) + "\n"
 
 
@@ -504,7 +633,7 @@ def main() -> int:
             demand=args.demand, score=result["score"], per_slot=result["per_slot"],
             intended_model=args.intended_model or "", perceived_model_a=str(a_path),
             perceived_model_b=str(b_path), threshold=threshold,
-            status=result["status"])
+            status=result["status"], ambiguous=result.get("ambiguous"))
         if args.out:
             Path(args.out).write_text(toml_text, encoding="utf-8")
         if args.format == "json":
@@ -537,6 +666,12 @@ def main() -> int:
                 data = tomllib.loads(f.read_text(encoding="utf-8", errors="ignore"))
                 status = data.get("status", "measured")
                 suffix = "" if status == "measured" else f" status={status}"
+                amb = data.get("ambiguous", {})
+                amb_a, amb_b = amb.get("a", 0), amb.get("b", 0)
+                if amb_a or amb_b:
+                    # reviews/FWD-018 F11: visible in the trend view, but
+                    # never gates — see compute_divergence's docstring.
+                    suffix += f" ambiguous=a:{amb_a}/b:{amb_b}"
                 print(f"  {f.relative_to(project)}: score={data.get('score')}{suffix}")
             except tomllib.TOMLDecodeError:
                 print(f"  {f.relative_to(project)}: unparseable")
