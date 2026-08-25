@@ -76,6 +76,12 @@ SLOTS = ("primary_actions", "action_consequences", "unclear_points")
 # checked with `type(...) is bool`, not `isinstance`, because Python's
 # `bool` is a subclass of `int` and TOML's own boolean/integer types must
 # not be allowed to silently interchange here.
+#
+# This dict is the actual, sole source of truth `_validate_table` reads
+# at parse time (reviews/FWD-018 F16) — not a decorative restatement of a
+# hand-written check sequence kept elsewhere. Adding, removing, or
+# retyping a required field means editing exactly this one line; nothing
+# else needs to change in step for the new schema to take effect.
 _REQUIRED_FIELDS: dict[str, type] = {
     "what_this_is": str,
     "primary_actions": list,
@@ -86,14 +92,33 @@ _REQUIRED_FIELDS: dict[str, type] = {
     "observed_text": list,
 }
 
+# The two required keys of one `action_consequences` table entry
+# (agents/fde-walkthrough-evaluator.md's "What to return" table) —
+# validated with the same `_validate_table` machinery as the document
+# root, so a missing or unexpected key inside one table is reported with
+# the same precision as one at the top level (reviews/FWD-018 F14/F16).
+_ACTION_CONSEQUENCE_FIELDS: dict[str, type] = {
+    "action": str,
+    "consequence": str,
+}
+
 
 class PerceivedModelError(ValueError):
     """Raised when a perceived-model TOML file is malformed: invalid TOML
-    syntax, a missing required key, or a key present at the wrong type.
-    This is the whole point of the Aug-25 schema change (ADR-0014's
-    amendment): a parse failure is a hard, visible rejection, never a
-    best-effort guess — it cannot silently misclassify content because it
-    does not produce a model at all."""
+    syntax, a missing required key, a key present at the wrong type, or
+    an unrecognized key present at all (root-level or inside one
+    `action_consequences` table). This is the whole point of the Aug-25
+    schema change (ADR-0014's amendment): a parse failure is a hard,
+    visible rejection, never a best-effort guess — it cannot silently
+    misclassify content, or silently drop a key it does not recognize,
+    because it does not produce a model at all. An accepted-and-dropped
+    extra key is exactly the "eighth state" the amendment's schema table
+    already rules out for a missing key (reviews/FWD-018 F14); this
+    module holds unexpected keys to the identical standard. The message
+    for a given file names EVERY error found, not just the first, and
+    every entry point that can raise this error (the CLI's own
+    `--compute` path included) reports every finding, since a single
+    file can, and does in practice, fail more than one way at once."""
 
 
 # ---------------------------------------------------------------------------
@@ -123,17 +148,57 @@ def canonicalize_pair(action: str, consequence: str) -> str:
     return f"{normalize_phrase(action)} -> {normalize_phrase(consequence)}"
 
 
-def _require_type(data: dict, field: str, expected: type) -> object:
-    if field not in data:
-        raise PerceivedModelError(f"missing required field: {field!r}")
-    value = data[field]
-    ok = (type(value) is bool) if expected is bool else isinstance(value, expected)
-    if not ok:
-        raise PerceivedModelError(
-            f"field {field!r} must be a {expected.__name__}, "
-            f"got {type(value).__name__}"
-        )
-    return value
+def _validate_table(data: object, schema: dict[str, type], label: str,
+                     unexpected_hint: str = "") -> list[str]:
+    """Validate `data` against `schema` (field name -> expected Python
+    type), returning EVERY error found, never stopping at the first
+    (reviews/FWD-018 F14: a single-missing-field error is misleading when
+    the real cause is several fields at once). Three kinds of error, all
+    checked: `data` is not a table at all; a schema field is missing or
+    present at the wrong type; a field is present that `schema` does not
+    declare. The third is exactly as much a "malformed artifact" as the
+    first two under ADR-0014's Aug-25 amendment — a field either exists
+    at its required type or the file is rejected outright, and an
+    unrecognized key silently accepted and dropped is the identical
+    best-effort partial parse the amendment's schema exists to rule out
+    (reviews/FWD-018 F14). `bool` is checked with `type(...) is bool`,
+    not `isinstance`, because Python's `bool` is a subclass of `int` and
+    TOML's own boolean/integer types must not be allowed to silently
+    interchange here.
+
+    `unexpected_hint`, when given, is appended (parenthesized) to every
+    "unexpected field" message — used for `action_consequences` table
+    entries, where an unexpected key is very often a document-root field
+    absorbed by the TOML array-of-tables scoping trap (ADR-0014's Aug-25
+    amendment names it), not a genuinely unrecognized key."""
+    if not isinstance(data, dict):
+        return [f"{label} must be a table, got {type(data).__name__}"]
+    errors = []
+    for field, expected in schema.items():
+        if field not in data:
+            errors.append(f"{label} missing required field: {field!r}")
+            continue
+        value = data[field]
+        ok = (type(value) is bool) if expected is bool else isinstance(value, expected)
+        if not ok:
+            errors.append(
+                f"{label} field {field!r} must be a {expected.__name__}, "
+                f"got {type(value).__name__}")
+    for key in data:
+        if key not in schema:
+            msg = f"{label} has unexpected field: {key!r}"
+            if unexpected_hint:
+                msg += f" ({unexpected_hint})"
+            errors.append(msg)
+    return errors
+
+
+_AC_UNEXPECTED_HINT = (
+    "did you mean this to be a document-root field? a bare key = value "
+    "line written after a [[action_consequences]] section header binds "
+    "to that table, not the document root — write action_consequences "
+    "as a plain array of inline { action = ..., consequence = ... } "
+    "tables instead (ADR-0014's Aug-25 amendment)")
 
 
 def parse_perceived_model(text: str) -> dict:
@@ -145,67 +210,88 @@ def parse_perceived_model(text: str) -> dict:
 
     ADR-0014's Aug-25 amendment: the input is a TOML document with seven
     required top-level keys (`_REQUIRED_FIELDS`), never free markdown
-    prose. Loaded with `tomllib.loads()` and validated field-by-field;
-    invalid syntax, a missing key, or a key at the wrong type all raise
-    `PerceivedModelError` with a message naming exactly what was wrong —
-    there is no fallback, no guess, no partial model. `primary_actions`
-    and `unclear_points` are each normalized (`normalize_phrase`) into a
-    `set[str]`. `action_consequences` is an array of `{action,
-    consequence}` tables; each is canonicalized (`canonicalize_pair`)
-    into one `"<action> -> <consequence>"` string and collected into a
-    `set[str]`, exactly reproducing R7's existing rule that agreeing on
-    the action while disagreeing on the consequence still counts as
-    divergence on that pair. `what_this_is` is captured verbatim for
-    human reading only; it never reaches `compute_divergence`.
-    `observed_text` is kept as a plain list, in file order, exactly as
-    written (no lowercasing, no whitespace normalization) so it stays a
-    usable verbatim quote rather than a comparison key.
+    prose. Loaded with `tomllib.loads()` and validated against
+    `_REQUIRED_FIELDS` by `_validate_table` — invalid syntax, a missing
+    key, a key at the wrong type, or a key the schema does not recognize
+    all raise `PerceivedModelError`; there is no fallback, no guess, no
+    partial model, and no silently-dropped extra key either
+    (reviews/FWD-018 F14). Validation collects EVERY error found across
+    the whole document — root-level and inside each `action_consequences`
+    table — into one message, rather than stopping at the first, because
+    the TOML array-of-tables scoping trap (ADR-0014's Aug-25 amendment
+    names it) makes root fields go missing BECAUSE they were absorbed as
+    unexpected keys inside the last `action_consequences` table: a reader
+    needs both halves of that story in the one message to see it
+    (reviews/FWD-018 F14). `primary_actions` and `unclear_points` are
+    each normalized (`normalize_phrase`) into a `set[str]`.
+    `action_consequences` is an array of `{action, consequence}` tables;
+    each is canonicalized (`canonicalize_pair`) into one `"<action> ->
+    <consequence>"` string and collected into a `set[str]`, exactly
+    reproducing R7's existing rule that agreeing on the action while
+    disagreeing on the consequence still counts as divergence on that
+    pair. `what_this_is` is captured verbatim for human reading only; it
+    never reaches `compute_divergence`. `observed_text` is kept as a
+    plain list, in file order, exactly as written (no lowercasing, no
+    whitespace normalization) so it stays a usable verbatim quote rather
+    than a comparison key.
     """
     try:
         data = tomllib.loads(text)
     except tomllib.TOMLDecodeError as e:
         raise PerceivedModelError(f"malformed TOML: {e}") from e
 
-    what_this_is = _require_type(data, "what_this_is", str)
-    primary_actions_raw = _require_type(data, "primary_actions", list)
-    action_consequences_raw = _require_type(data, "action_consequences", list)
-    unclear_points_raw = _require_type(data, "unclear_points", list)
-    target_unreachable = _require_type(data, "target_unreachable", bool)
-    unreachable_reason = _require_type(data, "unreachable_reason", str)
-    observed_text_raw = _require_type(data, "observed_text", list)
+    if not isinstance(data, dict):
+        raise PerceivedModelError(
+            f"document root must be a table, got {type(data).__name__}")
 
-    for field, items in (("primary_actions", primary_actions_raw),
-                         ("unclear_points", unclear_points_raw),
-                         ("observed_text", observed_text_raw)):
+    errors = _validate_table(data, _REQUIRED_FIELDS, "document root")
+
+    # Nested checks run even when the root-level check above already
+    # failed (see the docstring's scoping-trap paragraph) — but only over
+    # fields that are actually present at their expected shape, so a
+    # missing/wrong-type root field (already reported above) never causes
+    # a second, cascading error here.
+    list_errors: list[str] = []
+    for field in ("primary_actions", "unclear_points", "observed_text"):
+        items = data.get(field)
+        if not isinstance(items, list):
+            continue
         for i, item in enumerate(items):
             if not isinstance(item, str):
-                raise PerceivedModelError(
+                list_errors.append(
                     f"{field}[{i}] must be a string, got {type(item).__name__}")
 
+    ac_errors: list[str] = []
     pairs: set[str] = set()
-    for i, pair in enumerate(action_consequences_raw):
-        if not isinstance(pair, dict):
-            raise PerceivedModelError(
-                f"action_consequences[{i}] must be a table, "
-                f"got {type(pair).__name__}")
-        for side in ("action", "consequence"):
-            if side not in pair:
-                raise PerceivedModelError(
-                    f"action_consequences[{i}] missing {side!r}")
-            if not isinstance(pair[side], str):
-                raise PerceivedModelError(
-                    f"action_consequences[{i}].{side} must be a string, "
-                    f"got {type(pair[side]).__name__}")
-        pairs.add(canonicalize_pair(pair["action"], pair["consequence"]))
+    action_consequences_raw = data.get("action_consequences")
+    if isinstance(action_consequences_raw, list):
+        for i, pair in enumerate(action_consequences_raw):
+            entry_errors = _validate_table(
+                pair, _ACTION_CONSEQUENCE_FIELDS, f"action_consequences[{i}]",
+                unexpected_hint=_AC_UNEXPECTED_HINT)
+            if entry_errors:
+                ac_errors.extend(entry_errors)
+            else:
+                pairs.add(canonicalize_pair(pair["action"], pair["consequence"]))
 
+    all_errors = errors + list_errors + ac_errors
+    if all_errors:
+        raise PerceivedModelError("; ".join(all_errors))
+
+    # `.get(field, <documented empty default>)` rather than `data[field]`:
+    # `errors` above only enforces whatever `_REQUIRED_FIELDS` currently
+    # declares (reviews/FWD-018 F16), so a field the schema no longer
+    # requires must fall back to its own documented empty default here
+    # (agents/fde-walkthrough-evaluator.md's "What to return" table)
+    # rather than raise a raw KeyError.
     return {
-        "what_this_is": what_this_is,
-        "primary_actions": {normalize_phrase(p) for p in primary_actions_raw},
+        "what_this_is": data.get("what_this_is", ""),
+        "primary_actions": {normalize_phrase(p) for p in data.get("primary_actions", [])},
         "action_consequences": pairs,
-        "unclear_points": {normalize_phrase(p) for p in unclear_points_raw},
-        "target_unreachable": target_unreachable,
-        "unreachable_reason": unreachable_reason,
-        "observed_text": list(observed_text_raw),
+        "unclear_points": {normalize_phrase(p) for p in data.get("unclear_points", [])},
+        "target_unreachable": data.get("target_unreachable", False),
+        "unreachable_reason": data.get("unreachable_reason", ""),
+        "observed_text": list(data.get("observed_text", [])),
     }
 
 
@@ -385,11 +471,20 @@ def main() -> int:
             print("--compute requires --demand <id>", file=sys.stderr)
             return 2
         a_path, b_path = Path(args.compute[0]), Path(args.compute[1])
+        # Each side is parsed in its own try/except (reviews/FWD-018
+        # F15) so a malformed file's error names WHICH of the two real,
+        # differently-sourced paths broke — a shared try/except around
+        # both calls made that ambiguous, doubling the diagnostic work on
+        # exactly the failure path this schema exists to make legible.
         try:
             model_a = parse_perceived_model(a_path.read_text(encoding="utf-8"))
+        except PerceivedModelError as e:
+            print(f"malformed perceived-model file {a_path}: {e}", file=sys.stderr)
+            return 2
+        try:
             model_b = parse_perceived_model(b_path.read_text(encoding="utf-8"))
         except PerceivedModelError as e:
-            print(f"malformed perceived-model file: {e}", file=sys.stderr)
+            print(f"malformed perceived-model file {b_path}: {e}", file=sys.stderr)
             return 2
         result = compute_divergence(model_a, model_b)
         threshold = args.threshold

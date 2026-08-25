@@ -18,6 +18,8 @@ FWD-010's own review killed, test_divergence.py's docstring records it).
 """
 from __future__ import annotations
 
+import re
+import subprocess
 import sys
 import tempfile
 import tomllib
@@ -326,6 +328,120 @@ observed_text = []
         self.assertIn("consequence", str(cm.exception))
 
 
+class TestParsePerceivedModelUnexpectedKeys(unittest.TestCase):
+    """reviews/FWD-018 F14: an unexpected key is exactly as much a
+    malformed-artifact signal as a missing one — silently accepting and
+    dropping it is the identical best-effort partial parse the Aug-25
+    amendment's schema exists to rule out for a missing key. Checked both
+    at the document root and inside one `action_consequences` table."""
+
+    def test_extra_top_level_key_is_rejected_not_silently_dropped(self):
+        text = MODEL_A + 'confidence = 0.9\n'
+        with self.assertRaises(walkthrough.PerceivedModelError) as cm:
+            walkthrough.parse_perceived_model(text)
+        self.assertIn("confidence", str(cm.exception))
+
+    def test_extra_key_inside_action_consequences_table_is_rejected_not_silently_dropped(self):
+        text = MODEL_A.replace(
+            '{ action = "buy product", consequence = "completes the purchase" },',
+            '{ action = "buy product", consequence = "completes the purchase", '
+            'confidence = 0.9 },')
+        with self.assertRaises(walkthrough.PerceivedModelError) as cm:
+            walkthrough.parse_perceived_model(text)
+        message = str(cm.exception)
+        self.assertIn("confidence", message)
+        self.assertIn("action_consequences[0]", message)
+
+    def test_error_message_names_every_missing_field_not_just_the_first(self):
+        # Two required fields genuinely absent at once (not the scoping
+        # trap below — just two keys never written) must both be named in
+        # the one raised message, not only whichever field
+        # `_REQUIRED_FIELDS` happens to check first.
+        text = "".join(v for k, v in _FIELD_SNIPPETS.items()
+                       if k not in ("unclear_points", "observed_text"))
+        with self.assertRaises(walkthrough.PerceivedModelError) as cm:
+            walkthrough.parse_perceived_model(text)
+        message = str(cm.exception)
+        self.assertIn("unclear_points", message)
+        self.assertIn("observed_text", message)
+
+    def test_the_array_of_tables_scoping_trap_names_every_absorbed_field_and_the_table(self):
+        # ADR-0014's Aug-25 amendment names this exact trap: a
+        # `[[action_consequences]]` section header changes TOML's
+        # "current table", so bare `key = value` lines meant for the
+        # document root, written after it, silently bind to the LAST
+        # array element instead of the root. Before the F14 fix this
+        # produced a misleading single-missing-field error
+        # ("missing required field: 'unclear_points'") with no hint that
+        # three more fields were equally missing, or why. After the fix,
+        # the message must name every absorbed field as missing AT THE
+        # ROOT, and separately flag the same fields as unexpected keys on
+        # the exact table that swallowed them, with a hint at the cause —
+        # reproducing reviews/FWD-018 F14's own repro almost verbatim.
+        text = """\
+what_this_is = "a storefront for buying a single digital product"
+
+primary_actions = [
+  "buy product",
+  "view cart",
+]
+
+[[action_consequences]]
+action = "buy product"
+consequence = "completes the purchase"
+
+[[action_consequences]]
+action = "view cart"
+consequence = "shows items added"
+unclear_points = [
+  "unclear if tax is included",
+]
+target_unreachable = false
+unreachable_reason = ""
+observed_text = []
+"""
+        with self.assertRaises(walkthrough.PerceivedModelError) as cm:
+            walkthrough.parse_perceived_model(text)
+        message = str(cm.exception)
+        for field in ("unclear_points", "target_unreachable",
+                     "unreachable_reason", "observed_text"):
+            with self.subTest(field=field):
+                self.assertIn(
+                    f"document root missing required field: {field!r}", message)
+                self.assertIn(
+                    f"action_consequences[1] has unexpected field: {field!r}",
+                    message)
+        self.assertIn("did you mean this to be a document-root field?", message)
+
+
+class TestRequiredFieldsIsTheSingleSourceOfTruth(unittest.TestCase):
+    """reviews/FWD-018 F16: `_REQUIRED_FIELDS` must be the thing
+    validation actually consults, not a decorative dict that merely looks
+    authoritative (MNT-1/MNT-7). Proved by mutating it at runtime and
+    confirming the mutation changes behavior — the exact reproduction the
+    finding itself used to prove the OLD code did NOT consult it."""
+
+    def test_removing_a_field_from_required_fields_stops_it_being_enforced(self):
+        text = "".join(v for k, v in _FIELD_SNIPPETS.items() if k != "observed_text")
+        # before removal: a document omitting observed_text is rejected.
+        with self.assertRaises(walkthrough.PerceivedModelError):
+            walkthrough.parse_perceived_model(text)
+        saved = walkthrough._REQUIRED_FIELDS.pop("observed_text")
+        try:
+            # after removal: the IDENTICAL document now parses cleanly,
+            # falling back to observed_text's documented empty default —
+            # proof the dict is consulted at validation time, not merely
+            # decorative.
+            m = walkthrough.parse_perceived_model(text)
+            self.assertEqual(m["observed_text"], [])
+        finally:
+            walkthrough._REQUIRED_FIELDS["observed_text"] = saved
+        # restored: the same document is rejected again, confirming the
+        # restore itself took effect (not just that popping did).
+        with self.assertRaises(walkthrough.PerceivedModelError):
+            walkthrough.parse_perceived_model(text)
+
+
 class TestComputeDivergence(unittest.TestCase):
     def test_identical_models_score_zero(self):
         m = walkthrough.parse_perceived_model(MODEL_A)
@@ -594,6 +710,93 @@ class TestPureCoreCLIWiring(unittest.TestCase):
             r = verify(p, "--gate", "bogus-gate-name")
             self.assertEqual(r.returncode, 2)
             self.assertIn("walkthrough", r.stderr)
+
+
+class TestComputeCLINamesTheFailingFile(unittest.TestCase):
+    """reviews/FWD-018 F15: `--compute`'s error must name WHICH of the
+    two input files failed — a shared try/except around both parses made
+    the stderr message identical regardless of which side broke, doubling
+    the diagnostic work on the exact failure path this schema rewrite was
+    built to make legible."""
+
+    VALID = "".join(_FIELD_SNIPPETS.values())
+    MALFORMED = "this is not [valid toml at all"
+
+    def _run(self, a_text: str, b_text: str):
+        with tempfile.TemporaryDirectory() as t:
+            a_path, b_path = Path(t) / "a.toml", Path(t) / "b.toml"
+            a_path.write_text(a_text, encoding="utf-8")
+            b_path.write_text(b_text, encoding="utf-8")
+            r = subprocess.run(
+                ["python3", "runtime/walkthrough.py", "--compute",
+                 str(a_path), str(b_path), "--demand", "FWD-TEST"],
+                cwd=ROOT, capture_output=True, text=True)
+            return r, a_path, b_path
+
+    def test_malformed_file_a_is_named_and_file_b_is_not(self):
+        r, a_path, b_path = self._run(self.MALFORMED, self.VALID)
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn(str(a_path), r.stderr)
+        self.assertNotIn(str(b_path), r.stderr)
+
+    def test_malformed_file_b_is_named_and_file_a_is_not(self):
+        r, a_path, b_path = self._run(self.VALID, self.MALFORMED)
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn(str(b_path), r.stderr)
+        self.assertNotIn(str(a_path), r.stderr)
+
+
+class TestArchitectureOutputsMatchGraphExpectations(unittest.TestCase):
+    """reviews/FWD-018 F13: the artifact that tells the `architecture`
+    role what filename to write the walkthrough-evaluator's TOML text
+    under (`spec/roles.toml`'s declared `outputs`, and
+    `agents/fde-architecture.md`'s "Outputs" list) must agree with the
+    extension `runtime/graph.py` actually looks for — a mismatch here is
+    a silent, gate-invisible failure: the perceived-model files would
+    never even get connected to the graph. The expected extension is
+    derived from `runtime/graph.py`'s own glob pattern, not hardcoded, so
+    this test tracks graph.py rather than assuming today's answer stays
+    true forever."""
+
+    def _expected_extension(self) -> str:
+        text = (ROOT / "runtime" / "graph.py").read_text(encoding="utf-8")
+        m = re.search(r"perceived-model-\{letter\}\.(\w+)", text)
+        self.assertIsNotNone(
+            m, "runtime/graph.py no longer names perceived-model-{letter}.<ext> "
+               "— update this test's extraction alongside it")
+        return m.group(1)
+
+    def test_roles_toml_declares_the_extension_graph_py_expects(self):
+        ext = self._expected_extension()
+        data = tomllib.loads((ROOT / "spec" / "roles.toml").read_text(encoding="utf-8"))
+        arch = next(r for r in data["role"] if r["id"] == "architecture")
+        perceived = [o for o in arch["outputs"] if "perceived-model" in o]
+        self.assertTrue(perceived, "architecture role declares no perceived-model outputs")
+        for path in perceived:
+            with self.subTest(path=path):
+                self.assertTrue(
+                    path.endswith(f".{ext}"),
+                    f"{path!r} does not match graph.py's "
+                    f"perceived-model-{{letter}}.{ext} expectation")
+
+    def test_fde_architecture_md_declares_the_extension_graph_py_expects(self):
+        ext = self._expected_extension()
+        text = (ROOT / "agents" / "fde-architecture.md").read_text(encoding="utf-8")
+        lines = [ln for ln in text.splitlines() if "perceived-model" in ln]
+        self.assertTrue(lines, "fde-architecture.md names no perceived-model output")
+        for line in lines:
+            with self.subTest(line=line):
+                self.assertIn(f".{ext}", line)
+
+    def test_roles_and_agent_mirrors_stay_byte_identical_to_their_source(self):
+        pairs = [
+            (ROOT / "spec" / "roles.toml", ROOT / ".fde" / "spec" / "roles.toml"),
+            (ROOT / "agents" / "fde-architecture.md",
+             ROOT / ".claude" / "agents" / "fde-architecture.md"),
+        ]
+        for src, mirror in pairs:
+            with self.subTest(src=str(src)):
+                self.assertEqual(src.read_bytes(), mirror.read_bytes())
 
 
 if __name__ == "__main__":
