@@ -1,199 +1,179 @@
-# Adversarial review — FWD-018 first-contact walkthrough. Round 3 of 2
-# planned (M) — extended past plan because round 2 found real blocking
-# issues (F8-F10). This round reviews the reconciliation commit b285d28
-# ("F8-F10 fixed") against the same spec + ADR (unchanged since round
-# 2's amendment). Reviewer received artifact + spec only (I2). Findings
-# only; no fixes (I3). This file replaces round 2's — round-1 and
-# round-2 finding IDs (F1-F10) are preserved as historical reference in
-# `probed` below, not restated as [[finding]] entries once verified
-# closed, so numbering for round 3's new finding continues from F11.
-# This is the third cycle — this repo's own review doctrine treats three
-# cycles as the hard bound before escalating to the user; disposition
-# below is written so that escalation decision can be made from it.
+# Adversarial review — FWD-018 first-contact walkthrough. Round 4,
+# explicitly authorized by the project owner after round 3 found F11 —
+# the THIRD recurrence of a classification defect in
+# parse_perceived_model: F2/F3 fragile alias matching, F8 the
+# positional-fallback fragility (F2/F3's own fix), F11 the content-based
+# classifier (F8's own fix) outranking position with no agreement check.
+# This round reviews the reconciliation commit 0a4375a ("F11,
+# agreement-gated classification") against the same spec + ADR
+# (unchanged since round 2's amendment — this commit touches no path
+# under specs/**, docs/adr/**, or agents/**). Reviewer received artifact
+# + spec only (I2). Findings only; no fixes (I3). This file replaces
+# round 3's — round-1/2/3 finding IDs (F1-F11) are preserved as
+# historical reference in `probed` below, not restated as [[finding]]
+# entries once verified closed, so numbering for round 4's new finding
+# continues from F12.
 
 [meta]
 demand_id = "FWD-018"
 context_policy = "artifact_only"
 isolation_mode = "worktree"
 rounds_planned = 2
-rounds_run = 3
-commit = "b285d28"
-agent_transcript = "agent-ac0aacc5275756e1c"
+rounds_run = 4
+commit = "0a4375a"
+agent_transcript = "agent-aafe94a732ef0e384"
 probed = '''
-Baseline at b285d28: worktree confirmed at the target commit (`git log
--1` == b285d28fe7ef2faf32c2de56de177aaffca56a16, matches the task).
-`python3 -m unittest discover -s tests` — 292 tests (was 283 at 6ece0b8,
-+9 net for F8/F10 regression coverage — the diff added more than 9 test
-methods but some replace/extend existing classes), OK. `python3
-bin/fde/verify.py --all` — all 17 gates green (CFG, CFG-SEC, I1, I2, I3,
-I8, I4, I5, I6, I7, SCRUM, SCRUM-GOAL, SCRUM-RETRO, TRACE, EROSION,
-DIVERGE, SURVEY; WALKTHROUGH stays silent, same erosion-style discipline
-as both prior rounds, unrelated to this commit). b285d28 touches no path
-under reviews/** (I3 respected). All runtime/bin and agents/.claude and
-skills/.claude mirror pairs touched by this commit are byte-identical
-(`diff runtime/walkthrough.py bin/fde/walkthrough.py`, `diff
-agents/fde-walkthrough-evaluator.md .claude/agents/...`, `diff
-skills/fde-walkthrough/SKILL.md .claude/skills/...` — all three empty).
+Baseline at 0a4375a: worktree confirmed at the target commit (`git log
+-1` == 0a4375a62061b980247df8a745f5658e814d8bad, matches the task).
+`python3 -m unittest discover -s tests` — 304 tests (was 292 at b285d28,
++12 net for F11 regression coverage), OK. `python3 bin/fde/verify.py
+--all` — all 17 gates green (CFG, CFG-SEC, I1, I2, I3, I8, I4, I5, I6,
+I7, SCRUM, SCRUM-GOAL, SCRUM-RETRO, TRACE, EROSION, DIVERGE, SURVEY;
+WALKTHROUGH stays silent, unrelated to this commit). 0a4375a touches no
+path under reviews/** (I3 respected). `runtime/walkthrough.py` /
+`bin/fde/walkthrough.py` and both `skills/fde-walkthrough/SKILL.md`
+copies are byte-identical (diff empty both pairs).
+`agents/fde-walkthrough-evaluator.md`, `specs/FWD-018-first-contact-
+walkthrough/spec.md`, and `docs/adr/0014-first-contact-walkthrough.md`
+are untouched by this commit — confirmed via `git show --stat 0a4375a`
+(only `.claude/skills/fde-walkthrough/SKILL.md`, `bin/fde/walkthrough.py`,
+`runtime/walkthrough.py`, `skills/fde-walkthrough/SKILL.md`, and
+`tests/test_walkthrough.py` changed).
 
-ROUND 2 DISPOSITION — each finding re-probed independently against
-b285d28, with fresh fixtures, not by trusting the reconciliation's own
-added tests in tests/test_walkthrough.py:
+PRIOR-ROUND DISPOSITION — F1, F4/F9, F5/F10, F6, F7 each re-checked
+directly against 0a4375a (not merely "commit didn't touch the file, so
+assume it still holds" — each claim independently re-read this round):
 
-  F8 (positional-fallback fragility on a missing first heading, high,
-  blocking) — FIXED for the exact case round 2 reported, verified by
-  reproducing the report's own repro (an unmarked "what this is" line
-  followed by three paraphrased headings) directly against the shipped
-  module: scores 0.0, per-slot intersection matches on all three slots —
-  confirmed via the reconciliation's own new
-  TestParsePerceivedModelUnmarkedIntroFallback (part of the green 292-
-  test run) and by independent reproduction. The mechanism — a preamble
-  split (`_split_into_blocks`) that seeds the position counter for an
-  unmarked "what this is" line, plus a new content-based classification
-  tier (`_classify_block_content`) between exact-alias match and
-  positional fallback — is a real, non-trivial fix, not a token one.
-  BUT: continued probing the new content-classification tier ITSELF
-  (not merely round 2's own fixtures) surfaced a fresh failure mode in
-  the fix's own new mechanism, on the reconciliation's own new code —
-  the same relationship F8 had to F2/F3. See F11 — this is NOT F8's
-  reported case recurring unfixed; it is a new gap in that fix's own
-  reach.
+  F1 (USE-15 + adversarial's `walkthroughs/**:read`, critical, blocking)
+  — HOLDS. `spec/dimensions/quality-attributes.toml:205` still carries
+  USE-15 verbatim (`.fde/` mirror identical); `spec/roles.toml:88`'s
+  `adversarial` `inputs` still reads `["src/**:read", "specs/**:read",
+  "evals/**:read", "walkthroughs/**:read"]` — this review's own
+  generated `.claude/agents/fde-adversarial.md` still carries the
+  fourth entry.
 
-  F9 (tier-scope caveat not propagated beyond the ADR amendment, high,
-  blocking, MNT-4) — FIXED, verified both propagation targets named in
-  the finding. `specs/FWD-018-first-contact-walkthrough/spec.md:57-79`
-  (`git diff b1b80ed b285d28 -- specs/.../spec.md`) now reads "On the
-  `loop` tier — this project, whose `[tooling]` declares `tools =
-  ["claude-code"]`..." with the guarantee explicitly scoped and a
-  pointer to the ADR amendment; cross-checked `fde.config.toml:70-71`
-  directly — `[tooling]` does declare `tools = ["claude-code"]`, so the
-  sentence's own factual claim about this project is accurate, not just
-  plausible-sounding. `skills/fde-walkthrough/SKILL.md:72-92` gained the
-  identical tier-scoped framing plus a new paragraph naming the
-  `commit`/`advisory` degradation explicitly, and the admissibility
-  table's "two independent, blind runs..." row (:152-165) now carries an
-  asterisked footnote pointing to the same qualification instead of
-  standing as an unconditional "Yes." Re-read both files in full, not
-  just the diffed hunks, for any other unscoped restatement of the claim
-  — none found. `agents/fde-walkthrough-evaluator.md:35`'s "Denial here
-  is structural, not a request" was NOT touched by this commit and does
-  not need to be: unlike spec.md/SKILL.md, this file is the compiled,
-  per-project artifact that actually runs under this project's own
-  `[tooling]` (loop tier), so an unqualified claim there is a true
-  statement about the concrete instance, not the general doctrine
-  document F4/F9 were about.
+  F4/F9 (unqualified "structural, not instruction-based" isolation
+  claim, tier-scope propagation, critical/high, blocking) — HOLDS.
+  `specs/FWD-018-first-contact-walkthrough/spec.md:64-67` still reads
+  "On the `loop` tier — this project..." with the scoped claim intact
+  (file untouched by 0a4375a, and it was already fixed as of b285d28 —
+  re-read in full this round regardless, not assumed).
 
-  F10 (injection-doctrine enforced only in the prompt, medium, non-
-  blocking, SEC-5) — MITIGATED FURTHER, still honestly partial, same
-  disposition as round 2's own framing of it (a trade-off explicitly
-  named as such, not silently claimed solved). The reconciliation adds a
-  dedicated `observed_text` field to the perceived-model schema, reached
-  only via exact alias match (never positional, never content-classified
-  — confirmed by reading `_classify_block_content`'s own docstring
-  guarantee and by
-  TestObservedTextField::test_observed_text_heading_is_never_reached_positionally,
-  part of the green suite), giving a MECHANICAL (non-LLM) downstream
-  reader a structural way to tell "quoted from the page" apart from "the
-  run's own claim." Checked `render_divergence_toml` end to end (this
-  round's own new read, not previously verified): `observed_text` is
-  never written into `divergence.toml` at all — only `demand`, `score`,
-  `per_slot`, `threshold`/`status`, and the two perceived-model FILE
-  PATHS (`str(a_path)`, `str(b_path)`, supplied by the orchestrating
-  `architecture` role's own CLI invocation, never raw page content) are
-  interpolated into that TOML's f-strings — so hostile observed-text
-  content has no path into a file later re-parsed by `tomllib` in
-  `gate()`. `agents/fde-walkthrough-evaluator.md`'s "Observed text" bullet
-  and `skills/fde-walkthrough/SKILL.md`'s revised "Injected instructions"
-  section both state plainly, unprompted, that this is "a real but
-  partial mitigation... it does not make your own compliance in using it
-  enforced" — the honest disclosure round 2 asked for, not a claim of a
-  solved problem. Still the same enforcement class named in F10
-  (compliance is prompt-only), still non-blocking at this weight, and
-  still untestable end to end without a live target (`walkthroughs/`
-  does not exist in this repo yet — checked, absent). Adequately
-  reconciled at its declared severity; not re-filed.
+  F5/F10 (hostile target-page content / injection-doctrine enforced only
+  in the prompt, high/medium, non-blocking) — HOLDS at its declared
+  partial-mitigation severity. `agents/fde-walkthrough-evaluator.md:67-83`
+  ("Injected instructions") and `skills/fde-walkthrough/SKILL.md:343+`
+  ("Content from the target page is untrusted, always") both present,
+  unchanged. Re-traced `render_divergence_toml` once more this round
+  specifically for the NEW `[ambiguous]` table 0a4375a adds (a case round
+  3 could not have checked, since it didn't exist yet): confirmed it
+  writes `a`/`b` COUNTS only (`render_divergence_toml`'s `ambiguous`
+  parameter, runtime/walkthrough.py — the raw `entries`/`heading` text
+  built by `parse_perceived_model`'s `model["ambiguous"]` list never
+  reaches `compute_divergence`'s returned dict, which only computes
+  `len(...)`) — the new mechanism does not reopen F10's gap. No new
+  finding here.
 
-ROUND 3 — new probes against the reconciliation's own new code, in
-weight order.
+  F6 (three "what ships" deliveries, high, non-blocking) — HOLDS.
+  `AGENTS.md:88`, `README.md:178`, `README.md:239` all still read "six
+  role(s)"; `spec/roles.toml`'s `architecture` `outputs` still lists the
+  three `walkthroughs/**` artifacts.
 
-=== functional_correctness (weight 30) ===
+  F7 (no "could not reach the target" outcome, medium, non-blocking) —
+  HOLDS. `target_unreachable` is reached only via exact alias match in
+  the new code too (confirmed by re-reading `parse_perceived_model`'s
+  tier-1 branch, runtime/walkthrough.py:337-345: alias resolution is
+  unconditional and short-circuits before the tier-2/tier-3 agreement
+  gate is ever consulted) — the F11 mechanism does not touch this path
+  at all.
 
-PROBE 1: `_classify_block_content` (runtime/walkthrough.py:145-161),
-the F8 fix's new content-based tier, checks for an arrow FIRST
-(`_ARROW_RE.search`) and returns "action_consequences" the moment ANY
-bullet in an unrecognized block contains one — before ever checking the
-unclear-keyword signature, and regardless of whether the block's true
-identity (by position) is actually action_consequences. Constructed a
-run where the "Unclear points" heading is paraphrased ("Things I wasn't
-sure about" — never given a worked heading example, same F2/F3/F8
-lineage) and its one entry is phrased with an arrow: "cancel order -> not
-sure if a refund is issued" — a natural way to write exactly what the
-prompt's own definition of Unclear points invites ("a consequence you
-could not predict"), especially since the run has already used arrow
-notation for the sibling Action -> consequence section two paragraphs
-above. Reproduced directly against the shipped, unmodified module
-(script: /private/tmp/claude-501/-Users-dascbh-Documents-forward/
-1616c8e4-e620-4fcb-94f8-43d31ef57eb3/scratchpad/probe_r3_unclear_arrow.py):
-against an identical-content Run A using all four exact headings, Run B
-scores unclear_points distance 1.0 (intersection 0, union 1 — the real
-entry vanished from unclear_points entirely) and action_consequences
-distance 0.5 (the misrouted entry inflates the union), overall score
-0.5 — a real, non-trivial divergence manufactured by the parser between
-two runs that reported identical content and identical judgment. A
-second, independent construction (paraphrasing "Perceived primary
-actions" itself, with entries phrased as "browse products -> see
-catalog") produces an even starker result: primary_actions distance 1.0
-(both entries vanish from primary_actions, misrouted into
-action_consequences), overall score 0.5 (script:
-.../scratchpad/probe_r3_content_priority.py). Both are the exact FM-2
-"fully disjoint" degenerate reading F2 was originally filed to close,
-and F8 was re-filed to close a second time — now reproduced through a
-gap in F8's OWN fix rather than through either finding's original
-trigger. `tests/test_walkthrough.py` has no test — none at all, direct
-or indirect — that exercises `_classify_block_content`'s priority when a
-block's content signature and its true positional identity disagree;
-`grep -n "_classify_block_content\|_ARROW_RE\|_UNCLEAR_KEYWORDS_RE"
-tests/test_walkthrough.py` returns nothing. See F11.
+F11 ITSELF — re-probed independently (not by trusting
+`tests/test_walkthrough.py`'s own new
+`TestParsePerceivedModelContentPositionAgreementGate` class), rebuilding
+F11's own two originally-reported constructions fresh against the shipped
+module (script: .../scratchpad/probe_r4_reverify_f11.py). Both now
+resolve correctly: the paraphrased "Unclear points" heading with an
+arrow-bearing entry lands in `model["ambiguous"]`
+(`content_guess="action_consequences"`, `position_guess="unclear_points"`)
+instead of silently misrouting into `action_consequences` — score 0.333
+with `ambiguous={"a": 0, "b": 1}` naming exactly which slot the parser
+could not resolve, not the false 0.5 "action_consequences agrees, but
+inflated" reading F11 originally reported. F11's fix is real and closes
+the exact case it was filed against. BUT continued probing the fix's OWN
+new mechanism — specifically the branch it deliberately did NOT change,
+"when tier 2 has no opinion, trust tier 3 alone, exactly as before F11"
+(runtime/walkthrough.py:355-363, the code's own comment) — surfaced a
+FOURTH recurrence of the same meta-pattern the last three rounds have
+each found one layer over: not tier-priority (F11's fix genuinely closes
+that), but tier-3-trusted-ALONE, unconditionally, the moment tier 2
+abstains — which is exactly as fragile as the "single heuristic trusted
+alone" shape every one of F2/F3/F8/F11 was about. See F12.
 
-PROBE 2: re-checked whether the preamble-capture half of F8's fix
-(`_split_into_blocks`) has an analogous edge — e.g. multiple non-blank
-lines before the first heading. It does silently drop everything after
-`preamble[0]` (only the first line becomes `what_this_is`), but
-`what_this_is` is R7's unscored free-prose slot — never reaches
-`compute_divergence` — so this loses information for a human reader
-without corrupting the measured signal. Not filed; documented here as
-checked, not a functional_correctness defect at this weight.
+=== functional_correctness (weight 30) — attacked hardest, per F11's own
+disposition note that this class has now recurred three times ===
+
+PROBE 1 (the finding): does the agreement gate actually protect against
+a WRONG tier-3-alone guess when tier 2 abstains, or only against tier
+2/tier 3 DISAGREEING? Traced `heading_index`'s own mutation rule
+(runtime/walkthrough.py:343-345: an exact alias match sets
+`heading_index = _ORDERED_SLOTS.index(heading)` UNCONDITIONALLY — it can
+jump the counter forward, backward, or to the end of `_ORDERED_SLOTS`
+depending on which of the four slots the alias names, with no monotonic
+guard and no relation to how many blocks have actually been seen). The
+module's own comment (runtime/walkthrough.py:122-125) states the
+undefended premise this depends on: position is trustworthy "because the
+schema is always these four sections, in this order" — but nothing in
+`agents/fde-walkthrough-evaluator.md`'s "Return exactly these sections"
+(a bulleted list of five sections, not a sequenced contract) requires
+that order, and every exact-alias match in tier 1 is honored regardless
+of where in the document it appears. Constructed a run whose four
+headings are genuinely reordered (Unclear points, then Perceived
+action -> consequence, then a paraphrased Perceived primary actions) —
+reproduced directly against the shipped, unmodified module (script:
+.../scratchpad/probe_r4_clean_repro.py). Result: `model["ambiguous"]`
+stays empty (`[]`) — the gate raised no flag at all — while "buy product"
+and "view cart" (the run's own primary actions) are silently classified
+into `unclear_points` instead, alongside two content_guess-exhaustion
+constructions (.../scratchpad/probe_r4_silent_drop.py,
+.../scratchpad/probe_r4_out_of_order.py) that show the same branch's
+other failure shape: total silent disappearance, not misrouting. See
+F12 — this is NOT F11's reported case recurring; it is a live gap in the
+exact branch F11's fix deliberately left as "exactly as before F11."
+
+SAFE, checked this round at floor depth (the diff is `runtime/
+walkthrough.py` + its `bin/` mirror, both `SKILL.md` copies, and
+`tests/test_walkthrough.py` only — no I/O, no role/write-scope, no new
+role output):
 
 === maintainability (weight 22) ===
+`skills/fde-walkthrough/SKILL.md`'s new "When a heading resolves
+ambiguously" section makes an explicit guarantee — "an ambiguous block
+must not silently vanish either... the count is never allowed to
+silently vanish" — that F12's own repro directly disproves for the
+content_guess=None / position-exhausted sub-case (`runtime/
+walkthrough.py`'s own docstring makes the identical claim, :456-468).
+Not filed as an independent maintainability finding: the root cause and
+the fix both live in the one code branch F12 already names, and a
+doc-only correction would leave the actual defect (score corruption on
+identical content) shipped — folded into F12's evidence instead of
+double-counted here.
 
-Re-read `specs/FWD-018-first-contact-walkthrough/spec.md` and
-`skills/fde-walkthrough/SKILL.md` in full at b285d28 (not just the
-diffed hunks) for any other unscoped restatement of the isolation claim,
-and grepped the whole tree
-(`structurally impossible|enforced structurally|structural, not`) —
-every remaining hit is either the now-scoped spec.md/SKILL.md language,
-`agents/fde-walkthrough-evaluator.md`'s own compiled per-project
-artifact (correctly unscoped — see F9 disposition above), or this
-findings file's own historical record. No new propagation gap found.
-F9 holds fixed.
-
-=== security_privacy (weight 8) ===
-
-Covered under F10 disposition above (render_divergence_toml traced end
-to end this round, a check round 2 had not done). No new gap found
-beyond what F10 already names and the reconciliation already discloses.
-
-SAFE, checked this round at floor depth: `reliability_resilience` (no
-new I/O, retry, or multi-step side effect in this diff — pure
-string/regex parsing changes only); `usability_accessibility` (the new
-"Observed text" instruction to the evaluator role is clear and
-self-contained; no live target exists to exercise it end to end, the
-same honest limit named since round 1); `observability`
-(observability.toml unchanged, still generically covers runtime/
-walkthrough.py via the tests/ + verify.py signal, no new declared
-attribute needing its own signal); `performance_scale` /
-`operational_cost` (weight 3 each — `_classify_block_content` and
-`_split_into_blocks` are still O(lines) over two short documents, no new
-loop nesting, no new retry; not worth a citation at this weight).
+=== reliability_resilience / usability_accessibility / observability /
+security_privacy / performance_scale / operational_cost ===
+No new gap found at floor depth in any of these six this round: no new
+I/O or retry (reliability); no live target to exercise end to end, same
+honest limit named since round 1 (usability — though note F12's
+manufactured divergence is exactly the FM-6 "confrontation step
+misattributes... the reverse" shape spec.md already names as a risk: a
+score corrupted by heading order, not a real interpretive disagreement,
+would read to a downstream USE-15 classification as one anyway);
+`observability.toml` unchanged, still generically covers `runtime/
+walkthrough.py` via tests/ + verify.py (observability); `render_
+divergence_toml` re-traced end to end this round specifically for the
+new `[ambiguous]` table — counts only, F10's posture holds (security,
+detailed in F10 disposition above); `_classify_block_content` and the
+tier-2/tier-3 branch are still O(lines) over two short documents, no new
+loop nesting or retry (performance/cost).
 '''
 
 # ---------------------------------------------------------------------------
@@ -201,85 +181,142 @@ loop nesting, no new retry; not worth a citation at this weight).
 # ---------------------------------------------------------------------------
 
 [[finding]]
-id = "F11"
+id = "F12"
 attribute = "functional_correctness"
 severity = "high"
 probe = '''
-The F8 fix's new content-based classification tier
-(`_classify_block_content`, runtime/walkthrough.py:145-161) is consulted
-for any heading that fails the exact-alias match, BEFORE the positional
-fallback gets a chance to run — and it decides an unrecognized block's
-identity purely from a signature in its OWN bullets (an arrow anywhere
--> action_consequences; an "unclear/not sure/..." keyword anywhere ->
-unclear_points), with no regard for where the block actually sits among
-the four sections, and no tie-break when a block's content is
-consistent with one signature but its true identity (by position) is a
-different slot.
+F11's fix closes the specific failure it was filed against — tier 2
+(content-based guess) no longer outranks tier 3 (positional guess)
+unconditionally; the two are computed together and a genuine
+DISAGREEMENT between them now lands the block in `model["ambiguous"]`
+instead of silently misrouting it. Re-verified this holds by rebuilding
+F11's own two original constructions fresh against the shipped module
+(see `probed`, "F11 ITSELF" above) — both now correctly land in
+`ambiguous`, not `action_consequences`.
 
-This misfires the moment a run's own natural phrasing for one section
-happens to contain the OTHER section's signature — which the prompt
-itself makes likely for two of the three scored sections:
-`agents/fde-walkthrough-evaluator.md`'s own definition of "Unclear
-points" is "a consequence you could not predict" — phrasing that
-invites exactly the `<action> -> <uncertain outcome>` shape the arrow
-signature is built to detect, especially once a run has already used
-arrow notation two sections earlier for "Perceived action ->
-consequence." When a run also paraphrases the "Unclear points" heading
-(never given a worked heading example, same F2/F3/F8 lineage — every
-fixture in the reconciliation's own added tests keeps this heading
-exact), the block resolves via content, not position, and lands in
-`action_consequences` instead — silently emptying `unclear_points`.
+But the fix's own code deliberately keeps ONE branch exactly as it was
+before F11: "Tier 2 has no opinion at all... nothing to disagree with,
+so defer to tier 3 alone, exactly as before F11" (runtime/
+walkthrough.py:356-361, the branch's own comment). This branch runs
+whenever `_classify_block_content` returns `None` — which is EVERY
+`primary_actions` block by design (the function's own docstring:
+"primary_actions and what_this_is have no equivalent tell... so those
+two stay purely positional"). "Nothing to disagree with" is the load-
+bearing assumption the whole branch rests on, and it is false: tier 3
+alone can be wrong on its own, with nothing to catch it, independent of
+whether tier 2 has an opinion.
 
-Reproduced directly against the shipped, unmodified module: Run A (all
-four exact headings) vs. Run B (identical content; "Unclear points"
-paraphrased to "Things I wasn't sure about," entry phrased "cancel order
--> not sure if a refund is issued") scores unclear_points distance 1.0
-(intersection 0, the real entry never reaches that slot at all) and
-action_consequences distance 0.5 (the misrouted entry inflates that
-slot's union against the genuine entry), overall divergence 0.5 between
-two runs reporting IDENTICAL judgment. A second, independent
-construction — paraphrasing "Perceived primary actions" instead, with
-entries phrased "browse products -> see catalog" / "buy product -> go to
-checkout" (a plausible way to blend an action with its immediate
-navigation target when given no worked example to copy) — empties
-primary_actions entirely (distance 1.0) the same way. Both are the exact
-FM-2 "fully disjoint" degenerate reading F2 was filed to close and F8
-was re-filed to close a second time, now reproduced through a gap in F8's
-OWN fix rather than through either finding's original trigger.
+The mechanism: an exact-alias match (tier 1, always trusted outright, no
+other tier consulted) sets `heading_index = _ORDERED_SLOTS.index(heading)`
+unconditionally (runtime/walkthrough.py:343-345) — it can jump the
+counter forward, backward, or to the very end of `_ORDERED_SLOTS`,
+purely from which of the four canonical names the alias matched, with NO
+relation to how many blocks have actually been read and no monotonic
+guard. The module's own comment states the assumption this requires to
+be safe: position is meaningful "because the schema is always these four
+sections, in this order" (runtime/walkthrough.py:122-125, unchanged by
+this commit) — but nothing enforces that order. `agents/fde-walkthrough-
+evaluator.md`'s "Return exactly these sections" (its own heading, "What
+to return") is a bulleted list of five sections, not a sequenced
+contract, and every exact-alias match is honored regardless of where in
+the document it appears — a run that reports "Unclear points" before
+"Perceived action -> consequence," or writes its caveats up front before
+its summary of actions (an entirely ordinary report-writing habit, not a
+contrived one), corrupts the position counter for everything after it,
+silently, with no signal that anything happened.
 
-No test anywhere in the reconciliation's added coverage
-(`TestParsePerceivedModelUnmarkedIntroFallback`,
-`TestObservedTextField`, or any existing class) exercises
-`_classify_block_content` directly, or constructs a case where a
-block's content signature and its true positional identity disagree —
-every "paraphrased" fixture in the whole test file keeps its content
-signature-free (plain verb-first phrases, or arrows only where the true
-identity IS action_consequences), which is precisely the assumption
-this probe breaks.
+Two independent constructions against the shipped, unmodified module,
+both reporting IDENTICAL content and judgment on all three scored slots:
+
+(1) Clean 4-heading reorder (script: .../scratchpad/probe_r4_clean_repro.py)
+— Run A uses the four exact headings in prescribed order. Run B reports
+"Unclear points" (exact alias) first, then "Perceived action ->
+consequence" (exact alias, jumps `heading_index` back to 2), then a
+paraphrased "Things I understood I could do" (primary_actions, content-
+signature-free by design). The paraphrased block's content_guess is
+`None`; deferring to position alone gives `_ORDERED_SLOTS[3]` =
+`unclear_points` — WRONG. Result: `model["ambiguous"]` stays `[]` (no
+flag raised at all), `primary_actions` distance 1.0 (both real actions
+lost), `unclear_points` distance 0.667 (polluted with two entries that
+are not unclear points at all), `action_consequences` distance 0.0,
+overall score **0.556** between two runs that reported exactly the same
+thing.
+
+(2) Position-exhaustion variants (scripts: .../scratchpad/
+probe_r4_silent_drop.py, score 0.167, and .../scratchpad/
+probe_r4_out_of_order.py, score 0.444) — a paraphrased, content-
+signature-free heading whose positional candidate index runs past the
+end of `_ORDERED_SLOTS` (`position_guess = None`) hits the SAME
+`content_guess is None` branch, which sets `heading = None` unconditionally
+and does NOT append to `model["ambiguous"]` (only the genuine-disagreement
+`else` branch at :370-386 does that) — the block's real content vanishes
+from the parsed model entirely, with `model["ambiguous"]` reporting `0`
+even though information was demonstrably lost.
+
+Both are the exact FM-2 "granular enough... two runs on the same
+unambiguous interface never fully agree" degenerate reading (spec.md
+line 180-184) F2 was filed to close, F8 was re-filed to close a second
+time, and F11 a third — now reproduced through a gap in F11's OWN fix
+(specifically the one branch its own comment says is unchanged from
+before F11) rather than through F11's original trigger. It also directly
+contradicts the fix's own stated guarantee: `skills/fde-walkthrough/
+SKILL.md`'s new "When a heading resolves ambiguously" section states "an
+ambiguous block must not silently vanish either... the count is never
+allowed to silently vanish," and `runtime/walkthrough.py`'s own
+`compute_divergence` docstring (:456-468) makes the identical claim —
+both are disproven by construction (2) above, where information is lost
+with the ambiguous count reporting 0.
+
+No test anywhere in `tests/test_walkthrough.py` — including the
+reconciliation's own new `TestParsePerceivedModelContentPositionAgreementGate`
+class — constructs a fixture where an exact-alias heading appears out of
+the prescribed order, or where a content-signature-free paraphrase (a
+primary_actions or what_this_is block) is preceded by enough alias jumps
+to exhaust or misalign the positional counter. Every fixture in the
+whole file, across all four rounds' additions, presents its four
+headings in the exact canonical order (what_this_is, primary_actions,
+action_consequences, unclear_points) — confirmed by reading every
+top-level fixture constant in the file (MODEL_A/B, DISJOINT_A/B,
+PARAPHRASED_HEADINGS_A/B, F11_UNCLEAR_ARROW_EXACT/PARAPHRASED,
+F11_PRIMARY_ARROW_EXACT/PARAPHRASED). This is precisely the assumption
+this probe breaks, and the assumption none of the last three rounds'
+constructions ever varied.
 '''
 evidence = '''
-runtime/walkthrough.py:139-161 (`_classify_block_content`: arrow check
-before unclear-keyword check, no positional tie-break, docstring's own
-"Only action_consequences and unclear_points have a content shape
-reliable enough to guess from" claim is exactly what this probe
-disproves when the two collide) and :283-291 (`parse_perceived_model`'s
-loop: `heading = _canon_heading(...); if heading is None: heading =
-_classify_block_content(lines)` — content classification runs
-unconditionally on alias-miss, ahead of the positional fallback, with no
-check that the classified slot matches where the block actually sits);
-agents/fde-walkthrough-evaluator.md:97-99 ("Unclear points... a
-consequence you could not predict" — the prompt's own wording that
-invites arrow phrasing in exactly the section the arrow signature
-misclassifies away from); reproduced with two independent constructed
-pairs against the shipped, unmodified module — scripts at /private/tmp/
+runtime/walkthrough.py:111-126 (module comment: tier priority list and
+the stated, undefended assumption "the schema is always these four
+sections, in this order"); :183-206 (`_classify_block_content`'s own
+docstring: "primary_actions and what_this_is have no equivalent tell...
+stay purely positional" — the exact case this probe exploits); :278-322
+(`parse_perceived_model`'s docstring, the "must AGREE" guarantee that
+does not cover this branch); :337-345 (tier 1: `heading = alias; if
+heading in _ORDERED_SLOTS: heading_index = _ORDERED_SLOTS.index(heading)`
+— unconditional, order-independent, no monotonic guard); :355-363 (the
+`content_guess is None` branch, its own comment "nothing to disagree
+with, so defer to tier 3 alone, exactly as before F11" — the load-bearing
+false premise); :370-386 (the genuine-disagreement branch, the ONLY one
+that appends to `model["ambiguous"]` — confirming construction (2)'s
+silent-vanish path never reaches it); :456-468 (`compute_divergence`'s
+docstring, "must not silently vanish either... never allowed to silently
+vanish" — disproven by construction (2)); `skills/fde-walkthrough/
+SKILL.md`'s "When a heading resolves ambiguously" section (the identical
+guarantee, restated for a human reader); `agents/fde-walkthrough-
+evaluator.md`'s "What to return" (a bulleted list of five sections, no
+sequencing language); `specs/FWD-018-first-contact-walkthrough/spec.md`
+lines 180-184 (FM-2, the degenerate-metric failure mode this probe
+reproduces) and lines 202-205 (FM-6, the misattribution risk a
+manufactured divergence like this one creates for a downstream USE-15
+classification). Reproduced with three independent constructed pairs
+against the shipped, unmodified module — scripts at /private/tmp/
 claude-501/-Users-dascbh-Documents-forward/1616c8e4-e620-4fcb-94f8-
-43d31ef57eb3/scratchpad/probe_r3_unclear_arrow.py (score 0.5,
-unclear_points intersection 0/union 1) and .../scratchpad/
-probe_r3_content_priority.py (score 0.5, primary_actions intersection
-0/union 2) — this review's own scratch fixtures, not committed.
-tests/test_walkthrough.py has no test exercising `_classify_block_content`
-directly (`grep -n "_classify_block_content\\|_ARROW_RE\\|
-_UNCLEAR_KEYWORDS_RE" tests/test_walkthrough.py` returns nothing) or any
-fixture where a block's content signature and true position disagree.
+43d31ef57eb3/scratchpad/probe_r4_clean_repro.py (score 0.556,
+`ambiguous` empty, `primary_actions` distance 1.0), .../scratchpad/
+probe_r4_silent_drop.py (score 0.167, `ambiguous` `{"a": 0, "b": 0}`,
+real content vanished), and .../scratchpad/probe_r4_out_of_order.py
+(score 0.444, `ambiguous` `{"a": 0, "b": 0}`, an unclear point misrouted
+into `action_consequences`) — this review's own scratch fixtures, not
+committed. `grep -n "F11_\\|MODEL_A\\|PARAPHRASED_HEADINGS"
+tests/test_walkthrough.py` and manual reading of every fixture confirm
+none reorders its four headings.
 '''
 blocking = true
