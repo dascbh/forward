@@ -78,29 +78,50 @@ class Gate:
         except FileNotFoundError:
             return False
 
+    def _resolve_range(self, since: str | None) -> str | None:
+        """The single --since -> HEAD~1..HEAD -> "everything in HEAD"
+        fallback CHAIN both changed() and _commits_in_range() apply
+        (reviews/FWD-019 round 1 F3; MNT-1/MNT-8) — one place deciding
+        WHICH revspec is in scope, so the two callers can no longer drift
+        apart from each other by a future edit made in one and missed in
+        the other. Returns the revspec to diff/log against for tiers 1-2,
+        or None for tier 3 ("everything reachable from HEAD"), since the
+        two callers express that tier differently: `git diff` needs the
+        empty-tree sentinel as two positional args, `git log` does not
+        (walking from HEAD alone already means "everything")."""
+        if since and set(since) != {"0"} and self._rev_ok(since):
+            return f"{since}..HEAD"
+        if self._rev_ok("HEAD~1"):
+            return "HEAD~1..HEAD"
+        return None
+
     def changed(self, staged: bool, since: str | None = None) -> list[str]:
         if staged:
             return self._git("diff", "--cached", "--name-only")
         # CI: diff the pushed/PR range when given; else the last commit;
         # else (first commit, shallow clone) everything in HEAD. Never fall
         # back to ls-files — that made I1 vacuously green.
-        if since and set(since) != {"0"} and self._rev_ok(since):
-            return self._git("diff", "--name-only", f"{since}..HEAD")
-        if self._rev_ok("HEAD~1"):
-            return self._git("diff", "--name-only", "HEAD~1..HEAD")
+        rng = self._resolve_range(since)
+        if rng is not None:
+            return self._git("diff", "--name-only", rng)
         return self._git("diff", "--name-only", EMPTY_TREE, "HEAD")
 
-    def _commits_in_range(self, since: str | None) -> list[str]:
-        """The same --since -> HEAD~1..HEAD -> "everything in HEAD"
-        fallback chain as changed(), but a per-commit SHA list rather than
-        a range's aggregated diff — rule-lane evaluates each claimed
-        commit's own diff in isolation, never a bundled push's combined
-        change (FM-8, R3)."""
-        if since and set(since) != {"0"} and self._rev_ok(since):
-            return self._git("log", "--format=%H", f"{since}..HEAD")
-        if self._rev_ok("HEAD~1"):
-            return self._git("log", "--format=%H", "HEAD~1..HEAD")
-        return self._git("log", "--format=%H", "HEAD")
+    def _commits_in_range(self, since: str | None) -> list[tuple[str, str]]:
+        """(sha, subject) pairs for the range `_resolve_range` selects
+        (shared with changed(), F3) — never a range's aggregated diff;
+        rule-lane evaluates each claimed commit's own diff in isolation,
+        never a bundled push's combined change (FM-8, R3). ONE git log
+        invocation combining the SHA list and each commit's subject line
+        (reviews/FWD-019 round 1 F5) — gate_rule_lane no longer spawns a
+        subprocess per commit just to read its subject."""
+        rng = self._resolve_range(since)
+        args = ("log", "--format=%H%x1f%s", rng) if rng is not None \
+            else ("log", "--format=%H%x1f%s", "HEAD")
+        pairs = []
+        for line in self._git(*args):
+            sha, _, subj = line.partition("\x1f")
+            pairs.append((sha, subj))
+        return pairs
 
     # -- I1: eval precedes merge ------------------------------------------
     def gate_eval_coverage(self, staged: bool, since: str | None = None,
@@ -589,6 +610,12 @@ class Gate:
         the range's aggregate, so a bundled sibling commit can neither
         hide nor manufacture a false block either direction (FM-8, R3).
 
+        A merge commit, a commit touching a binary file, or a git
+        subprocess failure while checking any of this is blocking too
+        (reviews/FWD-019 round 1 F1/F2/F4) — `eligibility_for_commit`
+        converts each into an ineligible verdict once, centrally, so this
+        gate needs no special-casing of its own to inherit the fix.
+
         Never reads, imports, or branches on gate_eval_coverage — I1 is
         completely unmodified by this gate's existence (R6/FM-3)."""
         try:
@@ -597,8 +624,7 @@ class Gate:
             self.add("RULE-LANE", False, f"rule-lane could not be checked: {e}")
             return
 
-        declared = [(sha, subj) for sha in self._commits_in_range(since)
-                   for subj in [triage.commit_subject(self.project, sha)]
+        declared = [(sha, subj) for sha, subj in self._commits_in_range(since)
                    if triage.declares_rule(subj)]
         if not declared:
             if explicit:

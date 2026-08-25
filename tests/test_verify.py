@@ -3,11 +3,19 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import stat
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from support import commit_all, make_project, run_git, verify
+from support import commit_all, git_out, make_project, run_git, verify
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "runtime"))
+import verify as verify_mod  # noqa: E402 — the module, distinct from support.verify above
 
 
 class TestI1EvalCoverage(unittest.TestCase):
@@ -589,6 +597,165 @@ class TestI5Observability(unittest.TestCase):
         r = verify(self.p, "--gate", "observability")
         self.assertEqual(r.returncode, 1)
         self.assertIn("declares no", r.stdout)
+
+
+class TestSharedRangeResolution(unittest.TestCase):
+    """reviews/FWD-019 round 1, F3: `changed()` and `_commits_in_range()`
+    used to be two independently-maintained copies of the same three-tier
+    --since -> HEAD~1..HEAD -> "everything in HEAD" fallback chain
+    (MNT-1/MNT-8). Both now delegate to one shared `_resolve_range`. This
+    is verified as a PROPERTY — the two methods agree on which commits/
+    files are in scope, across all three tiers — not merely "both still
+    pass their own pre-existing tests", which would not have caught the
+    two copies drifting apart."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+        run_git(self.p, "add", "-A")
+        run_git(self.p, "commit", "-q", "-m", "seed")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _files_touched_by(self, shas) -> set[str]:
+        """The independently-derived ground truth: every file touched by
+        the given commits, computed one commit at a time via a fresh git
+        call — never routed through changed() or _commits_in_range()
+        itself, so this is a real cross-check, not a tautology."""
+        files: set[str] = set()
+        for sha in shas:
+            out = subprocess.run(
+                ["git", "diff-tree", "--root", "--no-commit-id", "-r",
+                 "--name-only", sha],
+                cwd=self.p, capture_output=True, text=True, check=True)
+            files.update(l for l in out.stdout.splitlines() if l.strip())
+        return files
+
+    def test_valid_since_range_agrees_between_changed_and_commits_in_range(self):
+        base = git_out(self.p, "rev-parse", "HEAD")
+        (self.p / "a.py").write_text("x = 1\n")
+        commit_all(self.p, "one")
+        (self.p / "b.py").write_text("y = 1\n")
+        commit_all(self.p, "two")
+
+        g = verify_mod.Gate(self.p)
+        files = set(g.changed(staged=False, since=base))
+        shas = [sha for sha, _ in g._commits_in_range(base)]
+
+        self.assertEqual(len(shas), 2)
+        self.assertEqual(files, self._files_touched_by(shas))
+
+    def test_invalid_since_falls_back_to_head_minus_one_for_both(self):
+        (self.p / "a.py").write_text("x = 1\n")
+        commit_all(self.p, "one")
+        (self.p / "b.py").write_text("y = 1\n")
+        commit_all(self.p, "two")
+
+        g = verify_mod.Gate(self.p)
+        files = set(g.changed(staged=False, since="not-a-real-rev"))
+        shas = [sha for sha, _ in g._commits_in_range("not-a-real-rev")]
+
+        self.assertEqual(len(shas), 1)   # HEAD~1..HEAD == just "two"
+        self.assertEqual(files, self._files_touched_by(shas))
+
+    def test_no_history_beyond_root_falls_back_to_everything_in_head_for_both(self):
+        # setUp already made exactly one commit ("seed") with nothing
+        # before it — HEAD~1 does not resolve, so tier 3 applies to both.
+        g = verify_mod.Gate(self.p)
+        files = set(g.changed(staged=False, since=None))
+        shas = [sha for sha, _ in g._commits_in_range(None)]
+
+        self.assertEqual(len(shas), 1)
+        self.assertEqual(files, self._files_touched_by(shas))
+
+    def test_commits_in_range_carries_the_real_subject_alongside_each_sha(self):
+        # F5's combined call must not lose or misalign the subject
+        base = git_out(self.p, "rev-parse", "HEAD")
+        (self.p / "a.py").write_text("x = 1\n")
+        commit_all(self.p, "FORWARD: RULE — first")
+        (self.p / "b.py").write_text("y = 1\n")
+        commit_all(self.p, "an unrelated second commit")
+
+        g = verify_mod.Gate(self.p)
+        pairs = g._commits_in_range(base)
+        subjects = {subj for _, subj in pairs}
+        self.assertEqual(subjects,
+                         {"FORWARD: RULE — first", "an unrelated second commit"})
+
+
+def _fake_git_that_fails_diff_tree(bindir: Path) -> Path:
+    """A `git` shim that fails only on a `diff-tree` invocation (the
+    exact call `triage._commit_numstat_text`/`commit_files` makes) and
+    delegates everything else — `log`, `rev-list`, `rev-parse` — to the
+    real git. Reproduces a genuine, non-mocked git subprocess failure
+    (F4) isolated to the ONE call the finding is about, without needing
+    to corrupt repository objects (unreliable: git tolerated a corrupted
+    or missing loose object in manual testing, likely reading through a
+    pack or delta base — not a dependable repro)."""
+    real_git = shutil.which("git")
+    assert real_git, "git must be on PATH to build the fake-git shim"
+    shim = bindir / "git"
+    shim.write_text(
+        "#!/bin/sh\n"
+        "case \" $* \" in\n"
+        "  *' diff-tree '*)\n"
+        "    echo 'fake git: simulated diff-tree failure (F4 repro)' >&2\n"
+        "    exit 128\n"
+        "    ;;\n"
+        "esac\n"
+        f"exec \"{real_git}\" \"$@\"\n"
+    )
+    shim.chmod(shim.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return shim
+
+
+class TestRuleLaneGateMergeAndGitFailure(unittest.TestCase):
+    """reviews/FWD-019 round 1, F2/F4, at the GATE level (not just the
+    triage.py wrapper level covered in test_triage.py): the live,
+    blocking `rule-lane` gate — the mechanism ADR-0015's whole safety
+    argument rests on — must not silently pass a merge commit or a
+    commit whose diff git failed to read."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name, rule_lane_max_loc=10)
+        run_git(self.p, "add", "-A")
+        run_git(self.p, "commit", "-q", "-m", "seed")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_gate_blocks_a_merge_commit_declaring_rule(self):
+        base = git_out(self.p, "rev-parse", "HEAD")
+        orig_branch = git_out(self.p, "symbolic-ref", "--short", "HEAD")
+        run_git(self.p, "checkout", "-q", "-b", "feature")
+        big = self.p / "src" / "big.py"
+        big.parent.mkdir(parents=True, exist_ok=True)
+        big.write_text("\n".join(f"x{i} = 1" for i in range(500)) + "\n")
+        commit_all(self.p, "big feature work")
+        run_git(self.p, "checkout", "-q", orig_branch)
+        run_git(self.p, "merge", "--no-ff", "-q", "feature",
+               "-m", "FORWARD: RULE — trivial merge")
+
+        r = verify(self.p, "--gate", "rule-lane", "--since", base)
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("merge", r.stdout)
+
+    def test_gate_blocks_when_git_fails_reading_a_commits_diff(self):
+        src = self.p / "src" / "a.py"
+        src.parent.mkdir(parents=True, exist_ok=True)
+        src.write_text("x = 1\ny = 2\n")
+        commit_all(self.p, "FORWARD: RULE — tiny add")
+
+        with tempfile.TemporaryDirectory() as shimdir:
+            bindir = Path(shimdir)
+            _fake_git_that_fails_diff_tree(bindir)
+            env = {"PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}"}
+            r = verify(self.p, "--gate", "rule-lane", env=env)
+
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("git_failure", r.stdout)
 
 
 if __name__ == "__main__":

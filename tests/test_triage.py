@@ -4,9 +4,16 @@ re-verifies every self-declared claim against what was ACTUALLY
 committed, never against the claim itself (FM-2) and never against a
 bundled range's aggregate diff (FM-8). I1's `gate_eval_coverage` is not
 touched anywhere in this suite — that is enforced by direct inspection
-(R6), not by a test that could itself be gamed."""
+(R6), not by a test that could itself be gamed.
+
+reviews/FWD-019 round 1 (F1/F2/F4): three cases where a commit's real
+diff cannot be MECHANICALLY known — a binary file, a merge commit, a git
+subprocess failure — must never read as "0 lines, eligible". Every repro
+below runs against the real `triage` module and a real git repository
+(never a mock), matching how the review itself reproduced each finding."""
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 import unittest
@@ -25,6 +32,14 @@ def _write(project, rel, lines):
     f = Path(project) / rel
     f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text("\n".join(f"line {i}" for i in range(lines)) + "\n")
+
+
+def _binary_bytes(n: int) -> bytes:
+    """`n` bytes GUARANTEED to trip git's binary-file sniffing (a leading
+    NUL byte) — plain `os.urandom(n)` is not reliable for small `n`: with
+    only ~200 random bytes there is a real chance none of them is a NUL,
+    and git then treats the file as text."""
+    return b"\x00" + os.urandom(max(n - 1, 0))
 
 
 class TestPureCore(unittest.TestCase):
@@ -118,6 +133,36 @@ class TestPureCore(unittest.TestCase):
         self.assertFalse(triage.declares_rule("FORWARD: M — spec + impl"))
         self.assertFalse(triage.declares_rule("a commit that just mentions RULE"))
 
+    # -- F1/F2: is_merge/is_binary are mechanical-uncertainty short-      --
+    # -- circuits, checked right after the two project-level axes and    --
+    # -- before loc/eval_paths (reviews/FWD-019 round 1) -----------------
+    def test_merge_flag_is_ineligible_regardless_of_files(self):
+        elig = triage.check_eligibility("public", "reversible", [],
+                                        EVAL_PATHS, rule_lane_max_loc=10,
+                                        is_merge=True)
+        self.assertFalse(elig.eligible)
+        self.assertEqual(elig.criterion, "merge")
+
+    def test_binary_flag_is_ineligible_regardless_of_a_small_loc_sum(self):
+        # loc alone would pass (1 line) — is_binary must still block it
+        elig = triage.check_eligibility("public", "reversible",
+                                        [("a.py", 1, 0)], EVAL_PATHS,
+                                        rule_lane_max_loc=10, is_binary=True)
+        self.assertFalse(elig.eligible)
+        self.assertEqual(elig.criterion, "binary")
+
+    def test_project_level_ceiling_is_checked_before_merge_and_binary(self):
+        # the project-level axes still take precedence, matching the
+        # existing data_class-before-loc ordering test above
+        elig = triage.check_eligibility("financial", "reversible", [],
+                                        EVAL_PATHS, rule_lane_max_loc=10,
+                                        is_merge=True)
+        self.assertEqual(elig.criterion, "data_class")
+        elig = triage.check_eligibility("public", "irreversible", [],
+                                        EVAL_PATHS, rule_lane_max_loc=10,
+                                        is_binary=True)
+        self.assertEqual(elig.criterion, "reversibility")
+
 
 class TestGitWrapper(unittest.TestCase):
     """The git-aware wrapper (R2): one commit's OWN numstat, resolved via
@@ -152,6 +197,101 @@ class TestGitWrapper(unittest.TestCase):
         elig = triage.eligibility_for_commit(Path(self.p), sha)
         self.assertFalse(elig.eligible)
         self.assertEqual(elig.criterion, "eval_paths")
+
+
+class TestMechanicalUncertaintyDefaultsToNever(unittest.TestCase):
+    """reviews/FWD-019 round 1, F1/F2/F4: a binary file, a merge commit,
+    and a git subprocess failure each make a commit's real diff
+    mechanically unknowable — none of the three may read as "0 lines,
+    eligible". Every repro here runs against a real git repository and
+    the real `triage` module, exactly as the review itself reproduced
+    each finding (never a mock)."""
+
+    def setUp(self):
+        self._t = tempfile.TemporaryDirectory()
+        self.p = make_project(self._t.name, rule_lane_max_loc=10)
+        run_git(self.p, "add", "-A")
+        run_git(self.p, "commit", "-q", "-m", "seed")
+
+    def tearDown(self):
+        self._t.cleanup()
+
+    # -- F1: binary files must not be silently invisible -----------------
+    def test_binary_file_deleted_under_eval_paths_is_not_silently_invisible(self):
+        # matches the review's own reproduction: a golden fixture blob
+        # committed, then deleted, tagged RULE
+        binpath = Path(self.p) / "tests" / "golden_snapshot.bin"
+        binpath.parent.mkdir(parents=True, exist_ok=True)
+        binpath.write_bytes(_binary_bytes(5000))
+        commit_all(self.p, "add golden snapshot")
+        binpath.unlink()
+        sha = commit_all(self.p, "FORWARD: RULE — drop stale fixture")
+        elig = triage.eligibility_for_commit(Path(self.p), sha)
+        self.assertFalse(elig.eligible, elig.detail)
+        self.assertEqual(elig.criterion, "binary")
+
+    def test_binary_file_added_outside_eval_paths_also_blocks(self):
+        # the chosen fix is categorical (F1): ANY binary row makes the
+        # whole commit ineligible, not only rows under eval_paths — a
+        # binary file's added/deleted is uncomputable either way, so
+        # R1(c)'s loc sum cannot be certified regardless of which path
+        # the file lives under
+        binpath = Path(self.p) / "src" / "asset.bin"
+        binpath.parent.mkdir(parents=True, exist_ok=True)
+        binpath.write_bytes(_binary_bytes(200))
+        sha = commit_all(self.p, "FORWARD: RULE — add a tiny asset")
+        elig = triage.eligibility_for_commit(Path(self.p), sha)
+        self.assertFalse(elig.eligible, elig.detail)
+        self.assertEqual(elig.criterion, "binary")
+
+    def test_commit_files_still_reports_binary_rows_as_absent_numerically(self):
+        # commit_files()'s own contract is unchanged (numeric rows only)
+        # — the presence signal lives in _has_binary_row, checked
+        # separately by eligibility_for_commit
+        binpath = Path(self.p) / "src" / "asset.bin"
+        binpath.parent.mkdir(parents=True, exist_ok=True)
+        binpath.write_bytes(_binary_bytes(200))
+        sha = commit_all(self.p, "add a binary asset")
+        self.assertEqual(triage.commit_files(Path(self.p), sha), [])
+
+    # -- F2: merge commits must not be invisible --------------------------
+    def test_merge_commit_is_categorically_ineligible(self):
+        # matches the review's own reproduction: a real `git merge --no-ff`
+        # bringing in hundreds of lines, tagged RULE
+        orig_branch = git_out(self.p, "symbolic-ref", "--short", "HEAD")
+        run_git(self.p, "checkout", "-q", "-b", "feature")
+        _write(self.p, "src/big.py", 500)
+        commit_all(self.p, "big feature work")
+        run_git(self.p, "checkout", "-q", orig_branch)
+        run_git(self.p, "merge", "--no-ff", "-q", "feature",
+               "-m", "FORWARD: RULE — trivial merge")
+        merge_sha = git_out(self.p, "rev-parse", "HEAD")
+        # commit_files() itself reports nothing for a merge — no -m/-c
+        self.assertEqual(triage.commit_files(Path(self.p), merge_sha), [])
+        self.assertTrue(triage.is_merge_commit(Path(self.p), merge_sha))
+        elig = triage.eligibility_for_commit(Path(self.p), merge_sha)
+        self.assertFalse(elig.eligible, elig.detail)
+        self.assertEqual(elig.criterion, "merge")
+
+    def test_an_ordinary_single_parent_commit_is_not_flagged_as_a_merge(self):
+        _write(self.p, "src/a.py", 3)
+        sha = commit_all(self.p, "FORWARD: RULE — ordinary commit")
+        self.assertFalse(triage.is_merge_commit(Path(self.p), sha))
+
+    # -- F4: git failures must not read as "genuinely zero" ---------------
+    def test_git_helper_raises_a_distinguishable_failure_on_a_bad_sha(self):
+        bad_sha = "deadbeef" * 5
+        with self.assertRaises(triage.GitFailure):
+            triage.commit_files(Path(self.p), bad_sha)
+        with self.assertRaises(triage.GitFailure):
+            triage.is_merge_commit(Path(self.p), bad_sha)
+
+    def test_eligibility_for_commit_reads_a_git_failure_as_ineligible(self):
+        bad_sha = "deadbeef" * 5
+        elig = triage.eligibility_for_commit(Path(self.p), bad_sha)
+        self.assertFalse(elig.eligible)
+        self.assertEqual(elig.criterion, "git_failure")
+        self.assertNotIn("eligible — 0 line", elig.detail)
 
 
 class TestFallbackDefault(unittest.TestCase):

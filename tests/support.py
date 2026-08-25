@@ -96,9 +96,12 @@ def commit_all(project, msg) -> str:
     return git_out(project, "rev-parse", "HEAD")
 
 
-def verify(project, *args):
+def verify(project, *args, env: dict | None = None):
+    import os
+    merged = {**os.environ, **env} if env is not None else None
     return subprocess.run(["python3", "bin/fde/verify.py", *args],
-                          cwd=project, capture_output=True, text=True)
+                          cwd=project, capture_output=True, text=True,
+                          env=merged)
 
 
 def guard(project, payload: dict, env: dict | None = None):
