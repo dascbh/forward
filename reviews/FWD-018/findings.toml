@@ -1,179 +1,135 @@
-# Adversarial review — FWD-018 first-contact walkthrough. Round 4,
-# explicitly authorized by the project owner after round 3 found F11 —
-# the THIRD recurrence of a classification defect in
-# parse_perceived_model: F2/F3 fragile alias matching, F8 the
-# positional-fallback fragility (F2/F3's own fix), F11 the content-based
-# classifier (F8's own fix) outranking position with no agreement check.
-# This round reviews the reconciliation commit 0a4375a ("F11,
-# agreement-gated classification") against the same spec + ADR
-# (unchanged since round 2's amendment — this commit touches no path
-# under specs/**, docs/adr/**, or agents/**). Reviewer received artifact
-# + spec only (I2). Findings only; no fixes (I3). This file replaces
-# round 3's — round-1/2/3 finding IDs (F1-F11) are preserved as
-# historical reference in `probed` below, not restated as [[finding]]
-# entries once verified closed, so numbering for round 4's new finding
-# continues from F12.
+# Adversarial review — FWD-018 first-contact walkthrough. Round 1 of a
+# FRESH review cycle against b3b1cba ("implement structured TOML output,
+# per ADR-0014 amendment"), the structural rewrite that replaced the
+# walkthrough-evaluator's free-markdown-plus-heuristic-parser output
+# contract (F2/F3/F8/F11/F12 across four prior rounds) with structured
+# TOML validated by tomllib.load() + schema checks. Per explicit
+# direction for this round: F1-F12 all concerned the now-deleted
+# heuristic parser and its surrounding claims and are superseded by this
+# rewrite — not re-litigated here. This file reviews ONLY the new
+# TOML-based implementation and its integration with the rest of the
+# demand. Reviewer received artifact + spec only (I2). Findings only; no
+# fixes (I3). Numbering continues from F12 (F13-F16 below) since this is
+# the same demand's finding sequence, not a new one.
 
 [meta]
 demand_id = "FWD-018"
 context_policy = "artifact_only"
 isolation_mode = "worktree"
 rounds_planned = 2
-rounds_run = 4
-commit = "0a4375a"
-agent_transcript = "agent-aafe94a732ef0e384"
+rounds_run = 1
+commit = "b3b1cba30a8fe8b91d1b4f9b7da6adec614c175e"
+agent_transcript = "agent-a2feb9200d11159f2"
 probed = '''
-Baseline at 0a4375a: worktree confirmed at the target commit (`git log
--1` == 0a4375a62061b980247df8a745f5658e814d8bad, matches the task).
-`python3 -m unittest discover -s tests` — 304 tests (was 292 at b285d28,
-+12 net for F11 regression coverage), OK. `python3 bin/fde/verify.py
---all` — all 17 gates green (CFG, CFG-SEC, I1, I2, I3, I8, I4, I5, I6,
-I7, SCRUM, SCRUM-GOAL, SCRUM-RETRO, TRACE, EROSION, DIVERGE, SURVEY;
-WALKTHROUGH stays silent, unrelated to this commit). 0a4375a touches no
-path under reviews/** (I3 respected). `runtime/walkthrough.py` /
-`bin/fde/walkthrough.py` and both `skills/fde-walkthrough/SKILL.md`
-copies are byte-identical (diff empty both pairs).
-`agents/fde-walkthrough-evaluator.md`, `specs/FWD-018-first-contact-
-walkthrough/spec.md`, and `docs/adr/0014-first-contact-walkthrough.md`
-are untouched by this commit — confirmed via `git show --stat 0a4375a`
-(only `.claude/skills/fde-walkthrough/SKILL.md`, `bin/fde/walkthrough.py`,
-`runtime/walkthrough.py`, `skills/fde-walkthrough/SKILL.md`, and
-`tests/test_walkthrough.py` changed).
+Baseline: worktree confirmed at the target commit (`git log -1` ==
+b3b1cba30a8fe8b91d1b4f9b7da6adec614c175e, matches the task). `python3 -m
+unittest discover -s tests` — 287 tests, OK (46 in test_walkthrough.py
+alone, all passing). `python3 bin/fde/verify.py` — all 17 gates green
+(CFG, CFG-SEC, I1, I2, I3, I8, I4, I5, I6, I7, SCRUM, SCRUM-GOAL,
+SCRUM-RETRO, TRACE, EROSION, DIVERGE, SURVEY). Read ADR-0014 in full,
+including both prior amendments (2026-08-22 F4, 2026-08-25 F12) and
+`reviews/FWD-018/findings.toml`'s git history for context on what
+changed and why, per the task's own instruction — not re-verifying
+F1-F12's own claims, per the same instruction.
 
-PRIOR-ROUND DISPOSITION — F1, F4/F9, F5/F10, F6, F7 each re-checked
-directly against 0a4375a (not merely "commit didn't touch the file, so
-assume it still holds" — each claim independently re-read this round):
+FOUR SPECIFIC ITEMS the task asked to verify independently rather than
+trust the commit's self-report:
 
-  F1 (USE-15 + adversarial's `walkthroughs/**:read`, critical, blocking)
-  — HOLDS. `spec/dimensions/quality-attributes.toml:205` still carries
-  USE-15 verbatim (`.fde/` mirror identical); `spec/roles.toml:88`'s
-  `adversarial` `inputs` still reads `["src/**:read", "specs/**:read",
-  "evals/**:read", "walkthroughs/**:read"]` — this review's own
-  generated `.claude/agents/fde-adversarial.md` still carries the
-  fourth entry.
+(1) Schema validation edge cases — empty arrays vs missing keys: tested
+directly (`walkthrough.parse_perceived_model`) and matches
+`tests/test_walkthrough.py`'s own coverage — a missing key raises
+`PerceivedModelError` naming the field, an empty array parses cleanly to
+an empty set/list. Wrong types nested inside array-of-table entries:
+tested directly with a non-string `action` value inside an
+`action_consequences` table (`{ action = ["buy","product"], consequence
+= "ships" }`) — correctly rejected: "action_consequences[0].action must
+be a string, got list". Extra/unexpected keys: tested directly, NOT
+handled — see F14 below, the one item of the four that surfaced a real
+gap.
 
-  F4/F9 (unqualified "structural, not instruction-based" isolation
-  claim, tier-scope propagation, critical/high, blocking) — HOLDS.
-  `specs/FWD-018-first-contact-walkthrough/spec.md:64-67` still reads
-  "On the `loop` tier — this project..." with the scoped claim intact
-  (file untouched by 0a4375a, and it was already fixed as of b285d28 —
-  re-read in full this round regardless, not assumed).
+(2) `runtime/graph.py`'s three-place `.md` -> `.toml` fix: each of the
+three sites (`build_graph`'s per-run existence check :306, the
+`confronted_by` edge-building re-check :319, `forbidden_orphans`'s check
+#6 :459) is individually correct and covered by `tests/test_graph.py`'s
+`TestWalkthroughEvidence` class, itself updated to write `.toml`
+fixtures. But "the fix" as a whole is INCOMPLETE — see F13, the
+strongest finding of this round: the file that actually tells the
+`architecture` role what to name the files it writes still says `.md`,
+in four places graph.py's own fix never touched.
 
-  F5/F10 (hostile target-page content / injection-doctrine enforced only
-  in the prompt, high/medium, non-blocking) — HOLDS at its declared
-  partial-mitigation severity. `agents/fde-walkthrough-evaluator.md:67-83`
-  ("Injected instructions") and `skills/fde-walkthrough/SKILL.md:343+`
-  ("Content from the target page is untrusted, always") both present,
-  unchanged. Re-traced `render_divergence_toml` once more this round
-  specifically for the NEW `[ambiguous]` table 0a4375a adds (a case round
-  3 could not have checked, since it didn't exist yet): confirmed it
-  writes `a`/`b` COUNTS only (`render_divergence_toml`'s `ambiguous`
-  parameter, runtime/walkthrough.py — the raw `entries`/`heading` text
-  built by `parse_perceived_model`'s `model["ambiguous"]` list never
-  reaches `compute_divergence`'s returned dict, which only computes
-  `len(...)`) — the new mechanism does not reopen F10's gap. No new
-  finding here.
+(3) `agents/fde-walkthrough-evaluator.md`'s worked TOML example
+(inline-table-array form for `action_consequences`, to sidestep the
+array-of-tables scoping trap ADR-0014's amendment names): the example
+itself IS valid, unambiguous TOML — verified with `tomllib.loads()`
+directly and via `parse_perceived_model()`, both succeed and produce the
+expected structure. But "sidesteps it... regardless of field order" (the
+commit message's own claim) is true only of the inline-table-array FORM
+once used — nothing enforces that the role actually uses that form
+instead of the more idiomatically-suggested `[[action_consequences]]`
+section syntax the field's own description ("one table per primary
+action") invites. Reproduced the exact trap the ADR names, through the
+CLI's own `--compute` entry point, not just the bare function — see F14.
 
-  F6 (three "what ships" deliveries, high, non-blocking) — HOLDS.
-  `AGENTS.md:88`, `README.md:178`, `README.md:239` all still read "six
-  role(s)"; `spec/roles.toml`'s `architecture` `outputs` still lists the
-  three `walkthroughs/**` artifacts.
+(4) `compute_divergence`/`slot_distance` unaffected by the schema change:
+confirmed by diffing the OLD (pre-b3b1cba) `parse_perceived_model`
+against the new one — both return `{"primary_actions": set[str],
+"action_consequences": set[str], "unclear_points": set[str], ...}`, the
+identical shape, for the three scored slots (`git show b3b1cba~1:
+runtime/walkthrough.py`, its own docstring, matches exactly). No finding
+here — this claim holds.
 
-  F7 (no "could not reach the target" outcome, medium, non-blocking) —
-  HOLDS. `target_unreachable` is reached only via exact alias match in
-  the new code too (confirmed by re-reading `parse_perceived_model`'s
-  tier-1 branch, runtime/walkthrough.py:337-345: alias resolution is
-  unconditional and short-circuits before the tier-2/tier-3 agreement
-  gate is ever consulted) — the F11 mechanism does not touch this path
-  at all.
-
-F11 ITSELF — re-probed independently (not by trusting
-`tests/test_walkthrough.py`'s own new
-`TestParsePerceivedModelContentPositionAgreementGate` class), rebuilding
-F11's own two originally-reported constructions fresh against the shipped
-module (script: .../scratchpad/probe_r4_reverify_f11.py). Both now
-resolve correctly: the paraphrased "Unclear points" heading with an
-arrow-bearing entry lands in `model["ambiguous"]`
-(`content_guess="action_consequences"`, `position_guess="unclear_points"`)
-instead of silently misrouting into `action_consequences` — score 0.333
-with `ambiguous={"a": 0, "b": 1}` naming exactly which slot the parser
-could not resolve, not the false 0.5 "action_consequences agrees, but
-inflated" reading F11 originally reported. F11's fix is real and closes
-the exact case it was filed against. BUT continued probing the fix's OWN
-new mechanism — specifically the branch it deliberately did NOT change,
-"when tier 2 has no opinion, trust tier 3 alone, exactly as before F11"
-(runtime/walkthrough.py:355-363, the code's own comment) — surfaced a
-FOURTH recurrence of the same meta-pattern the last three rounds have
-each found one layer over: not tier-priority (F11's fix genuinely closes
-that), but tier-3-trusted-ALONE, unconditionally, the moment tier 2
-abstains — which is exactly as fragile as the "single heuristic trusted
-alone" shape every one of F2/F3/F8/F11 was about. See F12.
-
-=== functional_correctness (weight 30) — attacked hardest, per F11's own
-disposition note that this class has now recurred three times ===
-
-PROBE 1 (the finding): does the agreement gate actually protect against
-a WRONG tier-3-alone guess when tier 2 abstains, or only against tier
-2/tier 3 DISAGREEING? Traced `heading_index`'s own mutation rule
-(runtime/walkthrough.py:343-345: an exact alias match sets
-`heading_index = _ORDERED_SLOTS.index(heading)` UNCONDITIONALLY — it can
-jump the counter forward, backward, or to the end of `_ORDERED_SLOTS`
-depending on which of the four slots the alias names, with no monotonic
-guard and no relation to how many blocks have actually been seen). The
-module's own comment (runtime/walkthrough.py:122-125) states the
-undefended premise this depends on: position is trustworthy "because the
-schema is always these four sections, in this order" — but nothing in
-`agents/fde-walkthrough-evaluator.md`'s "Return exactly these sections"
-(a bulleted list of five sections, not a sequenced contract) requires
-that order, and every exact-alias match in tier 1 is honored regardless
-of where in the document it appears. Constructed a run whose four
-headings are genuinely reordered (Unclear points, then Perceived
-action -> consequence, then a paraphrased Perceived primary actions) —
-reproduced directly against the shipped, unmodified module (script:
-.../scratchpad/probe_r4_clean_repro.py). Result: `model["ambiguous"]`
-stays empty (`[]`) — the gate raised no flag at all — while "buy product"
-and "view cart" (the run's own primary actions) are silently classified
-into `unclear_points` instead, alongside two content_guess-exhaustion
-constructions (.../scratchpad/probe_r4_silent_drop.py,
-.../scratchpad/probe_r4_out_of_order.py) that show the same branch's
-other failure shape: total silent disappearance, not misrouting. See
-F12 — this is NOT F11's reported case recurring; it is a live gap in the
-exact branch F11's fix deliberately left as "exactly as before F11."
-
-SAFE, checked this round at floor depth (the diff is `runtime/
-walkthrough.py` + its `bin/` mirror, both `SKILL.md` copies, and
-`tests/test_walkthrough.py` only — no I/O, no role/write-scope, no new
-role output):
+=== functional_correctness (weight 30) — attacked hardest ===
+See F13 (critical, blocking) and F14 (high, blocking) below. Also
+probed and cleared: `--compute`'s missing-file behavior (an unhandled
+`FileNotFoundError` traceback) — reproduced, but confirmed via `git show
+b3b1cba~1` to be IDENTICAL pre-existing behavior, not introduced or
+changed by this commit (the old code had the same unguarded
+`a_path.read_text()` call with no try/except at all around it); out of
+this round's scope per the task's own framing and not filed. The
+`ambiguous` bucket's removal was checked for dangling references across
+`runtime/walkthrough.py`, `runtime/graph.py`,
+`agents/fde-walkthrough-evaluator.md`, `skills/fde-walkthrough/
+SKILL.md`, and `tests/test_walkthrough.py` (`grep -rn ambiguous`) — clean,
+no leftover reference to the deleted mechanism.
 
 === maintainability (weight 22) ===
-`skills/fde-walkthrough/SKILL.md`'s new "When a heading resolves
-ambiguously" section makes an explicit guarantee — "an ambiguous block
-must not silently vanish either... the count is never allowed to
-silently vanish" — that F12's own repro directly disproves for the
-content_guess=None / position-exhausted sub-case (`runtime/
-walkthrough.py`'s own docstring makes the identical claim, :456-468).
-Not filed as an independent maintainability finding: the root cause and
-the fix both live in the one code branch F12 already names, and a
-doc-only correction would leave the actual defect (score corruption on
-identical content) shipped — folded into F12's evidence instead of
-double-counted here.
+See F16 (medium, non-blocking) below. `skills/fde-walkthrough/SKILL.md`
+and both `agents/fde-walkthrough-evaluator.md` copies were checked for
+the ADR's own "Downstream, scoped but not performed here" checklist
+(filenames .md -> .toml, "When a heading resolves ambiguously" section
+removed, "Handoff to review"'s ambiguous-block case removed) — all three
+done correctly. `specs/FWD-018-first-contact-walkthrough/spec.md` and
+`acceptance.md` still name `perceived-model-a.md`/`perceived-model-b.md`
+(R8's original text) — NOT filed as a finding: per this repo's own
+established convention (ADR §3 is explicitly not rewritten by its own
+amendments, "not by rewriting them, but by replacing the mechanism they
+describe"), and per this round's own task framing naming the Aug-25
+amendment as "the authoritative spec for what b3b1cba implements," the
+original spec.md/acceptance.md declaration is a frozen point-in-time
+record superseded by the ADR amendment, not a living document expected
+to track it. `spec/roles.toml` and `agents/fde-architecture.md` are a
+different kind of artifact entirely — live role configuration, not a
+declared-once historical record — which is exactly why their identical
+`.md` text is F13, not folded in here.
 
 === reliability_resilience / usability_accessibility / observability /
 security_privacy / performance_scale / operational_cost ===
-No new gap found at floor depth in any of these six this round: no new
-I/O or retry (reliability); no live target to exercise end to end, same
-honest limit named since round 1 (usability — though note F12's
-manufactured divergence is exactly the FM-6 "confrontation step
-misattributes... the reverse" shape spec.md already names as a risk: a
-score corrupted by heading order, not a real interpretive disagreement,
-would read to a downstream USE-15 classification as one anyway);
-`observability.toml` unchanged, still generically covers `runtime/
-walkthrough.py` via tests/ + verify.py (observability); `render_
-divergence_toml` re-traced end to end this round specifically for the
-new `[ambiguous]` table — counts only, F10's posture holds (security,
-detailed in F10 disposition above); `_classify_block_content` and the
-tier-2/tier-3 branch are still O(lines) over two short documents, no new
-loop nesting or retry (performance/cost).
+Observability: see F15 (medium, non-blocking) below. Reliability: the
+`--compute` path's two-file read is atomic with respect to
+`PerceivedModelError` (both parses happen before any write; a failure on
+either leaves no partial `divergence.toml`) — no partial-failure gap in
+the new code. Usability: this repository has no live UI target to run a
+walkthrough against (unchanged honest limit, named since round 1); the
+new schema's error messages are the closest thing to a "user" surface
+this commit touches, covered by F15. Security: `observed_text`'s
+injection-quarantine field is structurally unchanged in purpose and
+still never reaches `compute_divergence`
+(`test_observed_text_never_moves_the_divergence_score` passes); no new
+`eval`/shell/SQL sink was introduced — `tomllib.loads()` is the only new
+parsing surface and it is stdlib, not executing anything from the input.
+Performance/cost: no new loop, no new I/O beyond the two file reads
+`--compute` already had; `tomllib` parsing of a short LLM-authored
+document is O(n) with no pathological case at this scale.
 '''
 
 # ---------------------------------------------------------------------------
@@ -181,142 +137,337 @@ loop nesting or retry (performance/cost).
 # ---------------------------------------------------------------------------
 
 [[finding]]
-id = "F12"
+id = "F13"
+attribute = "functional_correctness"
+severity = "critical"
+probe = '''
+The commit's own message frames its `runtime/graph.py` fix as closing
+the risk that "a real walkthrough produced .toml files" while something
+downstream still expected `.md` — and that fix is correct for
+`graph.py` (see the `probed` disposition above). But `graph.py` is the
+CONSUMING side (it reads what architecture already wrote). The
+PRODUCING side — the artifact that tells the `architecture` role what
+filename to actually write the walkthrough-evaluator's returned TOML
+text under — was never touched by this commit and still says `.md`, in
+every one of its four live locations:
+
+- `spec/roles.toml:51-52` — the `architecture` role's own declared
+  `outputs` array: `"walkthroughs/<demand-id>/perceived-model-a.md"`,
+  `"walkthroughs/<demand-id>/perceived-model-b.md"`.
+- `.fde/spec/roles.toml:51-52` — the installed mirror, byte-identical
+  (confirmed: `diff spec/roles.toml .fde/spec/roles.toml` exits 0).
+- `agents/fde-architecture.md:21-22` — the "Outputs (write only here)"
+  section the `architecture` role actually reads to know what to write:
+  `` - `walkthroughs/<demand-id>/perceived-model-a.md` `` /
+  `` - `walkthroughs/<demand-id>/perceived-model-b.md` ``.
+- `.claude/agents/fde-architecture.md:21-22` — the installed mirror,
+  byte-identical (confirmed: `diff agents/fde-architecture.md
+  .claude/agents/fde-architecture.md` exits 0).
+
+None of these four are the ADR (which, by this repo's own established
+convention, is not expected to be rewritten by its own amendment — see
+the maintainability disposition above for why `specs/FWD-018.../spec.md`
+and `acceptance.md` are, correctly, NOT filed as part of this finding).
+`spec/roles.toml` and `agents/fde-architecture.md` are live, operational
+role configuration — the same category of artifact `runtime/graph.py`
+itself belongs to, and the exact category the commit's own message
+demonstrates awareness of needing an audit for ("outside the ADR's own
+named scope but load-bearing... Fixed alongside," said of graph.py).
+This repo's own `CLAUDE.md` role-scope mapping places both files
+squarely inside `implementation`'s write scope for this self-hosted
+repo ("what `src/**` means in a client is `runtime/` + `spec/` +
+`skills/` + `agents/` + `templates/` here — the implementation role owns
+those plus `tests/`"), so this is not a different role's job left
+undone; it is the same commit's own scope, missed.
+
+Concrete consequence, verified directly: if `architecture` follows its
+own operating instructions literally — which is the entire premise this
+kernel runs on at the `loop` tier — it persists the walkthrough-
+evaluator's returned TOML text into files literally named
+`perceived-model-a.md` / `perceived-model-b.md`. `runtime/graph.py`'s
+now-`.toml`-only glob (`build_graph` :306, :319; `forbidden_orphans`
+:459) would never find them: no `walked_by`/`confronted_by` edges are
+created, the divergence node's in-degree check (F3 in ADR-0014 section
+8, "both runs must be on record") never even gets a chance to fire
+because the perceived-model nodes themselves are never created, and
+`forbidden_orphans` check #6 ("perceived model(s) on record with no
+intended-model counterpart") stays silent too — not because the state is
+fine, but because `.md`-suffixed files are invisible to it entirely.
+This is a WORSE failure than the one graph.py's own fix was written to
+prevent: it does not just mis-detect a real walkthrough's evidence, it
+means the evidence is never even connected to the graph at all, silently,
+with every gate reporting green. No test in `tests/test_graph.py` or
+`tests/test_walkthrough.py` catches this, because every fixture in both
+suites constructs `.toml` files directly — none goes through
+`agents/fde-architecture.md`'s own declared output filenames to check
+they still match what `runtime/graph.py` now expects.
+
+No automated gate defends against this drift either: `grep -rln
+"outputs" tests/*.py runtime/*.py` returns nothing — no test validates
+that `spec/roles.toml`'s `outputs` array, or the generated
+`agents/*.md`/`.claude/agents/*.md` mirrors, agree with the actual file
+extensions `runtime/graph.py` or `runtime/walkthrough.py` expect. This
+is a pure documentation-drift bug today, but it is a load-bearing one:
+the four lines are literally the instruction the architecture role
+follows to know what to write, and they contradict the four files this
+same commit correctly updated to expect `.toml`.
+'''
+evidence = '''
+`spec/roles.toml:50-53` (`outputs = ["docs/adr/*.md",
+"specs/<demand-id>/architecture.md",
+"walkthroughs/<demand-id>/perceived-model-a.md",
+"walkthroughs/<demand-id>/perceived-model-b.md",
+"walkthroughs/<demand-id>/divergence.toml"]`); `.fde/spec/roles.toml:
+50-53`, byte-identical; `agents/fde-architecture.md:18-23` ("Outputs
+(write only here)" section, four bullet lines, two of them `.md`);
+`.claude/agents/fde-architecture.md:18-23`, byte-identical.
+`runtime/graph.py:306,319,459` (the three `.toml`-only glob sites this
+commit's own message says it fixed). `CLAUDE.md`'s role-scope mapping
+paragraph (placing `spec/**` and `agents/**` in implementation's scope
+for this repo). `git diff b3b1cba~1 b3b1cba --stat` — confirms none of
+`spec/roles.toml`, `.fde/spec/roles.toml`, `agents/fde-architecture.md`,
+or `.claude/agents/fde-architecture.md` appear in this commit's changed
+files (only `.claude/agents/fde-walkthrough-evaluator.md`,
+`.claude/skills/fde-walkthrough/SKILL.md`,
+`agents/fde-walkthrough-evaluator.md`, `bin/fde/graph.py`,
+`bin/fde/walkthrough.py`, `runtime/graph.py`, `runtime/walkthrough.py`,
+`skills/fde-walkthrough/SKILL.md`, `tests/test_graph.py`,
+`tests/test_walkthrough.py` changed). `grep -rn "perceived-model"
+--include="*.py" --include="*.md" --include="*.toml" .` — full repo
+sweep confirming these are the only four live-config sites still naming
+`.md`, distinct from the ADR's own body (`docs/adr/0014-...md:333-334`,
+`:365-366`) and `specs/FWD-018.../spec.md:305` /
+`acceptance.md:68`, both correctly excluded from this finding for the
+reason given above.
+'''
+blocking = true
+
+[[finding]]
+id = "F14"
 attribute = "functional_correctness"
 severity = "high"
 probe = '''
-F11's fix closes the specific failure it was filed against — tier 2
-(content-based guess) no longer outranks tier 3 (positional guess)
-unconditionally; the two are computed together and a genuine
-DISAGREEMENT between them now lands the block in `model["ambiguous"]`
-instead of silently misrouting it. Re-verified this holds by rebuilding
-F11's own two original constructions fresh against the shipped module
-(see `probed`, "F11 ITSELF" above) — both now correctly land in
-`ambiguous`, not `action_consequences`.
+Two related gaps in `parse_perceived_model`'s schema validation, the
+second a concrete, reproduced consequence of the first.
 
-But the fix's own code deliberately keeps ONE branch exactly as it was
-before F11: "Tier 2 has no opinion at all... nothing to disagree with,
-so defer to tier 3 alone, exactly as before F11" (runtime/
-walkthrough.py:356-361, the branch's own comment). This branch runs
-whenever `_classify_block_content` returns `None` — which is EVERY
-`primary_actions` block by design (the function's own docstring:
-"primary_actions and what_this_is have no equivalent tell... so those
-two stay purely positional"). "Nothing to disagree with" is the load-
-bearing assumption the whole branch rests on, and it is false: tier 3
-alone can be wrong on its own, with nothing to catch it, independent of
-whether tier 2 has an opinion.
+(1) Extra/unexpected keys are silently accepted and dropped — both at
+the document's top level and nested inside each `action_consequences`
+table. Reproduced directly: a document carrying all seven required
+fields at their correct types PLUS an eighth key (`confidence = 0.9`)
+parses cleanly, with `confidence` simply absent from the returned dict —
+no error, no warning. Same result for an unexpected key nested inside an
+`action_consequences` entry (`{ action = "buy", consequence = "ships",
+confidence = 0.9 }` — the extra key is dropped, only `action`/
+`consequence` are read). This contradicts the schema's own declared
+design principle, stated in three places (`runtime/walkthrough.py:
+72-78`'s comment, `agents/fde-walkthrough-evaluator.md:88-93`'s "What to
+return" preamble — "there is no eighth state where you meant something
+by leaving a key out" — and ADR-0014's Aug-25 amendment itself): a field
+either exists at its required type or the artifact is malformed, no
+guessing, no best-effort partial parse. An accepted-and-silently-dropped
+extra key IS a best-effort partial parse of exactly the kind this
+rewrite's whole stated purpose was to eliminate — it is simply
+unaddressed by the schema rather than named as acceptable.
 
-The mechanism: an exact-alias match (tier 1, always trusted outright, no
-other tier consulted) sets `heading_index = _ORDERED_SLOTS.index(heading)`
-unconditionally (runtime/walkthrough.py:343-345) — it can jump the
-counter forward, backward, or to the very end of `_ORDERED_SLOTS`,
-purely from which of the four canonical names the alias matched, with NO
-relation to how many blocks have actually been read and no monotonic
-guard. The module's own comment states the assumption this requires to
-be safe: position is meaningful "because the schema is always these four
-sections, in this order" (runtime/walkthrough.py:122-125, unchanged by
-this commit) — but nothing enforces that order. `agents/fde-walkthrough-
-evaluator.md`'s "Return exactly these sections" (its own heading, "What
-to return") is a bulleted list of five sections, not a sequenced
-contract, and every exact-alias match is honored regardless of where in
-the document it appears — a run that reports "Unclear points" before
-"Perceived action -> consequence," or writes its caveats up front before
-its summary of actions (an entirely ordinary report-writing habit, not a
-contrived one), corrupts the position counter for everything after it,
-silently, with no signal that anything happened.
+(2) That same leniency is what makes the ADR's own named array-of-tables
+scoping trap actively dangerous rather than merely theoretical.
+`agents/fde-walkthrough-evaluator.md:139-145` instructs the role to
+write `action_consequences` as an inline array of tables rather than
+`[[action_consequences]]` section headers, specifically to avoid the
+trap where a bare `key = value` line written after a `[[section]]`
+header binds to the LAST element of that array, not the document root.
+That instruction is a prompt the walkthrough-evaluator role is asked to
+follow — nothing in its `tools:`-restricted harness, or anywhere else,
+can verify a free-text final message used one TOML form over the other.
+This is the same class of unenforced "prompt instruction alone" this
+very ADR amendment explicitly rejects one section earlier ("Rejected: a
+fifth heuristic layer... A heading-order requirement is a prompt
+instruction like any other... nothing... can check that a run's free-text
+final message presented its sections in a particular order before that
+text is parsed") — applied here to TOML structural form instead of
+markdown heading order, but structurally the identical gap.
 
-Two independent constructions against the shipped, unmodified module,
-both reporting IDENTICAL content and judgment on all three scored slots:
+Reproduced end to end, through the actual CLI entry point
+(`runtime/walkthrough.py --compute`, the exact command ADR-0014 assigns
+to `architecture` as "the mechanical filing step"), not just the bare
+function: a realistic document using `[[action_consequences]]` (the
+field's own description in the schema table — "one table per primary
+action" — reads naturally as "use a section per entry," the idiomatic
+TOML form for repeated tables) with the four remaining required keys
+following in the same order the schema table itself presents them
+(`unclear_points`, `target_unreachable`, `unreachable_reason`,
+`observed_text`) silently absorbs ALL FOUR of those keys as untyped
+extra keys inside the last `[[action_consequences]]` table — confirmed
+by inspecting the raw `tomllib.loads()` output directly (root-level keys
+shrink to exactly `["what_this_is", "primary_actions",
+"action_consequences"]`; the four missing keys appear instead as extra
+entries on `action_consequences[1]`, silently dropped per gap (1) above
+rather than triggering a shape complaint on that table). The resulting
+top-level-missing-keys are then rejected — but the error message is
+`malformed perceived-model file: missing required field: 'unclear_points'`,
+naming only the FIRST of the four validation calls to fail
+(`_require_type`'s call order in `parse_perceived_model`) and giving
+zero indication that three more fields are equally missing, or that the
+actual root cause is TOML table scoping rather than the run having
+genuinely forgotten one field. A reader debugging this — human or
+another agent — sees a file that visibly contains
+`unclear_points = [...]` in its own text and a tool insisting the field
+is missing, with nothing pointing at why.
 
-(1) Clean 4-heading reorder (script: .../scratchpad/probe_r4_clean_repro.py)
-— Run A uses the four exact headings in prescribed order. Run B reports
-"Unclear points" (exact alias) first, then "Perceived action ->
-consequence" (exact alias, jumps `heading_index` back to 2), then a
-paraphrased "Things I understood I could do" (primary_actions, content-
-signature-free by design). The paraphrased block's content_guess is
-`None`; deferring to position alone gives `_ORDERED_SLOTS[3]` =
-`unclear_points` — WRONG. Result: `model["ambiguous"]` stays `[]` (no
-flag raised at all), `primary_actions` distance 1.0 (both real actions
-lost), `unclear_points` distance 0.667 (polluted with two entries that
-are not unclear points at all), `action_consequences` distance 0.0,
-overall score **0.556** between two runs that reported exactly the same
-thing.
-
-(2) Position-exhaustion variants (scripts: .../scratchpad/
-probe_r4_silent_drop.py, score 0.167, and .../scratchpad/
-probe_r4_out_of_order.py, score 0.444) — a paraphrased, content-
-signature-free heading whose positional candidate index runs past the
-end of `_ORDERED_SLOTS` (`position_guess = None`) hits the SAME
-`content_guess is None` branch, which sets `heading = None` unconditionally
-and does NOT append to `model["ambiguous"]` (only the genuine-disagreement
-`else` branch at :370-386 does that) — the block's real content vanishes
-from the parsed model entirely, with `model["ambiguous"]` reporting `0`
-even though information was demonstrably lost.
-
-Both are the exact FM-2 "granular enough... two runs on the same
-unambiguous interface never fully agree" degenerate reading (spec.md
-line 180-184) F2 was filed to close, F8 was re-filed to close a second
-time, and F11 a third — now reproduced through a gap in F11's OWN fix
-(specifically the one branch its own comment says is unchanged from
-before F11) rather than through F11's original trigger. It also directly
-contradicts the fix's own stated guarantee: `skills/fde-walkthrough/
-SKILL.md`'s new "When a heading resolves ambiguously" section states "an
-ambiguous block must not silently vanish either... the count is never
-allowed to silently vanish," and `runtime/walkthrough.py`'s own
-`compute_divergence` docstring (:456-468) makes the identical claim —
-both are disproven by construction (2) above, where information is lost
-with the ambiguous count reporting 0.
-
-No test anywhere in `tests/test_walkthrough.py` — including the
-reconciliation's own new `TestParsePerceivedModelContentPositionAgreementGate`
-class — constructs a fixture where an exact-alias heading appears out of
-the prescribed order, or where a content-signature-free paraphrase (a
-primary_actions or what_this_is block) is preceded by enough alias jumps
-to exhaust or misalign the positional counter. Every fixture in the
-whole file, across all four rounds' additions, presents its four
-headings in the exact canonical order (what_this_is, primary_actions,
-action_consequences, unclear_points) — confirmed by reading every
-top-level fixture constant in the file (MODEL_A/B, DISJOINT_A/B,
-PARAPHRASED_HEADINGS_A/B, F11_UNCLEAR_ARROW_EXACT/PARAPHRASED,
-F11_PRIMARY_ARROW_EXACT/PARAPHRASED). This is precisely the assumption
-this probe breaks, and the assumption none of the last three rounds'
-constructions ever varied.
+Because gap (1) also means the nested extra keys inside the swallowed
+table are never flagged as "unexpected" either, the diagnostic that
+WOULD make this immediately legible — "action_consequences[1] has
+unexpected key(s): unclear_points, target_unreachable, unreachable_reason,
+observed_text" — never fires. Fixing (1) alone would turn this from a
+misleading generic error into a self-diagnosing one; the trap in (2)
+cannot be structurally closed (TOML's own scoping rules are what create
+it), so a clear diagnostic is the realistic mitigation, and it does not
+exist today.
 '''
 evidence = '''
-runtime/walkthrough.py:111-126 (module comment: tier priority list and
-the stated, undefended assumption "the schema is always these four
-sections, in this order"); :183-206 (`_classify_block_content`'s own
-docstring: "primary_actions and what_this_is have no equivalent tell...
-stay purely positional" — the exact case this probe exploits); :278-322
-(`parse_perceived_model`'s docstring, the "must AGREE" guarantee that
-does not cover this branch); :337-345 (tier 1: `heading = alias; if
-heading in _ORDERED_SLOTS: heading_index = _ORDERED_SLOTS.index(heading)`
-— unconditional, order-independent, no monotonic guard); :355-363 (the
-`content_guess is None` branch, its own comment "nothing to disagree
-with, so defer to tier 3 alone, exactly as before F11" — the load-bearing
-false premise); :370-386 (the genuine-disagreement branch, the ONLY one
-that appends to `model["ambiguous"]` — confirming construction (2)'s
-silent-vanish path never reaches it); :456-468 (`compute_divergence`'s
-docstring, "must not silently vanish either... never allowed to silently
-vanish" — disproven by construction (2)); `skills/fde-walkthrough/
-SKILL.md`'s "When a heading resolves ambiguously" section (the identical
-guarantee, restated for a human reader); `agents/fde-walkthrough-
-evaluator.md`'s "What to return" (a bulleted list of five sections, no
-sequencing language); `specs/FWD-018-first-contact-walkthrough/spec.md`
-lines 180-184 (FM-2, the degenerate-metric failure mode this probe
-reproduces) and lines 202-205 (FM-6, the misattribution risk a
-manufactured divergence like this one creates for a downstream USE-15
-classification). Reproduced with three independent constructed pairs
-against the shipped, unmodified module — scripts at /private/tmp/
-claude-501/-Users-dascbh-Documents-forward/1616c8e4-e620-4fcb-94f8-
-43d31ef57eb3/scratchpad/probe_r4_clean_repro.py (score 0.556,
-`ambiguous` empty, `primary_actions` distance 1.0), .../scratchpad/
-probe_r4_silent_drop.py (score 0.167, `ambiguous` `{"a": 0, "b": 0}`,
-real content vanished), and .../scratchpad/probe_r4_out_of_order.py
-(score 0.444, `ambiguous` `{"a": 0, "b": 0}`, an unclear point misrouted
-into `action_consequences`) — this review's own scratch fixtures, not
-committed. `grep -n "F11_\\|MODEL_A\\|PARAPHRASED_HEADINGS"
-tests/test_walkthrough.py` and manual reading of every fixture confirm
-none reorders its four headings.
+`runtime/walkthrough.py:79-136` (`_REQUIRED_FIELDS`'s own comment: "ALL
+seven are required, in every file, always — deliberately not a mix of
+required and optional keys"; `_require_type` :126-136, which only
+validates fields IN `data`, never checks `data`'s key set against the
+expected seven); `:169-199` (`parse_perceived_model`'s field-by-field
+validation, and the `action_consequences` table loop at :186-199, which
+reads only `pair["action"]`/`pair["consequence"]` and never inspects
+`pair.keys()` for anything else present). `agents/fde-walkthrough-
+evaluator.md:88-93` (the "no eighth state" claim), `:139-145` (the
+inline-table-array instruction and its own stated reason). ADR-0014's
+"Amendment — 2026-08-25 (FWD-018 F12)", "Rejected: a fifth heuristic
+layer" section (the identical "prompt instruction alone... not
+enforcement" argument, applied here to TOML form instead of heading
+order). Reproduced with two scratch fixtures (not committed):
+extra-top-level-key and extra-nested-key documents both parsing cleanly
+with the extra data silently dropped; a third fixture using
+`[[action_consequences]]` with the schema table's own field order
+following it, run through `python3 runtime/walkthrough.py --compute
+<a> <b> --demand FWD-TEST`, producing exit code 2 and stderr `malformed
+perceived-model file: missing required field: 'unclear_points'` while
+the raw `tomllib.loads()` output (checked directly, same fixture)
+confirms `unclear_points`, `target_unreachable`, `unreachable_reason`,
+and `observed_text` were all absorbed into
+`action_consequences[1]`, not merely `unclear_points` alone.
 '''
 blocking = true
+
+# ---------------------------------------------------------------------------
+# observability — weight 10
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F15"
+attribute = "observability"
+severity = "medium"
+probe = '''
+`runtime/walkthrough.py`'s `--compute` CLI parses BOTH perceived-model
+files inside one `try`/`except PerceivedModelError` block spanning both
+`a_path.read_text()`/`parse_perceived_model()` calls and
+`b_path.read_text()`/`parse_perceived_model()` calls, and the `except`
+clause prints only `f"malformed perceived-model file: {e}"` — the
+exception's own message (which names the failing FIELD) but never the
+failing FILE. Reproduced directly: swapping which of the two paths is
+malformed (`a.toml` malformed vs. `b.toml` malformed, same content
+either way) produces the byte-identical stderr line both times. Since
+this is the actual command ADR-0014 assigns to `architecture` as "the
+mechanical filing step" for turning two runs' returned TOML text into a
+`divergence.toml`, and since a real invocation names two REAL,
+differently-sourced files (not a fixture with an obvious single
+suspect), not knowing which of the two files is at fault doubles the
+diagnostic work on exactly the failure path this schema rewrite was
+built to make legible (OBS-2: "a failure names its cause: logs carry
+enough context to reconstruct the path"). This is new code in this
+commit — the previous heuristic parser never raised
+`PerceivedModelError` at all (it silently guessed instead), so this
+`try`/`except` block, and the ambiguity it introduces, did not exist
+before b3b1cba.
+'''
+evidence = '''
+`runtime/walkthrough.py:387-393`:
+```
+a_path, b_path = Path(args.compute[0]), Path(args.compute[1])
+try:
+    model_a = parse_perceived_model(a_path.read_text(encoding="utf-8"))
+    model_b = parse_perceived_model(b_path.read_text(encoding="utf-8"))
+except PerceivedModelError as e:
+    print(f"malformed perceived-model file: {e}", file=sys.stderr)
+    return 2
+```
+Reproduced twice with the scratchpad's `a.toml` (uses
+`[[action_consequences]]`, triggers F14's trap) and `b.toml` (a plain,
+valid inline-table-array file): `--compute a.toml b.toml` and
+`--compute b.toml a.toml` both print the identical
+`malformed perceived-model file: missing required field: 'unclear_points'`
+with no file path anywhere in the message.
+'''
+blocking = false
+
+# ---------------------------------------------------------------------------
+# maintainability — weight 22
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id = "F16"
+attribute = "maintainability"
+severity = "medium"
+probe = '''
+`_REQUIRED_FIELDS` (`runtime/walkthrough.py:79-87`) is a `dict[str,
+type]` presented, in an 11-line comment, as the schema's authoritative
+declaration — it even documents the `bool`-vs-`isinstance` special case
+that matters for `target_unreachable`. `parse_perceived_model`'s own
+docstring (:147) cites it by name as the mechanism: "seven required
+top-level keys (`_REQUIRED_FIELDS`)". A reader who wants to add, remove,
+or retype a required field would reasonably start by editing this dict —
+it is positioned first in the file, it is the most heavily commented
+declaration in the module, and it is named as if load-bearing.
+
+It is not. `parse_perceived_model`'s actual validation is a separate,
+hand-written sequence of seven individual `_require_type(data, "<name>",
+<type>)` calls (:169-175) that does not iterate over `_REQUIRED_FIELDS`
+or reference it in any way. Proved directly: deleting the
+`"observed_text"` entry from `walkthrough._REQUIRED_FIELDS` at runtime
+(`del walkthrough._REQUIRED_FIELDS['observed_text']`) and then parsing a
+document that omits `observed_text` still raises `PerceivedModelError`
+naming `observed_text` as missing — behavior is completely unaffected by
+the mutation, because nothing reads the dict at parse time. The same
+inverse holds: adding a field to `_REQUIRED_FIELDS` would silently do
+nothing until a matching `_require_type` call, and a matching return-dict
+entry, and a matching test fixture entry, are ALSO added by hand — four
+more independent, unenforced copies of the same fact
+(`_REQUIRED_FIELDS` itself, the `_require_type` call sequence, the
+returned-dict literal at :201-209, and `tests/test_walkthrough.py`'s own
+separate `_ALL_FIELDS` tuple and `_FIELD_SNIPPETS` dict).
+
+This is MNT-1 ("single source of truth: every fact lives in one place;
+duplication is drift waiting") in a sharper form than ordinary
+duplication: `_REQUIRED_FIELDS` is not a second copy that could merely
+drift from the real one — it is a DECORATIVE copy that looks like the
+real one (authoritative name, detailed rationale comment, cited by the
+function it appears to govern) while doing nothing. A future maintainer
+following Chesterton's Fence (MNT-7) toward `_REQUIRED_FIELDS`, seeing
+its careful comment, has every reason to trust it is the enforcement
+point — and would ship a change that silently does not take effect. This
+is exactly the class of hidden-authority gap this same rewrite's own
+stated purpose was to remove from the OLD heuristic parser (multiple
+independent tables — `_SECTION_ALIASES`, `_ORDERED_SLOTS`,
+`_UNCLEAR_KEYWORDS_RE` — each partially authoritative, none complete by
+itself); the rewrite is cleaner in every way that matters to its own
+stated goal, but reintroduces one small instance of the identical shape
+in its own schema declaration.
+'''
+evidence = '''
+`runtime/walkthrough.py:72-87` (`_REQUIRED_FIELDS`'s declaration and
+comment); `:147` (`parse_perceived_model`'s docstring citing it by
+name); `:169-175` (the actual, independent seven-call validation
+sequence); `:201-209` (the returned-dict literal, a third independent
+enumeration of the same seven names). `tests/test_walkthrough.py:
+162-164` (`_ALL_FIELDS`, a fourth independent tuple) and `:244-252`
+(`_FIELD_SNIPPETS`, a fifth). Reproduced directly: `python3 -c "import
+walkthrough; del walkthrough._REQUIRED_FIELDS['observed_text']; ...
+walkthrough.parse_perceived_model(<doc missing observed_text>)"` still
+raises `PerceivedModelError: missing required field: 'observed_text'`
+after the dict entry naming that exact field was removed — proof the
+dict is not consulted at validation time.
+'''
+blocking = false
