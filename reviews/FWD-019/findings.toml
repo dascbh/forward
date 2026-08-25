@@ -1,255 +1,263 @@
-# Adversarial review — FWD-019 "RULE is not a smaller XS", commit d26cc3f.
-# Reviewer received artifact + spec only (I2). M = 2 rounds planned; this
-# is round 1. Findings only; no fixes (I3).
+# Adversarial review — FWD-019 "RULE is not a smaller XS". Round 2 of 2
+# (M sizing). Round 1 (commit d26cc3f, reviewed at b481563) found F1
+# (high, blocking — binary files evading the eligibility check), F2
+# (critical, blocking — merge commits invisible to the mechanical
+# checker), F3 (medium, blocking — duplicated range-resolution logic),
+# F4 (high, blocking — git failures silently defaulting to "eligible"),
+# F5 (low, non-blocking — a subprocess-per-commit inefficiency). This
+# round reviews the reconciliation commit bcfe2b6 ("F1-F5 fixed")
+# against the same spec.md/acceptance.md/ADR-0015 (all re-read in full).
+# Reviewer received artifact + spec only (I2). Findings only; no fixes
+# (I3). F1-F5 are NOT restated as [[finding]] entries below — their
+# disposition is recorded in `probed`. New findings this round continue
+# numbering from F6.
 
 [meta]
 demand_id = "FWD-019"
 context_policy = "artifact_only"
 isolation_mode = "worktree"
 rounds_planned = 2
-rounds_run = 1
-commit = "d26cc3fd78c68a4aa7fd9cf7be31722644425636"
-agent_transcript = "agent-a99b39499f546c9c6"
+rounds_run = 2
+commit = "bcfe2b61aaf228c3c319a0584df694251a5887dd"
+agent_transcript = "agent-addb38cc8556b1035"
 probed = '''
 Baseline: worktree confirmed at the target commit (`git log -1` ==
-d26cc3fd78c68a4aa7fd9cf7be31722644425636, matches the task). `python3 -m
-unittest discover -s tests` — 328 tests, OK. `python3 bin/fde/verify.py
---all` — all 17 gates green (CFG, CFG-SEC, I1, I2, I3, I8, I4, I5, I6, I7,
-SCRUM, SCRUM-GOAL, SCRUM-RETRO, TRACE, EROSION, DIVERGE, SURVEY;
-RULE-LANE silent by design — no commit in the examined range declares
-RULE — confirmed explicit-pass via `--gate rule-lane`). `diff` confirms
-runtime/triage.py == bin/fde/triage.py and runtime/verify.py ==
-bin/fde/verify.py (mirror parity intact) and skills/fde-triage/SKILL.md
-== .claude/skills/fde-triage/SKILL.md.
+bcfe2b61aaf228c3c319a0584df694251a5887dd, matches the task). `python3 -m
+unittest discover -s tests` — 344 tests, OK. `python3 bin/fde/verify.py
+--all` — all 17 gates green (CFG, CFG-SEC, I1, I2, I3, I8, I4, I5, I6,
+I7, SCRUM, SCRUM-GOAL, SCRUM-RETRO, TRACE, EROSION, DIVERGE, SURVEY;
+RULE-LANE silent by default, explicit pass confirmed via `--gate
+rule-lane`). Read in full: spec.md, acceptance.md, ADR-0015, the diff of
+runtime/triage.py and runtime/verify.py since b481563 (`git diff
+b481563..HEAD -- runtime/triage.py runtime/verify.py tests/support.py
+tests/test_triage.py` — 361 lines changed across exactly those four
+files; SKILL.md/AGENTS.md/templates/fde.config.template.toml/fde.config.
+toml/specs/FWD-019-rule-lane untouched by the reconciliation), the new
+tests/test_triage.py test classes, and the reconciliation commit
+message's own "residual, out of scope" claim.
 
-Read in full before probing: spec.md, acceptance.md, ADR-0015,
-runtime/triage.py, the diff of runtime/verify.py, tests/test_triage.py,
-tests/test_instructions.py's new RULE class, skills/fde-triage/SKILL.md,
-the new AGENTS.md/templates/AGENTS.md.template paragraph, tests/support.py's
-diff, spec/dimensions/quality-attributes.toml's verified_by ordering this
-demand's own justification leans on.
+=== F1-F5 disposition — each independently re-verified against the real
+module in a scratch git repository, not trusted from the commit message
+or the shipped suite ===
 
-Acceptance.md's own seven-question review checklist (does the
-documentation ever read as "a smaller XS"? are AGENTS.md/template
-byte-identical in the new material? is the pre-existing table/sentence
-unmodified? does gate_eval_coverage gain any line? does gate_rule_lane
-evaluate per-commit, not per-range?) all check out clean: `git show
-d26cc3f -- runtime/verify.py` shows gate_eval_coverage's own hunk
-(`@@ -90,6 +90,18 @@` through the `gate_eval_coverage` def line) inserts
-`_commits_in_range` immediately BEFORE the function and touches zero
-lines inside its body (R6 holds, confirmed by direct inspection, not by
-trusting the commit message). The RULE paragraph in SKILL.md/AGENTS.md
-reads as "categorically distinct... RULE runs no judgment at all," never
-"a lighter XS," and explicitly states I1 stays fully applying. The eight
-acceptance-mandated test cases in test_triage.py (trivial-eligible,
-loc-ineligible, project-ceiling-ineligible-at-1-line, eval_paths-deleted,
-falsely-tagged-blocked, silent-vs-explicit, default-fallback,
-per-commit-isolation both directions) all exist and pass.
+F1 (binary file evading eligibility): HOLDS FIXED. `_has_binary_row`
+makes ANY binary numstat row anywhere in the commit — not only under
+eval_paths — categorically ineligible with criterion "binary", checked
+before the loc sum. Reproduced the original repro (a binary fixture
+deleted under tests/) plus two beyond the shipped suite: a binary file
+ADDED (not deleted) outside eval_paths, and a genuinely textual file
+that git's own NUL-byte sniffing misclassifies as binary (UTF-16
+encoding) — both correctly read as ineligible/"binary", never eligible.
+The UTF-16 case is not a defect: it is git's own detection limit, not
+this code's, and the safe direction (a false negative, costing only a
+redo through the normal table) is exactly what ADR-0015's asymmetry
+argument accepts.
 
-None of that green catches what follows below: every finding here is a
-gap in what `commit_files`'s use of git plumbing can even SEE, not a
-gap the shipped suite exercises and gets wrong — the suite's own fixture
-vocabulary (`_write()` always emits plain UTF-8 text files, one commit at
-a time, never a merge, never a git-subprocess failure) structurally
-cannot reach any of them. Reproduced each finding below against the
-REAL `runtime/triage.py` (imported directly, not reimplemented), in a
-disposable scratch git repository outside this worktree, never against a
-mock.
+F2 (merge commits invisible): HOLDS FIXED. `is_merge_commit` (`git
+rev-list --parents`) makes any 2+-parent commit categorically ineligible
+with criterion "merge", checked before loc/eval_paths, regardless of
+what the merge's diff would have shown. Reproduced the original repro (a
+real `git merge --no-ff` bringing in 500 lines) plus one beyond the
+shipped suite: a genuinely EMPTY merge (verified by comparing
+`<merge>^{tree}` to `<merge>^1^{tree}` — bit-identical, a true no-op
+merge via commit-then-revert-then-merge --no-ff) is still correctly
+flagged "merge", never silently "0 lines, eligible" — confirming the
+categorical rule is unconditional on parent count alone, as the code's
+own comments say it should be, not conditional on tree content.
 
-=== functional_correctness (weight 30) — 3 probes ===
+F3 (duplicated range-resolution logic): HOLDS FIXED. `Gate._resolve_range`
+is the single shared three-tier fallback both `changed()` and the new
+`_commits_in_range()` call — read in full, no remaining second copy of
+the since/HEAD~1/empty-tree chain.
 
-Probe 1 (valid input at a domain boundary the spec never restricts to
-text): R1(d) says "no file matching eval_paths was deleted... within
-that commit's numstat." Nothing in R1, the Boundaries, or FM-1..FM-8
-restricts this to text files. `commit_files()` (runtime/triage.py:167-171)
-shells out to `git diff-tree --numstat` with no `-m`/`-c` handling, and
-its row parser `_rows()` (:152-164) skips any row where either count is
-"-" — which is exactly how git reports a binary file, full stop
-regardless of size (`-\t-\tpath`, never `N\tM\tpath`). A commit that
-deletes a binary fixture under `tests/` (a golden snapshot, a cached
-fixture blob — an entirely ordinary "swap out the test asset" edit, not
-a contrived attack) is invisible to BOTH the loc-size sum (contributes 0
-to `added+deleted`) and the eval_paths-shrink check (the row never
-reaches `path_matches`). See F1.
+F4 (git failures silently defaulting to eligible): HOLDS FIXED for its
+own stated scope — `triage._git` now raises `GitFailure` on any
+subprocess failure (bad SHA, non-zero exit, `FileNotFoundError`), caught
+once in `eligibility_for_commit` and converted to a "git_failure"
+ineligible verdict, inherited by `--check`, `report()`, and
+`gate_rule_lane` alike. Reproduced with a syntactically-valid nonexistent
+SHA: `GitFailure` raised, converted correctly, `elig.detail` never reads
+"eligible — 0 line". BUT this fix's own scope is narrower than the
+safety claim it is cited for — see F6 below, which is the direct
+continuation of this same probe one level up, not a new category of bug.
 
-Probe 2 (case the spec never covers and the code silently accepts):
-merge commits. `git diff-tree --root --no-commit-id -r --numstat sha`
-without `-m`/`-c` produces NO output at all for a merge commit (2+
-parents) — confirmed empirically. `commit_files()` calls exactly that
-form. R1/R3/the ADR never once mention merge commits; `git merge --no-ff`
-is completely ordinary usage, not an adversarial trick. See F2.
+F5 (subprocess-per-commit): HOLDS FIXED. `triage.commits_with_subjects`
+and `Gate._commits_in_range` each fetch (sha, subject) pairs from one
+combined `git log --format=%H%x1f%s` call; no remaining per-sha
+`commit_subject`/equivalent loop in either `report()` or `gate_rule_lane`.
 
-Probe 3 (regression / silent-accept via failure rather than input
-shape): `_git()` (:143-149) catches `FileNotFoundError` and also passes
-`check=False`, so ANY git failure — a bad/unreachable SHA, git missing
-from PATH, a permission error, a corrupted object — returns whatever
-(possibly empty) stdout with no signal that the command failed.
-Reproduced with a syntactically-valid but nonexistent SHA. Folded into
-F4 below (reliability) rather than functional_correctness, since its
-root cause is dependency failure, not a spec gap — but it shares the
-exact downstream symptom as probes 1-2: empty numstat rows silently
-read as "0 lines, fully eligible."
+=== Additional probes specifically requested for this round ===
+
+A commit that is a merge AND touches nothing: see F2 disposition above —
+correctly "merge", not a new gap. A binary file added rather than
+modified/deleted: see F1 disposition above — correctly "binary", not a
+new gap. A file git detects as binary due to encoding but is actually
+text: see F1 disposition above — correctly "binary" (the safe-but-
+conservative direction), not a new gap. Whether `GitFailure` is caught
+everywhere it needs to be: `commit_files`/`is_merge_commit`/
+`_commit_numstat_text`/`staged_files` have no production caller outside
+`triage.py` itself other than through `eligibility_for_commit` (which
+catches centrally) and `_run_check`/`_run_report` (which both catch
+locally) — confirmed by grepping `runtime/` and `bin/` for every call
+site. Inside `triage.py`, the catch is complete. It is NOT complete one
+level up, in `verify.py` — see F6.
 '''
 
 [[finding]]
-id = "F1"
-attribute = "functional_correctness"
-severity = "high"
-probe = '''
-"case the spec does not cover and the code silently accepts" — a binary
-file deleted (or replaced) under an eval_paths root evades both R1(c)
-and R1(d) at once.
-
-Reproduced against the real `runtime/triage.py`: created a scratch git
-repo, committed `tests/golden_snapshot.bin` (50,000 bytes of
-`os.urandom`), then committed its deletion with subject `FORWARD: RULE -
-drop stale fixture`. `triage.commit_files(path, sha)` — the exact
-function `eligibility_for_commit` and `gate_rule_lane` both call — returns
-`[]` for that commit (git reports `-\t-\ttests/golden_snapshot.bin` for a
-binary row; `_rows()`, runtime/triage.py:158-161, drops any row where
-either numstat column is `-` before it ever reaches the eval_paths
-check). Feeding that empty file list into `check_eligibility("public",
-"reversible", [], ("tests/", "evals/"), rule_lane_max_loc=10)` — the same
-call `eligibility_for_commit` makes — returns:
-
-    Eligibility(eligible=True, criterion=None,
-                detail='eligible — 0 line(s), data_class/reversibility
-                clear the project-level ceiling, eval_paths intact',
-                size=0)
-
-"eval_paths intact" is false; the file was deleted from `tests/`. This
-is not a contrived attack — replacing a binary fixture an eval depends on
-(a golden image, a cached response blob) is an entirely ordinary edit,
-and both `triage.py --check` (the advisory preview) and `gate_rule_lane`
-(the actual blocking gate) share this exact code path, so neither one
-would ever flag it. `tests/test_triage.py` has no binary-file fixture
-anywhere (`grep -n "binary\|\.bin\|urandom"` — zero hits), so this gap is
-untested, not merely undocumented.
-'''
-evidence = "runtime/triage.py:152-164 (_rows), :167-171 (commit_files), :81-137 (check_eligibility); reproduced end-to-end via the real module, not a mock"
-blocking = true
-
-[[finding]]
-id = "F2"
-attribute = "functional_correctness"
-severity = "critical"
-probe = '''
-"case the spec does not cover and the code silently accepts" — a merge
-commit tagged `FORWARD: RULE` is unconditionally eligible with reported
-size 0, regardless of how much it actually changes.
-
-Reproduced against the real `runtime/triage.py`: created a scratch repo,
-branched, committed a 500-line file on the branch, then ran `git merge
---no-ff feature -m "FORWARD: RULE - trivial merge"` on main. `git
-diff-tree --root --no-commit-id -r --numstat <merge-sha>` — exactly the
-command `commit_files()` (runtime/triage.py:167-171) runs, with no `-m`
-or `-c` flag — produced NO output at all for that commit (git only
-diffs a merge commit against its parents when `-m`/`-c`/`--cc` is
-passed; by default a merge commit's diff-tree numstat is empty). So
-`triage.commit_files(path, merge_sha)` returned `[]`, and
-`check_eligibility(...)` on that empty list returned `eligible=True,
-size=0, "eval_paths intact"` for a commit that in fact merged in 500
-new lines. `git merge --no-ff` is completely ordinary workflow, not an
-adversarial trick, and neither the spec, the ADR, R1/R3, nor any of
-FM-1..FM-8 mentions merge commits at all — this is a case the design
-never considered, not one it accepted a residual risk for. Because
-`gate_rule_lane` calls the identical `eligibility_for_commit` ->
-`commit_files` chain, the live re-verification gate the ADR calls "the
-surprise/conflict monitor... deterministic and always-on" is blind to
-this specific and completely ordinary case.
-'''
-evidence = "runtime/triage.py:167-171 (commit_files, no -m/-c); runtime/verify.py:578-629 (gate_rule_lane calls the same eligibility_for_commit); reproduced end-to-end with a real `git merge --no-ff`"
-blocking = true
-
-[[finding]]
-id = "F3"
-attribute = "maintainability"
-severity = "medium"
-principle = "MNT-1"
-probe = '''
-`runtime/verify.py`'s new `_commits_in_range` (:93-103) is a byte-for-
-byte structural clone of the pre-existing `changed()` (:81-91)'s
-three-tier fallback CONDITION (`if since and set(since) != {"0"} and
-self._rev_ok(since): ... elif self._rev_ok("HEAD~1"): ... else: ...`),
-differing only in which git subcommand each branch runs. This is not
-incidental — `_commits_in_range`'s own docstring says so explicitly:
-"The same --since -> HEAD~1..HEAD -> 'everything in HEAD' fallback chain
-as changed()." The code itself asserts these two must always agree, yet
-nothing enforces that agreement except whoever edits both. A plausible,
-ordinary future change (adjust the `--since` validity check, add a
-fourth tier, change what counts as "root commit") edited in one method
-and missed in the other silently splits what I1's `gate_eval_coverage`
-(via `changed()`) considers "this changeset" from what `gate_rule_lane`
-(via `_commits_in_range`) considers it — a correctness split with no
-test that would catch it, since both methods currently agree by
-construction, not by a shared implementation. MNT-1 ("every fact lives
-in one place; duplication is drift waiting") and MNT-8 ("repeated
-conditionals on the same shape are a missing model or dispatcher") both
-apply directly; the fix is a single range-resolution helper
-`changed()` and `_commits_in_range()` both call, not two independently
-maintained copies of the same three-tier policy.
-'''
-evidence = "runtime/verify.py:81-91 (changed) vs :93-103 (_commits_in_range) — near-identical fallback chain, duplicated rather than shared"
-blocking = true
-
-[[finding]]
-id = "F4"
+id = "F6"
 attribute = "reliability_resilience"
 severity = "high"
 probe = '''
-"external dependency slow, intermittent, and unavailable" — any git
-subprocess failure is silently indistinguishable from "zero lines
-changed," and the resulting verdict is eligible, not blocked — the
-unsafe direction, contradicting this exact design's own stated
-asymmetry ("where mechanical certainty is unavailable, RULE defaults to
-never" — spec.md, ADR-0015's own "asymmetry that makes the default
-conservative safe" section).
+"external dependency slow, intermittent, and unavailable" — the exact
+class of probe F4 was rated high/blocking for, reproduced again here one
+layer up, where the reconciliation commit's own message concedes it
+applies but declines to fix it as "out of scope."
 
-Reproduced against the real `runtime/triage.py`: called
-`triage.commit_files(path, "deadbeef"*5)` — a syntactically valid but
-nonexistent SHA — against a real repo. `_git()` (runtime/triage.py:
-143-149) passes `check=False` to `subprocess.run`, so a failing git
-invocation (bad SHA, git missing from PATH via the caught
-`FileNotFoundError`, a permission error, a corrupted object, a shallow
-clone that cannot resolve the ref) returns whatever stdout it produced —
-here, empty — with no exception, no stderr surfaced, no signal
-whatsoever that the lookup failed rather than succeeded with zero
-changes. Feeding that into `check_eligibility` returns
-`eligible=True, size=0, "eval_paths intact"` for a commit whose actual
-diff was never determined at all. Because `gate_rule_lane` (runtime/
-verify.py:578-629) — the one live, blocking enforcement mechanism the
-whole ADR's safety argument rests on ("the live gate mitigates the false
-positive risk by checking the actual commit rather than trusting the
-claim") — calls this exact same chain, a git-level failure at CI time
-(a shallow clone edge case, a transient permission or lock issue) would
-make the safety net itself report a false "all clear" rather than
-failing loudly or blocking conservatively.
+`gate_rule_lane` (runtime/verify.py:600-655) does not call git directly:
+it first asks `Gate._commits_in_range(since)` (:109-124) for the (sha,
+subject) pairs to examine, and ONLY commits in that returned list are
+ever checked against `triage.eligibility_for_commit` at all. `_commits_
+in_range` resolves its revspec via the shared `_resolve_range` (F3's own
+fix) and then calls `self._git(*args)` — `Gate._git` (:63-70), which is
+untouched by this reconciliation: `check=False`, no returncode check,
+and only `FileNotFoundError` is caught. A git failure that is NOT
+"git missing from PATH" — a permission error on `.git/objects`, a lock
+held by a concurrent process, a corrupted object, a disk I/O error, a
+shallow clone that cannot resolve a ref — makes `subprocess.run` return
+normally with a non-zero exit code and empty stdout; `Gate._git` returns
+`[]` with no signal anything failed. `_commits_in_range` then returns an
+empty list, `gate_rule_lane` sees `declared = []`, and takes the
+"nothing to re-verify" branch — silently under the default run, or with
+an explicit, confidently-worded PASS under `--gate rule-lane` directly.
+A commit that in fact declares `FORWARD: RULE` and does NOT qualify is
+never examined at all, not merely mis-scored.
+
+Reproduced end-to-end against the real modules, via the same
+`bin/fde/verify.py` subprocess the test suite's own `support.verify()`
+helper invokes (never a mock):
+
+1. Built a fixture project (`tests.support.make_project`,
+   `rule_lane_max_loc=10`), seeded, then committed 40 added lines with
+   subject `FORWARD: RULE — actually not small`.
+2. `verify(p, "--gate", "rule-lane", "--since", base)` under healthy git
+   — correctly BLOCKS: returncode 1, `"RULE-LANE ... claims RULE but
+   fails 'loc': commit size 40 line(s) ... — run this demand through the
+   normal XS/S/M/L table instead"`.
+3. `os.chmod(project/".git"/"objects", 0o000)` — a real permission
+   failure on the object store, not a mock, not `FileNotFoundError` (git
+   itself is still on PATH and runs; it exits non-zero because it cannot
+   read the objects it needs). Re-ran the IDENTICAL command:
+   `verify(p, "--gate", "rule-lane", "--since", base)` now returns
+   returncode 0 with `"✓ RULE-LANE no commit in range claims RULE —
+   nothing to re-verify"` and `"all gates passed."` — the same
+   genuinely-ineligible commit, now invisible, reported as a clean pass.
+4. Under a true default full-gate run (no `--gate`, no `--since` — the
+   CI shape) with the same broken permissions: the RULE-LANE row is
+   absent from the output ENTIRELY (`"RULE-LANE" in r.stdout` is False)
+   — not even the falsely-reassuring explicit message, total silence.
+   Restoring permissions and re-running the identical default command
+   makes the row reappear and correctly fail: `"✗ RULE-LANE ... fails
+   'loc'"`. Same command, same commit, same range — the only variable is
+   whether `.git/objects` was readable.
+
+This directly falsifies one of this demand's own acceptance-mandated
+review questions ("does `gate_rule_lane` actually block a commit whose
+message claims RULE but whose diff exceeds any one of the four
+criteria?") under a realistic, non-contrived failure — permission
+errors, lock contention, and disk issues on `.git` are exactly the kind
+of "intermittent and unavailable" dependency behavior CI runners
+experience, not a hypothetical. It also directly contradicts ADR-0015's
+own stated asymmetry ("where mechanical certainty is unavailable, RULE
+defaults to never") and the ADR's characterization of this gate as "the
+live re-verification gate... deterministic and always-on, not a
+fallible human noticing something felt off" — under this failure mode it
+is neither deterministic-and-safe nor even honestly silent-by-omission;
+under explicit invocation it actively asserts a false all-clear.
+
+This is the SAME root cause F4 fixed, one call-site removed: `triage._git`
+now distinguishes "git failed" from "git succeeded with nothing to
+report" (raises `GitFailure`); `Gate._git` still does not, and F3's own
+fix (unifying `changed()` and `_commits_in_range()` on one shared
+`_resolve_range`/`_git` path) is precisely what guarantees the pre-
+existing weakness in `changed()` (I1's own file-list determination —
+already present before this demand, not introduced by it) now applies
+identically, structurally, to `gate_rule_lane`'s commit discovery too —
+this demand is what newly made that weakness load-bearing for a safety
+claim it did not previously have to support. The reconciliation commit's
+own message names this exact gap ("Gate._git in verify.py still silently
+degrades to [] on failure, the same class of gap F4 fixed in triage.py,
+one level up") and calls it out of scope; the reproduction above shows
+it is not out of scope for THIS demand's own safety guarantee, whatever
+its relationship to I1 — it is the direct, load-bearing continuation of
+F4's own probe, and F4 was rated blocking for the identical reasoning
+applied to the identical failure mode at the sibling call site.
 '''
-evidence = "runtime/triage.py:143-149 (_git, check=False + silent FileNotFoundError catch); reproduced with a nonexistent SHA against the real module"
+evidence = "runtime/verify.py:63-70 (Gate._git, check=False + only FileNotFoundError caught), :81-96 (_resolve_range), :109-124 (_commits_in_range), :600-655 (gate_rule_lane, only ever examines what _commits_in_range returns); reproduced end-to-end via the real bin/fde/verify.py subprocess against a real git repository with .git/objects permissions removed, not a mock"
 blocking = true
 
 [[finding]]
-id = "F5"
-attribute = "performance_scale"
+id = "F7"
+attribute = "maintainability"
 severity = "low"
+principle = "MNT-10"
 probe = '''
-"volume 10x the development data" — `triage.report()` (runtime/
-triage.py:216-252) and `Gate._commits_in_range`-driven `gate_rule_lane`
-(runtime/verify.py:600-602) each spawn one separate `git log -1
---format=%s <sha>` subprocess PER commit in the examined window/range
-(`commit_subject`, called once per SHA inside a Python-level loop)
-instead of fetching all subjects in the single `git log -N
---format=...` call already used to list the SHAs. At the default
-`--window 50` this is 50 extra process spawns just for subject lines;
-at a larger `--window` (a plausible ask for a longer audit period, per
-spec.md's own "the exact default... leaves the exact default commit
-count to implementation") or a wide `--since` range in CI, this scales
-linearly with commit count purely from fork/exec overhead that a single
-combined `git log --format="%H%x1f%s"` call would avoid entirely. Low
-severity — it is a constant-factor CLI/CI cost, not a correctness issue —
-but it is the same per-commit-subprocess pattern written independently
-in two places (`triage.report` and `Gate.gate_rule_lane`), so the
-inefficiency and the duplication are the same line of code, twice.
+Heuristic pass (I8) — MNT-10: "when how to run or operate the system
+changes, README and runbook update in the same change — docs drift is
+drift." `skills/fde-triage/SKILL.md`'s RULE paragraph (lines 45-46,
+unchanged by this reconciliation — confirmed via `git diff
+b481563..HEAD -- skills/fde-triage/SKILL.md AGENTS.md
+templates/AGENTS.md.template`, which shows zero hunks in any of the
+three) still states: "A commit is RULE-eligible only when ALL four
+hold" and lists exactly the original four criteria (data_class,
+reversibility, loc, eval_paths). `AGENTS.md`/`templates/AGENTS.md.
+template`'s mirrored paragraph says the same. Since b481563, the actual
+mechanism `--check` and `gate_rule_lane` enforce grew three more
+categorical exclusions this same reconciliation commit introduced
+(merge, binary, git_failure) — an agent reading only the doc, exactly
+the audience R5 names ("the practical usage loop for an agent"), would
+believe a tiny binary-file swap or a trivial `--no-ff` merge commit
+might qualify, when the real mechanism has always rejected both since
+this very commit. The gap is caught downstream — `--check`'s own output
+names the real criterion, and `gate_rule_lane` still blocks regardless
+of what an agent believed going in — so this costs an avoidable CI
+failure and a "why did this get blocked, the docs said four things and I
+checked all four" moment, not a safety or correctness gap. Not the same
+finding as round 1's F3 (duplicated CODE) or the spec's own FM-6
+(byte-identity between AGENTS.md and its template, which this
+reconciliation does not touch and remains intact) — this is the
+paragraph's CONTENT falling out of sync with the mechanism it describes,
+the same drift class MNT-10 names, on the one artifact users read to
+decide, before committing, whether their change belongs in this lane.
 '''
-evidence = "runtime/triage.py:227-229 (report's per-sha commit_subject call); runtime/verify.py:600-602 (gate_rule_lane's identical per-sha pattern)"
+evidence = "skills/fde-triage/SKILL.md:45-46; AGENTS.md ~line 93; templates/AGENTS.md.template equivalent — all three unchanged by `git diff b481563..HEAD`, against runtime/triage.py:136-150's three new categorical exclusions added in the same commit"
+blocking = false
+
+[[finding]]
+id = "F8"
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-1"
+probe = '''
+Heuristic pass (I8) — MNT-1: "every fact lives in one place; duplication
+is drift waiting." `runtime/triage.py`'s `_rows()` (:206-221) and
+`_has_binary_row()` (:224-238) each independently define and apply the
+same numstat-row regex, `^(\\d+|-)\\t(\\d+|-)\\t(.+)$`, in their own
+`for line in text.splitlines()` loop over the identical text (both are
+always called together, once each, from `eligibility_for_commit` via
+`_commit_numstat_text`). "How to recognize one numstat row, including
+its binary-marker form" is the same fact, expressed twice; a future
+change to numstat's format (or, more plausibly, a future fix that widens
+what counts as a "binary marker") edited in one function and missed in
+the other would silently split what `commit_files()` reports from what
+`_has_binary_row()` detects, for the same commit, from the same text —
+exactly the drift class F3 was blocking-severity for one commit ago in
+this same demand's own reconciliation, though here the two copies
+currently agree by inspection, not by a shared implementation, same as
+F3's own description of the risk. Low severity, not blocking: the
+duplication is four lines each, in one file, both already covered by the
+shipped binary-fixture tests, and a mismatch would very likely surface
+as an assertion failure in `TestMechanicalUncertaintyDefaultsToNever`
+rather than ship silently — a real but modest gap, not an unguarded one.
+'''
+evidence = "runtime/triage.py:206-221 (_rows) vs :224-238 (_has_binary_row) — same regex, same input text, two independent loops"
 blocking = false
