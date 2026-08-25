@@ -296,7 +296,14 @@ def build_graph(project: Path) -> Graph:
         if wdir:
             intended_node = _node("intended-model", did)
             for letter in ("a", "b"):
-                pfile = wdir / f"perceived-model-{letter}.md"
+                # ADR-0014's "Amendment — 2026-08-25 (FWD-018 F12)":
+                # perceived-model files are TOML, not markdown — see
+                # runtime/walkthrough.py's own module docstring. Node
+                # identity is keyed by demand id and run letter, not by
+                # extension, but the ON-DISK existence check below must
+                # still name the real extension or a real perceived model
+                # never gets a walked_by/confronted_by edge at all.
+                pfile = wdir / f"perceived-model-{letter}.toml"
                 if not pfile.exists():
                     continue
                 pnode = g.add_node("perceived-model", f"{did}#{letter}")
@@ -309,7 +316,7 @@ def build_graph(project: Path) -> Graph:
             if has_divergence:
                 dvnode = g.add_node("divergence", did)
                 for letter in ("a", "b"):
-                    if (wdir / f"perceived-model-{letter}.md").exists():
+                    if (wdir / f"perceived-model-{letter}.toml").exists():
                         g.add_edge(g.add_node("perceived-model", f"{did}#{letter}"),
                                   "confronted_by", dvnode)
 
@@ -447,7 +454,9 @@ def forbidden_orphans(project: Path, g: Graph | None = None) -> list:
     # BEFORE either run) an observable graph failure, not a documentation
     # promise (FM-4, FM-9)
     for did, wdir in sorted(walkthroughs.items()):
-        has_perceived = any((wdir / f"perceived-model-{letter}.md").exists()
+        # ADR-0014's Aug-25 amendment: perceived-model files are TOML,
+        # not markdown (see the matching comment in build_graph above).
+        has_perceived = any((wdir / f"perceived-model-{letter}.toml").exists()
                             for letter in ("a", "b"))
         if not has_perceived:
             continue

@@ -229,14 +229,14 @@ class TestWalkthroughGraph(unittest.TestCase):
     def _perceived(self, did, letter, text="perceived\n"):
         d = Path(self.p) / "walkthroughs" / did
         d.mkdir(parents=True, exist_ok=True)
-        (d / f"perceived-model-{letter}.md").write_text(text)
-        return d / f"perceived-model-{letter}.md"
+        (d / f"perceived-model-{letter}.toml").write_text(text)
+        return d / f"perceived-model-{letter}.toml"
 
     def _divergence(self, did, score=0.2, a=None, b=None):
         d = Path(self.p) / "walkthroughs" / did
         d.mkdir(parents=True, exist_ok=True)
-        a = a or f"walkthroughs/{did}/perceived-model-a.md"
-        b = b or f"walkthroughs/{did}/perceived-model-b.md"
+        a = a or f"walkthroughs/{did}/perceived-model-a.toml"
+        b = b or f"walkthroughs/{did}/perceived-model-b.toml"
         (d / "divergence.toml").write_text(
             f'demand = "{did}"\nscore = {score}\n'
             f'intended_model = "specs/{did}/design/intended-model.md"\n'
@@ -296,7 +296,7 @@ class TestWalkthroughGraph(unittest.TestCase):
         self._perceived("FWD-202", "a")
         self._perceived("FWD-202", "b")
         self._divergence("FWD-202",
-                         b="walkthroughs/FWD-202/perceived-model-MISSING.md")
+                         b="walkthroughs/FWD-202/perceived-model-MISSING.toml")
         r = self.gate()
         self.assertEqual(r.returncode, 1)
         self.assertIn("points at a missing file", r.stdout)
@@ -309,8 +309,8 @@ class TestWalkthroughGraph(unittest.TestCase):
         self._intended("FWD-203")
         self._perceived("FWD-203", "a")
         self._divergence("FWD-203",
-                         a="walkthroughs/FWD-203/perceived-model-a.md",
-                         b="walkthroughs/FWD-203/perceived-model-a.md")
+                         a="walkthroughs/FWD-203/perceived-model-a.toml",
+                         b="walkthroughs/FWD-203/perceived-model-a.toml")
         r = self.gate()
         self.assertEqual(r.returncode, 1)
         self.assertIn("only 1 confronted_by edge", r.stdout)
