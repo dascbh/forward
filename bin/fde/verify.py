@@ -47,6 +47,28 @@ KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
 VENDOR_PATHS = ("node_modules/", ".venv/", "venv/", "vendor/", "dist/", "build/", "__pycache__/")
 
 
+class GitOpFailure(RuntimeError):
+    """A git subprocess genuinely failed (non-zero exit, or git missing
+    from PATH) — kept distinguishable from git succeeding with a
+    legitimately empty result, so a permission error, a lock, a
+    corrupted object, or a disk I/O problem on `.git` can never silently
+    read the same as "nothing found" (reviews/FWD-019 round 2, F6: the
+    same class of gap F4 fixed in triage.py's own `GitFailure`, one call
+    site up, in `Gate._commits_in_range` — the mechanism `gate_rule_lane`'s
+    entire live re-verification safety claim, ADR-0015, depends on).
+
+    Deliberately NOT `triage.GitFailure` reused directly: `Gate._git`'s
+    existing, permissive "return [] on any failure" contract is correct
+    and unchanged for its other callers (`changed()` for I1,
+    `gate_adversarial`'s I3 history scan, `gate_observability`'s file
+    listing — for each of those, git producing nothing IS the right
+    reading of a failure too, or the pre-existing behavior is out of this
+    finding's scope to touch). Only `_commits_in_range` — the one path
+    where an empty `[]` is unsafe because it makes `gate_rule_lane` see
+    "no commit claims RULE" and silently skip re-verification entirely —
+    needs the strict distinction, via `Gate._git_strict` below."""
+
+
 class Gate:
     def __init__(self, project: Path,
                  behavior_paths: tuple[str, ...] = DEFAULT_BEHAVIOR_PATHS,
@@ -68,6 +90,26 @@ class Gate:
             return [l for l in out.stdout.splitlines() if l.strip()]
         except FileNotFoundError:
             return []
+
+    def _git_strict(self, *args: str) -> list[str]:
+        """Same subprocess call as `_git`, except a genuine git failure
+        (non-zero exit, or git missing from PATH) raises `GitOpFailure`
+        instead of collapsing into the same `[]` a query that legitimately
+        found nothing produces. Used only by `_commits_in_range` (F6) —
+        every other caller keeps using the plain `_git` above; see
+        `GitOpFailure`'s own docstring for why that split is deliberate,
+        not an oversight."""
+        try:
+            out = subprocess.run(
+                ["git", *args], cwd=self.project, capture_output=True, text=True, check=False
+            )
+        except FileNotFoundError as e:
+            raise GitOpFailure(f"git not found on PATH: {e}") from e
+        if out.returncode != 0:
+            raise GitOpFailure(
+                f"git {' '.join(args)} failed (exit {out.returncode}): "
+                f"{(out.stderr or '').strip() or '(no stderr on the failing call)'}")
+        return [l for l in out.stdout.splitlines() if l.strip()]
 
     def _rev_ok(self, rev: str) -> bool:
         try:
@@ -113,12 +155,21 @@ class Gate:
         never a bundled push's combined change (FM-8, R3). ONE git log
         invocation combining the SHA list and each commit's subject line
         (reviews/FWD-019 round 1 F5) — gate_rule_lane no longer spawns a
-        subprocess per commit just to read its subject."""
+        subprocess per commit just to read its subject.
+
+        Uses `_git_strict`, not the plain `_git` (F6): this is the one
+        call `gate_rule_lane`'s entire commit discovery depends on — a
+        git failure here (a permission error on .git/objects, a lock, a
+        corrupted object) must never collapse into the same empty list
+        "no commits in range" produces, since that would make
+        gate_rule_lane silently skip every commit it should have
+        re-verified. Raises `GitOpFailure`; the one caller
+        (`gate_rule_lane`) converts it into a blocking verdict."""
         rng = self._resolve_range(since)
         args = ("log", "--format=%H%x1f%s", rng) if rng is not None \
             else ("log", "--format=%H%x1f%s", "HEAD")
         pairs = []
-        for line in self._git(*args):
+        for line in self._git_strict(*args):
             sha, _, subj = line.partition("\x1f")
             pairs.append((sha, subj))
         return pairs
@@ -616,6 +667,15 @@ class Gate:
         converts each into an ineligible verdict once, centrally, so this
         gate needs no special-casing of its own to inherit the fix.
 
+        A git failure one level up — while discovering WHICH commits are
+        even in range to check, before any individual commit's diff is
+        read — is likewise blocking, never a silent "nothing to
+        re-verify" (reviews/FWD-019 round 2, F6): `_commits_in_range`
+        raises `GitOpFailure` rather than returning `[]` on a genuine git
+        failure, and that failure is mechanical uncertainty exactly as
+        ADR-0015 defines it — RULE defaults to never, the same posture
+        F4 already established one call site down.
+
         Never reads, imports, or branches on gate_eval_coverage — I1 is
         completely unmodified by this gate's existence (R6/FM-3)."""
         try:
@@ -624,7 +684,18 @@ class Gate:
             self.add("RULE-LANE", False, f"rule-lane could not be checked: {e}")
             return
 
-        declared = [(sha, subj) for sha, subj in self._commits_in_range(since)
+        try:
+            in_range = self._commits_in_range(since)
+        except GitOpFailure as e:
+            self.add("RULE-LANE", False,
+                     f"rule-lane could not determine which commits are in "
+                     f"range to re-verify: {e} — mechanical certainty is "
+                     f"unavailable, so RULE defaults to never (ADR-0015); "
+                     f"this blocks rather than silently skipping "
+                     f"re-verification")
+            return
+
+        declared = [(sha, subj) for sha, subj in in_range
                    if triage.declares_rule(subj)]
         if not declared:
             if explicit:

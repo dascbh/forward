@@ -758,5 +758,110 @@ class TestRuleLaneGateMergeAndGitFailure(unittest.TestCase):
         self.assertIn("git_failure", r.stdout)
 
 
+def _fake_git_that_fails_log(bindir: Path) -> Path:
+    """A `git` shim that fails only on `git log` invocations — the exact
+    call `Gate._commits_in_range` makes to discover WHICH commits are
+    even in range for `gate_rule_lane` to examine (reviews/FWD-019 round
+    2, F6) — and delegates everything else (`rev-parse`, `diff-tree`,
+    `diff`) to the real git. Same fake-git-shim technique
+    `_fake_git_that_fails_diff_tree` above already uses for F4's sibling
+    repro, rather than corrupting `.git/objects` directly (the review's
+    own `chmod 000` repro; noted there as environment-fragile — some git
+    builds/platforms tolerate a corrupted or unreadable object by reading
+    through a pack or delta base, so a shim on the exact subcommand is
+    the more reliable mechanism for a test suite)."""
+    real_git = shutil.which("git")
+    assert real_git, "git must be on PATH to build the fake-git shim"
+    shim = bindir / "git"
+    shim.write_text(
+        "#!/bin/sh\n"
+        "case \" $* \" in\n"
+        "  *' log '*)\n"
+        "    echo 'fake git: simulated log failure (F6 repro)' >&2\n"
+        "    exit 128\n"
+        "    ;;\n"
+        "esac\n"
+        f"exec \"{real_git}\" \"$@\"\n"
+    )
+    shim.chmod(shim.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return shim
+
+
+class TestRuleLaneGateGitFailureDuringRangeDiscovery(unittest.TestCase):
+    """reviews/FWD-019 round 2, F6: a git failure one level up from where
+    F4 already fixed it — not while reading ONE commit's own diff (F4;
+    `triage._git` -> `GitFailure`, caught in `eligibility_for_commit`),
+    but while `Gate._commits_in_range` discovers WHICH commits are even
+    in the range `gate_rule_lane` is about to examine. Before this fix,
+    `Gate._git` swallowed any non-FileNotFoundError git failure (a
+    permission error, a lock, a corrupted object, a disk I/O problem)
+    into the same `[]` a genuinely empty range produces, so
+    `gate_rule_lane` read a real git failure as "no commit in range
+    claims RULE" and silently passed — even for a commit that in fact
+    declares RULE and exceeds the loc threshold. The exact scenario the
+    review reproduced end-to-end with `chmod 000` on `.git/objects`;
+    reproduced here with the shim above for reliability across
+    environments/CI."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name, rule_lane_max_loc=10)
+        run_git(self.p, "add", "-A")
+        run_git(self.p, "commit", "-q", "-m", "seed")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _commit_an_over_threshold_rule_claim(self) -> str:
+        base = git_out(self.p, "rev-parse", "HEAD")
+        big = self.p / "src" / "big.py"
+        big.parent.mkdir(parents=True, exist_ok=True)
+        big.write_text("\n".join(f"x{i} = 1" for i in range(40)) + "\n")
+        commit_all(self.p, "FORWARD: RULE — actually not small")
+        return base
+
+    def test_healthy_git_blocks_the_over_threshold_claim(self):
+        # control: the same commit, healthy git — establishes this is a
+        # real positive before trusting the git-failure variant below
+        base = self._commit_an_over_threshold_rule_claim()
+        r = verify(self.p, "--gate", "rule-lane", "--since", base)
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("'loc'", r.stdout)
+
+    def test_gate_blocks_rather_than_silently_passes_when_git_fails_listing_the_range(self):
+        base = self._commit_an_over_threshold_rule_claim()
+
+        with tempfile.TemporaryDirectory() as shimdir:
+            bindir = Path(shimdir)
+            _fake_git_that_fails_log(bindir)
+            env = {"PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}"}
+            r = verify(self.p, "--gate", "rule-lane", "--since", base, env=env)
+
+        # the exact failure mode this finding names: never "no commit in
+        # range claims RULE", never a clean pass — a blocking, clearly
+        # named git failure instead
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("RULE-LANE", r.stdout)
+        self.assertIn("could not determine which commits are in", r.stdout)
+        self.assertIn("mechanical certainty is unavailable", r.stdout)
+        self.assertNotIn("nothing to re-verify", r.stdout)
+
+    def test_default_full_run_still_reports_and_blocks_on_the_same_git_failure(self):
+        # the CI shape: no --gate, no --since — the RULE-LANE row must
+        # not go missing from the report entirely (the review's step 4)
+        self._commit_an_over_threshold_rule_claim()
+
+        with tempfile.TemporaryDirectory() as shimdir:
+            bindir = Path(shimdir)
+            _fake_git_that_fails_log(bindir)
+            env = {"PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}"}
+            r = verify(self.p, env=env)
+
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("RULE-LANE", r.stdout)
+        self.assertIn("could not determine which commits are in", r.stdout)
+        self.assertNotIn("nothing to re-verify", r.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

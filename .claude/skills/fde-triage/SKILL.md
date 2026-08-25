@@ -48,9 +48,18 @@ post-hoc, against the actual committed diff — never claimed a priori:
 reversibility` is exactly `reversible`; the commit's own `added +
 deleted` is strictly under the declared `[triage].rule_lane_max_loc`
 (default `10`); no file under `[gate].eval_paths` was deleted or shrunk
-in it. **I1's `eval-coverage` gate is completely unchanged and still
-fully applies** — RULE is not an exemption from it, it is the
-recognition that when empirical verification already covers everything
+in it. Three further conditions make a commit categorically ineligible
+regardless of loc, because its real diff cannot be mechanically known at
+all — never merely counted as zero (reviews/FWD-019 round 1, F1/F2/F4):
+a merge commit (2+ parents — its diff depends on a parent choice this
+check refuses to make), a commit touching a binary file (git reports no
+line count for it), and any git subprocess failure while determining
+either (a bad SHA, git missing, a permission or object error) — RULE
+defaults to never whenever mechanical certainty is unavailable, the same
+posture ADR-0015 states for the gate itself. **I1's `eval-coverage`
+gate is completely unchanged and still fully applies** — RULE is not
+an exemption from it, it is the recognition that when empirical
+verification already covers everything
 there is to verify for a change this small, adversarial and heuristic
 review on top of it verify nothing further. That is the kernel's own
 declared justification: `spec/dimensions/quality-attributes.toml`

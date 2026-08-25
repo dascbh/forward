@@ -79,7 +79,11 @@ writing code on request; start by sizing. Pick a short demand id first
    `public` or `internal`; `[triage].reversibility` is `reversible`; the
    commit's own added+deleted is under the declared `[triage].
    rule_lane_max_loc` (default `10`); no `[gate].eval_paths` file was
-   deleted or shrunk. I1's `eval-coverage` gate is completely unchanged
+   deleted or shrunk. A merge commit, a commit touching a binary file, or
+   any git failure while checking either is categorically ineligible too
+   — none of those can be mechanically known as "zero," so RULE defaults
+   to never rather than guess.
+   I1's `eval-coverage` gate is completely unchanged
    and fully applies — RULE recognizes when it already covers everything
    there is to verify (`spec/dimensions/quality-attributes.toml`'s
    `verified_by` primacy: empirical, adversarial, heuristic), it does

@@ -203,6 +203,24 @@ def _git(project: Path, *args: str) -> str:
     return r.stdout
 
 
+_NUMSTAT_ROW_RE = re.compile(r"^(\d+|-)\t(\d+|-)\t(.+)$")
+
+
+def _iter_numstat_rows(text: str):
+    """The one place a numstat line is recognized (reviews/FWD-019 round
+    2, F8 — `_rows` and `_has_binary_row` used to each define and apply
+    this same regex independently, a drift risk MNT-1 names). Yields the
+    raw `(added, deleted, path)` regex groups for every matching line,
+    untouched — `added`/`deleted` are still the literal numstat token
+    ('-' for a binary file's marker, or a decimal string otherwise), not
+    yet converted to int or filtered by binary-ness; that interpretation
+    stays each caller's own, below."""
+    for line in text.splitlines():
+        m = _NUMSTAT_ROW_RE.match(line)
+        if m:
+            yield m.group(1), m.group(2), m.group(3)
+
+
 def _rows(text: str) -> list[tuple[str, int, int]]:
     """Per-file (path, added, deleted) from one numstat text — binary
     rows ('-', '-') skipped, exactly as erosion.parse_numstat skips them.
@@ -212,12 +230,10 @@ def _rows(text: str) -> list[tuple[str, int, int]]:
     `_has_binary_row` against the same raw text (F1) — that signal must
     not vanish along with the row itself."""
     out = []
-    for line in text.splitlines():
-        m = re.match(r"^(\d+|-)\t(\d+|-)\t(.+)$", line)
-        if not m or m.group(1) == "-" or m.group(2) == "-":
+    for added, deleted, path in _iter_numstat_rows(text):
+        if added == "-" or deleted == "-":
             continue
-        out.append((erosion.numstat_path(m.group(3)),
-                    int(m.group(1)), int(m.group(2))))
+        out.append((erosion.numstat_path(path), int(added), int(deleted)))
     return out
 
 
@@ -231,11 +247,8 @@ def _has_binary_row(text: str) -> bool:
     anywhere else in the commit, makes R1(c)'s loc sum and R1(d)'s
     eval_paths-shrink check both mechanically UNCOMPUTABLE for this
     commit, not zero."""
-    for line in text.splitlines():
-        m = re.match(r"^(\d+|-)\t(\d+|-)\t(.+)$", line)
-        if m and (m.group(1) == "-" or m.group(2) == "-"):
-            return True
-    return False
+    return any(added == "-" or deleted == "-"
+              for added, deleted, _ in _iter_numstat_rows(text))
 
 
 def _commit_numstat_text(project: Path, sha: str) -> str:
