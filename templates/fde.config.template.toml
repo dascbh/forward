@@ -7,13 +7,17 @@
 
 [project]
 name = "{{PROJECT_NAME}}"
-kernel_version = "0.14.0"
+kernel_version = "0.15.0"
 
 [triage]
 data_class = "{{DATA_CLASS}}"           # public | internal | personal | financial | health
 reversibility = "{{REVERSIBILITY}}"     # reversible | difficult | irreversible
 user_facing = {{USER_FACING}}
 has_agent_loop = {{HAS_AGENT_LOOP}}
+# RULE-lane ceiling (ADR-0015): a commit's own added+deleted must stay
+# strictly under this to be eligible, on top of data_class/reversibility
+# above already clearing the project-level ceiling.
+rule_lane_max_loc = {{RULE_LANE_MAX_LOC}}
 
 [stack]
 languages = {{LANGUAGES}}

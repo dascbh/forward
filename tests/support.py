@@ -15,8 +15,8 @@ kernel_version = "{kernel_version}"
 
 [triage]
 data_class = "{data_class}"
-reversibility = "reversible"
-
+reversibility = "{reversibility}"
+{rule_lane_max_loc_line}
 [stack]
 test_command = "true"
 eval_command = "true"
@@ -44,14 +44,21 @@ qa_test_strategy = 1
 
 def make_project(dir, data_class="internal", behavior='["src/"]',
                  evals='["evals/", "tests/"]', security=14, cost=7,
-                 scrum=False) -> Path:
+                 scrum=False, reversibility="reversible",
+                 rule_lane_max_loc=None) -> Path:
     p = Path(dir)
     import tomllib
     with open(ROOT / "spec" / "invariants.toml", "rb") as fh:
         kv = tomllib.load(fh)["meta"]["kernel_version"]
+    # rule_lane_max_loc=None omits the key entirely — the fixture then
+    # exercises triage.py's own documented default (FWD-019 R7 item 7),
+    # rather than a fixture-hardcoded stand-in for it.
+    rlm_line = (f"rule_lane_max_loc = {rule_lane_max_loc}"
+               if rule_lane_max_loc is not None else "")
     body = BASE_CONFIG.format(
         data_class=data_class, behavior=behavior, evals=evals,
-        security=security, cost=cost, kernel_version=kv)
+        security=security, cost=cost, kernel_version=kv,
+        reversibility=reversibility, rule_lane_max_loc_line=rlm_line)
     if scrum:
         body += "\n[scrum]\nenabled = true\n"
     (p / "fde.config.toml").write_text(body, encoding="utf-8")

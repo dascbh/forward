@@ -40,7 +40,7 @@ EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "finding-discipline", "promotion-criteria", "observability",
                "portability", "artifact-handoff", "scrum", "traceability",
-               "erosion", "divergence", "survey", "walkthrough")
+               "erosion", "divergence", "survey", "walkthrough", "rule-lane")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -89,6 +89,18 @@ class Gate:
         if self._rev_ok("HEAD~1"):
             return self._git("diff", "--name-only", "HEAD~1..HEAD")
         return self._git("diff", "--name-only", EMPTY_TREE, "HEAD")
+
+    def _commits_in_range(self, since: str | None) -> list[str]:
+        """The same --since -> HEAD~1..HEAD -> "everything in HEAD"
+        fallback chain as changed(), but a per-commit SHA list rather than
+        a range's aggregated diff — rule-lane evaluates each claimed
+        commit's own diff in isolation, never a bundled push's combined
+        change (FM-8, R3)."""
+        if since and set(since) != {"0"} and self._rev_ok(since):
+            return self._git("log", "--format=%H", f"{since}..HEAD")
+        if self._rev_ok("HEAD~1"):
+            return self._git("log", "--format=%H", "HEAD~1..HEAD")
+        return self._git("log", "--format=%H", "HEAD")
 
     # -- I1: eval precedes merge ------------------------------------------
     def gate_eval_coverage(self, staged: bool, since: str | None = None,
@@ -563,6 +575,59 @@ class Gate:
         self.add("WALKTHROUGH", not breaches,
                  walkthrough.verdict(breaches[:3], unmeasured))
 
+    # -- rule-lane: RULE's own live re-verification (ADR-0015) ------------
+    def gate_rule_lane(self, since: str | None = None,
+                       explicit: bool = False) -> None:
+        """A commit whose first message line self-declares `FORWARD: RULE`
+        is re-checked against what it ACTUALLY committed — never trusted
+        on the claim alone. Silent when no commit in the examined range
+        declares RULE (the CI-tier default posture, matching
+        gate_erosion/gate_divergence); an explicit pass only when invoked
+        directly (`--gate rule-lane`). Blocking when a claimed commit does
+        not actually qualify, naming the commit and the failed criterion
+        (FM-2). Evaluates each commit in the range on its OWN diff, never
+        the range's aggregate, so a bundled sibling commit can neither
+        hide nor manufacture a false block either direction (FM-8, R3).
+
+        Never reads, imports, or branches on gate_eval_coverage — I1 is
+        completely unmodified by this gate's existence (R6/FM-3)."""
+        try:
+            import triage
+        except Exception as e:
+            self.add("RULE-LANE", False, f"rule-lane could not be checked: {e}")
+            return
+
+        declared = [(sha, subj) for sha in self._commits_in_range(since)
+                   for subj in [triage.commit_subject(self.project, sha)]
+                   if triage.declares_rule(subj)]
+        if not declared:
+            if explicit:
+                self.add("RULE-LANE", True,
+                         "no commit in range claims RULE — nothing to "
+                         "re-verify")
+            return
+
+        try:
+            cfg = Config.load(self.project)
+        except Exception as e:
+            self.add("RULE-LANE", False,
+                     f"rule-lane could not load fde.config.toml: {e}")
+            return
+
+        bad = []
+        for sha, subject in declared:
+            elig = triage.eligibility_for_commit(self.project, sha, cfg=cfg)
+            if not elig.eligible:
+                bad.append(f"{sha[:7]} claims RULE but fails "
+                          f"'{elig.criterion}': {elig.detail} — run this "
+                          f"demand through the normal XS/S/M/L table instead")
+        if bad:
+            self.add("RULE-LANE", False, "; ".join(bad[:3]))
+        else:
+            self.add("RULE-LANE", True,
+                     f"{len(declared)} commit(s) claim RULE, all "
+                     f"re-verified against their own actual diff")
+
     # -- survey: the brownfield map is complete, labeled and anchored -----
     def gate_survey(self, explicit: bool = False) -> None:
         try:
@@ -706,6 +771,8 @@ def main() -> int:
             g.gate_survey(explicit=(only == "survey"))
         if want("walkthrough"):
             g.gate_walkthrough(explicit=(only == "walkthrough"))
+        if want("rule-lane"):
+            g.gate_rule_lane(since=args.since, explicit=(only == "rule-lane"))
 
     if not g.results:
         print("\033[31m✗\033[0m no gate ran — check the flags", file=sys.stderr)

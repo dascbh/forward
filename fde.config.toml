@@ -9,13 +9,19 @@
 
 [project]
 name = "forward"
-kernel_version = "0.14.0"
+kernel_version = "0.15.0"
 
 [triage]
 data_class = "public"             # open Apache-2.0 repository, no third-party data
 reversibility = "reversible"      # git revert; nothing deploys to production
 user_facing = false
 has_agent_loop = false
+# RULE-lane ceiling (ADR-0015): a commit's own added+deleted must stay
+# strictly under this to be eligible, on top of the two axes above already
+# clearing the project-level ceiling. Exhibit A, same posture as [erosion]
+# below — this repo declares its own value rather than relying on the
+# runtime default alone.
+rule_lane_max_loc = 10
 
 [stack]
 languages = ["python"]

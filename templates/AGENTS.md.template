@@ -67,6 +67,26 @@ writing code on request; start by sizing. Pick a short demand id first
    is hard to undo — migration, deletion, external side effect —
    with `[triage].reversibility` setting the posture. Unsure on either →
    true; torn between two sizes → take the larger.
+
+   **RULE, checked mechanically, not estimated.** Categorically distinct
+   from XS/S/M/L below, never a smaller XS: XS still runs full judgment
+   in reduced form; RULE runs none (*Noise*'s rule-vs-standard
+   distinction — a high-volume, low-stakes decision becomes a
+   deterministic rule with zero judgment; deliberate, multi-perspective
+   judgment stays reserved for what is genuinely risky or novel). A
+   commit is RULE-eligible only when, checked post-hoc against what was
+   actually committed — never claimed a priori: `[triage].data_class` is
+   `public` or `internal`; `[triage].reversibility` is `reversible`; the
+   commit's own added+deleted is under the declared `[triage].
+   rule_lane_max_loc` (default `10`); no `[gate].eval_paths` file was
+   deleted or shrunk. I1's `eval-coverage` gate is completely unchanged
+   and fully applies — RULE recognizes when it already covers everything
+   there is to verify (`spec/dimensions/quality-attributes.toml`'s
+   `verified_by` primacy: empirical, adversarial, heuristic), it does
+   not exempt anything from it. Self-declare as the commit's first
+   message line (`FORWARD: RULE — <one-line reason>`); the `rule-lane`
+   gate re-verifies every claim against the real diff, every time.
+
    score ≤ 1 → **XS**: implementation, adversarial, 1 round ·
    2–3 → **S**: + spec · 4–6 → **M**: + promotion, 2 rounds, ADR ·
    ≥ 7 → **L**: all six roles, 3 rounds, ADR.
