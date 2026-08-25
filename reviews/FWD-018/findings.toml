@@ -1,473 +1,339 @@
-# Adversarial review — FWD-018 first-contact walkthrough. Round 1 of a
-# FRESH review cycle against b3b1cba ("implement structured TOML output,
-# per ADR-0014 amendment"), the structural rewrite that replaced the
-# walkthrough-evaluator's free-markdown-plus-heuristic-parser output
-# contract (F2/F3/F8/F11/F12 across four prior rounds) with structured
-# TOML validated by tomllib.load() + schema checks. Per explicit
-# direction for this round: F1-F12 all concerned the now-deleted
-# heuristic parser and its surrounding claims and are superseded by this
-# rewrite — not re-litigated here. This file reviews ONLY the new
-# TOML-based implementation and its integration with the rest of the
-# demand. Reviewer received artifact + spec only (I2). Findings only; no
-# fixes (I3). Numbering continues from F12 (F13-F16 below) since this is
-# the same demand's finding sequence, not a new one.
+# Adversarial review — FWD-018 first-contact walkthrough. Round 2 of 2
+# (the fresh cycle against the structured-TOML rewrite, distinct from
+# the earlier heuristic-parser cycle F1-F12 superseded at c039a95).
+# Round 1 (commit b3b1cba, reviewed at c039a95) found F13 (critical,
+# blocking), F14 (high, blocking), F15 (medium), F16 (medium). This
+# round reviews the reconciliation commit b1519e1 ("F13-F16 fixed")
+# against the same spec + ADR (docs/adr/0014-first-contact-walkthrough.md,
+# full amendment history read). Reviewer received artifact + spec only
+# (I2). Findings only; no fixes (I3). F13-F16 are NOT restated as
+# [[finding]] entries below, per this file's own established convention
+# (see `probed` for their disposition) — numbering for this round's new
+# findings continues from F17.
 
 [meta]
 demand_id = "FWD-018"
 context_policy = "artifact_only"
 isolation_mode = "worktree"
 rounds_planned = 2
-rounds_run = 1
-commit = "b3b1cba30a8fe8b91d1b4f9b7da6adec614c175e"
-agent_transcript = "agent-a2feb9200d11159f2"
+rounds_run = 2
+commit = "b1519e197fb816017b00097eb64799eda2908a23"
+agent_transcript = "agent-aa8a5b6239fba2ac0"
 probed = '''
 Baseline: worktree confirmed at the target commit (`git log -1` ==
-b3b1cba30a8fe8b91d1b4f9b7da6adec614c175e, matches the task). `python3 -m
-unittest discover -s tests` — 287 tests, OK (46 in test_walkthrough.py
-alone, all passing). `python3 bin/fde/verify.py` — all 17 gates green
-(CFG, CFG-SEC, I1, I2, I3, I8, I4, I5, I6, I7, SCRUM, SCRUM-GOAL,
-SCRUM-RETRO, TRACE, EROSION, DIVERGE, SURVEY). Read ADR-0014 in full,
-including both prior amendments (2026-08-22 F4, 2026-08-25 F12) and
-`reviews/FWD-018/findings.toml`'s git history for context on what
-changed and why, per the task's own instruction — not re-verifying
-F1-F12's own claims, per the same instruction.
+b1519e197fb816017b00097eb64799eda2908a23, matches the task). `python3 -m
+unittest discover -s tests` — 297 tests (was 287 at b3b1cba, +10 in
+tests/test_walkthrough.py: 203 lines added, ZERO removed — MNT-7
+respected, no pre-existing assertion was weakened to accommodate the
+refactor). `python3 bin/fde/verify.py` — all 17 gates green (CFG,
+CFG-SEC, I1, I2, I3, I8, I4, I5, I6, I7, SCRUM, SCRUM-GOAL, SCRUM-RETRO,
+TRACE, EROSION, DIVERGE, SURVEY).
 
-FOUR SPECIFIC ITEMS the task asked to verify independently rather than
-trust the commit's self-report:
+=== F13-F16 disposition — each independently re-verified, not trusted
+from the commit message ===
 
-(1) Schema validation edge cases — empty arrays vs missing keys: tested
-directly (`walkthrough.parse_perceived_model`) and matches
-`tests/test_walkthrough.py`'s own coverage — a missing key raises
-`PerceivedModelError` naming the field, an empty array parses cleanly to
-an empty set/list. Wrong types nested inside array-of-table entries:
-tested directly with a non-string `action` value inside an
-`action_consequences` table (`{ action = ["buy","product"], consequence
-= "ships" }`) — correctly rejected: "action_consequences[0].action must
-be a string, got list". Extra/unexpected keys: tested directly, NOT
-handled — see F14 below, the one item of the four that surfaced a real
-gap.
+F13 (critical — stale producing-side .md filenames): repo-wide sweep
+(`grep -rn "perceived-model" .`) confirms all four previously-cited live
+sites (`spec/roles.toml:51-52`, `.fde/spec/roles.toml:51-52`,
+`agents/fde-architecture.md:21-22`, `.claude/agents/fde-architecture.md:
+21-22`) now say `.toml`. The only remaining `.md` references are inside
+`docs/adr/0014-...md` itself (the ADR's own pre-amendment body, which
+this repo's own established convention — cited by F13's own text last
+round — holds is not rewritten by its amendments) and
+`specs/FWD-018.../spec.md:305` / `acceptance.md:68` (explicitly, and
+correctly, excluded from F13 by round 1's own reasoning: a declared-once
+historical record, not a living document expected to track the
+amendment — re-confirmed here, not re-litigated). HOLDS FIXED.
 
-(2) `runtime/graph.py`'s three-place `.md` -> `.toml` fix: each of the
-three sites (`build_graph`'s per-run existence check :306, the
-`confronted_by` edge-building re-check :319, `forbidden_orphans`'s check
-#6 :459) is individually correct and covered by `tests/test_graph.py`'s
-`TestWalkthroughEvidence` class, itself updated to write `.toml`
-fixtures. But "the fix" as a whole is INCOMPLETE — see F13, the
-strongest finding of this round: the file that actually tells the
-`architecture` role what to name the files it writes still says `.md`,
-in four places graph.py's own fix never touched.
+F14 (high — unexpected keys silently dropped): reproduced the original
+gap is closed and stress-tested well past the original repro. A top-level
+extra key, a nested extra key inside one `action_consequences` table, a
+document with an extra key at BOTH scopes at once, extra keys with no
+`action`/`consequence` present at all, and the original two-entry
+`[[action_consequences]]` scoping-trap repro (now recreated as its own
+committed regression test, `test_the_array_of_tables_scoping_trap_names_
+every_absorbed_field_and_the_table`) — all correctly rejected, and the
+message now names EVERY error at once (missing fields, wrong-type
+fields, AND unexpected fields, root and nested), not just the first.
+Manually verified with eight constructed documents beyond the shipped
+test suite (see F17-F19 below for two gaps this same stress-testing
+surfaced in the fix itself). HOLDS FIXED for its own stated scope.
 
-(3) `agents/fde-walkthrough-evaluator.md`'s worked TOML example
-(inline-table-array form for `action_consequences`, to sidestep the
-array-of-tables scoping trap ADR-0014's amendment names): the example
-itself IS valid, unambiguous TOML — verified with `tomllib.loads()`
-directly and via `parse_perceived_model()`, both succeed and produce the
-expected structure. But "sidesteps it... regardless of field order" (the
-commit message's own claim) is true only of the inline-table-array FORM
-once used — nothing enforces that the role actually uses that form
-instead of the more idiomatically-suggested `[[action_consequences]]`
-section syntax the field's own description ("one table per primary
-action") invites. Reproduced the exact trap the ADR names, through the
-CLI's own `--compute` entry point, not just the bare function — see F14.
+F15 (medium — CLI didn't name the failing file): reproduced both
+directions (`a.toml` malformed / `b.toml` malformed) through the actual
+`--compute` subprocess entry point — each now prints the specific
+failing path in its own stderr line, confirmed against
+`TestComputeCLINamesTheFailingFile`'s two tests, which pass. HOLDS
+FIXED.
 
-(4) `compute_divergence`/`slot_distance` unaffected by the schema change:
-confirmed by diffing the OLD (pre-b3b1cba) `parse_perceived_model`
-against the new one — both return `{"primary_actions": set[str],
-"action_consequences": set[str], "unclear_points": set[str], ...}`, the
-identical shape, for the three scored slots (`git show b3b1cba~1:
-runtime/walkthrough.py`, its own docstring, matches exactly). No finding
-here — this claim holds.
+F16 (medium — decorative `_REQUIRED_FIELDS`): reproduced the exact
+"prove it's consulted" test the finding used originally —
+`walkthrough._REQUIRED_FIELDS.pop("observed_text")` at runtime now
+measurably changes parse behavior (a previously-rejected document
+missing `observed_text` now parses, falling back to its documented empty
+default) and restoring the key restores rejection. `_validate_table` is
+generic over whatever schema dict it is given, called with
+`_REQUIRED_FIELDS` at the document root and `_ACTION_CONSEQUENCE_FIELDS`
+per table entry — genuinely one mechanism, not two hand-written
+sequences dressed as one. HOLDS FIXED for validation. But see F18: the
+fix's own governing comment overclaims what "the single line to edit"
+actually covers, and the gap is a silent one, not a loud one.
 
-=== functional_correctness (weight 30) — attacked hardest ===
-See F13 (critical, blocking) and F14 (high, blocking) below. Also
-probed and cleared: `--compute`'s missing-file behavior (an unhandled
-`FileNotFoundError` traceback) — reproduced, but confirmed via `git show
-b3b1cba~1` to be IDENTICAL pre-existing behavior, not introduced or
-changed by this commit (the old code had the same unguarded
-`a_path.read_text()` call with no try/except at all around it); out of
-this round's scope per the task's own framing and not filed. The
-`ambiguous` bucket's removal was checked for dangling references across
-`runtime/walkthrough.py`, `runtime/graph.py`,
-`agents/fde-walkthrough-evaluator.md`, `skills/fde-walkthrough/
-SKILL.md`, and `tests/test_walkthrough.py` (`grep -rn ambiguous`) — clean,
-no leftover reference to the deleted mechanism.
+=== new probing, past the four re-verifications above ===
 
-=== maintainability (weight 22) ===
-See F16 (medium, non-blocking) below. `skills/fde-walkthrough/SKILL.md`
-and both `agents/fde-walkthrough-evaluator.md` copies were checked for
-the ADR's own "Downstream, scoped but not performed here" checklist
-(filenames .md -> .toml, "When a heading resolves ambiguously" section
-removed, "Handoff to review"'s ambiguous-block case removed) — all three
-done correctly. `specs/FWD-018-first-contact-walkthrough/spec.md` and
-`acceptance.md` still name `perceived-model-a.md`/`perceived-model-b.md`
-(R8's original text) — NOT filed as a finding: per this repo's own
-established convention (ADR §3 is explicitly not rewritten by its own
-amendments, "not by rewriting them, but by replacing the mechanism they
-describe"), and per this round's own task framing naming the Aug-25
-amendment as "the authoritative spec for what b3b1cba implements," the
-original spec.md/acceptance.md declaration is a frozen point-in-time
-record superseded by the ADR amendment, not a living document expected
-to track it. `spec/roles.toml` and `agents/fde-architecture.md` are a
-different kind of artifact entirely — live role configuration, not a
-declared-once historical record — which is exactly why their identical
-`.md` text is F13, not folded in here.
-
-=== reliability_resilience / usability_accessibility / observability /
-security_privacy / performance_scale / operational_cost ===
-Observability: see F15 (medium, non-blocking) below. Reliability: the
-`--compute` path's two-file read is atomic with respect to
-`PerceivedModelError` (both parses happen before any write; a failure on
-either leaves no partial `divergence.toml`) — no partial-failure gap in
-the new code. Usability: this repository has no live UI target to run a
-walkthrough against (unchanged honest limit, named since round 1); the
-new schema's error messages are the closest thing to a "user" surface
-this commit touches, covered by F15. Security: `observed_text`'s
-injection-quarantine field is structurally unchanged in purpose and
-still never reaches `compute_divergence`
-(`test_observed_text_never_moves_the_divergence_score` passes); no new
-`eval`/shell/SQL sink was introduced — `tomllib.loads()` is the only new
-parsing surface and it is stdlib, not executing anything from the input.
-Performance/cost: no new loop, no new I/O beyond the two file reads
-`--compute` already had; `tomllib` parsing of a short LLM-authored
-document is O(n) with no pathological case at this scale.
+Went looking specifically for what the reconciliation itself might have
+changed beyond the intended fix, per this round's task framing. Eight
+constructed fixtures beyond the shipped suite (missing+extra at once,
+root wrong-type only, mixed valid/invalid `action_consequences` entries,
+key order variation, an empty document, a table where a scalar field was
+declared, an `action_consequences` entry with ONLY unexpected keys, a
+two-table scoping-trap variant) all validated correctly with no
+cascading double-errors and no swallowed errors — the "nested checks
+only run over fields already at their expected shape" invariant the new
+code's own comment claims holds in every case tried. `compute_divergence`/
+`slot_distance` unaffected — outside this commit's diff entirely. No
+new I/O, no new sink, no behavior change to `--gate`/`--report`/the
+`[walkthrough]` budget gate (`TestGate`'s 9 tests, none touched by this
+diff, all still pass). Two probes did surface real gaps — F18 (a
+silent, not loud, consequence of making `_REQUIRED_FIELDS` genuinely
+authoritative) and F19 (a new, unconditional hint the fix itself added
+that misfires on the common case). A third probe — simulating the exact
+F13 regression class against the new byte-identical-mirror test — found
+that test does not defend against it at all; see F17.
 '''
 
 # ---------------------------------------------------------------------------
-# functional_correctness — weight 30, BLOCKS MERGE
+# maintainability — weight 22, BLOCKS MERGE
 # ---------------------------------------------------------------------------
 
 [[finding]]
-id = "F13"
-attribute = "functional_correctness"
-severity = "critical"
+id = "F17"
+attribute = "maintainability"
+severity = "medium"
 probe = '''
-The commit's own message frames its `runtime/graph.py` fix as closing
-the risk that "a real walkthrough produced .toml files" while something
-downstream still expected `.md` — and that fix is correct for
-`graph.py` (see the `probed` disposition above). But `graph.py` is the
-CONSUMING side (it reads what architecture already wrote). The
-PRODUCING side — the artifact that tells the `architecture` role what
-filename to actually write the walkthrough-evaluator's returned TOML
-text under — was never touched by this commit and still says `.md`, in
-every one of its four live locations:
+`tests/test_walkthrough.py`'s new `TestArchitectureOutputsMatchGraphExpectations`
+class (added by this reconciliation commit, :749-799) carries a class
+docstring that frames its whole purpose as F13 regression protection:
+"the artifact that tells the `architecture` role what filename to write
+... must agree with the extension `runtime/graph.py` actually looks
+for — a mismatch here is a silent, gate-invisible failure." Two of its
+three test methods do exactly that, deriving the expected extension from
+`runtime/graph.py`'s own glob pattern via regex and asserting
+`spec/roles.toml`/`agents/fde-architecture.md` match it — genuinely new,
+genuinely load-bearing regression coverage for the actual F13 bug class.
 
-- `spec/roles.toml:51-52` — the `architecture` role's own declared
-  `outputs` array: `"walkthroughs/<demand-id>/perceived-model-a.md"`,
-  `"walkthroughs/<demand-id>/perceived-model-b.md"`.
-- `.fde/spec/roles.toml:51-52` — the installed mirror, byte-identical
-  (confirmed: `diff spec/roles.toml .fde/spec/roles.toml` exits 0).
-- `agents/fde-architecture.md:21-22` — the "Outputs (write only here)"
-  section the `architecture` role actually reads to know what to write:
-  `` - `walkthroughs/<demand-id>/perceived-model-a.md` `` /
-  `` - `walkthroughs/<demand-id>/perceived-model-b.md` ``.
-- `.claude/agents/fde-architecture.md:21-22` — the installed mirror,
-  byte-identical (confirmed: `diff agents/fde-architecture.md
-  .claude/agents/fde-architecture.md` exits 0).
+The third, `test_roles_and_agent_mirrors_stay_byte_identical_to_their_source`
+(:791-799), tests something else entirely: that `spec/roles.toml` bytes
+equal `.fde/spec/roles.toml` bytes, and that `agents/fde-architecture.md`
+bytes equal `.claude/agents/fde-architecture.md` bytes. Two problems,
+verified independently:
 
-None of these four are the ADR (which, by this repo's own established
-convention, is not expected to be rewritten by its own amendment — see
-the maintainability disposition above for why `specs/FWD-018.../spec.md`
-and `acceptance.md` are, correctly, NOT filed as part of this finding).
-`spec/roles.toml` and `agents/fde-architecture.md` are live, operational
-role configuration — the same category of artifact `runtime/graph.py`
-itself belongs to, and the exact category the commit's own message
-demonstrates awareness of needing an audit for ("outside the ADR's own
-named scope but load-bearing... Fixed alongside," said of graph.py).
-This repo's own `CLAUDE.md` role-scope mapping places both files
-squarely inside `implementation`'s write scope for this self-hosted
-repo ("what `src/**` means in a client is `runtime/` + `spec/` +
-`skills/` + `agents/` + `templates/` here — the implementation role owns
-those plus `tests/`"), so this is not a different role's job left
-undone; it is the same commit's own scope, missed.
+(1) It does not test what its enclosing class's docstring says the class
+tests. F13's actual bug was never "source and mirror disagree with each
+other" — the commit's own words describe it as producing filenames that
+"still said perceived-model-{a,b}.md" in BOTH the source and its mirror,
+consistently. Simulated the exact regression directly: took the current
+`spec/roles.toml` text, replaced `.toml` with `.md` in the two
+`perceived-model` output lines, and used the IDENTICAL string as the
+"mirror" (i.e. the F13 bug, reintroduced consistently across both
+files, exactly as it existed before this reconciliation). Result:
+`src_bug == mirror_bug` is `True` — the byte-identical test would PASS
+on a live F13 regression. Re-running the actual extension-derivation
+logic from the other two test methods against the same simulated string
+correctly returns `False` — those two, and only those two, do the job
+the class docstring describes.
 
-Concrete consequence, verified directly: if `architecture` follows its
-own operating instructions literally — which is the entire premise this
-kernel runs on at the `loop` tier — it persists the walkthrough-
-evaluator's returned TOML text into files literally named
-`perceived-model-a.md` / `perceived-model-b.md`. `runtime/graph.py`'s
-now-`.toml`-only glob (`build_graph` :306, :319; `forbidden_orphans`
-:459) would never find them: no `walked_by`/`confronted_by` edges are
-created, the divergence node's in-degree check (F3 in ADR-0014 section
-8, "both runs must be on record") never even gets a chance to fire
-because the perceived-model nodes themselves are never created, and
-`forbidden_orphans` check #6 ("perceived model(s) on record with no
-intended-model counterpart") stays silent too — not because the state is
-fine, but because `.md`-suffixed files are invisible to it entirely.
-This is a WORSE failure than the one graph.py's own fix was written to
-prevent: it does not just mis-detect a real walkthrough's evidence, it
-means the evidence is never even connected to the graph at all, silently,
-with every gate reporting green. No test in `tests/test_graph.py` or
-`tests/test_walkthrough.py` catches this, because every fixture in both
-suites constructs `.toml` files directly — none goes through
-`agents/fde-architecture.md`'s own declared output filenames to check
-they still match what `runtime/graph.py` now expects.
+(2) It is fully redundant with pre-existing, more general coverage that
+predates this commit and was never touched by it:
+`tests/test_install_sync.py::TestRuntimeCopies::test_fde_spec_is_identical_to_spec`
+already asserts, for every `*.toml` file discovered under `spec/`
+(including `spec/roles.toml`), byte-identity with its `.fde/spec/`
+mirror; `tests/test_install_sync.py::TestClaudeLayerCopies::
+test_generic_role_files_are_installed_identically` already asserts the
+same for `agents/fde-architecture.md` against
+`.claude/agents/fde-architecture.md` (`"architecture"` is one of the
+four roles it iterates). Confirmed by reading both tests directly — the
+new method reproduces exactly their combined assertion for exactly the
+two files F13 happened to touch, adding no coverage `verify.py`'s test
+suite did not already have before this commit. Even
+`tests/test_spec_integrity.py`'s own header comment (line 181-182,
+unchanged by this commit) already says as much in passing: "the
+installed mirrors (`.fde/**`) are covered by the byte-identity tests,
+not here" — pointing at exactly the pre-existing tests this new one
+duplicates.
 
-No automated gate defends against this drift either: `grep -rln
-"outputs" tests/*.py runtime/*.py` returns nothing — no test validates
-that `spec/roles.toml`'s `outputs` array, or the generated
-`agents/*.md`/`.claude/agents/*.md` mirrors, agree with the actual file
-extensions `runtime/graph.py` or `runtime/walkthrough.py` expect. This
-is a pure documentation-drift bug today, but it is a load-bearing one:
-the four lines are literally the instruction the architecture role
-follows to know what to write, and they contradict the four files this
-same commit correctly updated to expect `.toml`.
+Net effect: a reader who trusts the class docstring walks away believing
+F13's regression class has three independent layers of defense, when it
+has two (both pre-existing in spirit, though the extension-derivation
+ones are genuinely new and correctly targeted) plus one inert duplicate
+dressed in the same class as if it were part of the same defense. This
+is exactly the false-confidence risk MNT-1 names ("every fact lives in
+one place; duplication is drift waiting") applied to test coverage
+itself, not production code — the "fact" here (mirror byte-identity) now
+lives in three places instead of one, two of which were already true
+before this commit shipped.
 '''
 evidence = '''
-`spec/roles.toml:50-53` (`outputs = ["docs/adr/*.md",
-"specs/<demand-id>/architecture.md",
-"walkthroughs/<demand-id>/perceived-model-a.md",
-"walkthroughs/<demand-id>/perceived-model-b.md",
-"walkthroughs/<demand-id>/divergence.toml"]`); `.fde/spec/roles.toml:
-50-53`, byte-identical; `agents/fde-architecture.md:18-23` ("Outputs
-(write only here)" section, four bullet lines, two of them `.md`);
-`.claude/agents/fde-architecture.md:18-23`, byte-identical.
-`runtime/graph.py:306,319,459` (the three `.toml`-only glob sites this
-commit's own message says it fixed). `CLAUDE.md`'s role-scope mapping
-paragraph (placing `spec/**` and `agents/**` in implementation's scope
-for this repo). `git diff b3b1cba~1 b3b1cba --stat` — confirms none of
-`spec/roles.toml`, `.fde/spec/roles.toml`, `agents/fde-architecture.md`,
-or `.claude/agents/fde-architecture.md` appear in this commit's changed
-files (only `.claude/agents/fde-walkthrough-evaluator.md`,
-`.claude/skills/fde-walkthrough/SKILL.md`,
-`agents/fde-walkthrough-evaluator.md`, `bin/fde/graph.py`,
-`bin/fde/walkthrough.py`, `runtime/graph.py`, `runtime/walkthrough.py`,
-`skills/fde-walkthrough/SKILL.md`, `tests/test_graph.py`,
-`tests/test_walkthrough.py` changed). `grep -rn "perceived-model"
---include="*.py" --include="*.md" --include="*.toml" .` — full repo
-sweep confirming these are the only four live-config sites still naming
-`.md`, distinct from the ADR's own body (`docs/adr/0014-...md:333-334`,
-`:365-366`) and `specs/FWD-018.../spec.md:305` /
-`acceptance.md:68`, both correctly excluded from this finding for the
-reason given above.
+`tests/test_walkthrough.py:749-799` (the class and its three methods,
+full text read). `tests/test_install_sync.py:18-28`
+(`test_every_runtime_module_is_identical_in_bin_fde`, unrelated to this
+specific pair but shows the same generic-discovery pattern),
+`:30-37` (`test_fde_spec_is_identical_to_spec`, iterates
+`(ROOT/"spec").rglob("*.toml")` — includes `spec/roles.toml`),
+`:143-147` (`test_generic_role_files_are_installed_identically`, iterates
+`("spec", "architecture", "implementation", "promotion")` — includes
+`agents/fde-architecture.md`). `tests/test_spec_integrity.py:178-182`'s
+own comment naming "the byte-identity tests" as the pre-existing
+coverage. Simulated with a scratch script
+(not committed): built `src_bug` by replacing
+`perceived-model-{a,b}.toml` with `.md` in the live text of
+`spec/roles.toml`, set `mirror_bug = src_bug`, confirmed
+`src_bug == mirror_bug` is `True` (the new byte-identical test would
+pass on this exact regression) while re-deriving the expected extension
+from `runtime/graph.py`'s glob pattern (the same regex the other two new
+test methods use) against the same `src_bug` text confirms `False` (the
+extension-match tests correctly fail on it). `python3 -m unittest
+tests.test_walkthrough.TestArchitectureOutputsMatchGraphExpectations -v`
+— all three pass against the current, correct repo state, consistent
+with all three being individually true today; the gap is only visible
+under simulated regression, which is exactly the condition a regression
+test exists to be exercised against.
 '''
-blocking = true
+blocking = false
 
 [[finding]]
-id = "F14"
-attribute = "functional_correctness"
-severity = "high"
+id = "F18"
+attribute = "maintainability"
+severity = "medium"
 probe = '''
-Two related gaps in `parse_perceived_model`'s schema validation, the
-second a concrete, reproduced consequence of the first.
+`_REQUIRED_FIELDS`'s own comment, added by this reconciliation commit
+(`runtime/walkthrough.py:80-84`), makes an explicit, absolute claim:
+"This dict is the actual, sole source of truth `_validate_table` reads
+at parse time... Adding, removing, or retyping a required field means
+editing exactly this one line; nothing else needs to change in step for
+the new schema to take effect." True for validation (re-verified as part
+of F16's disposition above). False for the field actually reaching any
+caller.
 
-(1) Extra/unexpected keys are silently accepted and dropped — both at
-the document's top level and nested inside each `action_consequences`
-table. Reproduced directly: a document carrying all seven required
-fields at their correct types PLUS an eighth key (`confidence = 0.9`)
-parses cleanly, with `confidence` simply absent from the returned dict —
-no error, no warning. Same result for an unexpected key nested inside an
-`action_consequences` entry (`{ action = "buy", consequence = "ships",
-confidence = 0.9 }` — the extra key is dropped, only `action`/
-`consequence` are read). This contradicts the schema's own declared
-design principle, stated in three places (`runtime/walkthrough.py:
-72-78`'s comment, `agents/fde-walkthrough-evaluator.md:88-93`'s "What to
-return" preamble — "there is no eighth state where you meant something
-by leaving a key out" — and ADR-0014's Aug-25 amendment itself): a field
-either exists at its required type or the artifact is malformed, no
-guessing, no best-effort partial parse. An accepted-and-silently-dropped
-extra key IS a best-effort partial parse of exactly the kind this
-rewrite's whole stated purpose was to eliminate — it is simply
-unaddressed by the schema rather than named as acceptable.
+Reproduced directly: added a new key to `_REQUIRED_FIELDS` at runtime
+(`walkthrough._REQUIRED_FIELDS["confidence"] = str`), constructed a
+document carrying all seven original fields PLUS `confidence = "high"`
+at the correct type. Parsing succeeds — no error, exactly as the comment
+promises for validation. But `parse_perceived_model`'s return statement
+(:287-295) is a hand-written dict literal naming exactly the original
+seven keys, each with its own field-specific transform
+(`normalize_phrase` into a set for three of them, verbatim list for one,
+verbatim scalar for three); `confidence` is not among them. The parsed
+model's key set is unchanged — `sorted(m.keys())` still returns exactly
+the original seven, and `"confidence" in m` is `False`. The value the
+caller went to the trouble of writing, and that validation just spent a
+cycle confirming exists at the right type, is silently discarded with no
+error, no warning, nothing in `all_errors` — it simply never arrives.
 
-(2) That same leniency is what makes the ADR's own named array-of-tables
-scoping trap actively dangerous rather than merely theoretical.
-`agents/fde-walkthrough-evaluator.md:139-145` instructs the role to
-write `action_consequences` as an inline array of tables rather than
-`[[action_consequences]]` section headers, specifically to avoid the
-trap where a bare `key = value` line written after a `[[section]]`
-header binds to the LAST element of that array, not the document root.
-That instruction is a prompt the walkthrough-evaluator role is asked to
-follow — nothing in its `tools:`-restricted harness, or anywhere else,
-can verify a free-text final message used one TOML form over the other.
-This is the same class of unenforced "prompt instruction alone" this
-very ADR amendment explicitly rejects one section earlier ("Rejected: a
-fifth heuristic layer... A heading-order requirement is a prompt
-instruction like any other... nothing... can check that a run's free-text
-final message presented its sections in a particular order before that
-text is parsed") — applied here to TOML structural form instead of
-markdown heading order, but structurally the identical gap.
-
-Reproduced end to end, through the actual CLI entry point
-(`runtime/walkthrough.py --compute`, the exact command ADR-0014 assigns
-to `architecture` as "the mechanical filing step"), not just the bare
-function: a realistic document using `[[action_consequences]]` (the
-field's own description in the schema table — "one table per primary
-action" — reads naturally as "use a section per entry," the idiomatic
-TOML form for repeated tables) with the four remaining required keys
-following in the same order the schema table itself presents them
-(`unclear_points`, `target_unreachable`, `unreachable_reason`,
-`observed_text`) silently absorbs ALL FOUR of those keys as untyped
-extra keys inside the last `[[action_consequences]]` table — confirmed
-by inspecting the raw `tomllib.loads()` output directly (root-level keys
-shrink to exactly `["what_this_is", "primary_actions",
-"action_consequences"]`; the four missing keys appear instead as extra
-entries on `action_consequences[1]`, silently dropped per gap (1) above
-rather than triggering a shape complaint on that table). The resulting
-top-level-missing-keys are then rejected — but the error message is
-`malformed perceived-model file: missing required field: 'unclear_points'`,
-naming only the FIRST of the four validation calls to fail
-(`_require_type`'s call order in `parse_perceived_model`) and giving
-zero indication that three more fields are equally missing, or that the
-actual root cause is TOML table scoping rather than the run having
-genuinely forgotten one field. A reader debugging this — human or
-another agent — sees a file that visibly contains
-`unclear_points = [...]` in its own text and a tool insisting the field
-is missing, with nothing pointing at why.
-
-Because gap (1) also means the nested extra keys inside the swallowed
-table are never flagged as "unexpected" either, the diagnostic that
-WOULD make this immediately legible — "action_consequences[1] has
-unexpected key(s): unclear_points, target_unreachable, unreachable_reason,
-observed_text" — never fires. Fixing (1) alone would turn this from a
-misleading generic error into a self-diagnosing one; the trap in (2)
-cannot be structurally closed (TOML's own scoping rules are what create
-it), so a clear diagnostic is the realistic mitigation, and it does not
-exist today.
+This is a strictly worse trap than F16 itself was: before F16's fix,
+`_REQUIRED_FIELDS` was honestly decorative and nobody could be misled by
+trusting it. After the fix, for the REMOVE case the dict is genuinely
+authoritative (correctly re-verified above) — but for the ADD case, the
+dict's own comment actively promises single-point-of-change while a
+second, un-cross-referenced site (the return statement) silently decides
+which of the validated fields a caller ever actually sees. A future
+engineer extending this schema — a plausible next step, since ADR-0014
+has already been amended once to change this exact file's shape — reads
+the comment, adds one line, watches every test pass (nothing currently
+asserts the new field round-trips into the returned dict), and ships a
+field that is enforced as mandatory on every future perceived-model file
+while never being usable by anything downstream. MNT-1 ("every fact
+lives in one place; duplication is drift waiting") applies here in the
+opposite direction from its usual reading: the fact "which fields exist"
+now has two owners (`_REQUIRED_FIELDS` for presence, the return literal
+for propagation) with no mechanism keeping them in step, and the
+governing comment asserts there is only one.
 '''
 evidence = '''
-`runtime/walkthrough.py:79-136` (`_REQUIRED_FIELDS`'s own comment: "ALL
-seven are required, in every file, always — deliberately not a mix of
-required and optional keys"; `_require_type` :126-136, which only
-validates fields IN `data`, never checks `data`'s key set against the
-expected seven); `:169-199` (`parse_perceived_model`'s field-by-field
-validation, and the `action_consequences` table loop at :186-199, which
-reads only `pair["action"]`/`pair["consequence"]` and never inspects
-`pair.keys()` for anything else present). `agents/fde-walkthrough-
-evaluator.md:88-93` (the "no eighth state" claim), `:139-145` (the
-inline-table-array instruction and its own stated reason). ADR-0014's
-"Amendment — 2026-08-25 (FWD-018 F12)", "Rejected: a fifth heuristic
-layer" section (the identical "prompt instruction alone... not
-enforcement" argument, applied here to TOML form instead of heading
-order). Reproduced with two scratch fixtures (not committed):
-extra-top-level-key and extra-nested-key documents both parsing cleanly
-with the extra data silently dropped; a third fixture using
-`[[action_consequences]]` with the schema table's own field order
-following it, run through `python3 runtime/walkthrough.py --compute
-<a> <b> --demand FWD-TEST`, producing exit code 2 and stderr `malformed
-perceived-model file: missing required field: 'unclear_points'` while
-the raw `tomllib.loads()` output (checked directly, same fixture)
-confirms `unclear_points`, `target_unreachable`, `unreachable_reason`,
-and `observed_text` were all absorbed into
-`action_consequences[1]`, not merely `unclear_points` alone.
+`runtime/walkthrough.py:80-84` (the comment, quoted above verbatim).
+`runtime/walkthrough.py:281-295` (the return statement: a 7-key dict
+literal, `.get(field, <default>)` per key, no relationship to
+`_REQUIRED_FIELDS`'s key set beyond happening to name the same seven
+strings today). Reproduced with a scratch script (not committed):
+```
+w._REQUIRED_FIELDS["confidence"] = str
+m = w.parse_perceived_model(text_with_confidence_field)
+sorted(m.keys())        # unchanged — still the original 7, no 'confidence'
+"confidence" in m        # False
+```
+No test in `tests/test_walkthrough.py` constructs a document with an
+eighth field and checks it appears in the returned dict —
+`TestRequiredFieldsIsTheSingleSourceOfTruth` (:417-442) only tests the
+REMOVE direction (popping `observed_text`), never the ADD direction, so
+this gap was not exercised by the commit's own new regression coverage
+either.
 '''
-blocking = true
+blocking = false
 
 # ---------------------------------------------------------------------------
 # observability — weight 10
 # ---------------------------------------------------------------------------
 
 [[finding]]
-id = "F15"
+id = "F19"
 attribute = "observability"
 severity = "medium"
 probe = '''
-`runtime/walkthrough.py`'s `--compute` CLI parses BOTH perceived-model
-files inside one `try`/`except PerceivedModelError` block spanning both
-`a_path.read_text()`/`parse_perceived_model()` calls and
-`b_path.read_text()`/`parse_perceived_model()` calls, and the `except`
-clause prints only `f"malformed perceived-model file: {e}"` — the
-exception's own message (which names the failing FIELD) but never the
-failing FILE. Reproduced directly: swapping which of the two paths is
-malformed (`a.toml` malformed vs. `b.toml` malformed, same content
-either way) produces the byte-identical stderr line both times. Since
-this is the actual command ADR-0014 assigns to `architecture` as "the
-mechanical filing step" for turning two runs' returned TOML text into a
-`divergence.toml`, and since a real invocation names two REAL,
-differently-sourced files (not a fixture with an obvious single
-suspect), not knowing which of the two files is at fault doubles the
-diagnostic work on exactly the failure path this schema rewrite was
-built to make legible (OBS-2: "a failure names its cause: logs carry
-enough context to reconstruct the path"). This is new code in this
-commit — the previous heuristic parser never raised
-`PerceivedModelError` at all (it silently guessed instead), so this
-`try`/`except` block, and the ambiguity it introduces, did not exist
-before b3b1cba.
+`_AC_UNEXPECTED_HINT` (`runtime/walkthrough.py:196-200`) is a single
+constant string — the scoping-trap explanation F14 asked for — appended
+by `_validate_table` (:190-191) to EVERY "unexpected field" error raised
+for an `action_consequences` table entry, unconditionally. It is not
+gated on whether the specific unexpected key found is actually one of
+the seven document-root field names the scoping trap would plausibly
+absorb (`unclear_points`, `target_unreachable`, etc.) — it fires for any
+unrecognized key at all inside that table.
+
+Reproduced directly with the shipped repro shape itself: a well-formed
+document, `action_consequences` written correctly as an inline array
+(no `[[section]]` headers anywhere, so the scoping trap literally cannot
+apply), with one entry carrying an extra `confidence = 0.9` key — the
+IDENTICAL fixture `TestParsePerceivedModelUnexpectedKeys::
+test_extra_key_inside_action_consequences_table_is_rejected_not_silently_dropped`
+already uses. The raised message: `"action_consequences[0] has
+unexpected field: 'confidence' (did you mean this to be a document-root
+field? a bare key = value line written after a [[action_consequences]]
+section header binds to that table, not the document root...)"`. There
+is no `[[action_consequences]]` header anywhere in this document and
+`confidence` is not, and was never going to be, a document-root field —
+the hint is actively wrong about the cause of this specific error, not
+merely unhelpful.
+
+This matters because `confidence` is not a contrived example: it is a
+plausible, common thing for an LLM-authored `action_consequences` entry
+to add unprompted (a self-rated confidence score), and the
+`architecture` role that runs `--compute` and reads this stderr text is
+itself an LLM agent, per this kernel's own operating model. A wrong hint
+sends that reader — human or agent — looking for a TOML table-scoping
+mistake that is not there, instead of the actual, simpler cause (an
+extra hallucinated key), directly against OBS-2 ("a failure names its
+cause: logs carry enough context to reconstruct the path") — naming a
+plausible-sounding WRONG cause is worse for reconstructing the actual
+path than naming no cause at all, which is what F14/F15 both improved on
+everywhere else in this same commit.
+
+The existing test for this exact fixture
+(`test_extra_key_inside_action_consequences_table_is_rejected_not_silently_dropped`,
+:344-353) only asserts `"confidence"` and `"action_consequences[0]"`
+appear in the message — it does not assert the misleading hint is
+ABSENT, so it passes today without exercising this gap at all.
 '''
 evidence = '''
-`runtime/walkthrough.py:387-393`:
-```
-a_path, b_path = Path(args.compute[0]), Path(args.compute[1])
-try:
-    model_a = parse_perceived_model(a_path.read_text(encoding="utf-8"))
-    model_b = parse_perceived_model(b_path.read_text(encoding="utf-8"))
-except PerceivedModelError as e:
-    print(f"malformed perceived-model file: {e}", file=sys.stderr)
-    return 2
-```
-Reproduced twice with the scratchpad's `a.toml` (uses
-`[[action_consequences]]`, triggers F14's trap) and `b.toml` (a plain,
-valid inline-table-array file): `--compute a.toml b.toml` and
-`--compute b.toml a.toml` both print the identical
-`malformed perceived-model file: missing required field: 'unclear_points'`
-with no file path anywhere in the message.
-'''
-blocking = false
-
-# ---------------------------------------------------------------------------
-# maintainability — weight 22
-# ---------------------------------------------------------------------------
-
-[[finding]]
-id = "F16"
-attribute = "maintainability"
-severity = "medium"
-probe = '''
-`_REQUIRED_FIELDS` (`runtime/walkthrough.py:79-87`) is a `dict[str,
-type]` presented, in an 11-line comment, as the schema's authoritative
-declaration — it even documents the `bool`-vs-`isinstance` special case
-that matters for `target_unreachable`. `parse_perceived_model`'s own
-docstring (:147) cites it by name as the mechanism: "seven required
-top-level keys (`_REQUIRED_FIELDS`)". A reader who wants to add, remove,
-or retype a required field would reasonably start by editing this dict —
-it is positioned first in the file, it is the most heavily commented
-declaration in the module, and it is named as if load-bearing.
-
-It is not. `parse_perceived_model`'s actual validation is a separate,
-hand-written sequence of seven individual `_require_type(data, "<name>",
-<type>)` calls (:169-175) that does not iterate over `_REQUIRED_FIELDS`
-or reference it in any way. Proved directly: deleting the
-`"observed_text"` entry from `walkthrough._REQUIRED_FIELDS` at runtime
-(`del walkthrough._REQUIRED_FIELDS['observed_text']`) and then parsing a
-document that omits `observed_text` still raises `PerceivedModelError`
-naming `observed_text` as missing — behavior is completely unaffected by
-the mutation, because nothing reads the dict at parse time. The same
-inverse holds: adding a field to `_REQUIRED_FIELDS` would silently do
-nothing until a matching `_require_type` call, and a matching return-dict
-entry, and a matching test fixture entry, are ALSO added by hand — four
-more independent, unenforced copies of the same fact
-(`_REQUIRED_FIELDS` itself, the `_require_type` call sequence, the
-returned-dict literal at :201-209, and `tests/test_walkthrough.py`'s own
-separate `_ALL_FIELDS` tuple and `_FIELD_SNIPPETS` dict).
-
-This is MNT-1 ("single source of truth: every fact lives in one place;
-duplication is drift waiting") in a sharper form than ordinary
-duplication: `_REQUIRED_FIELDS` is not a second copy that could merely
-drift from the real one — it is a DECORATIVE copy that looks like the
-real one (authoritative name, detailed rationale comment, cited by the
-function it appears to govern) while doing nothing. A future maintainer
-following Chesterton's Fence (MNT-7) toward `_REQUIRED_FIELDS`, seeing
-its careful comment, has every reason to trust it is the enforcement
-point — and would ship a change that silently does not take effect. This
-is exactly the class of hidden-authority gap this same rewrite's own
-stated purpose was to remove from the OLD heuristic parser (multiple
-independent tables — `_SECTION_ALIASES`, `_ORDERED_SLOTS`,
-`_UNCLEAR_KEYWORDS_RE` — each partially authoritative, none complete by
-itself); the rewrite is cleaner in every way that matters to its own
-stated goal, but reintroduces one small instance of the identical shape
-in its own schema declaration.
-'''
-evidence = '''
-`runtime/walkthrough.py:72-87` (`_REQUIRED_FIELDS`'s declaration and
-comment); `:147` (`parse_perceived_model`'s docstring citing it by
-name); `:169-175` (the actual, independent seven-call validation
-sequence); `:201-209` (the returned-dict literal, a third independent
-enumeration of the same seven names). `tests/test_walkthrough.py:
-162-164` (`_ALL_FIELDS`, a fourth independent tuple) and `:244-252`
-(`_FIELD_SNIPPETS`, a fifth). Reproduced directly: `python3 -c "import
-walkthrough; del walkthrough._REQUIRED_FIELDS['observed_text']; ...
-walkthrough.parse_perceived_model(<doc missing observed_text>)"` still
-raises `PerceivedModelError: missing required field: 'observed_text'`
-after the dict entry naming that exact field was removed — proof the
-dict is not consulted at validation time.
+`runtime/walkthrough.py:151-193` (`_validate_table`, the unconditional
+`if unexpected_hint: msg += ...` at :190-191 — not conditioned on
+`key in _REQUIRED_FIELDS` or any other relationship to the actual
+scoping-trap keys), `:196-200` (`_AC_UNEXPECTED_HINT`'s fixed text),
+`:269-271` (the one call site passing it, unconditionally, for every
+`action_consequences` entry regardless of what document shape produced
+the unexpected key). Reproduced with a scratch script (not committed)
+running the exact fixture from
+`tests/test_walkthrough.py:344-353` through
+`walkthrough.parse_perceived_model` directly and printing the raised
+`PerceivedModelError`'s full text — the scoping-trap hint is present in
+a document that contains no `[[action_consequences]]` header at all.
 '''
 blocking = false
