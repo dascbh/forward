@@ -863,5 +863,273 @@ class TestRuleLaneGateGitFailureDuringRangeDiscovery(unittest.TestCase):
         self.assertNotIn("nothing to re-verify", r.stdout)
 
 
+def _fake_git_that_fails_rev_parse_for(bindir: Path, rev: str) -> Path:
+    """A `git` shim that fails only the ONE `rev-parse --verify --quiet
+    <rev>^{commit}` invocation for the given `rev` — the exact call
+    `Gate._rev_ok` makes for THIS `since` value (reviews/FWD-019 round 3,
+    F9) — and delegates every OTHER invocation (rev-parse for any other
+    revision, e.g. `HEAD~1` or `HEAD`; `git log`; `git diff`) to the real
+    git. Exit 128 with a stderr message simulates a genuine operational
+    failure (permission, lock, corrupted object, disk I/O) — the
+    categorically different shape from the exit-1/empty-stderr a
+    legitimately-absent revision produces (see `Gate._rev_ok`'s own
+    docstring), so this reproduces F9 without also tripping the
+    legitimate fresh-repo/shallow-clone fallback that must keep working."""
+    real_git = shutil.which("git")
+    assert real_git, "git must be on PATH to build the fake-git shim"
+    shim = bindir / "git"
+    shim.write_text(
+        "#!/bin/sh\n"
+        "case \" $* \" in\n"
+        f"  *' rev-parse --verify --quiet {rev}^{{commit}} '*)\n"
+        "    echo 'fake git: simulated rev-parse failure (F9 repro)' >&2\n"
+        "    exit 128\n"
+        "    ;;\n"
+        "esac\n"
+        f"exec \"{real_git}\" \"$@\"\n"
+    )
+    shim.chmod(shim.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return shim
+
+
+class TestRuleLaneGateGitFailureDuringRevResolution(unittest.TestCase):
+    """reviews/FWD-019 round 3, F9: one call further upstream than F6
+    (round 2) fixed. `_commits_in_range` calls `_resolve_range` FIRST to
+    pick the revspec, and `_resolve_range` depends on `_rev_ok` — before
+    this fix, `_rev_ok` only caught `FileNotFoundError`; any OTHER git
+    failure resolving `since` (a permission error, a lock, a corrupted
+    object, a disk I/O problem) read exactly the same as "this revision
+    does not exist" and silently fell through to a narrower tier
+    (`HEAD~1..HEAD`, or "everything in HEAD"). A real, ineligible
+    RULE-tagged commit outside that wrongly-narrowed range was never
+    examined at all — not mis-scored, simply never asked about."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name, rule_lane_max_loc=10)
+        run_git(self.p, "add", "-A")
+        run_git(self.p, "commit", "-q", "-m", "seed")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _commit_an_over_threshold_rule_claim_then_a_trailing_commit(self) -> str:
+        base = git_out(self.p, "rev-parse", "HEAD")
+        big = self.p / "src" / "big.py"
+        big.parent.mkdir(parents=True, exist_ok=True)
+        big.write_text("\n".join(f"x{i} = 1" for i in range(40)) + "\n")
+        commit_all(self.p, "FORWARD: RULE — actually not small")
+        # a later, untagged commit — under the fault, this is the ONLY
+        # commit that survives the wrongly-narrowed HEAD~1..HEAD range,
+        # exactly F9's own end-to-end reproduction
+        (self.p / "trivial.txt").write_text("x\n")
+        commit_all(self.p, "an unrelated trailing commit")
+        return base
+
+    def test_healthy_git_blocks_the_over_threshold_claim(self):
+        # control: the same commits, healthy git — establishes this is a
+        # real positive before trusting the git-failure variant below
+        base = self._commit_an_over_threshold_rule_claim_then_a_trailing_commit()
+        r = verify(self.p, "--gate", "rule-lane", "--since", base)
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("'loc'", r.stdout)
+
+    def test_gate_blocks_rather_than_silently_narrows_when_rev_parse_fails_for_since(self):
+        base = self._commit_an_over_threshold_rule_claim_then_a_trailing_commit()
+
+        with tempfile.TemporaryDirectory() as shimdir:
+            bindir = Path(shimdir)
+            _fake_git_that_fails_rev_parse_for(bindir, base)
+            env = {"PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}"}
+            r = verify(self.p, "--gate", "rule-lane", "--since", base, env=env)
+
+        # F9's exact failure mode: never a silent narrowing to
+        # HEAD~1..HEAD (which would only see the trailing, untagged
+        # commit and miss the RULE-claiming one entirely) — a blocking,
+        # clearly named git failure instead, same posture as F6
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("RULE-LANE", r.stdout)
+        self.assertIn("could not determine which commits are in", r.stdout)
+        self.assertIn("mechanical certainty is unavailable", r.stdout)
+        self.assertNotIn("nothing to re-verify", r.stdout)
+        # never quietly examines only the trailing commit as if the range
+        # had narrowed on purpose
+        self.assertNotIn("'loc'", r.stdout)
+
+    def test_default_full_run_still_reports_and_blocks_and_i1_is_not_narrowed_either(self):
+        # the true CI shape per .github/workflows/fde-gate.yml: no
+        # --gate, --since <base> only. F9's own repro also showed I1's
+        # file list (changed() -> the SAME _resolve_range) silently
+        # narrowing under this fault — confirm it now blocks too, not
+        # just rule-lane.
+        base = self._commit_an_over_threshold_rule_claim_then_a_trailing_commit()
+
+        with tempfile.TemporaryDirectory() as shimdir:
+            bindir = Path(shimdir)
+            _fake_git_that_fails_rev_parse_for(bindir, base)
+            env = {"PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}"}
+            r = verify(self.p, "--since", base, env=env)
+
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("RULE-LANE", r.stdout)
+        self.assertIn("could not determine which commits are in", r.stdout)
+        self.assertNotIn("nothing to re-verify", r.stdout)
+        self.assertIn("I1", r.stdout)
+        self.assertIn("could not determine which files changed", r.stdout)
+
+
+class TestZeroCommitRepoStaysLegitimateNotAFailure(unittest.TestCase):
+    """Discovered auditing `_git`'s new strict default (reviews/FWD-019
+    round 3, F9): a brand-new repository with zero commits (an unborn
+    HEAD) makes `git diff EMPTY_TREE HEAD` and `git log HEAD` themselves
+    fail (exit 128, "fatal: ambiguous argument 'HEAD'") purely because
+    HEAD does not resolve yet — a different fact from a genuine git
+    operational failure (permission, lock, corruption). This is NOT one
+    of the review's own findings; it is the tier-3 sibling of the same
+    legitimate-fallback distinction `_rev_ok`/`_resolve_range` already
+    protect for tiers 1-2, caught here so `_git`'s inverted default would
+    not turn an ordinary "nothing has ever been committed yet" project
+    state into a raised GitOpFailure. `changed()` and `_commits_in_range()`
+    both check `_rev_ok("HEAD")` before their tier-3 git call and read a
+    zero-commit repo exactly as before: empty, not a failure."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)  # git init, zero commits
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_changed_returns_empty_not_raise_on_zero_commit_repo(self):
+        g = verify_mod.Gate(self.p)
+        self.assertEqual(g.changed(staged=False, since=None), [])
+
+    def test_commits_in_range_returns_empty_not_raise_on_zero_commit_repo(self):
+        g = verify_mod.Gate(self.p)
+        self.assertEqual(g._commits_in_range(None), [])
+
+    def test_gate_eval_coverage_does_not_crash_on_zero_commit_repo(self):
+        r = verify(self.p, "--gate", "eval-coverage")
+        # no behavior files exist yet either way; the point is this must
+        # not raise/crash on the unborn-HEAD git failure — a clean pass
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+
+def _fake_git_that_fails_log_dash20(bindir: Path) -> Path:
+    """A `git` shim that fails only `git log -20 --format=%H` — the exact
+    call `gate_adversarial`'s I3 review/behavior-separation scan makes —
+    delegating everything else to the real git. Distinct shim from
+    `_fake_git_that_fails_log` above (which matches ANY ` log ` call,
+    including `_commits_in_range`'s) so this test cannot be confused with
+    exercising rule-lane's own, already-covered path."""
+    real_git = shutil.which("git")
+    assert real_git, "git must be on PATH to build the fake-git shim"
+    shim = bindir / "git"
+    shim.write_text(
+        "#!/bin/sh\n"
+        "case \" $* \" in\n"
+        "  *' log -20 --format=%H '*)\n"
+        "    echo 'fake git: simulated I3 history-scan failure (F9 audit repro)' >&2\n"
+        "    exit 128\n"
+        "    ;;\n"
+        "esac\n"
+        f"exec \"{real_git}\" \"$@\"\n"
+    )
+    shim.chmod(shim.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return shim
+
+
+class TestI3GitFailureDuringHistoryScanBlocks(unittest.TestCase):
+    """reviews/FWD-019 round 3, F9 audit (task step 3): every
+    pre-existing `Gate._git` caller was individually re-examined once
+    `_git` itself became strict, not blanket-wrapped to keep compiling.
+    `gate_adversarial`'s I3 review/behavior-separation scan is one of the
+    two (with `changed()`/I1) found to need the strict default: an
+    unsignaled git failure enumerating recent history would have read as
+    "no commit mixes review findings with behavior" — a false PASS on I3,
+    the same shape of bug as F4/F6/F9 — so this call site keeps the
+    strict default rather than becoming a `_git_lenient` opt-out."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+        f = self.p / "reviews" / "D-1" / "findings.toml"
+        f.parent.mkdir(parents=True)
+        f.write_text('[meta]\ncontext_policy = "artifact_only"\n')
+        commit_all(self.p, "review only")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_i3_blocks_rather_than_silently_passes_when_git_log_fails(self):
+        with tempfile.TemporaryDirectory() as shimdir:
+            bindir = Path(shimdir)
+            _fake_git_that_fails_log_dash20(bindir)
+            env = {"PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}"}
+            r = verify(self.p, "--gate", "adversarial-isolation", env=env)
+
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("I3", r.stdout)
+        self.assertIn("could not scan recent history", r.stdout)
+        # the actual PASS message ("...clean") must not appear — the
+        # blocking message above deliberately echoes a similar phrase
+        # ("no commit mixes findings with behavior") as part of its OWN
+        # explanation, so this checks the full, exact pass sentence, not
+        # a fragment shared with that explanation
+        self.assertNotIn("no commit mixes review findings with behavior changes", r.stdout)
+
+
+def _fake_git_that_fails_ls_files(bindir: Path) -> Path:
+    """A `git` shim that fails only `ls-files` invocations — the exact
+    call `gate_observability`'s legacy telemetry/tracing file-listing
+    fallback makes — delegating everything else to the real git."""
+    real_git = shutil.which("git")
+    assert real_git, "git must be on PATH to build the fake-git shim"
+    shim = bindir / "git"
+    shim.write_text(
+        "#!/bin/sh\n"
+        "case \" $* \" in\n"
+        "  *' ls-files '*)\n"
+        "    echo 'fake git: simulated ls-files failure (F9 audit repro)' >&2\n"
+        "    exit 128\n"
+        "    ;;\n"
+        "esac\n"
+        f"exec \"{real_git}\" \"$@\"\n"
+    )
+    shim.chmod(shim.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return shim
+
+
+class TestObservabilityGitFailureIsDeliberatelyLenient(unittest.TestCase):
+    """reviews/FWD-019 round 3, F9 audit (task step 3): unlike I1's
+    `changed()` and I3's history scan, `gate_observability`'s legacy
+    telemetry/tracing file-listing fallback deliberately opts into
+    `_git_lenient` — a git failure here and a query that legitimately
+    finds nothing already produce the IDENTICAL, safe I5 verdict (I5 only
+    ever passes off `hits` being non-empty, never off the mere absence of
+    a failure), so there is no false-PASS path for a swallowed failure to
+    hide behind, unlike F4/F6/F9's own bug class. This confirms the
+    chosen behavior end to end: a git failure degrades to the same
+    "no corresponding signal" message a real absence produces — not a
+    crash, and not a false pass."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_git_failure_listing_files_still_fails_i5_cleanly_not_a_crash_or_pass(self):
+        with tempfile.TemporaryDirectory() as shimdir:
+            bindir = Path(shimdir)
+            _fake_git_that_fails_ls_files(bindir)
+            env = {"PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}"}
+            r = verify(self.p, "--gate", "observability", env=env)
+
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("no corresponding signal", r.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

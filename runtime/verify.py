@@ -52,21 +52,38 @@ class GitOpFailure(RuntimeError):
     from PATH) — kept distinguishable from git succeeding with a
     legitimately empty result, so a permission error, a lock, a
     corrupted object, or a disk I/O problem on `.git` can never silently
-    read the same as "nothing found" (reviews/FWD-019 round 2, F6: the
-    same class of gap F4 fixed in triage.py's own `GitFailure`, one call
-    site up, in `Gate._commits_in_range` — the mechanism `gate_rule_lane`'s
-    entire live re-verification safety claim, ADR-0015, depends on).
+    read the same as "nothing found".
 
-    Deliberately NOT `triage.GitFailure` reused directly: `Gate._git`'s
-    existing, permissive "return [] on any failure" contract is correct
-    and unchanged for its other callers (`changed()` for I1,
-    `gate_adversarial`'s I3 history scan, `gate_observability`'s file
-    listing — for each of those, git producing nothing IS the right
-    reading of a failure too, or the pre-existing behavior is out of this
-    finding's scope to touch). Only `_commits_in_range` — the one path
-    where an empty `[]` is unsafe because it makes `gate_rule_lane` see
-    "no commit claims RULE" and silently skip re-verification entirely —
-    needs the strict distinction, via `Gate._git_strict` below."""
+    This is `Gate._git`'s DEFAULT contract as of reviews/FWD-019 round 3
+    (F9), not an opt-in reserved for one hardened call site. Three rounds
+    of the identical defect class recurring is what forced the inversion:
+    F4 hardened `triage._git` (its own, separate wrapper) directly; F6
+    found `Gate._commits_in_range`'s own `git log` call still routed
+    through the permissive `Gate._git` and fixed it by adding a SECOND,
+    narrowly-scoped `_git_strict` used only there; F9 found
+    `_commits_in_range` ALSO calls `_resolve_range` first, which depends
+    on `_rev_ok` — untouched by either prior fix, and still silently
+    reading a genuine git failure (a permission error, a lock, a
+    corrupted object, a disk I/O problem) the same as "this revision does
+    not exist." Hardening one call site at a time does not converge: it
+    only guarantees the NEXT call site discovered repeats the mistake.
+    `_git` itself is now strict for every caller.
+
+    A caller that genuinely needs the OLD, permissive "a failure and a
+    legitimately empty result read the same" behavior opts in explicitly,
+    by name, via `Gate._git_lenient` below — never by catching and
+    discarding `GitOpFailure` at the call site, which would silently
+    recreate this exact bug. Every pre-existing caller of the old
+    permissive `_git` was individually re-audited for this round's fix
+    (not blanket-wrapped to keep compiling): `changed()` (I1's own file
+    list) and `gate_adversarial`'s I3 review/behavior-separation scan
+    both needed the strict default too — for each, an unsignaled empty
+    result was reading as a false PASS on the very invariant the gate
+    exists to check, the same shape of bug as F4/F6/F9. Only
+    `gate_observability`'s legacy telemetry/tracing file-listing fallback
+    qualifies for `_git_lenient` (see its own comment for why: a failure
+    there and a legitimately empty result already produce the identical,
+    safe — failing, never falsely-passing — I5 verdict)."""
 
 
 class Gate:
@@ -82,43 +99,89 @@ class Gate:
         self.results.append((gid, passed, msg))
 
     # -- helpers ----------------------------------------------------------
-    def _git(self, *args: str) -> list[str]:
+    def _run_git(self, *args: str) -> subprocess.CompletedProcess:
+        """The one place a `git` subprocess is actually spawned. Raises
+        `GitOpFailure` when git itself is missing from PATH; every other
+        outcome — including a non-zero exit — is returned as-is, since
+        "non-zero" does not always mean "the operation failed": `_rev_ok`
+        below relies on this directly, because `rev-parse --verify
+        --quiet` legitimately uses exit 1 to mean "no such revision",
+        which is not itself a failure to report."""
         try:
-            out = subprocess.run(
-                ["git", *args], cwd=self.project, capture_output=True, text=True, check=False
-            )
-            return [l for l in out.stdout.splitlines() if l.strip()]
-        except FileNotFoundError:
-            return []
-
-    def _git_strict(self, *args: str) -> list[str]:
-        """Same subprocess call as `_git`, except a genuine git failure
-        (non-zero exit, or git missing from PATH) raises `GitOpFailure`
-        instead of collapsing into the same `[]` a query that legitimately
-        found nothing produces. Used only by `_commits_in_range` (F6) —
-        every other caller keeps using the plain `_git` above; see
-        `GitOpFailure`'s own docstring for why that split is deliberate,
-        not an oversight."""
-        try:
-            out = subprocess.run(
+            return subprocess.run(
                 ["git", *args], cwd=self.project, capture_output=True, text=True, check=False
             )
         except FileNotFoundError as e:
             raise GitOpFailure(f"git not found on PATH: {e}") from e
+
+    def _git(self, *args: str) -> list[str]:
+        """The default git-invocation wrapper — strict as of reviews/
+        FWD-019 round 3 (F9): raises `GitOpFailure` on a genuine failure
+        (non-zero exit, or git missing) rather than collapsing it into the
+        same `[]` a query that legitimately found nothing produces. See
+        `GitOpFailure`'s own docstring for why this is now the default,
+        not an opt-in, and `_git_lenient` below for the deliberate,
+        explicitly-named opt-out."""
+        out = self._run_git(*args)
         if out.returncode != 0:
             raise GitOpFailure(
                 f"git {' '.join(args)} failed (exit {out.returncode}): "
                 f"{(out.stderr or '').strip() or '(no stderr on the failing call)'}")
         return [l for l in out.stdout.splitlines() if l.strip()]
 
-    def _rev_ok(self, rev: str) -> bool:
+    def _git_lenient(self, *args: str) -> list[str]:
+        """Deliberate, visible opt-in to the OLD, permissive contract
+        `_git` had before round 3 (F9): a genuine git failure collapses
+        into the same empty list a query that legitimately found nothing
+        produces. Only correct where "git failed" and "git succeeded and
+        truly found nothing" are safe to treat alike — meaning EITHER
+        outcome already leads to the same, safe (failing/blocking, never
+        falsely-passing) verdict for the invariant being checked, so the
+        distinction has no observable effect. Call sites must name this
+        wrapper explicitly — never re-derive the same leniency by
+        catching and discarding `GitOpFailure` locally, which would
+        silently recreate the bug this split exists to close."""
         try:
-            r = subprocess.run(["git", "rev-parse", "--verify", "--quiet",
-                                f"{rev}^{{commit}}"],
-                               cwd=self.project, capture_output=True, text=True)
-            return r.returncode == 0
-        except FileNotFoundError:
+            return self._git(*args)
+        except GitOpFailure:
+            return []
+
+    def _rev_ok(self, rev: str) -> bool:
+        """True when `rev` resolves to a real commit; False when it
+        legitimately does not — NEVER when git itself merely failed to
+        answer the question, which now raises `GitOpFailure` instead of
+        silently returning False (reviews/FWD-019 round 3, F9).
+
+        The distinction this precision protects: `_resolve_range`'s
+        tier-2/tier-3 fallback (a fresh repo with no `HEAD~1`, a shallow
+        clone) is legitimate and must keep working exactly as before — a
+        young repo where `HEAD~1` genuinely does not exist is not a
+        failure. A permission error, a lock, a corrupted object, or a
+        disk I/O problem while trying to answer the SAME question is a
+        different fact and must not cascade to the next tier unsignaled.
+
+        `git rev-parse --verify --quiet <rev>^{commit}` is the one
+        invocation in this file where "non-zero exit" is not itself "the
+        operation failed": verified empirically, with `--quiet`, git uses
+        exit 1 and EMPTY stderr specifically to mean "not a valid object
+        name" (true for a genuinely absent rev, and — same shape — for
+        `HEAD`/`HEAD~1` in a brand-new repository with zero commits yet,
+        an unborn branch, which is exactly as legitimate). A genuine
+        operational failure (a corrupted/inaccessible `.git`, a bad
+        `--git-dir`) instead exits 128 WITH a `fatal:` stderr message,
+        even under `--quiet`. Only the exact quiet-and-silent shape reads
+        as "legitimately does not exist"; anything else — including exit
+        1 WITH stderr, in case some git build is less quiet than tested
+        here — raises `GitOpFailure` rather than guessing."""
+        r = self._run_git("rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}")
+        if r.returncode == 0:
+            return True
+        if r.returncode == 1 and not (r.stderr or "").strip():
             return False
+        raise GitOpFailure(
+            f"git rev-parse --verify --quiet {rev}^{{commit}} failed "
+            f"(exit {r.returncode}): "
+            f"{(r.stderr or '').strip() or '(no stderr on the failing call)'}")
 
     def _resolve_range(self, since: str | None) -> str | None:
         """The single --since -> HEAD~1..HEAD -> "everything in HEAD"
@@ -130,7 +193,17 @@ class Gate:
         or None for tier 3 ("everything reachable from HEAD"), since the
         two callers express that tier differently: `git diff` needs the
         empty-tree sentinel as two positional args, `git log` does not
-        (walking from HEAD alone already means "everything")."""
+        (walking from HEAD alone already means "everything").
+
+        As of round 3 (F9): `_rev_ok` now raises `GitOpFailure` on a
+        genuine git failure instead of silently returning False, so a
+        failure checking tier 1 or tier 2 no longer reads as "this
+        revision does not exist" and no longer cascades to a narrower
+        tier — it propagates out of this method uncaught, same as any
+        other `GitOpFailure`. The legitimate fallback (a `since` that
+        truly does not resolve; a repo too young for `HEAD~1`) is
+        unchanged: `_rev_ok` still returns False, not raises, for that
+        case."""
         if since and set(since) != {"0"} and self._rev_ok(since):
             return f"{since}..HEAD"
         if self._rev_ok("HEAD~1"):
@@ -146,6 +219,17 @@ class Gate:
         rng = self._resolve_range(since)
         if rng is not None:
             return self._git("diff", "--name-only", rng)
+        # tier 3 ("everything reachable from HEAD"): in a genuinely fresh
+        # repository (zero commits yet, an unborn branch) HEAD itself does
+        # not resolve, and `git diff EMPTY_TREE HEAD` fails (exit 128,
+        # "fatal: ambiguous argument 'HEAD'") purely because of that — the
+        # SAME legitimate case `_rev_ok` already distinguishes from a real
+        # git failure (F9), one tier further out. Checking `_rev_ok("HEAD")`
+        # first keeps that distinction consistent instead of letting a
+        # brand-new project's "nothing has ever been committed" read as a
+        # GitOpFailure.
+        if not self._rev_ok("HEAD"):
+            return []
         return self._git("diff", "--name-only", EMPTY_TREE, "HEAD")
 
     def _commits_in_range(self, since: str | None) -> list[tuple[str, str]]:
@@ -157,19 +241,31 @@ class Gate:
         (reviews/FWD-019 round 1 F5) — gate_rule_lane no longer spawns a
         subprocess per commit just to read its subject.
 
-        Uses `_git_strict`, not the plain `_git` (F6): this is the one
-        call `gate_rule_lane`'s entire commit discovery depends on — a
-        git failure here (a permission error on .git/objects, a lock, a
-        corrupted object) must never collapse into the same empty list
-        "no commits in range" produces, since that would make
-        gate_rule_lane silently skip every commit it should have
-        re-verified. Raises `GitOpFailure`; the one caller
-        (`gate_rule_lane`) converts it into a blocking verdict."""
+        `_resolve_range` (F9) and the final `git log` call below (F6, now
+        via `_git`'s own strict default as of round 3) can both raise
+        `GitOpFailure`: a git failure anywhere in discovering WHICH
+        commits are in range — resolving `since`/`HEAD~1`, or the log
+        call itself — must never collapse into the same empty list "no
+        commits in range" produces, since that would make gate_rule_lane
+        silently skip every commit it should have re-verified. Neither is
+        caught here; the one caller (`gate_rule_lane`) converts either
+        into a blocking verdict.
+
+        Tier 3 ("everything reachable from HEAD") gets the same
+        HEAD-existence check `changed()` applies, for the same reason: a
+        brand-new repository with zero commits yet is legitimate and must
+        keep reading as "no commits in range", not as a git failure —
+        `git log HEAD` on an unborn branch fails (exit 128) purely
+        because HEAD does not resolve yet."""
         rng = self._resolve_range(since)
-        args = ("log", "--format=%H%x1f%s", rng) if rng is not None \
-            else ("log", "--format=%H%x1f%s", "HEAD")
+        if rng is not None:
+            args = ("log", "--format=%H%x1f%s", rng)
+        else:
+            if not self._rev_ok("HEAD"):
+                return []
+            args = ("log", "--format=%H%x1f%s", "HEAD")
         pairs = []
-        for line in self._git_strict(*args):
+        for line in self._git(*args):
             sha, _, subj = line.partition("\x1f")
             pairs.append((sha, subj))
         return pairs
@@ -185,7 +281,22 @@ class Gate:
         # below only proves an eval was touched, never that it verifies
         # what it claims to. Silent when no demand has a design surface
         # with R# tokens declared.
-        files = self.changed(staged, since)
+        try:
+            files = self.changed(staged, since)
+        except GitOpFailure as e:
+            # reviews/FWD-019 round 3, F9: a git failure discovering which
+            # files changed must never silently read as "no behavior
+            # change" — that would let this exact failure class bypass I1
+            # entirely (F9's own end-to-end repro showed this happening,
+            # via the SAME _resolve_range changed() and _commits_in_range
+            # share). Mechanical certainty is unavailable, so I1 blocks.
+            self.add("I1-REQS", False, f"requirement coverage could not be checked: {e}")
+            self.add("I1", False,
+                     f"could not determine which files changed: {e} — "
+                     f"mechanical certainty is unavailable, so I1 defaults "
+                     f"to blocking rather than silently reading a git "
+                     f"failure as \"no behavior change\"")
+            return
 
         try:
             import design
@@ -428,11 +539,46 @@ class Gate:
             self.add("I2", True, f"{len(reviews)} report(s) with isolation declared")
 
         # I3: findings and behavior never change in the same commit — a
-        # reviewer who fixes erases the record of the finding
+        # reviewer who fixes erases the record of the finding. A git
+        # failure scanning this history must not silently read as "clean"
+        # (reviews/FWD-019 round 3, F9's own bug class — an unsignaled
+        # empty result reading as a false PASS on the invariant a gate
+        # exists to check) — so this uses the strict default `_git` and
+        # blocks, by name, on `GitOpFailure`, rather than catching and
+        # discarding it to keep the loop simple.
+        try:
+            head_exists = self._rev_ok("HEAD")
+        except GitOpFailure as e:
+            self.add("I3", False,
+                     f"could not check repository state to verify review/"
+                     f"behavior separation: {e}")
+            return
+        if not head_exists:
+            # a brand-new repository with zero commits yet is legitimate
+            # (same distinction _resolve_range's tiers rely on) — there is
+            # no history to scan, so vacuously nothing mixes.
+            self.add("I3", True, "no commit mixes review findings with behavior changes")
+            return
+        try:
+            recent = self._git("log", "-20", "--format=%H")
+        except GitOpFailure as e:
+            self.add("I3", False,
+                     f"could not scan recent history to check review/"
+                     f"behavior separation: {e} — mechanical certainty is "
+                     f"unavailable, so I3 defaults to blocking rather than "
+                     f"silently reading a git failure as \"no commit mixes "
+                     f"findings with behavior\"")
+            return
         dirty = []
-        for c in self._git("log", "-20", "--format=%H"):
-            files = self._git("diff-tree", "--root", "--no-commit-id",
-                              "--name-only", "-r", c)
+        for c in recent:
+            try:
+                files = self._git("diff-tree", "--root", "--no-commit-id",
+                                  "--name-only", "-r", c)
+            except GitOpFailure as e:
+                self.add("I3", False,
+                         f"could not read commit {c[:7]}'s changed files "
+                         f"while checking review/behavior separation: {e}")
+                return
             # .gitkeep is structure, not a finding
             if (any(f.startswith("reviews/") and not f.endswith(".gitkeep")
                     for f in files)
@@ -511,8 +657,16 @@ class Gate:
                          "an empty file is not a floor")
             return
         # only the project's own files count: tracked or untracked-but-not-
-        # ignored, and never inside a vendor tree
-        files = self._git("ls-files", "-co", "--exclude-standard")
+        # ignored, and never inside a vendor tree.
+        #
+        # Deliberately `_git_lenient`, by name (F9 audit): a git failure
+        # here and a query that legitimately finds nothing produce the
+        # SAME safe outcome below — I5 fails either way, because it only
+        # ever passes off `hits` being non-empty, never off the absence of
+        # a failure. There is no false-PASS path for a swallowed failure
+        # to hide behind here, unlike the F4/F6/F9 bug class this file's
+        # other git calls were hardened against.
+        files = self._git_lenient("ls-files", "-co", "--exclude-standard")
         hits = [f for f in files
                 if ("telemetry" in f.lower() or "tracing" in f.lower())
                 and not f.startswith(VENDOR_PATHS)
@@ -674,7 +828,13 @@ class Gate:
         raises `GitOpFailure` rather than returning `[]` on a genuine git
         failure, and that failure is mechanical uncertainty exactly as
         ADR-0015 defines it — RULE defaults to never, the same posture
-        F4 already established one call site down.
+        F4 already established one call site down. Round 3 (F9) found
+        `_commits_in_range` calls `_resolve_range` FIRST, which depends on
+        `_rev_ok` — a git failure there now raises too, one call further
+        upstream, and propagates through `_commits_in_range` untouched
+        (no code change needed here beyond this docstring): this `except`
+        already catches `GitOpFailure` regardless of which of the two
+        call sites inside `_commits_in_range` raised it.
 
         Never reads, imports, or branches on gate_eval_coverage — I1 is
         completely unmodified by this gate's existence (R6/FM-3)."""
