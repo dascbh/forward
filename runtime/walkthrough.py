@@ -79,9 +79,25 @@ SLOTS = ("primary_actions", "action_consequences", "unclear_points")
 #
 # This dict is the actual, sole source of truth `_validate_table` reads
 # at parse time (reviews/FWD-018 F16) — not a decorative restatement of a
-# hand-written check sequence kept elsewhere. Adding, removing, or
-# retyping a required field means editing exactly this one line; nothing
-# else needs to change in step for the new schema to take effect.
+# hand-written check sequence kept elsewhere. `parse_perceived_model`'s
+# return dict is ALSO built by iterating this dict (reviews/FWD-018 F18 —
+# it used to be a hand-written 7-key literal that `_REQUIRED_FIELDS`
+# never cross-referenced, so a field enforced here could still be
+# silently absent from what callers actually received). Adding, removing,
+# or retyping a plain (str/bool/list) required field means editing
+# exactly this one line: both enforcement and propagation into the
+# returned dict follow automatically, symmetrically — a field this dict
+# declares is both enforced AND returned; a field it does not declare is
+# neither (no phantom default lingers in the output for a field the
+# schema no longer requires). The one exception is `action_consequences`
+# itself, whose values are nested tables requiring their own per-entry
+# validation (`_ACTION_CONSEQUENCE_FIELDS`, below) and so is always
+# handled as a special case in both places. A field also needs adding to
+# `_NORMALIZED_PHRASE_SET_FIELDS` (below) only if it is meant to get the
+# same normalize-and-dedupe-into-a-set treatment as
+# `primary_actions`/`unclear_points`; every other plain field is taken
+# verbatim — see the return statement at the end of
+# `parse_perceived_model`.
 _REQUIRED_FIELDS: dict[str, type] = {
     "what_this_is": str,
     "primary_actions": list,
@@ -91,6 +107,14 @@ _REQUIRED_FIELDS: dict[str, type] = {
     "unreachable_reason": str,
     "observed_text": list,
 }
+
+# The (currently two) fields whose raw list-of-str value is normalized
+# (`normalize_phrase`) and folded into a `set[str]` for R7's
+# set-membership comparison, rather than kept as a plain list —
+# `observed_text` is deliberately NOT here (it stays a verbatim, ordered
+# quote, reviews/FWD-018 F10). Consulted by `parse_perceived_model`'s
+# return statement, not hardcoded there (reviews/FWD-018 F18).
+_NORMALIZED_PHRASE_SET_FIELDS = frozenset({"primary_actions", "unclear_points"})
 
 # The two required keys of one `action_consequences` table entry
 # (agents/fde-walkthrough-evaluator.md's "What to return" table) —
@@ -149,7 +173,8 @@ def canonicalize_pair(action: str, consequence: str) -> str:
 
 
 def _validate_table(data: object, schema: dict[str, type], label: str,
-                     unexpected_hint: str = "") -> list[str]:
+                     unexpected_hint: str = "",
+                     unexpected_hint_keys: frozenset = frozenset()) -> list[str]:
     """Validate `data` against `schema` (field name -> expected Python
     type), returning EVERY error found, never stopping at the first
     (reviews/FWD-018 F14: a single-missing-field error is misleading when
@@ -166,11 +191,19 @@ def _validate_table(data: object, schema: dict[str, type], label: str,
     TOML's own boolean/integer types must not be allowed to silently
     interchange here.
 
-    `unexpected_hint`, when given, is appended (parenthesized) to every
-    "unexpected field" message — used for `action_consequences` table
-    entries, where an unexpected key is very often a document-root field
-    absorbed by the TOML array-of-tables scoping trap (ADR-0014's Aug-25
-    amendment names it), not a genuinely unrecognized key."""
+    `unexpected_hint`, when given, is appended (parenthesized) to an
+    "unexpected field" message, but ONLY when the specific unexpected key
+    found is also a member of `unexpected_hint_keys` (reviews/FWD-018
+    F19 — an earlier version appended it to EVERY unexpected key
+    unconditionally, which actively misdiagnosed the common case: an
+    unrelated hallucinated/typo'd key that was never going to be a
+    document-root field and could not have been caught by the scoping
+    trap at all). Used for `action_consequences` table entries, where an
+    unexpected key THAT NAMES ONE OF THE OTHER DOCUMENT-ROOT FIELDS is
+    very often that field absorbed by the TOML array-of-tables scoping
+    trap (ADR-0014's Aug-25 amendment names it) — the hint's premise only
+    holds for that specific signature, not for an unexpected key in
+    general."""
     if not isinstance(data, dict):
         return [f"{label} must be a table, got {type(data).__name__}"]
     errors = []
@@ -187,7 +220,7 @@ def _validate_table(data: object, schema: dict[str, type], label: str,
     for key in data:
         if key not in schema:
             msg = f"{label} has unexpected field: {key!r}"
-            if unexpected_hint:
+            if unexpected_hint and key in unexpected_hint_keys:
                 msg += f" ({unexpected_hint})"
             errors.append(msg)
     return errors
@@ -199,6 +232,20 @@ _AC_UNEXPECTED_HINT = (
     "to that table, not the document root — write action_consequences "
     "as a plain array of inline { action = ..., consequence = ... } "
     "tables instead (ADR-0014's Aug-25 amendment)")
+
+# The actual signature of the scoping trap `_AC_UNEXPECTED_HINT` explains:
+# an unexpected key inside one `action_consequences` table entry whose
+# NAME matches one of the OTHER document-root fields (reviews/FWD-018
+# F19 — everything in `_REQUIRED_FIELDS` except `action_consequences`
+# itself, which is the table name the trap absorbs INTO, not a field that
+# could itself go missing this way). Derived from `_REQUIRED_FIELDS`
+# rather than hand-listed, so a future root field is automatically a
+# suspected trap key too, with no second site to remember to update. An
+# unexpected key that does NOT match any of these — a hallucinated or
+# typo'd key unrelated to the document root — gets the plain "unexpected
+# field" message with no scoping-trap speculation attached: that hint's
+# premise does not apply to it.
+_AC_SCOPING_TRAP_KEYS = frozenset(_REQUIRED_FIELDS) - {"action_consequences"}
 
 
 def parse_perceived_model(text: str) -> dict:
@@ -268,7 +315,8 @@ def parse_perceived_model(text: str) -> dict:
         for i, pair in enumerate(action_consequences_raw):
             entry_errors = _validate_table(
                 pair, _ACTION_CONSEQUENCE_FIELDS, f"action_consequences[{i}]",
-                unexpected_hint=_AC_UNEXPECTED_HINT)
+                unexpected_hint=_AC_UNEXPECTED_HINT,
+                unexpected_hint_keys=_AC_SCOPING_TRAP_KEYS)
             if entry_errors:
                 ac_errors.extend(entry_errors)
             else:
@@ -278,21 +326,36 @@ def parse_perceived_model(text: str) -> dict:
     if all_errors:
         raise PerceivedModelError("; ".join(all_errors))
 
-    # `.get(field, <documented empty default>)` rather than `data[field]`:
-    # `errors` above only enforces whatever `_REQUIRED_FIELDS` currently
-    # declares (reviews/FWD-018 F16), so a field the schema no longer
-    # requires must fall back to its own documented empty default here
-    # (agents/fde-walkthrough-evaluator.md's "What to return" table)
-    # rather than raise a raw KeyError.
-    return {
-        "what_this_is": data.get("what_this_is", ""),
-        "primary_actions": {normalize_phrase(p) for p in data.get("primary_actions", [])},
-        "action_consequences": pairs,
-        "unclear_points": {normalize_phrase(p) for p in data.get("unclear_points", [])},
-        "target_unreachable": data.get("target_unreachable", False),
-        "unreachable_reason": data.get("unreachable_reason", ""),
-        "observed_text": list(data.get("observed_text", [])),
-    }
+    # Built by iterating `_REQUIRED_FIELDS` itself, not a hand-written
+    # literal naming today's seven keys (reviews/FWD-018 F18) — so
+    # `_REQUIRED_FIELDS` is genuinely the sole source of truth for BOTH
+    # halves of "which fields exist": which are enforced at parse time
+    # (F16) and which reach the caller in the returned dict (F18). A
+    # field added there and present in the document flows through
+    # automatically, with no second site to edit; a field removed from
+    # there is symmetrically removed from the output too, rather than
+    # lingering with a phantom default nothing declares anymore (see
+    # `TestRequiredFieldsIsTheSingleSourceOfTruth`, which proves both
+    # directions by mutating this dict at runtime). `action_consequences`
+    # is always a special case: its values are nested tables already
+    # validated and canonicalized into `pairs` above, not a scalar/
+    # list-of-str field this generic loop can build directly.
+    # `_NORMALIZED_PHRASE_SET_FIELDS` names the fields that get the
+    # normalize-and-dedupe-into-a-set treatment; every other field is
+    # taken verbatim. `data[field]` (not `.get`) is safe here without a
+    # fallback default: every `field` this loop sees comes from
+    # `_REQUIRED_FIELDS`, and `errors` above already raised unless every
+    # one of those fields is present in `data` at its required type.
+    result: dict = {}
+    for field, expected in _REQUIRED_FIELDS.items():
+        if field == "action_consequences":
+            result[field] = pairs
+        elif field in _NORMALIZED_PHRASE_SET_FIELDS:
+            result[field] = {normalize_phrase(p) for p in data[field]}
+        else:
+            value = data[field]
+            result[field] = list(value) if expected is list else value
+    return result
 
 
 def slot_distance(a: set, b: set) -> float:

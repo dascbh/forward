@@ -351,6 +351,34 @@ class TestParsePerceivedModelUnexpectedKeys(unittest.TestCase):
         message = str(cm.exception)
         self.assertIn("confidence", message)
         self.assertIn("action_consequences[0]", message)
+        # reviews/FWD-018 F19: this exact fixture — an inline-table
+        # array, no `[[action_consequences]]` header anywhere, so the
+        # scoping trap literally cannot apply — is the one the finding
+        # used to prove the hint used to fire unconditionally, misdirecting
+        # diagnosis of a plain hallucinated/typo'd key ("confidence" is
+        # not one of the other document-root field names). It must not
+        # appear here.
+        self.assertNotIn("did you mean this to be a document-root field?", message)
+
+    def test_extra_key_matching_a_root_field_name_gets_the_scoping_trap_hint(self):
+        # reviews/FWD-018 F19: the narrowed condition is "does the
+        # unexpected key's name match one of the OTHER document-root
+        # fields" — checked here directly against an inline-table array
+        # (no `[[action_consequences]]` header, so this is NOT a real
+        # scoping-trap document) to isolate the name-matching condition
+        # itself from the full trap reproduction already covered by
+        # test_the_array_of_tables_scoping_trap_names_every_absorbed_field_and_the_table
+        # below.
+        text = MODEL_A.replace(
+            '{ action = "buy product", consequence = "completes the purchase" },',
+            '{ action = "buy product", consequence = "completes the purchase", '
+            'unclear_points = ["not really unclear"] },')
+        with self.assertRaises(walkthrough.PerceivedModelError) as cm:
+            walkthrough.parse_perceived_model(text)
+        message = str(cm.exception)
+        self.assertIn("unclear_points", message)
+        self.assertIn("action_consequences[0]", message)
+        self.assertIn("did you mean this to be a document-root field?", message)
 
     def test_error_message_names_every_missing_field_not_just_the_first(self):
         # Two required fields genuinely absent at once (not the scoping
@@ -428,16 +456,46 @@ class TestRequiredFieldsIsTheSingleSourceOfTruth(unittest.TestCase):
             walkthrough.parse_perceived_model(text)
         saved = walkthrough._REQUIRED_FIELDS.pop("observed_text")
         try:
-            # after removal: the IDENTICAL document now parses cleanly,
-            # falling back to observed_text's documented empty default —
+            # after removal: the IDENTICAL document now parses cleanly —
             # proof the dict is consulted at validation time, not merely
-            # decorative.
+            # decorative. `_REQUIRED_FIELDS` is symmetrically the sole
+            # source of truth for the RETURNED dict too (reviews/FWD-018
+            # F18): a field no longer required is also no longer part of
+            # the output, rather than lingering with a phantom default
+            # nothing declares anymore.
             m = walkthrough.parse_perceived_model(text)
-            self.assertEqual(m["observed_text"], [])
+            self.assertNotIn("observed_text", m)
         finally:
             walkthrough._REQUIRED_FIELDS["observed_text"] = saved
         # restored: the same document is rejected again, confirming the
         # restore itself took effect (not just that popping did).
+        with self.assertRaises(walkthrough.PerceivedModelError):
+            walkthrough.parse_perceived_model(text)
+
+    def test_adding_a_field_to_required_fields_makes_it_reach_the_returned_dict(self):
+        # reviews/FWD-018 F18: the REMOVE-direction test above proves
+        # `_REQUIRED_FIELDS` is consulted for validation — it does not
+        # prove a field added to the schema actually reaches a caller.
+        # Before the F18 fix, the return statement was a hand-written
+        # 7-key literal disconnected from `_REQUIRED_FIELDS`: a new
+        # required field got enforced (present, right type) but its value
+        # was silently discarded, never showing up in the returned dict.
+        # Mirrors F16's own runtime-mutation pattern, proving the ADD
+        # direction that test never exercised.
+        text = "".join(_FIELD_SNIPPETS.values()) + 'confidence = "high"\n'
+        walkthrough._REQUIRED_FIELDS["confidence"] = str
+        try:
+            # before this fix: parses (schema now requires it and the
+            # document has it), but "confidence" not in the returned
+            # dict at all — the exact silent-drop F18 found.
+            m = walkthrough.parse_perceived_model(text)
+            self.assertIn("confidence", m)
+            self.assertEqual(m["confidence"], "high")
+        finally:
+            del walkthrough._REQUIRED_FIELDS["confidence"]
+        # restored: the same document is rejected again (an unexpected
+        # field, since the schema no longer declares "confidence"),
+        # confirming the restore itself took effect.
         with self.assertRaises(walkthrough.PerceivedModelError):
             walkthrough.parse_perceived_model(text)
 
@@ -788,15 +846,23 @@ class TestArchitectureOutputsMatchGraphExpectations(unittest.TestCase):
             with self.subTest(line=line):
                 self.assertIn(f".{ext}", line)
 
-    def test_roles_and_agent_mirrors_stay_byte_identical_to_their_source(self):
-        pairs = [
-            (ROOT / "spec" / "roles.toml", ROOT / ".fde" / "spec" / "roles.toml"),
-            (ROOT / "agents" / "fde-architecture.md",
-             ROOT / ".claude" / "agents" / "fde-architecture.md"),
-        ]
-        for src, mirror in pairs:
-            with self.subTest(src=str(src)):
-                self.assertEqual(src.read_bytes(), mirror.read_bytes())
+    # NOTE (reviews/FWD-018 F17): a third method here once asserted
+    # `spec/roles.toml`/`.fde/spec/roles.toml` and
+    # `agents/fde-architecture.md`/`.claude/agents/fde-architecture.md`
+    # stay byte-identical. It was removed, not kept as belt-and-suspenders:
+    # F17 showed it does not test what this class's docstring claims (it
+    # passes on a live reintroduction of F13's own bug, reproduced
+    # consistently across source and mirror — only the two methods above,
+    # which derive the expected extension from graph.py, catch that bug
+    # class) and it fully duplicated pre-existing, more general coverage —
+    # `tests/test_install_sync.py::TestRuntimeCopies::
+    # test_fde_spec_is_identical_to_spec` (all of `spec/**/*.toml`,
+    # discovered, includes `spec/roles.toml`) and
+    # `TestClaudeLayerCopies::test_generic_role_files_are_installed_identically`
+    # (includes `agents/fde-architecture.md`) — that predates this commit
+    # and was untouched by it. Mirror byte-identity for these two files
+    # stays covered there; it does not need a third, narrower copy here
+    # dressed up as F13 regression protection it wasn't providing.
 
 
 if __name__ == "__main__":
