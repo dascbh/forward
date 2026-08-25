@@ -177,7 +177,11 @@ later.
   unexplained inconsistency, not added rigor.
 - Any change to `gate_eval_coverage`'s code path, call signature, or
   reported message shape. It must not read, branch on, or otherwise know
-  that the RULE commit-message convention exists.
+  that the RULE commit-message convention exists — the same prohibition
+  R6 states formally; see R6 and its "Amendment — 2026-08-25 (FWD-019
+  F13)" below for the one narrow, git-failure-only carve-out this bullet
+  and R6 both now share (a real, safe behavior change with a cause
+  outside this demand's own diff, not a RULE-awareness violation).
 - Consuming the existing `surfaces`/`loc`/`sensitive`/`irreversible`
   agent-estimated inputs, or the formula's `score` value, for any part of
   RULE eligibility. RULE's criteria come from the actually-committed diff
@@ -361,15 +365,24 @@ later.
   byte-identical to its current state (FM-6).
 - R6 (non-negotiable): `runtime/verify.py::Gate.gate_eval_coverage` MUST
   be unmodified by this demand's diff — zero lines added, removed, or
-  reordered inside its body, verifiable by direct inspection. Nothing
-  about `--gate eval`/`--gate eval-coverage`'s behavior, output, or code
-  path changes as a side effect of this demand. The existing XS/S/M/L
-  table rows in `skills/fde-triage/SKILL.md` and the existing
-  `score ≤ 1 → **XS**...`/`≥ 7 → **L**...` sentence in `AGENTS.md` and
-  `templates/AGENTS.md.template` MUST remain byte-identical to their
-  current text. `KNOWN_GATES`' insertion of `"rule-lane"` MUST be a pure
-  addition — no existing id renamed, removed, or reordered in a way that
-  changes `--gate <id>` behavior for any id that exists today.
+  reordered inside its body, verifiable by direct inspection. `--gate
+  eval`/`--gate eval-coverage` MUST NOT read, branch on, or otherwise
+  become aware that the RULE commit-message convention exists (the same
+  prohibition Boundaries/Never states above; the two are one requirement,
+  not two), and its behavior, output, and code path on every path where
+  the git operations it depends on succeed MUST remain exactly what they
+  were before this demand. Its behavior specifically under a git-failure
+  condition reached through the shared `_git`/`_resolve_range` helper is
+  exempted from that last clause and MAY differ — see
+  "Amendment — 2026-08-25 (FWD-019 F13)" below for why that carve-out
+  exists and is correct, not a weakening of this requirement. The
+  existing XS/S/M/L table rows in `skills/fde-triage/SKILL.md` and the
+  existing `score ≤ 1 → **XS**...`/`≥ 7 → **L**...` sentence in
+  `AGENTS.md` and `templates/AGENTS.md.template` MUST remain
+  byte-identical to their current text. `KNOWN_GATES`' insertion of
+  `"rule-lane"` MUST be a pure addition — no existing id renamed,
+  removed, or reordered in a way that changes `--gate <id>` behavior for
+  any id that exists today.
 - R7: WHEN this demand ships, `tests/test_triage.py` MUST exist,
   following `tests/test_erosion.py`'s split between pure-core unit tests
   (no git) and on-disk-fixture git-backed tests using the extended
@@ -389,3 +402,25 @@ later.
   the fixture's config; (8) a fixture proving per-commit isolation — a
   RULE-tagged trivial commit's eligibility is unaffected by a large,
   unrelated sibling commit in the same examined range (FM-8).
+
+---
+
+## Amendment — 2026-08-25 (FWD-019 F13)
+
+R6 and Boundaries/Never above are corrected from what shipped in earlier
+rounds. R6's clause (b) originally read "Nothing about `--gate eval`/
+`--gate eval-coverage`'s behavior, output, or code path changes as a side
+effect of this demand" — a broader claim than Boundaries/Never's own,
+narrower wording of the same prohibition ("must not... know that the RULE
+commit-message convention exists"), and the isolated adversarial round's
+fifth pass (`reviews/FWD-019/findings.toml`, F13) found the broader
+reading textually false: round 3's own F9 fix made the shared `_git`/
+`_resolve_range` helper strict by default, so `gate_eval_coverage`,
+through `changed()`, now correctly blocks on a git fault it previously
+passed silently — a real, demonstrated behavior change under that one
+condition, though a safe one, and never a change inside the function's
+own body. Both sections above now state the narrower, accurate claim and
+cross-reference each other instead of duplicating slightly different
+prose. Full record, including why the narrowing is correct rather than a
+violation, in `docs/adr/0015-rule-is-not-a-smaller-xs.md`'s own amendment
+of the same date.

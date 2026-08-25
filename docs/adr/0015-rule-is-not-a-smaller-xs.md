@@ -218,3 +218,66 @@ past the motivating case's actual needs, only a usability cost to
 setting it too low. The design accepts real, ongoing cost on the safe
 side of the asymmetry in exchange for closing the unsafe side as far
 as a mechanical check can close it.
+
+## Amendment — 2026-08-25 (FWD-019 F13)
+
+The isolated adversarial round's fifth pass (`reviews/FWD-019/findings.toml`,
+round 5, F13, `functional_correctness`, non-blocking) found that R6 — this
+ADR's own "I1 is completely unchanged" clause, carried into
+`specs/FWD-019-rule-lane/spec.md` as two MUST-level clauses — no longer
+holds in full. Clause (a), "`gate_eval_coverage` MUST be unmodified...
+zero lines added, removed, or reordered inside its body," still holds
+exactly as written: round 4's F10 confirmed it byte-identical against
+both round 2's own checkpoint and the demand's true pre-FWD-019 origin
+point, and F13's own round-5 probe re-confirmed it independently. That
+clause was, and remains, the load-bearing guardrail this ADR needed: the
+one mechanical, inspection-verifiable line standing between this demand
+and the temptation to casually touch FWD-017's already-hardened
+`gate_eval_coverage` logic while building an unrelated tier underneath
+it. Nothing here weakens or reopens that guarantee.
+
+Clause (b), "nothing about `--gate eval`/`--gate eval-coverage`'s
+behavior, output, or code path changes as a side effect of this demand,"
+was a stronger claim than this demand could actually keep, and F13
+demonstrated why directly, not by argument: the shared `_git`/
+`_resolve_range` helper `gate_eval_coverage` reaches through `changed()`
+became strict by default as round 3's own F9 fix — a genuine safety
+correction, not scope creep, made independently of R6 and for reasons
+that had nothing to do with it (a git spawn or invocation fault that used
+to read as "nothing changed" and pass now correctly blocks). `gate_eval_
+coverage`'s own body never moved a line to make that happen; it inherited
+the safer behavior for free, precisely because clause (a) held. Reproduced
+against the identical fault on both sides of the change: the pre-round-3
+binary passes silently under a genuine `git diff` failure, the current one
+blocks it. R6(b), read literally, was false the moment F9 landed in round
+3 and has stayed false through every round since, including this one's
+own HEAD — a fact no amount of code motion confined to "outside the
+function's body" could have undone, since the violation lives in the
+shared helper's behavior, not in `gate_eval_coverage` itself.
+
+This is named here as what it is: the safety fix was correct, and the
+prohibition, as originally written, was overbroad — not a violation this
+amendment apologizes for, but a boundary that needed narrowing to match
+what was actually true and desirable once F9's fix existed. A demand that
+had kept clause (b) literal would have had to either revert F9's
+hardening (reintroducing a real, already-demonstrated gap under FWD-017's
+own logic) or fork the shared helper into a second, duplicate
+implementation just to keep its old, less-safe behavior pinned in place
+for `gate_eval_coverage` alone — both strictly worse than the outcome
+that actually shipped.
+
+**The corrected boundary, going forward.** `gate_eval_coverage`'s CODE —
+its body, and its behavior on every path where the git operations it
+depends on succeed — is unchanged and stays the guardrail clause (a)
+always was. Its behavior specifically under a previously-unsafe
+git-failure condition (a `changed()`-reachable git invocation failing
+outright, as opposed to succeeding and returning a real diff) is now
+correctly stricter than it was before FWD-019 existed — a feature of F9's
+fix, inherited through the shared helper, not a scope violation of this
+demand and not a thing future work needs to re-flag against R6.
+`specs/FWD-019-rule-lane/spec.md`'s R6 and its "Boundaries → Never"
+section are corrected in place, in the same change that adds this
+amendment, to say this plainly and to agree with each other — that
+correction is not append-only doctrine the way this ADR's own Decision
+and Consequences sections above are, and is made directly in that file
+rather than layered here.
