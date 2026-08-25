@@ -1,349 +1,324 @@
-# Adversarial review — FWD-019 "RULE is not a smaller XS". Round 4 of 4
+# Adversarial review — FWD-019 "RULE is not a smaller XS". Round 5 of 5
 # (explicitly authorized by the project owner beyond this project's own
 # review doctrine's 3-round hard bound — skills/fde-review/SKILL.md caps
-# at three before escalating to the user; round 3 was already that
-# escalation's deciding round, and it found F9, the THIRD recurrence of
-# the identical defect class at a third call site (F4 -> F6 -> F9). This
-# round reviews the reconciliation commit a80b176 ("F9, invert Gate._git's
-# safety default") against the same spec.md/acceptance.md/ADR-0015 (all
-# re-read in full), with two explicit mandates from the task: (1) verify
-# the inverted-default fix actually holds, structurally, not just for the
-# exact F9 repro; (2) sweep verify.py, triage.py, and their interaction
-# for ANY other unsafe default the round-3 "individually audited caller"
-# pass might have missed or misjudged. Reviewer received artifact + spec
-# only (I2). Findings only; no fixes (I3). F1-F9 are NOT restated as
-# [[finding]] entries below — round 1/2/3's findings.toml versions
-# (commits b481563, 426148c, and the text now preserved only in git
-# history at 2a3055f, since this file is overwritten each round) hold
-# their original text; their round-4 disposition is recorded in `probed`.
-# New findings this round continue numbering from F10.
+# at three before escalating to the user; this is the second such
+# escalation, following round 4's own). This round reviews the
+# reconciliation commit 0e6972d ("F10, F12 fixed — F11 out of scope")
+# against the same spec.md/acceptance.md/ADR-0015 (all re-read in full),
+# with four explicit mandates from the task: (1) verify F10 actually
+# holds — gate_eval_coverage's body byte-identical to its pre-round-3
+# state, diffed directly against commit bd4e9ff, never trusted from the
+# commit message, PLUS confirm the new dispatch-level GitOpFailure
+# handling in main() has no gaps for any gate that can raise it; (2)
+# verify F12 holds — the broadened OSError handling in both
+# Gate._run_git and triage._git has no equivalent gap in some third
+# git-invocation path neither round considered; (3) confirm F1-F9 still
+# hold; (4) a genuinely fresh sweep for anything else in the same
+# family, not required to find anything. Reviewer received artifact +
+# spec only (I2). Findings only; no fixes (I3). F1-F9 are NOT restated
+# as [[finding]] entries below — round 1/2/3/4's findings.toml versions
+# (preserved only in git history at b481563, 426148c, 2a3055f, and
+# 6a66a39, since this file is overwritten each round) hold their
+# original text; their round-5 disposition is recorded in `probed`. F11
+# is likewise not restated — confirmed still correctly out of this
+# demand's scope, not re-flagged, per the task's own instruction. One
+# new finding this round: F13.
 
 [meta]
 demand_id = "FWD-019"
 context_policy = "artifact_only"
 isolation_mode = "worktree"
-rounds_planned = 4
-rounds_run = 4
-commit = "a80b17655561f9c649b9231645522c70d34288fb"
-agent_transcript = "agent-a1559830345c50858"
+rounds_planned = 5
+rounds_run = 5
+commit = "0e6972d6f1c10c35fc9f1e9a3e6ec20990822342"
+agent_transcript = "agent-ae2527d2e85e6e7ef"
 probed = '''
 Baseline: worktree confirmed at the target commit (`git log -1` ==
-a80b17655561f9c649b9231645522c70d34288fb, matches the task). `python3 -m
-unittest discover -s tests` — 355 tests, OK. `python3 bin/fde/verify.py
---all` — all 16 known gates green (CFG, CFG-SEC, I1, I2, I3, I8, I4, I5,
-I6, I7, SCRUM, SCRUM-GOAL, SCRUM-RETRO, TRACE, EROSION, DIVERGE, SURVEY;
-RULE-LANE silent by default, correct — no commit in this repo's own
-current history declares RULE). Read in full: spec.md, acceptance.md,
-ADR-0015, the round-3 reconciliation diff (`git diff 2a3055f..a80b176` —
-runtime/verify.py, bin/fde/verify.py mirror, tests/test_verify.py, 706
-lines across 3 files), the full current runtime/verify.py (1041 lines)
-and runtime/triage.py, and — because this round's mandate is explicitly
-"the broader picture" — the two sibling git-invoking modules verify.py's
-own gates import (`erosion.py`, `survey.py`) and every `gate_*` method in
-verify.py, not only the ones this demand touches.
+0e6972d6f1c10c35fc9f1e9a3e6ec20990822342, matches the task, clean tree).
+`python3 -m unittest discover -s tests` — 361 tests, OK (up from 355 at
+round 4's HEAD — the 6 new tests round 4's own reconciliation added:
+TestGateEvalCoverageBodyUnmodifiedR6 x2,
+TestGitOpFailureCaughtAtDispatchNotInsideTheGateMethod x1,
+TestRunGitPermissionErrorIsAGitOpFailure x1,
+TestGitSpawnPermissionErrorEndToEndDoesNotCrashTheWholeRun x1, plus one
+more added to test_triage.py for the same F12 fix mirrored there).
+`python3 bin/fde/verify.py --all` — all 16 known gates green; `--gate
+rule-lane` directly: explicit pass, "no commit in range claims RULE —
+nothing to re-verify" (correct — 0e6972d's own message does not start
+`FORWARD: RULE`). Read in full: spec.md, acceptance.md, ADR-0015 (both
+already read by round 4 and re-read fresh here — neither was touched by
+the round-4 reconciliation commit, confirmed by `git show --stat
+0e6972d`, which lists only bin/fde/triage.py, bin/fde/verify.py,
+reviews/FWD-019/findings.toml, runtime/triage.py, runtime/verify.py,
+tests/test_triage.py, tests/test_verify.py — no specs/ or docs/adr/
+file), and the full current runtime/verify.py (1081 lines) and
+runtime/triage.py.
 
-=== F1-F9 disposition — re-verified against the real modules, not
-trusted from the commit message or the shipped suite ===
+=== Task item 1: F10 ===
 
-F1/F2/F4/F5/F8 (all in `runtime/triage.py`): triage.py is BYTE-IDENTICAL
-between the round-2 reconciliation (bd4e9ff, where all five were last
-independently re-verified end-to-end) and this round's HEAD (`git diff
-bd4e9ff..HEAD -- runtime/triage.py bin/fde/triage.py` — zero lines).
-Re-reproduced F1 (binary fixture deleted under `tests/`, real repo, real
-`triage.eligibility_for_commit`) and F2 (a real `git merge --no-ff`
-bringing in 500 lines) directly against the unchanged module rather than
-trusting file-identity alone: both still return
-`eligible=False, criterion="binary"` / `criterion="merge"` exactly as
-round 2 established. F4/F5/F8 rest on the same unchanged file plus the
-355-test suite (up from 347) still passing, including their own
-dedicated fixtures.
+Diffed `gate_eval_coverage`'s body directly against `git show
+bd4e9ff:runtime/verify.py` (round 2's own R6-verified state) rather than
+trusting the commit message. Extracted both function bodies (from the
+`def gate_eval_coverage(` line to the line immediately before the next
+`def `) with `sed`/`awk` and ran `diff`/`cmp` byte-for-byte: zero
+differences, both `diff` (line-level) and `cmp` (byte-level). Repeated
+against `git show 389cf88:runtime/verify.py` — 389cf88 is `d26cc3f^`,
+this demand's own pre-existing baseline before any FWD-019 commit
+touched the file at all — same result, zero differences. F10's own
+claim ("gate_eval_coverage's body confirmed byte-identical to commit
+bd4e9ff's version") holds, and holds against the demand's true origin
+point too, not only round 2's checkpoint.
 
-F3 (duplicated range-resolution, verify.py): `Gate._resolve_range`
-remains the single shared helper `changed()`, `_commits_in_range()`, and
-now also `_rev_ok`-derived tier-3 checks in both callers all route
-through — read in full, no second copy introduced by round 3.
+Read `main()`'s dispatch loop (runtime/verify.py:955-1077) in full to
+check the new `run_gate` wrapper for gaps, per the task's explicit
+second mandate. Grepped every `self._git(`/`self._git_lenient(`/
+`self._run_git(`/`self.changed(`/`self._commits_in_range(` call site in
+the file (10 total) and traced each to its enclosing method:
+`_resolve_range`/`changed`/`_commits_in_range` are internal helpers, not
+gate entry points; `gate_eval_coverage` (via `changed()`) and
+`gate_rule_lane` (via `_commits_in_range()`) are the only two `gate_*`
+methods that call either — both are the two `run_gate`-wrapped call
+sites in `main()`. `gate_adversarial` also calls `self._rev_ok`/
+`self._git` directly (3 call sites, lines 542/555/567) but is NOT
+`run_gate`-wrapped; read it in full and confirmed it does not need to
+be — it already wraps each of its 3 git-touching calls in its own local
+`try/except GitOpFailure`, converting every failure to a blocking I3
+result, pre-dating and independent of round 4's dispatch-level fix.
+`gate_observability`'s one `self._git_lenient` call (line 661) is
+deliberately lenient by design (its own docstring: I5 only ever passes
+off a positive hit, never off the absence of a failure, so a swallowed
+failure has no false-PASS path to hide behind) — correctly not wrapped
+either. No gate call site was found that can raise `GitOpFailure`
+without either a local catch or the new `run_gate` wrapper protecting
+it — no gap.
 
-F6 (Gate._commits_in_range's own git log call unhardened): HOLDS FIXED,
-now more thoroughly than round 2's original narrow fix — `_git_strict`
-(the round-2, single-call-site patch) no longer exists at all;
-`Gate._git` itself is strict by default for every caller, so F6's
-specific call site inherits the hardening structurally rather than by a
-targeted patch.
+One structural observation, not a defect: `gate_rule_lane` (verify.py:
+833-848) already catches `GitOpFailure` from `_commits_in_range`
+locally and returns before it could ever reach `run_gate`'s own
+`except GitOpFailure` clause; `triage.eligibility_for_commit` (called
+from inside `gate_rule_lane`'s loop) catches its OWN, textually
+identically-named-in-spirit but structurally distinct `triage.
+GitFailure` exception internally too (never verify.py's `GitOpFailure`
+— confirmed the two are independent classes, `triage.py` does not
+import `verify.py`'s exception or vice versa). So `run_gate`'s wrapping
+of `g.gate_rule_lane` is currently unreachable dead code for its
+`except` branch, not a gap — the opposite direction of risk (harmless
+redundant defense-in-depth, consistent with the generic, reusable shape
+`run_gate`'s own docstring documents for "every `g.gate_XXX(...)` call
+below that CAN raise it"). Not filed as a finding: it is exercised (the
+`try` still runs), matches this codebase's own established
+defense-in-depth pattern, and cites no principle it violates.
 
-F7 (SKILL.md/AGENTS.md/template doc drift): HOLDS FIXED — all three files
-are byte-identical to their round-2-verified state (`git diff
-bd4e9ff..HEAD -- skills/fde-triage/SKILL.md AGENTS.md
-templates/AGENTS.md.template` — zero lines); the byte-identity parity
-test passed in the 355-test run.
+=== Task item 2: F12 ===
 
-F9 (the `_resolve_range`/`_rev_ok` path, one call upstream of F6, silently
-narrowing the examined range on any non-`FileNotFoundError` git failure):
-HOLDS FIXED, and independently re-probed with two fault scenarios beyond
-what the shipped `tests/test_verify.py` suite exercises (task instruction
-1 — verify the fix "actually holds," not merely that its own named test
-passes):
+Grepped `subprocess` across both `runtime/verify.py` and `runtime/
+triage.py` in full: `Gate._run_git` (verify.py:102-122) and `triage._git`
+(triage.py:193-208) are each the ONLY `subprocess.run` call in their
+respective file — confirmed by exhaustive grep, not by re-reading only
+the call sites F12 already named. No third git-invocation path exists
+in either file for the broadened `OSError` catch to have missed. F12
+holds.
 
-  (a) The shipped suite's `TestRuleLaneGateGitFailureDuringRevResolution`
-      only injects a failure into `_rev_ok(since)` (tier 1, with
-      `--since` passed explicitly). Reproduced a SECOND fault point in
-      the same chain the shipped suite does not touch: `_rev_ok("HEAD~1")`
-      (tier 2, reached when no `--since` is passed at all). Built a
-      fixture (`tests.support.make_project`, `rule_lane_max_loc=10`),
-      committed a real RULE-tagged, over-threshold commit as `HEAD~1`
-      then a trivial trailing commit as `HEAD`, installed a `git` shim on
-      PATH whose only special case is
-      `rev-parse --verify --quiet HEAD~1^{commit}` (exit 128), and ran
-      `verify(p, "--gate", "rule-lane")` with NO `--since` — the shim's
-      target is reached only via tier 2. Result: `returncode 1`,
-      `"RULE-LANE rule-lane could not determine which commits are in
-      range to re-verify: ... (exit 128) ... mechanical certainty is
-      unavailable"` — correctly blocks; never silently falls through to
-      tier 3 ("everything in HEAD", which would have examined the SAME
-      two commits anyway in this fixture and coincidentally passed by
-      accident, making this the harder of the two tiers to get wrong
-      silently — confirmed it is not wrong).
-  (b) `_rev_ok`'s own new distinguishing logic (`exit == 1 and empty
-      stderr` -> legitimately absent; anything else -> `GitOpFailure`) is
-      the one new piece of judgment this fix introduces. Reproduced the
-      boundary the shipped suite does not test: a shim returning exit 1
-      WITH non-empty stderr (simulating a less-quiet git variant or an
-      unexpected error text on the "doesn't exist" code path) for the
-      `since` rev-parse call. Result: correctly raises `GitOpFailure` and
-      blocks (`"... failed (exit 1): fake git: exit 1 but WITH stderr
-      ..."`) rather than misreading the ambiguous exit-1 case as
-      legitimate absence. The distinguishing logic fails closed on its
-      own ambiguous case, not open.
+=== Task item 3: F1-F9 ===
 
-Both reproductions used the real `bin/fde/verify.py` subprocess via
-`tests.support.verify()`, never a mock, matching this demand's own
-established reproduction standard. F9's fix holds against both.
+`git diff bd4e9ff..0e6972d -- runtime/triage.py bin/fde/triage.py` shows
+only the F12 hunk (the `except FileNotFoundError` -> `except OSError`
+change at the one `_git` spawn point) — everything F1/F2/F4/F5/F8 fixed
+in round 1/2 is untouched since. `git diff bd4e9ff..0e6972d -- skills/
+fde-triage/SKILL.md AGENTS.md templates/AGENTS.md.template` — zero
+lines; F7 (doc drift) still holds, and the byte-identity suite test
+(`test_rule_paragraph_is_byte_identical_between_agents_and_template`)
+still passes. F3's shared `_resolve_range` helper (verify.py:193-218)
+remains the single implementation both `changed()` and
+`_commits_in_range()` call — no second copy. F6/F9's hardened `_git`/
+`_rev_ok`/`_resolve_range` chain is unchanged by round 4's diff outside
+the one `_run_git` OSError broadening (F12) and the `gate_eval_coverage`
+relocation (F10) — both already covered above. All dedicated regression
+tests for F1/F2/F4/F5/F6/F7/F8/F9 (TestPureCore, TestGitWrapper,
+TestMechanicalUncertaintyDefaultsToNever, TestFallbackDefault, TestGate,
+TestSharedRangeResolution, TestRuleLaneGateMergeAndGitFailure,
+TestRuleLaneGateGitFailureDuringRangeDiscovery,
+TestRuleLaneGateGitFailureDuringRevResolution,
+TestZeroCommitRepoStaysLegitimateNotAFailure,
+TestI3GitFailureDuringHistoryScanBlocks, and the instruction-parity
+tests in test_instructions.py) are present and passing in the 361-test
+run. F1-F9 all hold.
+
+F11 (runtime/erosion.py's own `except FileNotFoundError`-only `_git()`,
+sharing F4/F6/F9's defect class): `git diff a80b176..0e6972d --
+runtime/erosion.py bin/fde/erosion.py runtime/survey.py runtime/
+walkthrough.py` — zero lines. Confirmed still untouched, correctly
+still out of this demand's declared scope (not named in spec.md's
+Boundaries), and NOT re-flagged here per the task's own instruction.
+
+=== Task item 4: fresh sweep — F13 found ===
+
+Re-read R6 (spec.md:362-372) at full, deliberate attention rather than
+through F10's own framing of it. R6 is textually two independent
+MUST-level clauses, not one: (a) "zero lines added, removed, or
+reordered inside its body, verifiable by direct inspection" and (b)
+"Nothing about `--gate eval`/`--gate eval-coverage`'s behavior, output,
+or code path changes as a side effect of this demand." F10's own probe
+text explicitly reads R6 as covering only (a) — quoting F10 directly:
+"R6's own text is a mechanical, textual criterion (\"zero lines...
+verifiable by direct inspection\"), not an output-equivalence one" —
+and round 4's fix accordingly only restored (a), leaving (b) untested
+by any round including this one's own item-1 pass above, until this
+sweep looked at it deliberately.
+
+(b) is currently false, and demonstrated so directly — not inferred —
+by running the exact same fault against the exact same fixture through
+both the pre-round-3 binary and the current one:
+
+1. Extracted `runtime/verify.py` at bd4e9ff (confirmed the `_git`
+   helper there is the OLD, lenient version: `except FileNotFoundError:
+   return []` on ANY other failure including a non-zero exit, since
+   `subprocess.run(..., check=False)` never raises for a non-zero exit
+   — `changed()` calls this `_git` directly, unwrapped).
+2. Built a fixture via `tests.support.make_project`, seeded a base
+   commit and one trailing commit, then REPLACED only `bin/fde/
+   verify.py` in that fixture with the bd4e9ff extract (fde_lib.py/
+   design.py/graph.py confirmed byte-identical between bd4e9ff and HEAD
+   via `git diff --stat`, so this isolates the ONE variable under test).
+   Installed a git shim that fails ONLY `diff --name-only
+   <base>..HEAD` — the exact call `changed()` makes for `--since
+   <base>` — with exit 128 and a stderr message (a genuine operational
+   failure, not "git missing"), delegating every other invocation to
+   the real git. Ran `python3 bin/fde/verify.py --gate eval-coverage
+   --since <base>` against this fixture.
+   RESULT (old, pre-round-3, the state R6 held through rounds 1-2 by
+   round 4's own confirmation): returncode 0, `"I1 no behavior change
+   in this changeset"`, `"all gates passed."` — a genuine git failure
+   discovering the diff silently reads as "nothing changed" and PASSES.
+3. Re-ran the IDENTICAL fixture, IDENTICAL shim, IDENTICAL command —
+   this time leaving `bin/fde/verify.py` as `make_project` copies it
+   (the current HEAD version, unmodified).
+   RESULT (current, post-F10-fix): returncode 1, `"I1-REQS requirement
+   coverage could not be checked: git diff --name-only <base>..HEAD
+   failed (exit 128): fake git: simulated diff failure"`, `"I1 could
+   not determine which files changed: ... — mechanical certainty is
+   unavailable, so I1 defaults to blocking..."`, `"2 gate(s) failed."`
+
+Same fixture, same fault, same command — genuinely different `--gate
+eval-coverage` behavior, output, and effective code path (silent pass
+vs. blocking failure). This is not a hypothetical reading of R6(b); it
+is the literal, empirically reproduced fact R6(b) declares must not be
+true "as a side effect of this demand," and it has been true since
+round 3 introduced the fix (the OLD `_git` — confirmed lenient at
+bd4e9ff, i.e. BEFORE round 3 — is what `changed()` called throughout
+rounds 1-2; round 3's F9 fix made the SHARED `_git`/`_resolve_range`
+default strict, which `gate_eval_coverage` inherits through `changed()`
+without its own body needing to change a single line for the outward
+behavior to change). Round 4's fix relocated WHERE the resulting
+`GitOpFailure` is caught (satisfying R6(a)) but could not have restored
+R6(b) by construction — R6(b)'s violation is caused by the shared
+helper's behavior changing underneath `gate_eval_coverage`, not by
+anything inside the function's own body, so no amount of code motion
+confined to "outside the body" can un-violate it while F9's underlying
+safety fix stays in effect. Recorded as F13, below.
+
+Nothing else in the same family surfaced. Checked and found clean:
+absence of a `subprocess.run` timeout on the one shared spawn point in
+each file (pre-dates FWD-019 entirely — the identical pattern exists in
+`0.1.0`'s original `verify.py`, unrelated to this demand's own diff,
+and equally present in `erosion.py`/`survey.py`/`walkthrough.py`'s own
+subprocess calls — out of scope the same way F11 is, not a "third path
+neither round considered" within this demand's own new logic); no
+shell-injection surface (`subprocess.run` is always called with a list,
+never `shell=True`, so a crafted `--since` value cannot break out);
+`triage.py`'s own CLI entry points (`--check`, `--report`) both wrap
+their one call to a git-touching function in `try/except GitFailure`,
+no third uncaught entry point. `finding-discipline` (I8) checked: every
+finding in this file, current and past, cites either a probe or a
+principle.
 '''
 
 [[finding]]
-id = "F10"
+id = "F13"
 attribute = "functional_correctness"
-severity = "critical"
-probe = '''
-"regression in previously accepted behavior" — round 3's own fix for F9
-regresses R6, a requirement spec.md itself labels "(non-negotiable)" and
-that held, verified by direct inspection, through both round 1 and round
-2 of this same demand's review.
-
-spec.md's R6: "`runtime/verify.py::Gate.gate_eval_coverage` MUST be
-unmodified by this demand's diff — zero lines added, removed, or
-reordered inside its body, verifiable by direct inspection. Nothing about
-`--gate eval`/`--gate eval-coverage`'s behavior, output, or code path
-changes as a side effect of this demand." acceptance.md restates this
-twice: as a bullet ("`gate_eval_coverage`'s body is unmodified — zero
-lines added, removed, or reordered") and as one of the seven explicit
-review questions this demand's own adversarial rounds are "specifically
-prompted to test": "does any part of this change touch, weaken, or add a
-RULE-aware branch inside `gate_eval_coverage`?" Round 1's own `probed`
-notes confirm this was checked and held at the time: "R6 holds, confirmed
-by direct inspection, not by trusting the commit message." Round 2's
-`probed` notes confirm the reconciliation through bcfe2b6 touched only
-`runtime/triage.py` and `runtime/verify.py`'s `changed()`/
-`_commits_in_range()`/`_git_strict`, never `gate_eval_coverage` itself.
-
-Round 3's fix for F9 breaks this. `git diff 389cf88..bd4e9ff --
-runtime/verify.py` (389cf88 is this demand's pre-existing baseline,
-d26cc3f^) shows `gate_eval_coverage`'s `def` line as a context line only
-through round 2 — R6 held for two full rounds. `git diff 389cf88..HEAD --
-runtime/verify.py` shows a NEW hunk, `@@ -101,7 +281,22 @@`, entirely
-inside `gate_eval_coverage`'s body (pre-image lines 101-107, well within
-the function's 94-202 span in the baseline): the single line
-`files = self.changed(staged, since)` is replaced by a 16-line
-`try`/`except GitOpFailure` block (current HEAD: runtime/verify.py:
-284-299) that adds two new `self.add("I1-REQS"/"I1", False, ...)` calls
-and a new early `return` — lines added, inside the body, full stop. This
-is not a hypothetical or a borderline reading: R6's own text is a
-mechanical, textual criterion ("zero lines... verifiable by direct
-inspection"), not an output-equivalence one, and it is now literally
-false.
-
-The fix's INTENT is sound and its safety property is real — F9's own
-end-to-end repro (round 3, step 6) independently showed `changed()`'s
-same `_resolve_range` dependency lets a git failure silently narrow I1's
-own file list too, not only `_commits_in_range`'s, so protecting
-`gate_eval_coverage` from the identical fault class is not scope
-creep, it is closing the same hole F9 found. But R6 was written
-specifically to prevent `gate_eval_coverage` from gaining ANY new branch
-for ANY reason (FM-3: "a future edit teaches `gate_eval_coverage` to
-special-case a RULE-tagged commit... R3/R6 require `gate_eval_coverage`'s
-body to gain zero lines referencing the RULE convention, VERIFIABLE BY
-INSPECTION OF THE DIFF") — round 3's fix is not RULE-aware, but the
-criterion it violates does not carry a "unless the branch is not
-RULE-aware" exception, and no round's reconciliation commit message
-acknowledges the tension or amends R6/ADR-0015 to permit it (contrast
-FWD-018's own precedent for this exact situation: 0.14.0's "ADR-0014
-amendment — structured TOML replaces heuristic parsing," a formal,
-recorded amendment when an in-flight fix needed to depart from a
-declared criterion). This is exactly the kind of drift a fresh, isolated
-round is positioned to catch and a round fixated on closing one specific
-finding is not: F9's fix satisfies F9's own probe completely while
-silently breaking a DIFFERENT, previously-holding, non-negotiable
-criterion as a side effect.
-
-Constructive note, not a fix (I3): the identical safety property is
-achievable without touching `gate_eval_coverage`'s body at all — `changed()`
-itself (not named or protected by R6) already raises `GitOpFailure`
-unconditionally as of this same round, so the translation into I1's
-blocking message could live in `main()`, wrapped around the
-`g.gate_eval_coverage(...)` call site (main() is also untouched by R6),
-or inside `changed()`'s own caller boundary, rather than inside
-`gate_eval_coverage` itself. Whether that path or a formal R6 amendment
-is the right call is not this review's decision to make (I3) — only that
-R6, as currently written and doubly declared, is currently false.
-'''
-evidence = "specs/FWD-019-rule-lane/spec.md:362-372 (R6, \"(non-negotiable)\"); specs/FWD-019-rule-lane/acceptance.md:37-38 and :101-103 (the bullet and the explicit review question); runtime/verify.py:284-299 (current HEAD — the 16-line try/except now inside gate_eval_coverage's body); `git diff 389cf88..bd4e9ff -- runtime/verify.py` (R6 held through round 2 — def gate_eval_coverage is a context line only) vs `git diff 389cf88..HEAD -- runtime/verify.py` (hunk @@ -101,7 +281,22 @@, inside the function's 94-202 baseline span) — both diffed directly against 389cf88 (= d26cc3f^, this demand's own pre-existing baseline before any FWD-019 commit)"
-blocking = true
-
-[[finding]]
-id = "F11"
-attribute = "reliability_resilience"
-severity = "high"
-probe = '''
-"external dependency slow, intermittent, and unavailable" — the exact
-defect class this demand's entire three-round history chases (F4 -> F6
--> F9: any git failure other than `FileNotFoundError` silently reads as
-"legitimately nothing to report," never as a failure) is ALSO present,
-right now, in a sibling module reachable from the same `verify.py` gate
-dispatch this demand's own reconciliation just finished hardening —
-`runtime/erosion.py`'s own `_git()` wrapper (lines 194-200), unchanged by
-this demand and not named in spec.md's Boundaries, but explicitly in
-scope for this round's mandate ("is there any OTHER function in
-verify.py, triage.py, OR THEIR INTERACTION that still has an unsafe
-default" — `gate_erosion`, in verify.py, is that interaction: it imports
-`erosion` and trusts `erosion.gate()`'s return value without knowing
-`erosion._git()` can silently degrade).
-
-`erosion._git()`: `except FileNotFoundError: return ""` — structurally
-identical to `triage._git()`/`Gate._git()` before their own F4/F6/F9
-fixes. `erosion.measure()` calls it for the churn log:
-`log = _git(project, "log", f"-{window}", "--numstat", "--format=")`,
-then `added, deleted, rows = parse_numstat(log, scope, gen) if
-log.strip() else (0, 0, 0)` — a git failure (empty stdout, error on
-stderr) is indistinguishable from "no churn in this window" and reads as
-`rows=0`. `measure()`'s own comment even names the risk it thinks it
-mitigates ("rows==0 is NOT zero churn: it is churn never measured...
-Reporting it as a pass would be a silent green") by degrading
-`add_delete_ratio`/`largest_change` to `None` rather than `0` — but
-`check_budget()` treats a `None` metric as `unmeasured`, and
-`gate_erosion` still reports an overall PASS for an unmeasured budget
-(`self.add("EROSION", not breaches, ...)` — `breaches` stays empty either
-way). The message text says "not measured"; the gate's pass/fail
-VERDICT does not distinguish it from "measured, clean" — the same shape
-of gap F4/F6/F9 closed for RULE-LANE and I1, just one layer more
-forgiving (labeled, not silent) rather than fully closed.
-
-Reproduced end-to-end against the real modules, via the real
-`bin/fde/verify.py` subprocess, never a mock:
-1. Fixture project (`tests.support.make_project`), seeded. Added
-   `src/a.py` with 40 lines, committed. Declared
-   `[erosion] max_add_delete_ratio = 0.01` in `fde.config.toml` (matching
-   `tests/test_erosion.py::TestGate::test_declared_breach_fails`'s own
-   pattern).
-2. Control, healthy git: `verify(p, "--gate", "erosion")` — returncode 1,
-   `"EROSION add/delete ratio 40.0 > budget 0.01"` — a real, correctly
-   detected breach.
-3. Installed a `git` shim on PATH whose only special case is
-   `log -50 --numstat --format=` — the exact call `erosion.measure()`
-   makes for churn — exit 128, everything else delegated to the real
-   `git` binary unmodified.
-4. Re-ran the IDENTICAL command: `verify(p, "--gate", "erosion")` now
-   returns returncode 0, `"EROSION within budget, but not measured:
-   add/delete ratio ... — the declared threshold had nothing to check"`,
-   `"all gates passed."` — the SAME real 40.0-ratio breach, now silently
-   passing (labeled "not measured" in the text a reader would have to
-   read past the green checkmark to notice) purely because the git call
-   reading history failed.
-
-This is explicitly NOT a finding against FWD-019's own diff —
-`erosion.py` is untouched by this demand, not named in spec.md's
-Boundaries, and fixing it is not this demand's job. It is recorded here,
-non-blocking for THIS promotion, because this round was specifically
-asked to look at "the broader picture" beyond the exact `_rev_ok`/
-`_resolve_range` class, and this is the identical root cause one hop
-into a sibling module this same gate-hardening effort left untouched.
-Recommend a separate, small follow-up demand (a natural F4/F6/F9-shaped
-fix: distinguish `erosion._git()`'s genuine failures from a legitimately
-empty log, and have `check_budget`/`gate_erosion` block or clearly
-surface "could not measure" as distinct from "measured, within budget,"
-the same asymmetry ADR-0015 argues for). `survey.py`'s own separate git
-subprocess call (`drift()`, survey.py:76-84) was checked too and does
-NOT share this gap: a git failure there already returns `None`, which
-`check()` reports as an explicit breach ("survey's commit ... does not
-resolve") — the safe direction already, unlike erosion.py.
-'''
-evidence = "runtime/erosion.py:194-200 (_git, only FileNotFoundError caught), :368-370 (measure(), log.strip() falsy on failure -> rows=0), :374-376 (add_delete_ratio/largest_change -> None on rows==0); runtime/erosion.py:162-188 (check_budget, a None metric becomes `unmeasured`, never a breach); runtime/verify.py:770-784 (gate_erosion, self.add(\"EROSION\", not breaches, ...) — an unmeasured budget still passes); reproduced end-to-end via the real bin/fde/verify.py subprocess with a git shim failing only the churn log call, delegating everything else to the real binary — control (real breach, blocks) vs fault (same breach, silently passes) both observed"
-blocking = false
-
-[[finding]]
-id = "F12"
-attribute = "reliability_resilience"
 severity = "medium"
 probe = '''
-"external dependency slow, intermittent, and unavailable" — a git
-failure mode this demand's own hardening does not cover: process-spawn
-failures other than "missing from PATH." `Gate._run_git`
-(runtime/verify.py:102-115, the ONE place a git subprocess is spawned as
-of round 3's own refactor) catches only `FileNotFoundError`:
-`except FileNotFoundError as e: raise GitOpFailure(...)`. `triage._git`
-(runtime/triage.py:192-200) has the identical shape, unchanged by this
-demand. Both are within this round's explicit mandate ("any OTHER
-function in verify.py, triage.py... that still has an unsafe default")
-— the round-3 audit's own "individually audited caller" pass reasoned
-about `check=False`/non-zero-exit vs. `FileNotFoundError` specifically,
-never about the broader family of `OSError` subtypes Python's
-`subprocess.run` raises for other exec-time failures.
+"regression in previously accepted behavior" — R6 (spec.md:362-372,
+"non-negotiable") is textually two independent clauses: (a) the
+function body's own lines must be unmodified, and (b) "Nothing about
+`--gate eval`/`--gate eval-coverage`'s behavior, output, or code path
+changes as a side effect of this demand." Round 4's F10 fix fully
+restored (a) — confirmed above, byte-identical. It did not, and by
+construction could not, restore (b): (b) has been literally false since
+round 3 introduced the F9 fix, is STILL literally false at this
+round's HEAD (0e6972d), and neither spec.md nor ADR-0015 has been
+amended to acknowledge or narrow it — unlike FWD-018's own precedent
+for exactly this situation, "ADR-0014 amendment — structured TOML
+replaces heuristic parsing" (0.14.0), a formal, recorded amendment when
+an in-flight fix needed to depart from a declared criterion. F10 itself
+cited that precedent as the correct model but round 4's reconciliation
+did not follow it through for R6's second clause — `git show --stat
+0e6972d` touches no `specs/` or `docs/adr/` file.
 
-`PermissionError` is the concrete case: a `git` file present on PATH but
-not executable (a corrupted install, a broken bind-mount, a container
-image with the execute bit stripped from one binary) raises
-`PermissionError`, not `FileNotFoundError`, from `subprocess.run` itself
-— confirmed with a minimal reproduction (a non-executable shim script,
-no chmod +x) before trusting this against the real module. Unlike
-F4/F6/F9's class, this does NOT silently produce a false PASS — Python's
-default uncaught-exception handling exits non-zero, so CI still shows
-red. What it produces instead: a raw, unhandled traceback replacing this
-tool's own clean, gate-labeled report entirely, and — because `main()`
-has no per-gate try/except and `report()`/printing happens only once, at
-the very end, after every `gate_*` call — the crash silently discards
-EVERY gate result that already ran before the failing one, including
-ones that would have PASSED cleanly. This is a narrower trigger than
-F4/F6/F9 (it requires the ONE git resolvable on PATH to be present-but-
-broken with no other working git anywhere else on PATH — POSIX exec
-search skips a permission-denied PATH entry and keeps looking, confirmed
-empirically: the same fault with a working git ALSO on PATH afterward
-does not reproduce it at all) but is real, not hypothetical.
+Demonstrated directly, not inferred (see this file's `[meta].probed`,
+"Task item 4," for the full method): the IDENTICAL fixture and
+IDENTICAL injected git fault (a `git diff --name-only <rev>..HEAD`
+call failing with exit 128, a genuine operational failure, not "git
+missing"), run through the pre-round-3 `runtime/verify.py` (bd4e9ff)
+and the current one, produce genuinely different `--gate eval-coverage`
+results:
+  - bd4e9ff (the state R6 held through rounds 1-2, by round 4's own
+    confirmation): returncode 0, "I1 no behavior change in this
+    changeset", "all gates passed."
+  - 0e6972d (current HEAD): returncode 1, "I1-REQS requirement coverage
+    could not be checked: ...", "I1 could not determine which files
+    changed: ...", "2 gate(s) failed."
 
-Reproduced end-to-end against the real `bin/fde/verify.py` subprocess,
-never a mock: built a PATH containing only (a) a symlink to the real
-`python3` in one directory and (b) a `git` file, present but not
-`chmod +x`, as the only git anywhere on that PATH, in another. Ran
-`verify(p, "--gate", "eval-coverage")` against a real fixture project.
-Result: `returncode 1`, STDOUT completely empty (not even the report
-header), STDERR a raw Python traceback ending
-`PermissionError: [Errno 13] Permission denied: 'git'`, raised from
-`subprocess.run` inside `Gate._run_git`, propagated uncaught through
-`_rev_ok` -> `_resolve_range` -> `changed()` -> `gate_eval_coverage` ->
-`main()`. `triage._git` shares the identical shape (same
-`except FileNotFoundError as e: raise GitFailure` pattern,
-runtime/triage.py:197-198) and is reachable the same way from
-`_run_check`/`_run_report`/`eligibility_for_commit`, none of which catch
-anything broader than `GitFailure` either — not independently
-re-reproduced against triage.py's own CLI, since the mechanism (Python's
-`subprocess.run` raising `PermissionError` instead of `FileNotFoundError`
-for a present-but-non-executable target) is identical and already
-confirmed against the real interpreter.
+This is not a subtle reading — R6(b)'s own vocabulary ("behavior,
+output, or code path") is the standard vocabulary of an
+output-equivalence requirement, and the two runs above show exactly
+that: same input, same fault, different output. The mechanism explains
+why round 4's fix (correctly) could not close this: R6(b)'s violation
+is caused by `changed()`'s SHARED `_git`/`_resolve_range` chain
+becoming strict (F9, round 3) — a change `gate_eval_coverage` inherits
+through the one line `files = self.changed(staged, since)` without
+that line, or anything else in the function's body, needing to move at
+all. Relocating the resulting `except GitOpFailure` handling to
+`main()`'s dispatch loop (F10's fix) changes WHERE the now-different
+behavior is caught, not WHETHER it differs from the pre-FWD-019
+baseline — R6(b) and F9's own safety property are in direct, structural
+tension, and nothing in this demand's diff resolves that tension; it
+just moved the code that expresses it.
 
-Lower severity than F9/F11 because it fails LOUD, not silently — the
-core safety property this demand's whole history protects (never a false
-PASS) is not violated here. Recorded because it is squarely inside this
-round's mandate and cheaply closed the same way F4/F6/F9 were: catching
-`OSError` broadly (or `FileNotFoundError, PermissionError`
-specifically) at the one shared spawn point in each file, rather than
-only its narrowest subtype.
+Genuine ambiguity worth naming, not resolved by this review (I3):
+spec.md's own "Boundaries -> Never" section (spec.md:178-180) states
+the same prohibition much more narrowly than R6(b)'s plain text — "Any
+change to `gate_eval_coverage`'s code path... It must not read, branch
+on, or otherwise know that the RULE commit-message convention exists"
+— which, read on its own, would treat the F9/F10 git-failure hardening
+as compliant, since it is not RULE-aware in any way. R6(b)'s own
+sentence carries no such qualifier. The spec's two sections do not
+currently agree with each other, and F10's own round-4 reasoning
+appears to have silently resolved the tension by adopting the narrower
+(Boundaries/Never) reading without saying so — reasonable in outcome
+(the safety property F9 needed is real, and R6(a)'s harder, more
+mechanically meaningful clause is intact), but the non-negotiable
+label attached to R6 as a whole means that resolution belongs in a
+recorded amendment, not a silent, round-4-only interpretive choice
+never written down.
+
+Lower severity than F10 because the underlying system state is
+objectively SAFER, not less safe — this is not a case where mechanical
+certainty degraded; the opposite happened. The finding is that a
+written, "non-negotiable" acceptance criterion's literal text no longer
+matches reality, silently, across two full rounds (round 4 and this
+one) without anyone recording why — the exact kind of undocumented
+drift I4/MNT-4 exist to prevent, even when the drift itself is a good
+outcome.
+
+Constructive note, not a fix (I3): the cheapest resolution is almost
+certainly a short spec.md/ADR-0015 amendment narrowing R6(b) to match
+the Boundaries/Never section's actual, narrower intent (no RULE-aware
+branch, never "the function's behavior may never change for any
+reason") — mirroring FWD-018's own ADR-0014 amendment precedent one
+paragraph, not a design change. Whether that, a different form of
+amendment, or something else is the right call is not this review's
+decision (I3).
 '''
-evidence = "runtime/verify.py:102-115 (Gate._run_git, only FileNotFoundError caught); runtime/triage.py:192-200 (triage._git, identical shape); reproduced end-to-end via the real bin/fde/verify.py subprocess with a present-but-non-executable git as the only git on a constructed PATH (python3 available via a separate symlinked directory) — returncode 1, empty stdout, raw PermissionError traceback on stderr, no gate report printed at all"
+evidence = "specs/FWD-019-rule-lane/spec.md:362-366 (R6's two clauses, full text); specs/FWD-019-rule-lane/spec.md:178-180 (Boundaries/Never's narrower, RULE-awareness-specific phrasing of the same prohibition — the internal tension this finding names); `git show bd4e9ff:runtime/verify.py` lines 85-93 (the OLD, lenient `_git`, the version `changed()` called throughout rounds 1-2); runtime/verify.py:102-122 (the current, strict `_run_git`/`_git`); `git show --stat 0e6972d` (no specs/ or docs/adr/ file touched by the round-4 reconciliation); side-by-side reproduction — identical `tests.support.make_project` fixture, identical git shim failing only `diff --name-only <base>..HEAD` with exit 128 — run once against `bin/fde/verify.py` swapped for the bd4e9ff extract (returncode 0, \"I1 no behavior change in this changeset\", \"all gates passed\") and once against the current HEAD version unmodified (returncode 1, \"I1-REQS requirement coverage could not be checked...\", \"I1 could not determine which files changed...\", \"2 gate(s) failed\") — both runs via the real `bin/fde/verify.py` subprocess, never a mock"
 blocking = false
