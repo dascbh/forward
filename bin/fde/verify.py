@@ -101,18 +101,25 @@ class Gate:
     # -- helpers ----------------------------------------------------------
     def _run_git(self, *args: str) -> subprocess.CompletedProcess:
         """The one place a `git` subprocess is actually spawned. Raises
-        `GitOpFailure` when git itself is missing from PATH; every other
-        outcome — including a non-zero exit — is returned as-is, since
-        "non-zero" does not always mean "the operation failed": `_rev_ok`
-        below relies on this directly, because `rev-parse --verify
-        --quiet` legitimately uses exit 1 to mean "no such revision",
-        which is not itself a failure to report."""
+        `GitOpFailure` when git itself cannot even be started — missing
+        from PATH (`FileNotFoundError`), present but not executable
+        (`PermissionError`), or any other OS-level spawn failure
+        (`OSError`; reviews/FWD-019 round 4, F12: a `git` file on PATH
+        with its execute bit stripped raises `PermissionError`, not
+        `FileNotFoundError` — the narrower catch let that one escape
+        uncaught as a raw traceback, discarding every gate result that
+        had already run). Every other outcome — including a non-zero
+        exit — is returned as-is, since "non-zero" does not always mean
+        "the operation failed": `_rev_ok` below relies on this directly,
+        because `rev-parse --verify --quiet` legitimately uses exit 1 to
+        mean "no such revision", which is not itself a failure to
+        report."""
         try:
             return subprocess.run(
                 ["git", *args], cwd=self.project, capture_output=True, text=True, check=False
             )
-        except FileNotFoundError as e:
-            raise GitOpFailure(f"git not found on PATH: {e}") from e
+        except OSError as e:
+            raise GitOpFailure(f"git could not be run: {e}") from e
 
     def _git(self, *args: str) -> list[str]:
         """The default git-invocation wrapper — strict as of reviews/
@@ -281,22 +288,7 @@ class Gate:
         # below only proves an eval was touched, never that it verifies
         # what it claims to. Silent when no demand has a design surface
         # with R# tokens declared.
-        try:
-            files = self.changed(staged, since)
-        except GitOpFailure as e:
-            # reviews/FWD-019 round 3, F9: a git failure discovering which
-            # files changed must never silently read as "no behavior
-            # change" — that would let this exact failure class bypass I1
-            # entirely (F9's own end-to-end repro showed this happening,
-            # via the SAME _resolve_range changed() and _commits_in_range
-            # share). Mechanical certainty is unavailable, so I1 blocks.
-            self.add("I1-REQS", False, f"requirement coverage could not be checked: {e}")
-            self.add("I1", False,
-                     f"could not determine which files changed: {e} — "
-                     f"mechanical certainty is unavailable, so I1 defaults "
-                     f"to blocking rather than silently reading a git "
-                     f"failure as \"no behavior change\"")
-            return
+        files = self.changed(staged, since)
 
         try:
             import design
@@ -999,10 +991,57 @@ def main() -> int:
     def want(name: str) -> bool:
         return only is None or only == name
 
+    def run_gate(fn, *fnargs, gid: str = "GATE", on_git_failure=None, **fnkwargs) -> None:
+        """Generic dispatch-level backstop (reviews/FWD-019 round 4, F10):
+        every `g.gate_XXX(...)` call below that can raise `GitOpFailure`
+        (through `changed()`/`_commits_in_range()`, the two shared range-
+        resolution helpers) runs through this ONE implementation instead
+        of a per-gate try/except sprinkled through the loop. A
+        `GitOpFailure` that escapes the gate method is recorded as a
+        blocking result — via `on_git_failure(e)` when the call site
+        needs its own message shape, or a generic one keyed on `gid`
+        otherwise — rather than crashing the whole `verify.py` run
+        (discarding every gate result that already ran, F12's own
+        "unhandled traceback" failure mode) or, the original bug this
+        whole file's `GitOpFailure` history chases (F4/F6/F9), being
+        silently swallowed inside the gate method itself.
+
+        This is where round 3's F9 fix for `gate_eval_coverage` belongs:
+        R6 (spec.md, non-negotiable) requires that method's body stay
+        byte-identical to its pre-FWD-019 state, so the try/except cannot
+        live inside it — it lives here, at the one call site that can
+        raise it, instead."""
+        try:
+            fn(*fnargs, **fnkwargs)
+        except GitOpFailure as e:
+            if on_git_failure is not None:
+                on_git_failure(e)
+            else:
+                g.add(gid, False,
+                     f"{gid} could not run: a git operation failed and "
+                     f"mechanical certainty is unavailable: {e}")
+
+    def _eval_coverage_git_failure(e: GitOpFailure) -> None:
+        # reviews/FWD-019 round 3, F9: a git failure discovering which
+        # files changed must never silently read as "no behavior
+        # change" — that would let this exact failure class bypass I1
+        # entirely (F9's own end-to-end repro showed this happening,
+        # via the SAME _resolve_range changed() and _commits_in_range
+        # share). Mechanical certainty is unavailable, so I1 blocks.
+        # Moved here from inside gate_eval_coverage's body in round 4
+        # (F10) to satisfy R6 — same messages, same safety property.
+        g.add("I1-REQS", False, f"requirement coverage could not be checked: {e}")
+        g.add("I1", False,
+             f"could not determine which files changed: {e} — "
+             f"mechanical certainty is unavailable, so I1 defaults "
+             f"to blocking rather than silently reading a git "
+             f"failure as \"no behavior change\"")
+
     if want("config"):
         g.gate_config(cfg, spec)
     if want("eval-coverage") or want("eval"):
-        g.gate_eval_coverage(staged=args.staged, since=args.since, all_=args.all)
+        run_gate(g.gate_eval_coverage, staged=args.staged, since=args.since,
+                 all_=args.all, gid="I1", on_git_failure=_eval_coverage_git_failure)
     if not args.staged:  # pre-commit stays fast; the rest is CI
         if want("adversarial-isolation"):
             g.gate_adversarial()
@@ -1029,7 +1068,8 @@ def main() -> int:
         if want("walkthrough"):
             g.gate_walkthrough(explicit=(only == "walkthrough"))
         if want("rule-lane"):
-            g.gate_rule_lane(since=args.since, explicit=(only == "rule-lane"))
+            run_gate(g.gate_rule_lane, since=args.since,
+                     explicit=(only == "rule-lane"), gid="RULE-LANE")
 
     if not g.results:
         print("\033[31m✗\033[0m no gate ran — check the flags", file=sys.stderr)

@@ -194,8 +194,13 @@ def _git(project: Path, *args: str) -> str:
     try:
         r = subprocess.run(["git", *args], cwd=project, capture_output=True,
                            text=True, check=False)
-    except FileNotFoundError as e:
-        raise GitFailure(f"git not found on PATH: {e}") from e
+    except OSError as e:
+        # reviews/FWD-019 round 4, F12: broadened from FileNotFoundError
+        # alone — a `git` file present on PATH but not executable raises
+        # PermissionError, not FileNotFoundError, and the narrower catch
+        # let that escape as a raw traceback instead of the same clean
+        # GitFailure every other git failure mode already produces.
+        raise GitFailure(f"git could not be run: {e}") from e
     if r.returncode != 0:
         raise GitFailure(
             f"git {' '.join(args)} failed (exit {r.returncode}): "

@@ -18,6 +18,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "runtime"))
@@ -449,6 +450,39 @@ class TestGate(unittest.TestCase):
         r = verify(self.p, "--gate", "rule-lane", "--since", base)
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("loc", r.stdout)
+
+
+class TestGitWrapperPermissionErrorIsAGitFailure(unittest.TestCase):
+    """reviews/FWD-019 round 4, F12: `triage._git` used to catch only
+    `FileNotFoundError`. A `git` file present on PATH but not executable
+    raises `PermissionError` instead (confirmed empirically distinct
+    from `FileNotFoundError` — this is exactly `Gate._run_git`'s sibling
+    gap in verify.py, same fault, same fix, mirrored here) — before this
+    fix that propagated uncaught as a raw traceback rather than the same
+    clean `GitFailure` every other git failure mode already produces."""
+
+    def setUp(self):
+        self._t = tempfile.TemporaryDirectory()
+        self.p = make_project(self._t.name)
+        run_git(self.p, "add", "-A")
+        run_git(self.p, "commit", "-q", "-m", "seed")
+
+    def tearDown(self):
+        self._t.cleanup()
+
+    def test_permission_denied_git_raises_git_failure_not_a_crash(self):
+        with tempfile.TemporaryDirectory() as bindir:
+            broken = Path(bindir) / "git"
+            broken.write_text("#!/bin/sh\necho should never run\n")
+            broken.chmod(0o644)   # present, NOT executable, and the ONLY
+            # git anywhere on this PATH (a working git found elsewhere on
+            # PATH lets POSIX's exec search skip right past a broken
+            # entry — confirmed empirically, F12's own finding — so no
+            # other git may be reachable here).
+            with mock.patch.dict(os.environ, {"PATH": bindir}):
+                with self.assertRaises(triage.GitFailure) as ctx:
+                    triage.commit_files(Path(self.p), "HEAD")
+        self.assertIn("git could not be run", str(ctx.exception))
 
 
 if __name__ == "__main__":

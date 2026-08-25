@@ -1,6 +1,7 @@
 """FM-1/R1/R2: the gate as subprocess, on fixture projects."""
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import shutil
@@ -10,6 +11,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from support import commit_all, git_out, make_project, run_git, verify
 
@@ -1129,6 +1131,159 @@ class TestObservabilityGitFailureIsDeliberatelyLenient(unittest.TestCase):
 
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("no corresponding signal", r.stdout)
+
+
+class TestGateEvalCoverageBodyUnmodifiedR6(unittest.TestCase):
+    """reviews/FWD-019 round 4, F10: round 3's own fix for F9 (a
+    try/except GitOpFailure wrapping `self.changed(staged, since)`)
+    landed INSIDE `gate_eval_coverage`'s body — a regression against R6
+    (spec.md, non-negotiable): "zero lines added, removed, or reordered
+    inside its body, verifiable by direct inspection." The safety
+    property F9 needed is real and stays; it now lives at the ONE
+    dispatch call site in `main()` that can raise `GitOpFailure` through
+    `gate_eval_coverage` (`want("eval-coverage") or want("eval")`),
+    never inside the method itself. These tests guard against a fourth
+    recurrence of the identical mistake (F4 -> F6 -> F9 -> F10)."""
+
+    def test_body_contains_no_git_op_failure_handling(self):
+        # bd4e9ff (R6's own pre-round-3 baseline) never references
+        # GitOpFailure inside this function's body at all — the
+        # pre-existing `try: import design / import graph` block is
+        # unrelated to F9/F10 and stays (it predates FWD-019 entirely);
+        # only a GitOpFailure-specific try/except reappearing here means
+        # the round-3 fix has regressed back inside the method.
+        src = inspect.getsource(verify_mod.Gate.gate_eval_coverage)
+        self.assertNotIn("GitOpFailure", src)
+        self.assertNotIn("except GitOpFailure", src)
+
+    def test_files_assignment_is_a_plain_unwrapped_statement(self):
+        # a second, independent check straight from runtime/verify.py on
+        # disk (not the imported module object): "files = self.changed
+        # (...)" is exactly the one plain line bd4e9ff's own version
+        # used — not the first line of a try block, never wrapped in a
+        # try/except of its own.
+        text = (ROOT / "runtime" / "verify.py").read_text(encoding="utf-8")
+        lines = text.splitlines()
+        start = next(i for i, l in enumerate(lines)
+                    if l.startswith("    def gate_eval_coverage("))
+        end = next(i for i in range(start + 1, len(lines))
+                   if lines[i].startswith("    def "))
+        body_lines = lines[start:end]
+        idx = next(i for i, l in enumerate(body_lines)
+                  if "files = self.changed(staged, since)" in l)
+        # the line immediately before it is blank or a comment — never
+        # "try:" (which would mean this assignment is wrapped again)
+        prev = body_lines[idx - 1].strip()
+        self.assertNotEqual(prev, "try:")
+        self.assertNotIn("except GitOpFailure", "\n".join(body_lines))
+
+
+class TestGitOpFailureCaughtAtDispatchNotInsideTheGateMethod(unittest.TestCase):
+    """The dispatch-level fix (F10), proven end to end: `--gate
+    eval-coverage` ALONE — isolated from rule-lane's own, separately-
+    handled path — still blocks I1 on a git failure discovering which
+    files changed, even though the try/except no longer lives inside
+    `gate_eval_coverage` itself (moved to `main()`'s dispatch loop)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+        run_git(self.p, "add", "-A")
+        run_git(self.p, "commit", "-q", "-m", "seed")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_eval_coverage_alone_blocks_on_a_git_failure_via_dispatch(self):
+        base = git_out(self.p, "rev-parse", "HEAD")
+        (self.p / "trivial.txt").write_text("x\n")
+        commit_all(self.p, "a trailing commit")
+
+        with tempfile.TemporaryDirectory() as shimdir:
+            bindir = Path(shimdir)
+            _fake_git_that_fails_rev_parse_for(bindir, base)
+            env = {"PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}"}
+            r = verify(self.p, "--gate", "eval-coverage", "--since", base, env=env)
+
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("I1-REQS", r.stdout)
+        self.assertIn("I1", r.stdout)
+        self.assertIn("could not determine which files changed", r.stdout)
+        self.assertNotIn("Traceback", r.stderr)
+
+
+class TestRunGitPermissionErrorIsAGitOpFailure(unittest.TestCase):
+    """reviews/FWD-019 round 4, F12: `Gate._run_git` used to catch only
+    `FileNotFoundError`. A `git` file present on PATH but not executable
+    raises `PermissionError` instead (confirmed empirically distinct
+    from `FileNotFoundError`) — before this fix that propagated uncaught
+    as a raw traceback rather than the clean `GitOpFailure` every other
+    git failure mode already produces."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_permission_denied_git_raises_git_op_failure_not_a_crash(self):
+        with tempfile.TemporaryDirectory() as bindir:
+            broken = Path(bindir) / "git"
+            broken.write_text("#!/bin/sh\necho should never run\n")
+            broken.chmod(0o644)   # present, NOT executable, and the ONLY
+            # git anywhere on this PATH (a working git found elsewhere on
+            # PATH lets POSIX's exec search skip right past a broken
+            # entry — confirmed empirically, F12's own finding).
+            g = verify_mod.Gate(self.p)
+            with mock.patch.dict(os.environ, {"PATH": bindir}):
+                with self.assertRaises(verify_mod.GitOpFailure) as ctx:
+                    g._git("rev-parse", "HEAD")
+        self.assertIn("git could not be run", str(ctx.exception))
+
+
+class TestGitSpawnPermissionErrorEndToEndDoesNotCrashTheWholeRun(unittest.TestCase):
+    """The same fault (F12), reproduced through the real
+    `bin/fde/verify.py` subprocess end to end, matching this file's
+    established never-a-mock reproduction standard: a PermissionError
+    spawning `git` must never surface as a bare, unhandled Python
+    traceback — which would print nothing at all (not even the report
+    header) and discard every gate result that had already run — but
+    instead fails the gate cleanly, the same shape every other git
+    failure mode in this file already produces."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+        run_git(self.p, "add", "-A")
+        run_git(self.p, "commit", "-q", "-m", "seed")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_permission_denied_git_fails_the_gate_cleanly_not_a_crash(self):
+        with tempfile.TemporaryDirectory() as root:
+            pydir = Path(root) / "py"
+            gitdir = Path(root) / "git_broken"
+            pydir.mkdir()
+            gitdir.mkdir()
+            real_python = shutil.which("python3") or shutil.which("python")
+            assert real_python, "python3 must be on PATH to build this fixture"
+            (pydir / "python3").symlink_to(real_python)
+            broken = gitdir / "git"
+            broken.write_text("#!/bin/sh\necho should never run\n")
+            broken.chmod(0o644)   # present, NOT executable, and the ONLY
+            # git anywhere on this constructed PATH — a working git found
+            # LATER on PATH lets POSIX's exec search skip right past the
+            # broken one (confirmed empirically, F12's own finding), so
+            # no other git may be reachable from this PATH at all.
+            env = {"PATH": f"{pydir}{os.pathsep}{gitdir}"}
+            r = verify(self.p, "--gate", "eval-coverage", env=env)
+
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertIn("I1", r.stdout)
+        self.assertIn("gate(s) failed", r.stdout)
 
 
 if __name__ == "__main__":
