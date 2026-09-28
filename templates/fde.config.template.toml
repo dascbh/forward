@@ -79,6 +79,7 @@ tools = {{TOOLS}}   # e.g.: ["claude-code"] - which native layers step 8 emitted
 # list instead of into the cycle — the gate is silent when this is absent
 # the project must be the repository's top level (git rev-parse --show-prefix empty)
 # requires linear history after opt-in and a full clone
+# once a cycle file exists the mode is permanent for that history (ADR-0017 R4b)
 # enabled = true
 # stages = []      # delivery stages done must cover: "live", "published"
 

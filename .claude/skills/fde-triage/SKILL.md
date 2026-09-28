@@ -124,8 +124,10 @@ red. Once cycles exist, history stays linear: a commit with an opted
 parent (one holding `cycles/`, or with the flag on) is examined, and an
 examined merge is red — rebase, never merge. Every other examined commit
 is judged against its single parent, on its own diff. Once the first
-cycle file exists every later commit is examined, whatever the flag
-says. A change to `[gate]`, `[triage]` or `[cycle]` in `fde.config.toml`
+cycle file exists, every later pushed commit is examined, whatever the
+flag says (the gate must run on every push); leaving the mode afterwards
+means landing one deliberate red commit that deletes `cycles/` and
+`[cycle]` (ADR-0017 R4b). A change to `[gate]`, `[triage]` or `[cycle]` in `fde.config.toml`
 is itself a behavior change, never RULE-exempt. The project must be the
 repository's top level, in a full (not shallow) clone.
 
@@ -247,6 +249,11 @@ cycle only as `taken`, and only once.
   close, open, code: three commits;
 - a close and an open in one commit: commit the close first, then open
   the next cycle with its `## Intake` in a separate commit;
+- opens C-m while C-n is open: close C-n first, in its own commit, then
+  open C-m;
+- a commit made `fde.config.toml` malformed (or a symlink): amend it
+  before push; after push, the next commit repairs it (the malformed one
+  stays reported);
 - a stage to remove while the open cycle carries its key: remove the
   stage in the commit that closes that cycle, resolving its item (a `[-]`
   item is carried to `## Next cycle`, and the next opening disposes of
