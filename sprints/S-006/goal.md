@@ -57,3 +57,4 @@ promotion decision, and the owner runs the review + retro sitting.
   five review rounds, cycle C-1 closed with its items captured in
   backlog.md. Nothing was pushed before the revert.
 - 2026-09-28 — the owner asked for the delivery process to be reconfigured after FWD-021 (ADR-0018) and authorized carrying FWD-022 to closure under it.
+- 2026-09-28 — the owner abandoned FWD-021: ADR-0017 marked superseded, backlog item 9 closed, the cycle-gate residuals of C-1 dropped. Demand retro in `sprints/S-006/retro-FWD-021.md`; its changes entered the backlog as items 10 and 11.

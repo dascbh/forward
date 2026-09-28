@@ -1,9 +1,18 @@
 # ADR-0017 — A cycle is declared in git before it runs
 
 date: 2026-09-28
-status: paused
+status: abandoned — superseded by ADR-0018 and FWD-022
 
-## Status — 2026-09-28: paused, not accepted; nothing shipped
+## Status — 2026-09-28: abandoned
+
+The owner abandoned FWD-021 the same day. The need it served, a declared
+cycle with a next-cycle list, shipped as an instruction in FWD-022
+(AGENTS.md `## Cycle`). Under ADR-0018 a gate comes back only as a new
+demand backed by usage data showing the instruction failed, and that
+demand starts from its own spec, not from this ADR. The record below
+stays as history. The retro is `sprints/S-006/retro-FWD-021.md`.
+
+### Earlier status — paused, not accepted; nothing shipped
 
 FWD-021 is **paused unpromoted**. The owner allowed a fifth review round
 and made it the final one (`sprints/S-006/goal.md`). Round 5
