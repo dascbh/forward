@@ -77,16 +77,85 @@
 # or in a fresh `git clone` of the worktree in a temp dir (driver scripts:
 # the reviewer's scratchpad r4/h.py, p1_split_push.py .. p11_reroot.py),
 # never in the real tree.
+#
+# Round 5 (the fifth and final round the owner authorized,
+# sprints/S-006/goal.md: a blocking finding here pauses the demand
+# unpromoted). Artifact: HEAD d1c3205 — adds ca0d039 (owner decision),
+# b793449 (architecture "Revision — round 4", ADR-0017 R4a-R4g) and d1c3205
+# (round-4 reconciliation) on top of the round-4 artifact: runtime/cycle.py,
+# runtime/verify.py gate_cycle/_gate_cycle/_examine/_serial_at/_config_at/
+# _substituted/_cycle_preconditions and helpers, runtime/graph.py,
+# runtime/fde_lib.py (bin/fde/ copies byte-identical), tests/test_cycle.py,
+# the instruction layer, fde.config.toml [cycle], cycles/C-1.md. Spec:
+# specs/FWD-021-cycle-scope/ incl. every acceptance amendment and
+# architecture.md "Revision — round 4" (governing), ADR-0017 incl. all
+# revisions (R4a-R4g), and rounds 1-4 of this file. A separate isolated
+# reviewer (I2): artifact + spec + prior findings only, no builder
+# context. Findings only, no fixes (I3). Rounds 1-4 are preserved verbatim
+# except [meta]'s round counters, commit and agent_transcript; round 5
+# adds [meta].probed_round5, one [[verification]] per round-4 finding and
+# per open partial (F16, F20, F21, F28), and new findings F47-F53 (each
+# with round = 5). Every probe ran in throwaway temp repos built with
+# tests/support.make_project, or in a fresh `git clone` of the worktree
+# in a temp dir (driver scripts: the reviewer's scratchpad r5/h.py,
+# p1_verify.py .. p7_exit_shallow.py), never in the real tree. Every push
+# was run as CI runs it (`--since <previous tip>`) and as one range.
 
 [meta]
 demand_id = "FWD-021"
 context_policy = "artifact_only"
 isolation_mode = "worktree"
-rounds_planned = 4
-rounds_run = 4
-commit = "969ea5b (round 4); c0323d9 (round 3); c9ecddc (round 2); 3672a689171cc1191699c9a646af0e4f0f2ffc38 (round 1)"
-agent_transcript = "agent-a71e1d854cef1e705"
+rounds_planned = 5
+rounds_run = 5
+commit = "d1c3205 (round 5); 969ea5b (round 4); c0323d9 (round 3); c9ecddc (round 2); 3672a689171cc1191699c9a646af0e4f0f2ffc38 (round 1)"
+agent_transcript = "agent-ae3a50bbae8025f50"
+agent_transcript_round5 = "agent-ae3a50bbae8025f50"
 agent_transcript_round4 = "agent-a71e1d854cef1e705"
+probed_round5 = '''
+Baseline. `git log -1` in the isolation worktree: d1c3205, equal to
+main's HEAD. runtime/{cycle,verify,graph,fde_lib}.py byte-identical to
+bin/fde/; skills/fde-triage and fde-scrum identical to their .claude
+copies. `cd tests && python3 -m unittest test_cycle`: 158 tests OK in
+24 s. Fresh clone of HEAD (p5_repo_perf.py): `--gate cycle --since
+<root>` green ("116 commit(s) in range: 17 examined, 99 pre-opt-in"),
+all-zeros green ("117 ... 17 examined, 100 pre-opt-in (1 root(s))"),
+default green; `--all --since <root>` rc 0.
+
+Round-4 re-probes, per push and as one range (p1_verify.py): F41 split
+push (A red at its own push under --gate cycle and --all; B, C green;
+range red), F41 re-root (A red C4 at its own push and under --all; range
+red), F42 both variants (X red C5 at its own commit with the new "opens
+C-3 while C-2 is open" text; range red), F43 (M red at its own push with
+the "fix it before pushing" text; N green alone; range red at M), F44
+(working-tree symlink red; a commit turning the config into a symlink
+red; the round-4 symlink history red, p4_f44_f45.py), F45 (`git replace`
+of an undeclared commit: still red locally). F41 honest exit
+(p7_exit_shallow.py): the exit commit red (C1 + C4), the next push
+silent with no CYCLE row under --all.
+
+New attacks (weight order): force push whose new tip is disarmed
+(p2_new.py N1) — F47; never-opted clients with an unrelated top-level
+cycles/ directory, a history that once had one, or a nested project in
+an opted repository (p3_neveropted.py N5/N6, p2_new.py N3) — F48;
+opting out before the first cycle file (p2_new.py N2) — F49; item loss
+through two open cycles in the opt-in commit (p2_new.py N4) — F50; a
+client commit editing bin/fde/verify.py (p6_gateedit.py) — F51;
+.git/info/grafts (p4_f44_f45.py) — F52; heuristic pass over the diff
+77bbfcd..d1c3205 plus the ADR/architecture/code texts — F53.
+Attacks that held: never-opted plain clients are byte-identical under
+--all (in git default, all-zeros, bad --since, depth-1 clone default and
+--since, outside git — compared against the same verify.py with
+gate_cycle stubbed out); a never-opted client with 3001 commits pays
+0.38 s for an all-zeros run and 0.06 s for the default run; opening a
+cycle while another is open, or two at once, is red at that commit;
+a tracked stray entry under cycles/ is red; a shallow clone armed by
+history alone is red (fail-closed). Read from the code, not probed:
+a symlinked or directory-shaped cycle entry fails C2 at its add;
+deleting fde.config.toml is judged as a [gate]/[triage]/[cycle] change
+and a directory in its place as a non-regular file; malformed-parent
+substitution (_substituted) admits no undeclared code, because every
+repair that changes [gate]/[triage]/[cycle] still needs an open cycle.
+'''
 agent_transcript_round3 = "agent-a2886e4b38676a879"
 agent_transcript_round2 = "agent-a5e034348d1da4961"
 agent_transcript_round1 = "agent-ad6543fd04528f133"
@@ -1772,4 +1841,353 @@ Read from the diff 9f21455..969ea5b and the round-3 contract text.
   as well as `_p1_state`. Only `_p1_state` is on C-1's next-cycle list.
 '''
 evidence = "docs/adr/0017-a-cycle-is-declared-in-git-before-it-runs.md R3c message vs runtime/verify.py _examine C4 text; runtime/verify.py NO_OPEN / _c1_reason / _examine (`out` parameter plus tuple return); parameter names in _opted_trees, _stage_removal, _cycle_transition."
+blocking = false
+
+# ==========================================================================
+# Round 5 — verification of round-4 findings and open partials
+# ==========================================================================
+
+[[verification]]
+finding = "F41"
+round = 5
+status = "partially"
+probe = "p1_verify.py, each push run with --since <previous tip> and as one range. Temporary disarm: push A (flag off + 20-line src/evil.py) rc 1 'C1 <A>: no open cycle — ...; a change to [gate]/[triage]/[cycle] always needs an open cycle', CYCLE row present under --all; B and C green alone; range red. Re-root: push A rc 1 'C4 <A>: cycles/C-1.md was deleted', present under --all; range red. Honest exit (p7_exit_shallow.py): the exit commit red (C1 + C4); the next push silent. Every fast-forward path round 4 used is closed. The same disarm through a force push is still green: F47."
+
+[[verification]]
+finding = "F42"
+round = 5
+status = "partially"
+probe = "p1_verify.py: C-3 added while C-2 open -> rc 1 'C5 <X>: opens C-3 while C-2 is open — close C-2 first (separate commit), then open C-3'; C-2 and C-3 added together -> the same red; base..Z red in both variants. The class survives only through the unexamined opt-in commit: F50."
+
+[[verification]]
+finding = "F43"
+round = 5
+status = "resolved"
+probe = "p1_verify.py: M (behavior_paths = \"src/\") red at its own push: 'C1 <M>: this commit makes fde.config.toml invalid ([gate].behavior_paths must be a list of strings) — fix it before pushing (amend or rebase); once pushed, the next commit repairs it and this one stays reported'. N (repair) --since M: rc 0, '1 examined'. Range: red at M only."
+
+[[verification]]
+finding = "F44"
+round = 5
+status = "resolved"
+probe = "p4_f44_f45.py: the round-4 history (config committed as a symlink, two undeclared src/ commits): --since base, all-zeros and --all each give one red 'CYCLE: fde.config.toml must be a regular file (found a symlink) — replace the link with the file'. A commit turning the config into a symlink after C-1 exists: red, including when the working tree is restored to a regular file (the tracked mode 120000 still trips the check)."
+
+[[verification]]
+finding = "F45"
+round = 5
+status = "resolved"
+probe = "p4_f44_f45.py: `git replace <undeclared U> <fake commit with the close's tree>`: --since <close> stays rc 1 'C1 <U>: no open cycle'. `.git/info/grafts` is not disabled by --no-replace-objects (git 2.54): F52."
+
+[[verification]]
+finding = "F46"
+round = 5
+status = "resolved"
+probe = "Read: `Reason(kind, text)` dataclass, no NO_OPEN sentinel; `_examine` returns (breaches, counts) from a local list; parameters renamed parent*; cycle.py, gate_cycle and tests/test_cycle.py docstrings name 'Revision — round 4'; ADR R4g records that R3c is a paraphrase. New hygiene items: F53."
+
+[[verification]]
+finding = "F16"
+round = 5
+status = "partially"
+probe = "The F43 messages now name a real way out. One red added in round 4 names none: 'C1 <sha7>: parent config is <problem> and this commit does not repair it' (runtime/verify.py _examine), text fixed by architecture round 4 part 2. It tells the reader what is wrong, not what to do (repair it in this commit, or amend before push). Recorded under F53."
+
+[[verification]]
+finding = "F20"
+round = 5
+status = "resolved"
+probe = "p1_verify.py F43 case: the repairing child is judged by its own values and is green; the red sits on the introducing commit."
+
+[[verification]]
+finding = "F21"
+round = 5
+status = "partially"
+probe = "Merges (F32), close+open (F33) and two opens after opt-in (F42) are closed. Items of a cycle closed after opt-in still vanish on a green run when the opt-in commit itself carries two open cycles (p2_new.py N4): F50."
+
+[[verification]]
+finding = "F28"
+round = 5
+status = "partially"
+probe = "p2_new.py N4: 'CYCLE-RPT C-1 closed: 2 next-cycle item(s) — ... missing 2 (C-1#1 C-1#2)' on a green range in which the closing commit X was examined ('3 commit(s) in range: 2 examined, 1 pre-opt-in'). 'missing' is still reachable inside examined history (F50)."
+
+# ==========================================================================
+# Round 5 — new findings
+# ==========================================================================
+
+[[finding]]
+id = "F47"
+round = 5
+attribute = "functional_correctness"
+severity = "high"
+probe = '''
+A force push whose new tip is disarmed is silent. The gate never looks
+at the rewritten commits, so undeclared code lands and a frozen cycle
+file is deleted, both green (scratchpad r5/p2_new.py N1).
+Setup: C-1 open, then code under C-1, then X, the old tip on main.
+- Rewrite: `reset --hard HEAD~1`, then one commit A that sets `[cycle]
+  enabled = false`, `git rm -r cycles`, and adds a 20-line src/evil.py
+  (with a tests/ file, so I1 is satisfied). Force-push A.
+- CI runs `--all --since <X>`. In a fresh `git clone` of the rewritten
+  repository, X does not resolve, exactly as on an actions/checkout
+  runner with fetch-depth 0.
+- `--gate cycle --since X`: rc 0, "cycle mode off — declared-scope gate
+  not in force". `--all --since X`: no CYCLE row at all.
+- Control: the same rewrite with cycles/ kept gives rc 1, "CYCLE range:
+  --since <X> does not resolve (force push or shallow clone) — ...".
+Cause: architecture round 4 part 0 step 5 makes an unresolvable
+`--since` red "only if a or b holds; otherwise the run stays silent".
+With the range unresolvable, `commits = []`, so test c (an opted parent
+in the range) can never hold. A tip that clears both the flag and
+cycles/ therefore disarms the whole run. A's parent is opted, and a
+full-history run (all-zeros) of the same clone would examine A and give
+a red C4 for the deletion.
+Contract statements this contradicts. None of them is a declared
+residual; each asserts the opposite:
+- ADR-0017 R1g: "after push, a force push reaches R1f, which is red";
+- ADR-0017 R3a residual: "R1f turns it red when the old tip does not
+  resolve";
+- ADR-0017 R4c, the premise the single-opt-in-point proof now rests on:
+  "A force push whose old tip does not resolve is red (R1f)";
+- acceptance.md (round-1 amendment): "A force push after push is red
+  through the range rule";
+- acceptance C4 ("a cycle file is never deleted") and C1.
+This is F41's outcome (undeclared code plus a deleted frozen declaration,
+then a fresh re-opt-in later) reached in one push. A pull request is
+unaffected, because its base SHA resolves. Direct pushes to main are how
+this repository itself works. The precondition is force-push rights on
+the protected line, which R1f exists to cover.
+Direction, not a fix: when `--since` is given and does not resolve, arm
+from HEAD's own history, not only from a/b. For example, run the opted
+test over HEAD's first-parent chain (or HEAD~1) and treat any opted
+ancestor as c. A never-opted client stays silent, because none of its
+ancestors is opted.
+'''
+evidence = "runtime/verify.py _gate_cycle: `commits = [] if bad else self._log_commits(rev)`, then `if not (a or b or opted): ... return`, with the `bad` breach never emitted; architecture.md 'Revision — round 4' part 0 step 5. .github/workflows/fde-gate.yml `--since \"${{ github.event.pull_request.base.sha || github.event.before }}\"`. Reproduction: scratchpad r5/p2_new.py N1 (keep_cycles=False: rc 0, 'not in force', no CYCLE row under --all; keep_cycles=True: rc 1, 'does not resolve')."
+blocking = true
+
+[[finding]]
+id = "F48"
+round = 5
+attribute = "functional_correctness"
+severity = "high"
+probe = '''
+Round 4's arming tests b and c read signals that are not this project's
+opt-in, so clients that never opted in go red. This is FM-10 (critical:
+"red for an existing client ... the kernel is removed"). The round-4
+arming introduced it; before, only the flag armed the run.
+- N5 (scratchpad r5/p3_neveropted.py). A client with no [cycle] and an
+  unrelated top-level cycles/ directory (cycles/billing.md,
+  cycles/2026-q1.csv). A directory with that name is ordinary: billing
+  cycles, Linear-style "cycles" notes.
+  - `--all` (default range) is not byte-identical to the same verify.py
+    with gate_cycle stubbed out. It adds a red row: "C2
+    cycles/2026-q1.csv: stray entry — cycles/ holds only C-<n>.md files;
+    git rm it; C2 cycles/billing.md: stray entry ...".
+  - After one more code commit, `--all --since <x>` also gives "C1
+    <sha>: no open cycle — open a cycle in an earlier commit ...".
+  - The client is now forced into a mode it never chose. Setting
+    `[cycle] enabled = false` does not help, because test b arms on any
+    tracked file. The only way out is renaming its own directory.
+- N6 (the same script). A never-opted client whose history once had
+  cycles/notes.md, since removed. An all-zeros (new-branch) run prints a
+  CYCLE row ("... 1 examined, 3 pre-opt-in") that the stubbed baseline
+  does not. If the commit after the one holding cycles/ had been a
+  behavior commit, every new-branch push would be red for good.
+- N3 (scratchpad r5/p2_new.py). A monorepo whose root project is opted
+  (cycles/C-1.md at the root), with a nested FORWARD project pkg/ that
+  never opted.
+  - The nested project's `--gate cycle`, `--all --since <prev>` and
+    `--all` (default) each give a red "CYCLE: the project must be the
+    git top level (found prefix pkg/) — move fde.config.toml to the
+    repository root". That way out is impossible, because the root
+    already has one.
+  - Cause: test c runs `git log` over the whole repository and probes
+    `<parent>:cycles` and `<parent>:fde.config.toml` at the repository
+    root, not the project's own paths.
+Contract statements this contradicts:
+- spec R9 (round-1 revision): "a commit is examined when its parent tree
+  enables the mode or holds any tracked **cycle file**". A file under
+  cycles/ that is not C-<n>.md is not a cycle file.
+- spec R9 (round-4 revision): "A never-opted client still gets no rows."
+- acceptance "Silence and compatibility (R9)" and the round-4 amendment
+  "Never-opted clients (R9, unchanged). `--all` output stays
+  byte-identical".
+- ADR R4a "R9's promise holds as written".
+- The config template: "the gate is silent when this is absent".
+The plain never-opted fixture (no cycles/ directory) is byte-identical
+in every mode probed, so the builder's test passes. It does not cover
+these shapes.
+Direction: arm b on tracked cycle files (NAME_RE), not on any entry. The
+opted test's "a cycles tree" would need the same narrowing, or a
+cycles tree holding at least one C-<n>.md. Test c should skip parents
+whose change is outside the project (or be skipped for a non-top-level
+project with no flag and no cycle file of its own).
+'''
+evidence = "runtime/verify.py _gate_cycle `b = bool(self._git_z(\"ls-files\", \"-z\", \"--\", \"cycles/\"))`; _opted_trees `ctype[1:2] == [\"tree\"]` for `<p>:cycles` (any tree); `_log_commits` over the whole repository and `<p>:fde.config.toml` / `<p>:cycles` at the repository root. Reproduction: scratchpad r5/p3_neveropted.py N5 (identical=False, red C2 strays; red C1 after a code commit), N6 (all-zeros identical=False), r5/p2_new.py N3 (nested never-opted project red under --all)."
+blocking = true
+
+[[finding]]
+id = "F49"
+round = 5
+attribute = "functional_correctness"
+severity = "medium"
+probe = '''
+Opting out before the first cycle file is red. The round-4 acceptance
+says it is free (scratchpad r5/p2_new.py N2).
+- O: a never-opted client adds `[cycle] enabled = true` and nothing
+  else, with no cycle file.
+- X: sets `enabled = false`, and nothing else.
+- Push X (`--since O`): rc 1, "C1 <X>: no open cycle — open a cycle in
+  an earlier commit; a change to [gate]/[triage]/[cycle] always needs an
+  open cycle". The same row appears under --all, and in the range
+  base..X.
+Cause: O is opted by its flag (test c), so X is examined, and a
+[cycle] change with no open cycle is red (R2c). The only green way out
+the message offers is to open a cycle first. Opening one makes the mode
+permanent (R4b), so no green exit exists once the flag has been
+committed.
+Contradicts:
+- the acceptance round-4 amendment, "Before the first cycle file,
+  `enabled = false` remains a free opt-out";
+- ADR R4b, "Before the first cycle file exists, `enabled = false` is
+  still a free opt-out, as the spec's 'opt-out of a mode' intended".
+Severity reasoning: this fails closed and weakens no guarantee. The cost
+is the owner-accepted R4b exit, one deliberate red commit, now also
+charged to a client that only flipped the flag. The contract states a
+cheaper exit than the gate delivers. Either the text or the rule must
+change. Recorded as non-blocking because nothing undeclared can land
+through it. The owner may weigh the acceptance wording differently.
+'''
+evidence = "runtime/verify.py _opted_trees (flag-only parent is opted) and _examine by_config -> _c1_reason 'no-open-cycle'; specs/FWD-021-cycle-scope/acceptance.md round-4 amendment 'Once opted, always opted'; ADR-0017 R4b last paragraph. Reproduction: scratchpad r5/p2_new.py N2."
+blocking = false
+
+[[finding]]
+id = "F50"
+round = 5
+attribute = "functional_correctness"
+severity = "medium"
+probe = '''
+Next-cycle items still vanish on a green run when the opt-in commit
+itself holds two open cycles (scratchpad r5/p2_new.py N4). This is the
+F42 class, reached through the one commit that is never examined.
+- base: a never-opted client.
+- O (the opt-in commit): adds `[cycle] enabled = true`, cycles/C-1.md
+  (open) and cycles/C-2.md (open, empty Intake).
+- X: closes C-1 with two next-cycle items ("fix the flaky thing", "p99
+  latency").
+- Y: a 20-line code commit under C-2.
+- One push, `--since base`: rc 0, "3 commit(s) in range: 2 examined, 1
+  pre-opt-in; 1 behavior commit(s), all declared before". The report
+  reads "C-1 closed: 2 next-cycle item(s) — ... missing 2 (C-1#1 C-1#2)".
+  Under --all the CYCLE row is green.
+Why each check misses it:
+- O is not examined, because its parent is unopted.
+- R4d's serial check runs on X's own tree, where only C-2 is open and it
+  is the highest, so it passes.
+- C-2's opening check (C6) never ran, so C-1's items meet no disposition
+  point.
+- The working-tree C5 would catch O only if O were HEAD.
+The cycle.py docstring says an open cycle is judged "in the working tree
+and at the commit that adds it". Neither judges O's cycles when the push
+continues past O.
+Contradicts:
+- acceptance "every item of a closed cycle is disposed of exactly once";
+- AGENTS "One cycle is open at a time".
+X, the commit that loses the items, is examined and green.
+Severity reasoning: this is reachable only in the opt-in push, and it
+needs an opt-in commit that already breaks C5. So it is narrower than
+F42 (any time), and it is recorded non-blocking. The loss itself is F42's.
+Direction: judge the opt-in commit's own cycles/ tree with C5 (and C2 for
+open cycles) when it is in range. It is the commit that first creates
+state every later check trusts.
+'''
+evidence = "runtime/verify.py _gate_cycle (commits whose parents are all unopted `continue` before any check); _serial_at runs on the examined commit's own tree only; cycle.check_opening runs only at an examined add. Reproduction: scratchpad r5/p2_new.py N4."
+blocking = false
+
+[[finding]]
+id = "F51"
+round = 5
+attribute = "security_privacy"
+severity = "low"
+probe = '''
+One client commit that edits bin/fde/verify.py and adds code disarms the
+gate. The commit needs no cycle, and every run on that push is green
+(scratchpad r5/p6_gateedit.py).
+- C-1 is closed. Control: an undeclared 20-line src/ commit gives rc 1
+  "C1 ...: no open cycle".
+- Instead, one commit "chore: kernel sync" makes `_gate_cycle` return
+  early (printing the usual "not in force" row) and adds the same code.
+- `--gate cycle --since <close>`: rc 0, "cycle mode off — declared-scope
+  gate not in force". `--all`: no CYCLE row.
+CI runs HEAD's own bin/fde/verify.py. ADR-0017 A7 records that in a
+client bin/fde/, .fde/ and .claude/ are not behavior paths, so that
+fde-sync commits need no cycle. It does not record the consequence: the
+gate's code can be changed, in the same commit as the code it would
+judge, with no declaration. R2c treats a [gate]/[triage]/[cycle] edit as
+a behavior change precisely to close the config-level disarm. The
+code-level one stays open and unnamed.
+Kernel-wide (I6: the gate runs from the client's tree), so it is not
+closable inside FWD-021. The finding is that ADR-0017's residual list
+omits it. Diff review is the only backstop, and it should be named.
+'''
+evidence = "docs/adr/0017-a-cycle-is-declared-in-git-before-it-runs.md A7 and 'Context' (bin/fde/ not a default behavior path); runtime/fde_lib.py DEFAULT_BEHAVIOR_PATHS; .github/workflows/fde-gate.yml runs `python bin/fde/verify.py` from the checked-out tree. Reproduction: scratchpad r5/p6_gateedit.py."
+blocking = false
+
+[[finding]]
+id = "F52"
+round = 5
+attribute = "reliability_resilience"
+severity = "low"
+probe = '''
+`--no-replace-objects` does not disable `.git/info/grafts`, so F45's
+local-versus-CI split survives by a sibling mechanism (scratchpad
+r5/p4_f44_f45.py, git 2.54.0).
+- C-1 is closed. An undeclared commit U: `--since <close>` gives rc 1.
+- Write `.git/info/grafts` with the single line `<U>`, which makes U a
+  root. `git log -1 --format=%P U` is now empty.
+- `--gate cycle --since <close>`: rc 0, "1 commit(s) in range: 0
+  examined, 1 pre-opt-in (1 root(s))".
+- All-zeros: rc 0, "1 commit(s) in range". The whole history behind U
+  has disappeared.
+Grafts are local and never fetched, so CI is unaffected, and this is not
+a merge path. ADR R4f states the goal as "a local run judges the same
+objects CI fetches", and that does not hold. Git prints a deprecation
+hint for grafts, but it still honours them.
+Direction: run the gate's git calls with `GIT_GRAFT_FILE` pointed at
+/dev/null (or check for .git/info/grafts and give a red row), next to
+--no-replace-objects.
+'''
+evidence = "runtime/verify.py Gate._git_global = ('--no-replace-objects',) is the only history-override guard; ADR-0017 R4f. Reproduction: scratchpad r5/p4_f44_f45.py 'grafts' section."
+blocking = false
+
+[[finding]]
+id = "F53"
+round = 5
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-1 single source of truth: every fact lives in one place (also MNT-4 decisions are written where the next reader will look; MNT-8 repeated conditionals on the same shape; USE-4 every error names a way out)"
+probe = '''
+Read from the diff 77bbfcd..d1c3205 and the round-4 contract texts. One
+item was probed (scratchpad r5/p7_exit_shallow.py).
+- ADR R4a says: "R3d's shallow-clone red row is emitted only when the
+  run is armed by test 1 or 2. When test 3 alone would arm a shallow
+  clone ... [it] stays silent". Architecture round 4 part 0 step 7, and
+  the code, emit it when c alone arms. Probe: a depth-3 clone whose tip
+  is disarmed, with an opted parent present, gives rc 1 "CYCLE: shallow
+  clone — ..." for both `--since <close>` and all-zeros. The ADR and the
+  build contract state opposite rules.
+- `_substituted` sets `new["raw"] = st["raw"] if "*" not in st["bad"]
+  else {}`. So by_config compares the repair against the MALFORMED
+  parent tables in one case and against nothing in the other. Nothing
+  says why. The reason, that a repair of [gate] must still count as a
+  config change needing an open cycle, lives only in the reviewer's
+  reconstruction.
+- `_gate_cycle` emits the "cycle mode off — declared-scope gate not in
+  force" row from two branches, and calls `_cycle_preconditions` from
+  two branches with the same `if row: add; return` tail.
+- The round-4 red "C1 <sha7>: parent config is <problem> and this
+  commit does not repair it" names no way out (F16's rule). Every other
+  round-4 message does.
+- templates/fde.config.template.toml still says "the gate is silent when
+  this is absent". Under R4a that holds only for a client with no
+  tracked cycles/ entry and no opted history (F48).
+'''
+evidence = "docs/adr/0017-a-cycle-is-declared-in-git-before-it-runs.md R4a 'Shallow clones' vs specs/FWD-021-cycle-scope/architecture.md round 4 part 0 step 7 and runtime/verify.py _gate_cycle `if not (a or b): row = self._cycle_preconditions()`; runtime/verify.py _substituted; _gate_cycle's duplicated branches; _examine 'does not repair it' text; templates/fde.config.template.toml [cycle] comment. Reproduction of the first item: scratchpad r5/p7_exit_shallow.py."
 blocking = false
