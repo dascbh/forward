@@ -42,3 +42,7 @@ promotion decision, and the owner runs the review + retro sitting.
   first-parent hole, F32, F33): the owner applied the declared fallback —
   linear history in any examined range — and authorized a 4th review
   round past fde-review's three-cycle bound.
+- 2026-09-28 — FWD-021 after review round 4 (2 blocking: F41 disarm via
+  the checked commit's own flag, F42 second open cycle caught only at the
+  tip): the owner authorized a fix and a 5th, final round; a blocking
+  finding in round 5 pauses FWD-021 unpromoted.
