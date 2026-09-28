@@ -193,3 +193,13 @@ class TestTemplatesAndVersions(unittest.TestCase):
             m = re.search(pat, path.read_text())
             self.assertIsNotNone(m, rel)
             self.assertEqual(m.group(1), spec_v, rel)
+
+    def test_kernel_version_moves_with_what_it_ships(self):
+        # clients pick changes up through `claude plugin update`, which only
+        # sees a moved version: a kernel shipping ADR-0018's review budget
+        # and FWD-022's cycle section must not still claim 0.15.x
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "docs/adr/0018-review-is-a-budget-not-a-loop.md")
+                        .exists())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 16, 0))

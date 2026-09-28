@@ -70,4 +70,4 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 - C-2#3 usage-data — the ## Cycle section cites MNT-9 by bare id; a client reading AGENTS.md alone cannot resolve it (review note)
 - C-2#4 usage-data — Voice asks for one status line while ## Cycle asks to show the next-cycle list verbatim; state that the list is the exception (review note)
 - C-2#5 usage-data — measure whether the instruction holds: count cycles that close with in-band fixes before considering any cycle gate (ADR-0018)
-- C-2#6 usage-data — kernel_version still 0.15.0 after ADR-0018 and FWD-022; bump on the next release
+- C-2#6 usage-data — kernel_version still 0.15.0 after ADR-0018 and FWD-022; bump on the next release — done in 0.16.0
