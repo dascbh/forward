@@ -538,6 +538,8 @@ def check_transition(path: str, sha: str, before: Cycle | None,
                    f"({len(before.done)} -> {len(after.done)}) — {FIX_CLOSE}")
         return out
     for i, (p, q) in enumerate(zip(before.done, after.done), 1):
+        if p.mark == q.mark == " " and p.text == q.text:
+            continue   # left unresolved: C3's "unresolved" breach names it
         ok = (p.mark == " " and q.mark in ("x", "-")
               and any(q.text.startswith(p.text + s)
                       and q.text[len(p.text) + len(s):].strip()

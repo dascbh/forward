@@ -1030,19 +1030,25 @@ class Gate:
             self._cycle_report(cycle, wt, rule_exempt, rule_open)
 
     def _stage_removal(self, cycle, sha: str, p1: str, st: dict, c_raw: dict) -> list[str]:
-        """R2d: a stage leaves [cycle].stages while P1's open cycle carries
-        its key — red, with the one legal order of steps."""
+        """R2d (addendum 2026-09-28): a stage leaves [cycle].stages while
+        P1's open cycle carries its key — red unless this commit closes
+        that cycle; the close is then judged against P1's config, where the
+        stage is still declared (C2, C3, capture)."""
         c_sec = c_raw.get("cycle")
         c_stages = c_sec.get("stages", []) if isinstance(c_sec, dict) else []
         c_stages = c_stages if isinstance(c_stages, list) else []
         out = []
         for s in [x for x in st["stages"] if x not in c_stages]:
             for c in self._tree_cycles(cycle, p1):
-                if not c.closed and any(cycle.item_key(it) == s for it in c.done):
-                    out.append(f"C1 {sha[:7]}: removes stage '{s}' while {c.ident} "
-                               f"carries it — close the cycle first (mark '{s}' [-] "
-                               f"with a reason while the stage is declared), then "
-                               f"remove the stage")
+                if c.closed or not any(cycle.item_key(it) == s for it in c.done):
+                    continue
+                now = self._cycle_at(cycle, sha, c.path)
+                if now is not None and now.closed:
+                    continue   # removed in the commit that closes the carrier
+                out.append(f"C1 {sha[:7]}: removes stage '{s}' while {c.ident} "
+                           f"carries it — remove the stage in the commit that "
+                           f"closes {c.ident} (resolve its '{s}' item; a [-] item "
+                           f"is carried to ## Next cycle)")
         return out
 
     def _cycle_transition(self, cycle, sha: str, p1: str, st: dict, f: str) -> list[str]:

@@ -1166,7 +1166,7 @@ class TestInstructionLayer(unittest.TestCase):
                   "a behavior commit may not add a cycle file",
                   "only while the opening commit is still HEAD", "**Ways out.**",
                   "split the commit before push", "rebase onto the protected line",
-                  "marking that item `[-]` with a reason"):
+                  "remove the stage in the commit that closes that cycle"):
             self.assertIn(n, t)
 
     def test_scrum_skill_captures_in_the_closing_commit(self):
@@ -1444,15 +1444,126 @@ class TestF22GateConfigIsBehavior(Fixture):
 
 
 class TestF23StageRemoval(Fixture):
-    def test_removing_a_stage_the_open_cycle_carries_is_red_with_the_way_out(self):
+    """Addendum 2026-09-28 (architecture.md part 7a): a stage is removed in
+    the commit that closes the cycle carrying its key."""
+    LIVE = "live checks pass"
+    DONE2 = XS_DONE + (LIVE,)
+    WHY = "we stopped deploying this service"
+
+    def close2(self, nxt=("live checks pass: carried, the service may deploy again",),
+               live_mark=("-", WHY)):
+        marks = {i: ("x", "evidence") for i in range(len(self.DONE2) - 1)}
+        if live_mark:
+            marks[len(self.DONE2) - 1] = live_mark
+        return cyc(2, done=self.DONE2, closed="2026-10-03", nxt=nxt, marks=marks, intake=())
+
+    def step1(self):
         p = self.project(stages=["live"])
-        write(p, "cycles/C-1.md", cyc(1, done=XS_DONE + ("live checks pass",)))
-        root = commit_all(p, "init")
+        write(p, "cycles/C-1.md", closed_cyc(1, done=self.DONE2))
+        root = commit_all(p, "init: C-1 closed")
+        write(p, "cycles/C-2.md", cyc(2, done=self.DONE2, intake=()))
+        commit_all(p, "1: open C-2 with a live item")
+        return p, root
+
+    def step2(self, p):
+        _cfg_sub(p, 'stages = ["live"]', "stages = []")
+        write(p, "cycles/C-2.md", self.close2())
+        return commit_all(p, "2: remove live in the commit that closes C-2")
+
+    def step3(self, p, intake=("C-2#1 dropped — the service no longer deploys",)):
+        write(p, "cycles/C-3.md", cyc(3, intake=intake))
+        return commit_all(p, "3: open C-3")
+
+    def green_sequence(self):
+        p, root = self.step1()
+        self.assertGreen(self.gate(p, root))
+        self.step2(p)
+        self.assertGreen(self.gate(p, root))
+        self.step3(p)
+        self.assertGreen(self.gate(p, root))
+        write(p, "src/a.py", BIG)
+        commit_all(p, "4: code under C-3")
+        self.assertGreen(self.gate(p, root), "4 commit(s) examined, 2 behavior commit(s)")
+        return p, root
+
+    def test_green_sequence(self):
+        self.green_sequence()
+
+    def test_a_removal_while_the_carrier_stays_open_is_red(self):
+        p, root = self.step1()
         _cfg_sub(p, 'stages = ["live"]', "stages = []")
         sha = commit_all(p, "stop deploying mid-cycle")
-        self.assertRed(self.gate(p, root), f"C1 {sha[:7]}: removes stage 'live' while C-1 "
-                       f"carries it — close the cycle first (mark 'live' [-] with a reason "
-                       f"while the stage is declared), then remove the stage")
+        self.assertRed(self.gate(p, root), f"C1 {sha[:7]}: removes stage 'live' while C-2 "
+                       f"carries it — remove the stage in the commit that closes C-2 "
+                       f"(resolve its 'live' item; a [-] item is carried to ## Next cycle)")
+
+    def test_b_close_first_then_remove_is_red(self):
+        p, root = self.step1()
+        write(p, "cycles/C-2.md", self.close2())
+        commit_all(p, "close C-2, stage still declared")
+        _cfg_sub(p, 'stages = ["live"]', "stages = []")
+        sha = commit_all(p, "remove live afterwards")
+        self.assertRed(self.gate(p, root), f"C1 {sha[:7]}: no open cycle")
+
+    def test_c_close_with_the_live_item_unresolved_is_red(self):
+        p, root = self.step1()
+        _cfg_sub(p, 'stages = ["live"]', "stages = []")
+        write(p, "cycles/C-2.md", self.close2(nxt=("none",), live_mark=None))
+        sha = commit_all(p, "remove and close, live left open")
+        self.assertRed(self.gate(p, root), f"C3 {sha[:7]} cycles/C-2.md: closed with "
+                                           f"'## Done when' item 6 unresolved")
+
+    def test_d_not_met_live_without_a_carried_item_is_red(self):
+        p, root = self.step1()
+        _cfg_sub(p, 'stages = ["live"]', "stages = []")
+        write(p, "cycles/C-2.md", self.close2(nxt=("something unrelated",)))
+        sha = commit_all(p, "remove and close, nothing carried")
+        self.assertRed(self.gate(p, root), f"C3 {sha[:7]} cycles/C-2.md: not-met item "
+                                           f"\"{self.LIVE}\" needs its own next-cycle item")
+
+    def test_e_removal_close_and_new_cycle_in_one_commit_is_red(self):
+        p, root = self.step1()
+        _cfg_sub(p, 'stages = ["live"]', "stages = []")
+        write(p, "cycles/C-2.md", self.close2())
+        write(p, "cycles/C-3.md", cyc(3, intake=("C-2#1 dropped — gone",)))
+        sha = commit_all(p, "remove, close and open")
+        self.assertRed(self.gate(p, root), f"C1 {sha[:7]}: a behavior commit opens "
+                                           f"cycles/C-3.md")
+
+    def test_f_removal_claimed_as_rule_without_closing_is_red(self):
+        p, root = self.step1()
+        _cfg_sub(p, 'stages = ["live"]', "stages = []")
+        sha = commit_all(p, "FORWARD: RULE — drop a stage")
+        self.assertRed(self.gate(p, root), f"C1 {sha[:7]}: removes stage 'live' while C-2 "
+                                           f"carries it")
+
+    def test_g_restore_under_c3_is_green_and_the_working_tree_asks_for_the_key(self):
+        p, root = self.green_sequence()
+        _cfg_sub(p, "stages = []", 'stages = ["live"]')
+        sha = commit_all(p, "restore live under C-3")
+        r = self.gate(p, root)
+        self.assertRed(r, "C2 cycles/C-3.md: profile key 'live' missing",
+                       "append '- [ ] amended YYYY-MM-DD: live'")
+        self.assertNotIn(f"C1 {sha[:7]}", r.stdout)
+        write(p, "cycles/C-3.md", cyc(3, intake=("C-2#1 dropped — the service no longer deploys",),
+                                      done=XS_DONE + ("amended 2026-10-04: live checks pass",)))
+        commit_all(p, "C-3 takes the live key")
+        self.assertGreen(self.gate(p, root))
+
+    def test_h_restore_with_no_open_cycle_is_red(self):
+        p, root = self.green_sequence()
+        write(p, "cycles/C-3.md", closed_cyc(3, intake=("C-2#1 dropped — the service no "
+                                                        "longer deploys",)))
+        commit_all(p, "close C-3")
+        _cfg_sub(p, "stages = []", 'stages = ["live"]')
+        sha = commit_all(p, "restore live, no cycle")
+        self.assertRed(self.gate(p, root), f"C1 {sha[:7]}: no open cycle")
+
+    def test_i_next_opening_without_disposing_of_the_live_item_is_red(self):
+        p, root = self.step1()
+        self.step2(p)
+        sha = self.step3(p, intake=())
+        self.assertRed(self.gate(p, root), f"C6 {sha[:7]} C-3: C-2#1 has no disposition")
 
 
 class TestF24TopLevel(Fixture):

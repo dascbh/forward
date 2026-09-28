@@ -243,9 +243,10 @@ cycle only as `taken`, and only once.
   (`--since <merge-base>`, or fetch full history);
 - code and a new cycle in one commit: split the commit before push —
   cycle first, then the code;
-- a stage to remove while the open cycle carries its key: close the cycle
-  first, marking that item `[-]` with a reason while the stage is still
-  declared, then remove the stage;
+- a stage to remove while the open cycle carries its key: remove the
+  stage in the commit that closes that cycle, resolving its item (a `[-]`
+  item is carried to `## Next cycle`, and the next opening disposes of
+  it); code after that needs the next cycle opened first;
 - a red merge: rebase onto the protected line instead of merging.
 
 ## What never scales
