@@ -419,8 +419,8 @@ def _render(root: Path, manifest: dict, name: str) -> str:
 def _attack_order(cfg: dict, quality: dict, src: dict) -> str:
     """SETUP §8.2's section, formatted from the kernel's own plan
     (`fde_lib.probe_plan`): its order (ties in quality-attributes.toml
-    order), its floor for an attribute [weights] omits, its rounds and
-    blocking rule. Only the markdown layout lives here."""
+    order) and its floor for an attribute [weights] omits. Only the
+    markdown layout lives here."""
     weights = _get(cfg, "weights", src["config"])
     attrs = _get(quality, "attribute", src["attributes"])
     known = {a.get("id") for a in attrs if isinstance(a, dict)}
@@ -435,12 +435,7 @@ def _attack_order(cfg: dict, quality: dict, src: dict) -> str:
         fde_lib.Spec(invariants={}, quality=quality, domains={}, roles={}))
     lines = ["## Attack order — this project's weights, descending", ""]
     for n, step in enumerate(plan, 1):
-        rounds = step["rounds"]
-        head = (f"### {n}. {step['label']} — weight {step['weight']}, "
-                f"{rounds} round{'' if rounds == 1 else 's'}")
-        if step["blocking"]:
-            head += " — BLOCKS MERGE"
-        lines.append(head)
+        lines.append(f"### {n}. {step['label']} — weight {step['weight']}")
         lines.extend(f"- {probe}" for probe in step["probes"])
         lines.append("")
     return "\n".join(lines) + "\n"

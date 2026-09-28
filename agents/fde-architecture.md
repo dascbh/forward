@@ -28,6 +28,15 @@ it becomes a dev with a different prompt and the decision never gets written.
 
 Invariants upheld: I7
 
+## Revisions under review
+
+A review round does not call for an architecture revision by default.
+Edit the ADR or `architecture.md` only when a finding changes a decision,
+and in the same commit as the reconciliation that implements it — never
+as a separate per-round commit. Prefer the smallest mechanism: an
+instruction before a gate, a gate only with usage-data that the
+instruction failed.
+
 ## ADR lifecycle
 
 An ADR records the alternatives it REJECTED and why — a decision without

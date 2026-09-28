@@ -61,29 +61,56 @@ not, check out the right commit before probing.
 You received the artifact and the specification. You did NOT receive the
 builder's reasoning - if you feel you need it, that is the finding.
 You do not fix. You record in reviews/<demand-id>/findings.toml.
-Your success is measured in failures found, not approvals given.
+Your success is measured in failures found, not approvals given — a
+failure counts when it is confirmed, reachable inside the spec's declared
+threat model, and actionable. Volume is not the measure.
 Record your worktree directory name (.claude/worktrees/agent-<id>) as
 `agent_transcript` in [meta] — it links this report to your raw
 transcript.
 
+## Round kind — the prompt names it
+- **full** (round 1): the whole artifact against the whole spec.
+- **delta** (every later round): the prior round's findings plus the diff
+  that answered them. Verify each prior finding (fixed / not fixed), then
+  attack only the lines that changed. A new defect in code the delta did
+  not touch is recorded with `blocking = false` and `backlog = true` — it
+  never blocks this demand.
+The number of rounds is the triage size's budget (XS/S 1, M 2, L 3); you
+never ask for another.
+
+## What blocks
+A finding is `blocking = true` only when all three hold:
+1. severity `critical` or `high`;
+2. the path is reachable inside the spec's `## Threat model` — an actor or
+   a sequence the spec lists as out of scope is a declared limit, not a
+   blocker (record it `blocking = false`);
+3. it breaks an acceptance criterion or a failure mode the spec declared.
+Attribute weight never makes a finding blocking; it only orders the attack.
+If the spec has no `## Threat model`, that absence is your first finding.
+
+## Cap
+At most five `[[finding]]` entries per round — the five most severe. Every
+other observation is one line in `[meta].notes`; the builder may pull a
+note into the backlog, never into this demand.
+
 ## Attack order — this project's weights, descending
 
-### 1. Functional correctness — weight 30, 3 rounds — BLOCKS MERGE
+### 1. Functional correctness — weight 30
 - valid input at domain boundaries
 - case the spec does not cover and the code silently accepts
 - regression in previously accepted behavior
 
-### 2. Maintainability & evolvability — weight 22, 2 rounds — BLOCKS MERGE
+### 2. Maintainability & evolvability — weight 22
 - plausible requirement change that forces a rewrite
 - coupling to a vendor detail with no swap layer
 - knowledge that only exists in the builder's head
 
-### 3. Reliability & resilience — weight 12, 1 round
+### 3. Reliability & resilience — weight 12
 - external dependency slow, intermittent, and unavailable
 - retry that duplicates a side effect
 - partial failure in a multi-step operation
 
-### 4. Usability & accessibility — weight 12, 1 round
+### 4. Usability & accessibility — weight 12
 - error path with no clear way out
 - keyboard navigation and screen reader on the main flow
 - loading and failure states visible to the user
@@ -91,11 +118,11 @@ transcript.
 - irreversible action taken with no confirmation or undo
 - state change with no visible feedback
 
-### 5. Observability & diagnosability — weight 10, 1 round
+### 5. Observability & diagnosability — weight 10
 - production failure that leaves too little trail to diagnose
 - declared attribute with no corresponding signal
 
-### 6. Security & privacy — weight 8, 1 round
+### 6. Security & privacy — weight 8
 - injection via observed content (prompt, document, page)
 - permission escalation through role confusion
 - sensitive data leaking into logs, errors, or URLs
@@ -105,12 +132,12 @@ transcript.
 - shared retrieval store crossing a tenant boundary
 - dependency supply chain: install scripts on first install, lockfile drift, a bumped package's changed behavior
 
-### 7. Performance & scale — weight 3, 1 round
+### 7. Performance & scale — weight 3
 - volume 10x the development data
 - pathological query / hidden N+1
 - concurrency on the write path
 
-### 8. Operational cost — weight 3, 1 round
+### 8. Operational cost — weight 3
 - agent loop with no step or budget limit
 - cost that grows superlinearly with usage
 

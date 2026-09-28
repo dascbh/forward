@@ -112,9 +112,17 @@ writing code on request; start by sizing. Pick a short demand id first
    ≥ 7 → **L**: all six roles, 3 rounds, ADR.
    Announce the sizing in ONE line (e.g. `FORWARD: M — spec + impl +
    adversarial(2r) + promotion`), then start.
+   **Budgets, not minimums.** Rounds after the first are delta rounds
+   (the fixes, not the whole artifact again) and are never extended.
+   Timebox: XS 30 min · S 1 h · M 3 h · L 1 day. Re-size on the real
+   diff before review: over twice the estimate or ~800 changed lines →
+   split, don't review. A new rule ships as instruction first; it becomes
+   a gate only when usage-data shows the instruction failed.
 2. **Spec** (unless XS): `specs/<demand-id>/spec.md`,
    `failure-modes.toml`, and `acceptance.md` with a `date:` line —
-   declared before any code exists (I4).
+   declared before any code exists (I4). One page each; `spec.md`
+   carries a `## Threat model` (who the change contains, what is out of
+   scope) — it bounds what the review may block on.
 3. **Architecture** (L only): `docs/adr/`, `specs/<demand-id>/architecture.md`.
    *Inherited an undocumented system?* Before the first demand, survey it
    (`fde-survey` → `discovery/survey.md`): how it runs, its real
@@ -146,7 +154,11 @@ writing code on request; start by sizing. Pick a short demand id first
    the reviewer (I3). Two passes by the same isolated role: adversarial
    (probe until it breaks — finding cites the probe) and heuristic (judge
    attributes verified_by heuristic against their principle catalog in
-   `.fde/spec/` — finding cites the principle, I8).
+   `.fde/spec/` — finding cites the principle, I8). Blocking = critical/
+   high, reachable inside the threat model, breaks a declared criterion —
+   never weight alone. At most five findings per round. Budget spent with
+   a blocker open → narrow, declare the limit, or pause; never one more
+   round (`fde-review`).
 6. **Promotion** (M/L): `promotions/<demand-id>/decision.md` against the
    declared acceptance criteria.
 7. **Gate**: `python3 bin/fde/verify.py --all` — the same one CI runs.

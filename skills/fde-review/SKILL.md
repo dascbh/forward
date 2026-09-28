@@ -8,12 +8,55 @@ description: Runs the adversarial review in an isolated context, with attack ord
 ## Build the probe plan (deterministic)
 
 1. Read `[weights]` from `fde.config.toml`; sort attributes descending.
-2. Per attribute: `rounds = max(1, weight/10 rounded)`; weight ≥ 15 means a
-   confirmed finding there **BLOCKS MERGE**, below that it records.
-3. Probes per attribute come from
+   Weight orders the attack — nothing else. It does not add rounds and it
+   does not make a finding blocking (ADR-0018).
+2. Probes per attribute come from
    `.fde/spec/dimensions/quality-attributes.toml` (`adversarial_probes`).
+3. Read the spec's `## Threat model`: who the change must contain, and
+   what is declared out of scope. It bounds every probe.
 4. Create `reviews/<demand-id>/findings.toml` from the kernel's
-   `templates/findings.template.toml` (`rounds_planned` = total rounds).
+   `templates/findings.template.toml` (`rounds_planned` = the size's
+   budget below).
+
+## Budget — rounds come from the triage size, and they end
+
+| size | rounds | kinds |
+|---|---|---|
+| XS, S | 1 | full |
+| M | 2 | full, delta |
+| L | 3 | full, delta, delta |
+
+- **Full** (round 1): the whole artifact against the whole spec.
+- **Delta** (every later round): the prior findings plus the diff that
+  answered them. The reviewer verifies each prior finding, then attacks
+  only the changed lines. A new defect in untouched code goes to the
+  backlog (`blocking = false`, `backlog = true`) — it never reopens the
+  demand.
+- **No extension.** When the budget is spent with a blocking finding
+  open, the builder picks one, and records it in the promotion or the
+  closing commit:
+  1. *narrow* — cut the part the finding lives in, ship the rest, the cut
+     goes to the backlog as its own demand;
+  2. *declare* — the owner accepts it as a dated, named limit in
+     `acceptance.md` (a limit, not a pass);
+  3. *pause* — revert, nothing ships, the backlog keeps the record.
+  "One more round" is not an option: a round on a moving target finds the
+  surface the last fix created, and never converges.
+
+## What blocks
+
+`blocking = true` only when all three hold: severity `critical`/`high`;
+the path is reachable inside the spec's threat model; it breaks a declared
+acceptance criterion or failure mode. Anything else records. A defect
+reachable only by an actor or sequence the threat model excludes (an
+owner rewriting history to defeat their own gate, say) is a declared
+limit. No threat model in the spec → that is the first finding.
+
+## Cap
+
+At most five `[[finding]]` entries per round, the five most severe. Every
+other observation is one line in `[meta].notes`. Five findings a builder
+can act on beat twenty they must triage.
 
 ## Non-negotiable rules
 
@@ -64,21 +107,31 @@ severity; judgment without a named principle is not a finding (I8) —
 
 The builder reconciles findings with a fixed precedence: contract
 misread > actionable > trade-off > noise. Rubber-stamping every finding
-equals ignoring every finding. Hard bounds: three review cycles, then
-escalate to the user; re-reviewing an unchanged artifact is stalling; two
-consecutive cycles of substantive findings with zero classified
-actionable means the review turned into validation — stop.
+equals ignoring every finding. Re-reviewing an unchanged artifact is
+stalling; two consecutive rounds of substantive findings with zero
+classified actionable means the review turned into validation — stop.
+
+One commit per reconciliation: the fixes, their evals, and — only when a
+decision changed — the ADR or `architecture.md` edit. No separate
+"architecture revision" commit per round; a finding that only needs a
+fix changes no document.
+
+A fix that rewrites more than it repairs is a smell: if answering a
+round's findings changes more lines than the finding's own evidence
+spans several times over, the design is wrong for this scope — narrow
+(Budget, option 1) instead of rebuilding under review.
 
 ## Change sizing
 
 ~100 changed lines review well; ~300 is the ceiling for one logical
-change; near 1000, split before reviewing. One structural problem
-outranks ten nits — the structural problem IS the review. A dependency
-bump is a behavior change nobody wrote: read the changelog, diff the
-lockfile, one package per change.
+change; above ~800 (behavior + evals, not counting specs or reviews) the
+demand is split before any review starts — `fde-triage` re-sizes on the
+real diff. One structural problem outranks ten nits — the structural
+problem IS the review. A dependency bump is a behavior change nobody
+wrote: read the changelog, diff the lockfile, one package per change.
 
 ## Order
 
 Derived from vector A weights, not from your intuition about what is
-interesting. High weight attacks first and gets more rounds. A low-weight
-attribute still gets at least one round — a floor, not zero.
+interesting. High weight attacks first; a low-weight attribute is still
+probed in the full round — a floor, not zero.

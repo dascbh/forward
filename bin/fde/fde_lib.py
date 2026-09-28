@@ -283,6 +283,9 @@ def escalated_security_floor(cfg: Config, spec: Spec) -> int:
 # adversarial attack order — derived from vector A, not chosen
 # ---------------------------------------------------------------------------
 def probe_plan(cfg: Config, spec: Spec) -> list[dict]:
+    """Weight orders the attack; it sets neither the number of review
+    rounds (the triage size does) nor what blocks (severity inside the
+    spec's declared threat model does) — ADR-0018."""
     plan = []
     for a in spec.quality["attribute"]:
         w = int(cfg.weights.get(a["id"], a.get("floor", 3)))
@@ -291,10 +294,7 @@ def probe_plan(cfg: Config, spec: Spec) -> list[dict]:
                 "attribute": a["id"],
                 "label": a["label"],
                 "weight": w,
-                # rounds scale with weight, minimum 1 — no dimension goes unattacked
-                "rounds": max(1, round(w / 10)),
                 "probes": a.get("adversarial_probes", []),
-                "blocking": w >= 15,
             }
         )
     return sorted(plan, key=lambda p: -p["weight"])

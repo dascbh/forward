@@ -182,9 +182,10 @@ the user names.
 1. Copy the six role files from the kernel's `agents/` to `.claude/agents/`.
 2. In `.claude/agents/fde-adversarial.md`, replace the `## Attack order`
    pointer with the concrete plan: attributes sorted by this project's
-   weights descending; per attribute `rounds = max(1, weight/10 rounded)`,
-   `BLOCKS MERGE` if weight >= 15; probes listed per attribute from
-   `.fde/spec/dimensions/quality-attributes.toml`.
+   weights descending, one `### N. <label> — weight <w>` heading each
+   (weight orders the attack only — rounds come from the triage size and
+   blocking from the spec's threat model, ADR-0018); probes listed per
+   attribute from `.fde/spec/dimensions/quality-attributes.toml`.
 3. `CLAUDE.md`: if absent, create it containing `@AGENTS.md` on the first
    line plus a note that roles live in `.claude/agents/` and their write
    scopes are design, not obstacles. If it exists, **merge**: prepend the

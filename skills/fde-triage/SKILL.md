@@ -87,16 +87,44 @@ score = min(3, surfaces)
       + (loc < 50 ? 0 : loc < 300 ? 1 : 2)
 ```
 
-| score | size | active roles | adversarial rounds | ADR |
-|---|---|---|---|---|
-| ≤ 1 | XS | implementation, adversarial | 1 | no |
-| 2–3 | S | spec, implementation, adversarial | 1 | no |
-| 4–6 | M | spec, implementation, adversarial, promotion | 2 | yes |
-| ≥ 7 | L | all five | 3 | yes |
+| score | size | active roles | adversarial rounds | ADR | timebox |
+|---|---|---|---|---|---|
+| ≤ 1 | XS | implementation, adversarial | 1 full | no | 30 min |
+| 2–3 | S | spec, implementation, adversarial | 1 full | no | 1 h |
+| 4–6 | M | spec, implementation, adversarial, promotion | 1 full + 1 delta | yes | 3 h |
+| ≥ 7 | L | all five | 1 full + 2 delta | yes | 1 day |
 
 Announce the result in one line — size, roles, rounds — and start. The
 table is deterministic; the reasoning behind the score does not belong in
-chat.
+chat. The rounds are a budget, not a minimum to extend: `fde-review`
+says what happens when it is spent.
+
+## Re-size on the real diff — the estimate is not a contract
+
+`loc` is an estimate made before code exists; the diff is the fact.
+Before the first review round, count the behavior + eval lines actually
+changed (specs, reviews and ADRs excluded). If the count is more than
+twice the estimate, or above ~800 lines, stop: the demand is split, not
+reviewed. Cut it into slices that each fit ~300 lines and ship value on
+their own — the first slice is the smallest one that solves the reported
+problem — and triage each slice. The same holds when the timebox runs
+out: a demand at its timebox is re-sized, never granted more time in
+place.
+
+## Smallest mechanism first
+
+When the demand is a new rule or policy, its first slice ships it as an
+instruction (skill text, a heuristic principle the review cites). It
+becomes a mechanical gate only in a later demand, with usage-data showing
+the instruction was not enough. A gate is an enforcement boundary; the
+review will attack it as one, and every bypass it finds is a round.
+
+## Spec budget
+
+`spec.md` fits one page (~800 words) and carries a `## Threat model`
+(who the change must contain, what is out of scope — three to five
+lines). `failure-modes.toml` lists at most ten modes; `acceptance.md`
+fits one page. A spec that needs more is a demand that needs splitting.
 
 ## What never scales
 

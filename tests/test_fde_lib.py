@@ -127,15 +127,20 @@ class TestProbePlan(unittest.TestCase):
     def setUpClass(cls):
         cls.spec = Spec.load(ROOT)
 
-    def test_plan_is_weight_descending_with_round_and_blocking_rules(self):
+    def test_plan_is_weight_descending(self):
         plan = probe_plan(cfg(), self.spec)
         weights = [s["weight"] for s in plan]
         self.assertEqual(weights, sorted(weights, reverse=True))
         by_id = {s["attribute"]: s for s in plan}
-        self.assertEqual(by_id["functional_correctness"]["rounds"], 3)   # 26/10
-        self.assertEqual(by_id["operational_cost"]["rounds"], 1)         # floor 1
-        self.assertTrue(by_id["functional_correctness"]["blocking"])     # >= 15
-        self.assertFalse(by_id["usability_accessibility"]["blocking"])   # 8 < 15
+        self.assertTrue(by_id["functional_correctness"]["probes"])
+
+    def test_weight_orders_only_never_rounds_or_blocking(self):
+        # ADR-0018: rounds come from the triage size, blocking from severity
+        # inside the spec's threat model — a heavy weight must not turn
+        # every edge case into a blocker or add rounds on its own
+        for step in probe_plan(cfg(), self.spec):
+            self.assertNotIn("rounds", step, step["attribute"])
+            self.assertNotIn("blocking", step, step["attribute"])
 
 
 if __name__ == "__main__":

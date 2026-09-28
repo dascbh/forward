@@ -67,12 +67,12 @@ class TestRuleLaneIsAParagraphNotATableRow(unittest.TestCase):
     contain the word XS and pass a looser check."""
 
     XS_S_M_L_TABLE = (
-        "| score | size | active roles | adversarial rounds | ADR |\n"
-        "|---|---|---|---|---|\n"
-        "| ≤ 1 | XS | implementation, adversarial | 1 | no |\n"
-        "| 2–3 | S | spec, implementation, adversarial | 1 | no |\n"
-        "| 4–6 | M | spec, implementation, adversarial, promotion | 2 | yes |\n"
-        "| ≥ 7 | L | all five | 3 | yes |"
+        "| score | size | active roles | adversarial rounds | ADR | timebox |\n"
+        "|---|---|---|---|---|---|\n"
+        "| ≤ 1 | XS | implementation, adversarial | 1 full | no | 30 min |\n"
+        "| 2–3 | S | spec, implementation, adversarial | 1 full | no | 1 h |\n"
+        "| 4–6 | M | spec, implementation, adversarial, promotion | 1 full + 1 delta | yes | 3 h |\n"
+        "| ≥ 7 | L | all five | 1 full + 2 delta | yes | 1 day |"
     )
 
     SCORE_SENTENCE = (
@@ -118,6 +118,67 @@ class TestRuleLaneIsAParagraphNotATableRow(unittest.TestCase):
                            "eval-coverage` gate is completely unchanged",
                            "verified_by` primacy"):
                 self.assertIn(needle, para, f"{rel}: {needle}")
+
+
+class TestBoundedReview(unittest.TestCase):
+    """ADR-0018: review rounds are a budget that ends, blocking is bounded
+    by a declared threat model, and weight only orders the attack."""
+
+    SURFACES = ("skills/fde-review/SKILL.md", "agents/fde-adversarial.md",
+                "skills/fde-triage/SKILL.md", "AGENTS.md",
+                "templates/AGENTS.md.template", "SETUP.md")
+
+    def test_weight_never_blocks_or_adds_rounds(self):
+        for rel in self.SURFACES:
+            text = read(rel)
+            self.assertNotIn("BLOCKS MERGE", text, rel)
+            self.assertNotIn("weight >= 15", text, rel)
+            self.assertNotIn("weight/10", text, rel)
+        self.assertNotIn("three review cycles",
+                         read("skills/fde-review/SKILL.md"))
+
+    def test_review_budget_is_sized_and_never_extended(self):
+        budget = section(read("skills/fde-review/SKILL.md"), "Budget")
+        for needle in ("| XS, S | 1 | full |", "| M | 2 | full, delta |",
+                       "| L | 3 | full, delta, delta |", "No extension",
+                       "*narrow*", "*declare*", "*pause*",
+                       "never reopens the"):
+            self.assertIn(needle, budget, needle)
+
+    def test_blocking_needs_severity_threat_model_and_a_criterion(self):
+        for rel in ("skills/fde-review/SKILL.md", "agents/fde-adversarial.md"):
+            block = section(read(rel), "What blocks")
+            for needle in ("critical", "threat model", "acceptance criterion",
+                           "failure mode"):
+                self.assertIn(needle, block.lower(), f"{rel}: {needle}")
+            self.assertIn("five", section(read(rel), "Cap"), rel)
+
+    def test_spec_carries_a_threat_model_within_a_page(self):
+        for rel in ("agents/fde-spec.md", "skills/fde-triage/SKILL.md"):
+            text = read(rel)
+            self.assertIn("## Threat model", text, rel)
+            self.assertIn("~800 words", text, rel)
+        for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
+            self.assertIn("## Threat model", read(rel), rel)
+
+    def test_triage_resizes_on_the_real_diff_and_gates_come_last(self):
+        skill = read("skills/fde-triage/SKILL.md")
+        resize = section(skill, "Re-size on the real diff")
+        for needle in ("more than\ntwice the estimate", "~800 lines",
+                       "split, not\nreviewed", "timebox"):
+            self.assertIn(needle, resize, needle)
+        self.assertIn("instruction", section(skill, "Smallest mechanism first"))
+        agents = read("AGENTS.md")
+        for needle in ("Budgets, not minimums", "never extended",
+                       "Timebox: XS 30 min", "instruction first",
+                       "never one more\n   round"):
+            self.assertIn(needle, agents, needle)
+
+    def test_architecture_revises_only_when_a_decision_changes(self):
+        rev = section(read("agents/fde-architecture.md"),
+                      "Revisions under review")
+        self.assertIn("only when a finding changes a decision", rev)
+        self.assertIn("same commit", rev)
 
 
 class TestGuardAuditDocs(unittest.TestCase):

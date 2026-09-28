@@ -321,14 +321,17 @@ class TestRealRepo(MirrorCase):
                          (ROOT / "SETUP.md").read_text(encoding="utf-8"))
 
     def test_verified_regions_catch_plausible_wrong_values(self):
-        # FM-7 examples named in acceptance: a round count, a BLOCKS MERGE
-        # tag, a probe line, an invariant statement, a weight
+        # FM-7 examples named in acceptance: a weight in the attack order,
+        # a stale per-weight BLOCKS MERGE tag (ADR-0018 removed it), a
+        # probe line, an invariant statement, a weight
         m = real_manifest()
         cases = [
-            (".claude/agents/fde-adversarial.md", "weight 30, 3 rounds",
-             "weight 30, 2 rounds", "adversarial-role"),
             (".claude/agents/fde-adversarial.md",
-             "weight 22, 2 rounds — BLOCKS MERGE", "weight 22, 2 rounds",
+             "Functional correctness — weight 30\n",
+             "Functional correctness — weight 29\n", "adversarial-role"),
+            (".claude/agents/fde-adversarial.md",
+             "evolvability — weight 22\n",
+             "evolvability — weight 22 — BLOCKS MERGE\n",
              "adversarial-role"),
             (".claude/agents/fde-adversarial.md",
              "- state change with no visible feedback\n", "",
@@ -1242,7 +1245,7 @@ class TestAttackOrderIsTheKernelsPlan(unittest.TestCase):
             "performance_scale = 3\n")
         self.assertEqual(len(heads), len(plan))
         self.assertEqual(self.labels(heads), [s["label"] for s in plan])
-        self.assertIn("### 8. Operational cost — weight 3, 1 round", heads)
+        self.assertIn("### 8. Operational cost — weight 3", heads)
 
     def test_an_unknown_weight_is_source_of_truth_missing(self):
         with self.assertRaises(mirror.SourceOfTruthMissing):
