@@ -843,6 +843,53 @@ Each red case asserts its label and way-out text.
 - **This repository:** `--gate cycle --since <root>` and `--since`
   all-zeros stay green.
 
+### 7a. Addendum 2026-09-28: stage removal (replaces part 3 item 3 and part 7's F23 cases)
+
+**Rule.** Let C be an examined commit whose parsed `stages` drops a
+stage `s` that P1's `stages` declares.
+- When P1's open cycle carries the `s` key, C is red **unless** C
+  closes that cycle, meaning the file is open in P1 and has `closed:` in
+  C.
+- When C closes the cycle, the normal open→closed checks run against
+  P1's configuration, where `s` is still declared: the full form (C2),
+  the closure (C3, including the one-to-one carry of a `[-]` `s` item)
+  and the scrum-on capture.
+- Every other C1 condition still applies:
+  - an open cycle in P1 (the one being closed);
+  - not RULE-exempt (a config change);
+  - no cycle file added (R1i).
+- The red message: `C1 <sha7>: removes stage '<s>' while <cycle>
+  carries it — remove the stage in the commit that closes <cycle>
+  (resolve its '<s>' item; a [-] item is carried to ## Next cycle)`.
+
+The fde-triage skill's "Ways out" list replaces "close the cycle first,
+then remove the stage" with this sentence.
+
+**Tests.**
+
+The green sequence, with scrum off and stages `["live"]`:
+1. C-2 opens with a `live` item. Green.
+2. One commit removes `live` from `stages`, adds `closed:` to C-2, marks
+   `- [-] live — we stopped deploying this service` and appends a
+   next-cycle item starting with `live`. Green.
+3. C-3 opens with no `live` item, and its `## Intake` disposes of every
+   C-2 item, including the `live` one. Green.
+4. A code commit under C-3. Green.
+
+The red variants:
+
+| # | what the sequence does | expected |
+|---|---|---|
+| a | removes `live` while C-2 stays open | red, and the message names the closing-commit path |
+| b | closes C-2 first (`live` `[-]`), then removes `live` in a later commit | red: no open cycle for a gate-governing change (R2c) |
+| c | removes `live` and closes C-2 while leaving `- [ ] live` unresolved | red (C3) |
+| d | removes `live` and closes C-2 with `live` `[-]` but no carried next-cycle item | red (C3, one-to-one carry) |
+| e | removes `live`, closes C-2, and adds C-3 in the same commit | red (R1i: a behavior commit may not add a cycle file) |
+| f | the same removal claimed `FORWARD: RULE`, in a commit that does not close C-2 | red: a config change is never RULE-exempt, and the removal rule applies |
+| g | after the green sequence, a commit under C-3 restores `stages = ["live"]` | the commit itself is green (open cycle, config change declared); the working tree is red until C-3 appends `- [ ] amended YYYY-MM-DD: live` |
+| h | after the green sequence, the restore lands with no open cycle | red (R2c) |
+| i | after the green sequence, C-3 is opened without disposing of the carried `live` item | red (R2e) |
+
 ### 8. Result row
 
 The pass row becomes `<N> cycle(s); range <…>; <E> commit(s) examined,

@@ -666,6 +666,50 @@ examined commits pay for the per-commit diff and reads.
 - `graph.spec_size` keeps its Triage-line fallback for analytics on
   specs without a header, and no gate reads it.
 
+**R2d addendum — 2026-09-28 (a contradiction found in implementation).**
+Three rules, taken together, left no green sequence for removing a stage:
+- R2c: a `[cycle]` change needs an open cycle;
+- R2d: removing a stage that the open cycle carries is red;
+- the profile rule: every cycle opened while a stage is declared must
+  carry that stage's key.
+
+The route R2d's message named ("close first, then remove") ends with no
+open cycle. Any new cycle opened before the removal must carry the key.
+
+**Decided: the stage is removed in the commit that closes the cycle
+carrying it.** R2d becomes the following. A commit C that removes stage
+`s` (in P1's `stages`, not in C's) is red when P1's open cycle carries
+the `s` key, **unless C closes that cycle** (open in P1, closed in C).
+The closing transition is judged against P1's configuration, where `s`
+is still declared. So the `s` item must be resolved like any other done
+item under C3, and a `[-]` item is carried one-to-one into
+`## Next cycle`, where the next opening must dispose of it (R2e). The
+next cycle opens with `s` undeclared, so its profile no longer requires
+the key.
+
+The rejected alternative was to append `- [ ] amended YYYY-MM-DD: <s>
+dropped` while the cycle stays open. It leaves an open cycle carrying an
+undeclared key. That is red under the unchanged "undeclared stage key"
+rule, both in the working tree and at close. Making it legal would have
+needed exceptions to that rule and to the close-time form check, which
+is two new rules against one.
+
+**Why this does not reopen F22 or F23.**
+- The removal is still a gate-governing change inside a declared cycle
+  (R2c), never RULE-exempt.
+- It leaves a resolved `s` item and, when `[-]`, a carried next-cycle
+  item with a reason.
+- Code after it needs a newly opened cycle (R1i forbids opening one in
+  the same commit).
+- Restoring the stage is another R2c change inside that cycle, and it
+  forces an `amended` `s` item into it, because an open cycle missing a
+  required key is red in the working tree.
+
+Every step of a narrow → act → restore on `stages` is therefore declared
+and leaves artifacts in the cycle files. None of it is hidden in the net
+diff, which was F22's actual failure. F23's dead end is gone: the red
+message now names this path.
+
 **R2j — F30 declined for now.** Dropping `declared-before` and
 `residuals` from the mandatory profile would remove items the
 acceptance criteria and the owner's seven criteria name. That is not
