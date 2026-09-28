@@ -179,15 +179,19 @@ skill.
 - **Open.** Write the objective, tasks and done criteria, and commit it
   before the first behavior change. An S+ demand's done list points at
   its `acceptance.md`, which must already be committed. One cycle is open
-  at a time, and its declaration is frozen from that commit.
+  at a time, and its declaration is frozen from that commit. Once cycles
+  exist, history stays linear (rebase, never merge), and the gate needs a
+  full clone.
 - **Execute.** Anything discovered goes to `## Next cycle` and is not
   acted on in this cycle — a RULE-sized fix included (MNT-9).
 - **Close.** Add `closed:`, resolve every done item (`[x]` met or `[-]`
   not met, then ` — <evidence or reason>`), carry each not-met item into
   `## Next cycle`, and present the next-cycle list in the closing report.
-- **Feed.** With `[scrum]` on, each item becomes a backlog item citing
-  its token (`C-<n>#<k>`) with an evidence label; with it off, the next
-  cycle's `## Intake` takes, defers or drops each one.
+- **Feed.** Each item of a closed cycle is disposed of exactly once,
+  checked when the next cycle opens: captured in `backlog.md` at the close
+  with its token (`C-<n>#<k>`) and an evidence label (required with
+  `[scrum]` on), or listed in the next cycle's `## Intake` as taken,
+  deferred or dropped with a reason.
 
 ## Voice — the kernel is infrastructure
 

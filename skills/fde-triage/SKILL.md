@@ -120,12 +120,14 @@ Commit the cycle on its own: a behavior commit may not add a cycle file.
 Its done items start unmarked (`- [ ]`). A commit needs no cycle only
 when it declares `FORWARD: RULE — <reason>` as its first message line
 and is verified RULE-eligible; an eligible commit without the claim is
-red. Every commit is judged against its first parent: its own change is
-its diff against that parent, merges included, and a red merge is fixed
-by rebasing. Once the first cycle file exists every later commit is
-examined, whatever the flag says. A change to `[gate]`, `[triage]` or
-`[cycle]` in `fde.config.toml` is itself a behavior change, never
-RULE-exempt. The project must be the repository's top level.
+red. Once cycles exist, history stays linear: a commit with an opted
+parent (one holding `cycles/`, or with the flag on) is examined, and an
+examined merge is red — rebase, never merge. Every other examined commit
+is judged against its single parent, on its own diff. Once the first
+cycle file exists every later commit is examined, whatever the flag
+says. A change to `[gate]`, `[triage]` or `[cycle]` in `fde.config.toml`
+is itself a behavior change, never RULE-exempt. The project must be the
+repository's top level, in a full (not shallow) clone.
 
 A demand's `spec.md` declares its size in a header line before its
 first `## ` section — `size: M` — and it must equal the size declared in
@@ -242,12 +244,21 @@ cycle only as `taken`, and only once.
 - `--since` does not resolve: re-run with a known base
   (`--since <merge-base>`, or fetch full history);
 - code and a new cycle in one commit: split the commit before push —
-  cycle first, then the code;
+  close, open, code: three commits;
+- a close and an open in one commit: commit the close first, then open
+  the next cycle with its `## Intake` in a separate commit;
 - a stage to remove while the open cycle carries its key: remove the
   stage in the commit that closes that cycle, resolving its item (a `[-]`
   item is carried to `## Next cycle`, and the next opening disposes of
   it); code after that needs the next cycle opened first;
-- a red merge: rebase onto the protected line instead of merging.
+- a merge after opt-in: rebase the branch onto the protected line
+  (`git rebase <main>`) and push the linear result;
+- a shallow clone: fetch full history (`fetch-depth: 0`, or
+  `git fetch --unshallow`);
+- a red commit already on the protected line, reported by a
+  full-history run (a new branch's first push): run the branch through a
+  pull request, whose base resolves, or push again once the branch exists
+  remotely.
 
 ## What never scales
 

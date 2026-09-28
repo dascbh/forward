@@ -11,7 +11,7 @@ C1 ("declared before") is ordering in git, so it lives in
 `verify.Gate.gate_cycle`, which reads the trees and calls in here.
 
 When each check runs is the gate's business (architecture.md, "Revision
-— round 1"): an open cycle is judged in the working tree and at the
+— round 3" governing over every earlier revision): an open cycle is judged in the working tree and at the
 commit that adds it; a closed cycle is judged once, at its closing
 commit, against that commit's parent configuration — never re-judged
 later against today's config.

@@ -1,7 +1,8 @@
-"""FWD-021 (ADR-0017 and its round-1 revision): declared cycle scope — the
+"""FWD-021 (ADR-0017 and its revisions): declared cycle scope — the
 `cycle` gate, its pure core (runtime/cycle.py), validate() rule 6c, the
 graph's cycle node, and the instruction layer. Contract:
-specs/FWD-021-cycle-scope/architecture.md, "Revision — round 1" governing.
+specs/FWD-021-cycle-scope/architecture.md, "Revision — round 3" governing
+over every earlier revision (round 2's merge model withdrawn).
 
 Every red case asserts the check label (C1..C6) and the reason, and the
 reds a reader acts on also assert the way out (F16).
@@ -154,7 +155,7 @@ class TestC1DeclaredBefore(Fixture):
         root = commit_all(p, "init")
         write(p, "src/a.py", BIG)
         sha = commit_all(p, "code")
-        self.assertRed(self.gate(p, root), f"C1 {sha[:7]}: no open cycle — open one in an "
+        self.assertRed(self.gate(p, root), f"C1 {sha[:7]}: no open cycle — open a cycle in an "
                        f"earlier commit, or declare \"FORWARD: RULE — <reason>\"")
 
     def test_only_a_closed_cycle_in_parent_is_red(self):
@@ -273,7 +274,7 @@ class TestC1DeclaredBefore(Fixture):
         write(p, "src/b.py", BIG)
         sha = commit_all(p, "close, open and ship")
         self.assertRed(self.gate(p, root), f"C1 {sha[:7]}: a behavior commit opens "
-                       f"cycles/C-2.md: commit the new cycle first, then the code")
+                       f"cycles/C-2.md: close, open, code — three commits")
         q = self.project()
         write(q, "cycles/C-1.md", cyc(1))
         root = commit_all(q, "init")
@@ -876,34 +877,24 @@ class TestR10(Fixture):
     def branch(self, p):
         return git_out(p, "rev-parse", "--abbrev-ref", "HEAD")
 
-    def test_feature_branch_merged_under_an_open_cycle_is_green(self):
+    def test_a_merge_made_on_main_after_opt_in_is_red(self):
+        # F31 (a): linear history once cycles exist
         p = self.project()
         write(p, "cycles/C-1.md", cyc(1))
         root = commit_all(p, "init")
         main = self.branch(p)
         run_git(p, "checkout", "-q", "-b", "side")
         write(p, "src/b.py", BIG)
-        commit_all(p, "side code")
+        side = commit_all(p, "side code")
         run_git(p, "checkout", "-q", main)
         write(p, "src/c.py", BIG)
-        commit_all(p, "main code")
+        mn = commit_all(p, "main code")
         run_git(p, "merge", "-q", "--no-ff", "-m", "merge side", "side")
-        self.assertGreen(self.gate(p, root), "3 commit(s) examined, 3 behavior commit(s)",
-                         "1 merge(s) examined")
-
-    def test_evil_merge_without_a_cycle_in_one_parent_is_red(self):
-        p = self.project()
-        root = commit_all(p, "init")
-        main = self.branch(p)
-        run_git(p, "checkout", "-q", "-b", "side")
-        write(p, "cycles/C-1.md", cyc(1))
-        commit_all(p, "open C-1")
-        run_git(p, "checkout", "-q", main)
-        run_git(p, "merge", "-q", "--no-ff", "--no-commit", "side")
-        write(p, "src/a.py", BIG)
-        sha = commit_all(p, "evil merge")
-        self.assertRed(self.gate(p, root), f"C1 {sha[:7]} (merge): no open cycle",
-                       "a red merge is rebased instead")
+        m = git_out(p, "rev-parse", "HEAD")
+        self.assertRed(self.gate(p, root), f"C1 {m[:7]}: a merge after opt-in (parents "
+                       f"{mn[:7]}, {side[:7]}) — history must stay linear once cycles "
+                       f"exist; rebase the branch onto the protected line (git rebase "
+                       f"<main>) and push the result")
 
     def test_unparseable_config_in_an_examined_commit_is_red(self):
         p = self.project()
@@ -916,8 +907,8 @@ class TestR10(Fixture):
         fixed = commit_all(p, "fix config")
         r = self.gate(p, root)
         self.assertRed(r, f"C1 {broke[:7]}: fde.config.toml does not parse",
-                       f"C1 {fixed[:7]}: parent config is not valid TOML — this commit "
-                       f"was pushed under the gate; re-run with --since <a base after it>")
+                       f"C1 {fixed[:7]}: parent config is not valid TOML — fix that "
+                       f"commit before pushing")
 
     def test_invalid_cycle_section_in_an_examined_parent_is_red(self):
         p = self.project(cycle=False)
@@ -1165,7 +1156,9 @@ class TestInstructionLayer(unittest.TestCase):
         for n in ("`size: M`", "declares `FORWARD: RULE — <reason>`",
                   "a behavior commit may not add a cycle file",
                   "only while the opening commit is still HEAD", "**Ways out.**",
-                  "split the commit before push", "rebase onto the protected line",
+                  "split the commit before push", "rebase the branch onto the protected line",
+                  "close, open, code: three commits", "git fetch --unshallow",
+                  "run the branch through a pull request",
                   "remove the stage in the commit that closes that cycle"):
             self.assertIn(n, t)
 
@@ -1204,11 +1197,46 @@ def _cfg_sub(p: Path, a: str, b: str) -> None:
     write(p, "fde.config.toml", cfg.replace(a, b))
 
 
-class TestF18MergesAgainstFirstParent(Fixture):
+LINEAR = "history must stay linear once cycles exist; rebase the branch onto the protected line"
+
+
+class TestF31LinearHistory(Fixture):
+    """Round 3 part 1: examined = any parent opted; an examined merge is red."""
+
     def branch(self, p):
         return git_out(p, "rev-parse", "--abbrev-ref", "HEAD")
 
-    def test_pre_opt_in_branch_merged_with_only_a_closed_cycle_is_red(self):
+    def orphan(self, p, name, with_config=False):
+        run_git(p, "checkout", "-q", "--orphan", name)
+        keep = (p / "fde.config.toml").read_text(encoding="utf-8") if with_config else None
+        run_git(p, "rm", "-rq", "--cached", ".")
+        for f in list(p.iterdir()):
+            if f.name != ".git":
+                shutil.rmtree(f) if f.is_dir() else f.unlink()
+        if keep is not None:
+            write(p, "fde.config.toml", keep)
+        write(p, "src/evil.py", BIG)
+        return commit_all(p, "orphan root")
+
+    def red_everywhere(self, p, before, *needles):
+        for since in (before, "0" * 40, None):
+            self.assertRed(self.gate(p, since), *needles)
+
+    def test_b_main_merged_into_an_orphan_root_then_fast_forwarded_is_red(self):
+        p = self.project()
+        write(p, "cycles/C-1.md", cyc(1))
+        commit_all(p, "init")
+        write(p, "cycles/C-1.md", closed_cyc(1))
+        before = commit_all(p, "close C-1")
+        main = self.branch(p)
+        self.orphan(p, "evil")
+        run_git(p, "merge", "-q", "--allow-unrelated-histories", "-m", "merge main", main)
+        m = git_out(p, "rev-parse", "HEAD")
+        run_git(p, "checkout", "-q", main)
+        run_git(p, "merge", "-q", "--ff-only", "evil")
+        self.red_everywhere(p, before, f"C1 {m[:7]}: a merge after opt-in", LINEAR)
+
+    def test_c_main_merged_into_a_pre_opt_in_branch_then_fast_forwarded_is_red(self):
         p = self.project(cycle=False)
         pre = commit_all(p, "pre-opt-in")
         main = self.branch(p)
@@ -1220,57 +1248,209 @@ class TestF18MergesAgainstFirstParent(Fixture):
         write(p, "cycles/C-1.md", cyc(1))
         commit_all(p, "opt in, open C-1")
         write(p, "cycles/C-1.md", closed_cyc(1))
-        commit_all(p, "close C-1")
-        run_git(p, "merge", "-q", "--no-ff", "-m", "merge feature", "feature")
+        before = commit_all(p, "close C-1")
+        run_git(p, "checkout", "-q", "feature")
+        run_git(p, "merge", "-q", "-m", "merge main into feature", main)
         m = git_out(p, "rev-parse", "HEAD")
-        self.assertRed(self.gate(p, pre), f"C1 {m[:7]} (merge): no open cycle", "rebased")
+        run_git(p, "checkout", "-q", main)
+        run_git(p, "merge", "-q", "--ff-only", "feature")
+        self.red_everywhere(p, before, f"C1 {m[:7]}: a merge after opt-in")
+        self.assertRed(self.gate(p, pre), f"C1 {m[:7]}: a merge after opt-in")
 
-    def test_orphan_root_merged_with_code_and_no_open_cycle_is_red(self):
+    def test_d_merge_rewording_a_frozen_item_reports_linearity_only(self):
+        p = self.project()
+        write(p, "cycles/C-1.md", cyc(1))
+        before = commit_all(p, "init: C-1 open")
+        main = self.branch(p)
+        run_git(p, "checkout", "-q", "-b", "side")
+        write(p, "cycles/C-1.md", cyc(1, done=XS_DONE[:4] + ("it compiles",)))
+        side = commit_all(p, "reword on a side branch")
+        run_git(p, "checkout", "-q", main)
+        write(p, "docs/n.md", "n\n")
+        commit_all(p, "main moves")
+        run_git(p, "merge", "-q", "--no-ff", "-m", "merge", "side")
+        m = git_out(p, "rev-parse", "HEAD")
+        r = self.gate(p, before)
+        self.assertRed(r, f"C1 {m[:7]}: a merge after opt-in", f"C4 {side[:7]}")
+        self.assertNotIn(f"C4 {m[:7]}", r.stdout)
+
+    def test_e_orphan_root_with_the_flag_merging_main_with_ours_is_red(self):
+        p = self.project()
+        write(p, "cycles/C-1.md", cyc(1))
+        before = commit_all(p, "init")
+        main = self.branch(p)
+        self.orphan(p, "evil", with_config=True)
+        run_git(p, "merge", "-q", "-s", "ours", "--allow-unrelated-histories", "-m", "ours", main)
+        m = git_out(p, "rev-parse", "HEAD")
+        run_git(p, "checkout", "-qf", main)
+        run_git(p, "merge", "-q", "--ff-only", "evil")
+        self.assertFalse((p / "cycles").exists())
+        self.red_everywhere(p, before, f"C1 {m[:7]}: a merge after opt-in")
+
+    def test_f_the_same_content_rebased_linearly_under_an_open_cycle_is_green(self):
+        p = self.project()
+        write(p, "cycles/C-1.md", cyc(1))
+        before = commit_all(p, "init")
+        write(p, "src/evil.py", BIG)
+        commit_all(p, "the same code, linear, under C-1")
+        self.assertGreen(self.gate(p, before), "1 behavior commit(s)")
+
+    def test_pre_opt_in_merges_stay_out_of_scope_and_the_row_adds_up(self):
+        p = self.project(cycle=False)
+        commit_all(p, "root")
+        main = self.branch(p)
+        run_git(p, "checkout", "-q", "-b", "b")
+        write(p, "src/b.py", BIG)
+        commit_all(p, "b")
+        run_git(p, "checkout", "-q", main)
+        write(p, "src/c.py", BIG)
+        commit_all(p, "c")
+        run_git(p, "merge", "-q", "--no-ff", "-m", "pre-opt-in merge", "b")
+        self.set_config(p, "\n[cycle]\nenabled = true\n")
+        write(p, "cycles/C-1.md", cyc(1))
+        commit_all(p, "O: opt in, open C-1")
+        write(p, "src/a.py", BIG)
+        commit_all(p, "code under C-1")
+        r = self.gate(p, "0" * 40)
+        self.assertGreen(r, "6 commit(s) in range: 1 examined, 5 pre-opt-in (1 root(s))")
+        t, e, u = map(int, re.search(r"(\d+) commit\(s\) in range: (\d+) examined, "
+                                     r"(\d+) pre-opt-in", r.stdout).groups())
+        self.assertEqual(t, e + u)   # F39
+
+
+class TestF33CloseAndOpen(Fixture):
+    def c1_open(self):
+        p = self.project()
+        write(p, "cycles/C-1.md", cyc(1, nxt=("a",)))
+        return p, commit_all(p, "init")
+
+    def test_close_and_open_in_one_commit_is_red_with_or_without_intake(self):
+        for intake in ((), ("C-1#1 dropped — no longer needed",)):
+            p, root = self.c1_open()
+            write(p, "cycles/C-1.md", closed_cyc(1, nxt=("a",)))
+            write(p, "cycles/C-2.md", cyc(2, intake=intake))
+            sha = commit_all(p, "close and open")
+            self.assertRed(self.gate(p, root), f"C4 {sha[:7]}: closes C-1 and opens C-2 in "
+                           f"one commit — commit the close first, then open C-2 with its "
+                           f"## Intake in a separate commit")
+
+    def test_close_then_open_with_intake_is_green_and_without_it_red(self):
+        p, root = self.c1_open()
+        write(p, "cycles/C-1.md", closed_cyc(1, nxt=("a",)))
+        commit_all(p, "close")
+        write(p, "cycles/C-2.md", cyc(2, intake=("C-1#1 dropped — no longer needed",)))
+        commit_all(p, "open")
+        self.assertGreen(self.gate(p, root))
+        q, root = self.c1_open()
+        write(q, "cycles/C-1.md", closed_cyc(1, nxt=("a",)))
+        commit_all(q, "close")
+        write(q, "cycles/C-2.md", cyc(2))
+        sha = commit_all(q, "open, no intake")
+        self.assertRed(self.gate(q, root), f"C6 {sha[:7]} C-2: C-1#1 has no disposition")
+
+
+class TestF34Shallow(Fixture):
+    def test_a_shallow_clone_is_one_red_row(self):
+        p = self.project()
+        commit_all(p, "init")
+        write(p, "src/a.py", BIG)
+        commit_all(p, "a C1 breach, behind the boundary")
+        for i in range(3):
+            write(p, f"docs/{i}.md", f"{i}\n")
+            commit_all(p, f"docs {i}")
+        c = Path(tempfile.mkdtemp(dir=_TMP)) / "clone"
+        run_git(p, "clone", "-q", "--depth", "2", f"file://{p}", str(c))
+        for since in (None, "0" * 40):
+            r = self.gate(c, since, explicit=True)
+            self.assertEqual(r.results, [("CYCLE", False,
+                                          "CYCLE: shallow clone — the gate needs full "
+                                          "history; fetch it (fetch-depth: 0, or git "
+                                          "fetch --unshallow)")])
+
+
+class TestF35FullHistorySuffix(Fixture):
+    def test_a_red_commit_on_main_names_the_way_out_in_full_history_runs(self):
+        p = self.project()
+        commit_all(p, "init")
+        write(p, "src/a.py", BIG)
+        red = commit_all(p, "code with no cycle (already on main)")
+        write(p, "cycles/C-1.md", cyc(1))
+        commit_all(p, "open C-1")
+        write(p, "src/b.py", BIG)
+        commit_all(p, "clean work")
+        self.assertRed(self.gate(p, "0" * 40), f"C1 {red[:7]}: no open cycle",
+                       "— if this commit is already on the protected line, this push did "
+                       "not cause it: run the branch through a pull request (its base "
+                       "resolves) or push again once the branch exists remotely "
+                       "(ADR-0017 R3e)")
+        self.assertGreen(self.gate(p, red))
+
+
+class TestF36DeepConfig(Fixture):
+    DEEP = "deep = " + "[" * 3000 + "]" * 3000 + "\n"
+
+    def test_pre_opt_in_deep_config_is_green_without_traceback(self):
+        p = self.project(cycle=False)
+        good = (p / "fde.config.toml").read_text(encoding="utf-8")
+        commit_all(p, "init")
+        write(p, "fde.config.toml", self.DEEP + good)
+        commit_all(p, "deep, before opt-in")
+        write(p, "fde.config.toml", good + "\n[cycle]\nenabled = true\n")
+        commit_all(p, "fix, opt in")
+        write(p, "cycles/C-1.md", cyc(1))
+        commit_all(p, "open C-1")
+        self.assertGreen(self.gate(p, "0" * 40))
+        r = verify(p, "--gate", "cycle", "--since", "0" * 40)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+
+    def test_deep_config_in_an_examined_parent_is_a_red_row_under_all(self):
+        p = self.project()
+        good = (p / "fde.config.toml").read_text(encoding="utf-8")
+        write(p, "cycles/C-1.md", cyc(1))
+        root = commit_all(p, "init")
+        write(p, "fde.config.toml", self.DEEP + good)
+        commit_all(p, "deep")
+        write(p, "fde.config.toml", good)
+        fixed = commit_all(p, "fix")
+        r = verify(p, "--all", "--since", root)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertIn(f"C1 {fixed[:7]}: parent config is not valid TOML", r.stdout)
+        for gid in ("CFG ", "I4 ", "I6 "):
+            self.assertIn(gid, r.stdout)
+
+
+class TestF37ComposedMessage(Fixture):
+    def test_rule_advice_only_where_rule_could_apply(self):
         p = self.project()
         write(p, "cycles/C-1.md", cyc(1))
         root = commit_all(p, "init")
         write(p, "cycles/C-1.md", closed_cyc(1))
         commit_all(p, "close")
-        main = self.branch(p)
-        run_git(p, "checkout", "-q", "--orphan", "evil")
-        run_git(p, "rm", "-rq", "--cached", ".")
-        for f in list(p.iterdir()):
-            if f.name != ".git":
-                shutil.rmtree(f) if f.is_dir() else f.unlink()
-        write(p, "src/evil.py", BIG)
-        commit_all(p, "orphan root")
-        run_git(p, "checkout", "-qf", main)
-        run_git(p, "merge", "-q", "--no-ff", "--allow-unrelated-histories", "-m", "m", "evil")
-        m = git_out(p, "rev-parse", "HEAD")
-        self.assertRed(self.gate(p, root), f"C1 {m[:7]} (merge): no open cycle")
+        _cfg_sub(p, 'behavior_paths = ["src/"]', 'behavior_paths = ["lib/"]')
+        narrow = commit_all(p, "FORWARD: RULE — tidy config")
+        r = self.gate(p, root)
+        row = next(x for x in r.stdout.split("; C") if narrow[:7] in x)
+        self.assertIn("a change to [gate]/[triage]/[cycle] always needs an open cycle", row)
+        self.assertNotIn("FORWARD: RULE", row)
+        q = self.project()
+        root = commit_all(q, "init")
+        write(q, "src/a.py", BIG)
+        sha = commit_all(q, "plain code")
+        self.assertRed(self.gate(q, root), f"C1 {sha[:7]}: no open cycle — open a cycle in an "
+                       f"earlier commit, or declare \"FORWARD: RULE — <reason>\" if it is "
+                       f"RULE-sized")
 
-    def test_side_branch_cycle_file_taken_as_theirs_is_red(self):
-        p = self.project(cycle=False)
-        pre = commit_all(p, "pre-opt-in")
-        main = self.branch(p)
-        run_git(p, "checkout", "-q", "-b", "side")
-        write(p, "cycles/C-1.md", cyc(1, done=XS_DONE[:4] + ("it compiles",)))
-        commit_all(p, "a weaker C-1, before opt-in")
-        run_git(p, "checkout", "-q", main)
-        self.set_config(p, "\n[cycle]\nenabled = true\n")
+
+class TestF38ReportShape(Fixture):
+    def test_a_string_behavior_paths_in_the_working_tree_reports_n_a(self):
+        p = self.project()
         write(p, "cycles/C-1.md", cyc(1))
-        commit_all(p, "opt in, open C-1")
-        r = subprocess_merge_theirs(p, "side")
-        self.assertEqual(r, 0)
-        m = git_out(p, "rev-parse", "HEAD")
-        self.assertRed(self.gate(p, pre), f"C4 {m[:7]}: cycles/C-1.md '## Done when'")
-
-
-def subprocess_merge_theirs(p: Path, branch: str) -> int:
-    import subprocess
-    r = subprocess.run(["git", "merge", "-q", "--no-ff", "-X", "theirs",
-                        "--allow-unrelated-histories", "-m", "merge", branch],
-                       cwd=p, capture_output=True)
-    if r.returncode != 0:   # add/add conflict: resolve to theirs by hand
-        subprocess.run(["git", "checkout", "--theirs", "--", "."], cwd=p, check=True)
-        subprocess.run(["git", "add", "-A"], cwd=p, check=True)
-        r = subprocess.run(["git", "commit", "-qm", "merge"], cwd=p, capture_output=True)
-    return r.returncode
+        commit_all(p, "init")
+        _cfg_sub(p, 'behavior_paths = ["src/"]', 'behavior_paths = "src/"')
+        r = self.gate(p, explicit=True)
+        self.assertIn("n/a (working-tree [gate] paths are not a list of strings)", r.stdout)
+        self.assertNotIn("could not run", r.stdout)
 
 
 class TestF19PreOptInIsNeverJudged(Fixture):
@@ -1483,7 +1663,7 @@ class TestF23StageRemoval(Fixture):
         self.assertGreen(self.gate(p, root))
         write(p, "src/a.py", BIG)
         commit_all(p, "4: code under C-3")
-        self.assertGreen(self.gate(p, root), "4 commit(s) examined, 2 behavior commit(s)")
+        self.assertGreen(self.gate(p, root), "4 commit(s) in range: 4 examined, 0 pre-opt-in (0 root(s)); 2 behavior commit(s)")
         return p, root
 
     def test_green_sequence(self):
@@ -1631,7 +1811,7 @@ class TestF26Cost(Fixture):
             r = self.gate(p, "0" * 40)
         finally:
             vmod.Gate._run_git = orig
-        self.assertGreen(r, "2 commit(s) examined")
+        self.assertGreen(r, "2 examined")
         return len(calls)
 
     def test_spawns_do_not_grow_with_pre_opt_in_history(self):
@@ -1661,10 +1841,13 @@ class TestF29OneClaimOneVerdict(Fixture):
 
 
 class TestThisRepositoryAllZeros(unittest.TestCase):
-    def test_this_repository_all_zeros_stays_green(self):
+    def test_this_repository_all_zeros_and_default_range_stay_green(self):
         r = verify(ROOT, "--gate", "cycle", "--since", "0" * 40)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("full history (new branch)", r.stdout)
+        r = verify(ROOT, "--gate", "cycle")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("range last commit only", r.stdout)
 
 
 if __name__ == "__main__":
