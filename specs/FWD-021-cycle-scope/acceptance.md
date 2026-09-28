@@ -491,3 +491,59 @@ stricter. The contract is `architecture.md` "Revision — round 3".
     creates a new opt-in point (history rewriting, ADR-0017 R1g, R3a);
   - a commit that landed red on main keeps full-history runs red until
     the workflow computes a merge-base (next-cycle item, R3e).
+
+## Amendment — 2026-09-28 (adversarial round 4; final round 5 follows)
+
+Made after round 4 (`reviews/FWD-021/findings.toml`, F41–F46) and the
+owner's decision in `sprints/S-006/goal.md`. The contract is
+`architecture.md` "Revision — round 4". Every change is stricter. The
+one exception is a red that moves to its cause (F43); it is stated
+explicitly below.
+
+- **Arming follows history (F41).** A run is armed when any of these
+  holds:
+  - the working tree enables `[cycle]`;
+  - it tracks a file under `cycles/`;
+  - any parent of a commit in the range is opted.
+
+  Each of these is red in its own push's run:
+  - a push that turns the flag off with code;
+  - a push that deletes `cycles/` to re-root;
+  - a push that turns the flag off and back on around a code commit.
+
+  This **replaces** the round-1 residual ("disabling `[cycle]` also
+  stops the gate from examining history in that run"), which no longer
+  holds.
+- **Once opted, always opted (F41).** After the first cycle file exists,
+  the mode cannot be switched off green. Leaving means one red commit
+  (deleting `cycles/` and `[cycle]`) merged deliberately. Before the
+  first cycle file, `enabled = false` remains a free opt-out.
+- **Never-opted clients (R9, unchanged).** `--all` output stays
+  byte-identical, and `--gate cycle` gives one "not in force" row. A
+  depth-1 clone of such a client is silent.
+- **Serial at every cycle-touching commit (F42).** These are red at the
+  commit that does them:
+  - opening a cycle while another is open;
+  - adding two open cycles in one commit.
+- **Malformed config (F43, F44).** The commit that makes `fde.config.toml`
+  malformed is red at that commit. That covers a wrong `[gate]`,
+  `[cycle]` or `[scrum]` shape, TOML that does not parse, and a file that
+  is not a regular file (a symlink or a directory). Before this
+  revision, that commit landed green.
+
+  *The moved red.* A child that repairs the parent's malformed config is
+  judged by its own repaired values. It is green on its merits. Round 2's
+  line ("a mistyped section in any parent config produces ... a labelled
+  red row") is now met at the introducing commit, not at the repair. A
+  child that does not repair it is still red.
+
+  An armed working tree whose `fde.config.toml` is a symlink is one red
+  row.
+- **Replace objects (F45).** The cycle gate ignores `git replace`
+  objects, so a local run agrees with a fresh clone.
+- **Residuals changed:**
+  - "permanent opt-out disarms the run" is withdrawn;
+  - an intentional exit is a deliberate red commit, re-reported by
+    full-history runs (ADR-0017 R4b);
+  - the kernel's other git spawn sites still follow replace objects
+    (next-cycle item).

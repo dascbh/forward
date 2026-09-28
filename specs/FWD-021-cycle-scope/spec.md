@@ -407,6 +407,18 @@ linear-history decision.** See ADR-0017 "Revision — … round 3".
 - **R5 / R8:** closing one cycle and opening the next in the same commit
   is red (F33).
 
+**Revised — 2026-09-28, after adversarial round 4.** See ADR-0017
+"Revision — … round 4".
+- **R9:** a run is armed by the working tree's flag, by tracked cycle
+  files, or by any opted parent in the range. So after the first cycle
+  file exists, `enabled = false` no longer disarms the gate. Leaving the
+  mode is a deliberate red commit (F41). A never-opted client still gets
+  no rows.
+- **R7:** C5 is checked at every commit that touches `cycles/` (F42).
+- **R10:** a malformed or symlinked `fde.config.toml` is red at the
+  commit that introduces it (F43, F44). The cycle gate ignores `git
+  replace` objects (F45).
+
 **Never**
 - Hard-code seven DoD items. The profile comes from size and from declared
   stages.

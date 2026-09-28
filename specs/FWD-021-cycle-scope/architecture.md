@@ -6,11 +6,11 @@ adr: docs/adr/0017-a-cycle-is-declared-in-git-before-it-runs.md
 
 # Architecture — FWD-021 declared cycle scope and a next-cycle list
 
-> **Revised 2026-09-28 after review rounds 1, 2 and 3.** The later
-> revision sections at the end of this file govern wherever they differ
-> from the text above them, in this order: "Revision — round 3", then
-> "Revision — round 2" (including its part 7a), then "Revision — round
-> 1", then the original contract.
+> **Revised 2026-09-28 after review rounds 1–4.** The later revision
+> sections at the end of this file govern wherever they differ from the
+> text above them, in this order: "Revision — round 4", then "Revision —
+> round 3", then "Revision — round 2" (including its part 7a), then
+> "Revision — round 1", then the original contract.
 
 This file is the build contract. It decides A1–A8 and A12 and records the
 owner's A9–A11. The rationale and the rejected options are in ADR-0017.
@@ -1065,3 +1065,160 @@ The orchestrator appends these to C-1's `## Next cycle`:
   touches ADR-0016 Decision 9's pins);
 - `validate()` rejects non-list `[gate]` paths for every client (F38);
 - supporting a project in a git subdirectory (F24, carried).
+
+## Revision — round 4 (2026-09-28)
+
+This section responds to `reviews/FWD-021/findings.toml` round 4
+(F41–F46). The next round is the fifth and final one, so every rule
+below is the closed, red choice. The rationale is in ADR-0017's
+"Revision — 2026-09-28 (FWD-021 review round 4)". This section governs
+over every earlier one.
+
+### 0. Run order: replaces round 3 part 0 and the arming paragraph of the original contract
+
+1. **Cheap arming.** Take a = the working tree's `[cycle].enabled is
+   True` (from `cfg`) and b = `git ls-files -z -- cycles/` lists at least
+   one file.
+2. **Symlinked config (F44).** If a or b holds, and the working-tree
+   `fde.config.toml` is a symlink (`Path.is_symlink()`) or is tracked
+   with mode `120000` (`git ls-files -s -- fde.config.toml`), emit one red
+   row and stop: `CYCLE: fde.config.toml must be a regular file (found a
+   symlink) — replace the link with the file`.
+3. **Shallow repository.** If a or b holds and `git rev-parse
+   --is-shallow-repository` prints `true`, emit round 3's red row and
+   stop.
+4. **Top level.** If a or b holds and `git rev-parse --show-prefix` is
+   non-empty, emit round 2's red row and stop.
+5. **Range.** As in round 1. An unresolvable non-zero `--since` is red
+   only if a or b holds; otherwise the run stays silent.
+6. **Commit list and opted test.** Run round 3 part 1 steps 1 and 2 (one
+   `git log`, then batched `cat-file`) over the range. When neither a nor
+   b holds and the repository is shallow, run them over what is present.
+7. **Arm.** c = some parent of some commit in the range is opted. The
+   run is armed when a, b or c holds.
+   - Not armed: no row under `--all` or the default run. Under `--gate
+     cycle`, one `cycle mode off — declared-scope gate not in force`
+     pass.
+   - Armed by c alone, in a repo that is shallow or not at the top level:
+     emit that step's red row now and stop.
+8. **Armed.** Everything else runs: round 3 part 1 steps 3–5 and every
+   check that follows. The working-tree checks (open-cycle C2, C5,
+   parse) run whenever the run is armed, even when the working tree's
+   flag is off.
+
+A git failure anywhere in steps 1–7 is a red row through `run_gate`, as
+for every other git failure.
+
+### 1. Serial at every cycle-touching commit (F42): new C5 rule
+
+For every examined commit C whose own files include any `cycles/` path,
+run `cycle.check_serial` on **C's own tree**. Take the cycle set from
+`git ls-tree --name-only -z C -- cycles/` and read the files at C. Any
+breach is red at C, with the message `C5 <sha7>: opens <C-m> while <C-n>
+is open — close <C-n> first (separate commit), then open <C-m>`, or the
+existing "two open cycles" or "not the highest number" text. This runs
+alongside C4 and round 3's close+open rule.
+
+### 2. Config shape at its own commit (F43, F44): replaces round 2 part 2's error column
+
+- **Own-tree check.** For every examined commit C whose own files
+  include `fde.config.toml`, check C's own config, using `git ls-tree -z
+  C -- fde.config.toml` for mode and type. Red at C when any of these
+  holds:
+  - the mode is not `100644` or `100755`, or the entry is not a blob;
+  - the file does not parse (`TOMLDecodeError`, `RecursionError` or a
+    decode error);
+  - `cycle_config_violations` returns anything;
+  - `[gate]` `behavior_paths` or `eval_paths` is present and not a list
+    of strings;
+  - `[scrum]` is present and not a table with a boolean or absent
+    `enabled`.
+
+  The message: `C1 <sha7>: this commit makes fde.config.toml <problem> —
+  fix it before pushing (amend or rebase); once pushed, the next commit
+  repairs it and this one stays reported`.
+- **Judging against a malformed parent.** When judging C against a
+  parent P whose config has one of those problems, P's config is replaced
+  table by table with C's own. When C's own is also malformed, or C does
+  not touch `fde.config.toml` (so its config equals P's), C is red:
+  `C1 <sha7>: parent config <problem> and this commit does not repair
+  it`. Otherwise C is judged normally with the substituted values:
+  `[gate]` paths, `[cycle]` stages and `[scrum]`.
+- **What the opted test reads.** It keeps its reading. A symlink blob or
+  unparseable text means "flag not set", and the `cycles` tree still
+  decides.
+
+### 3. Replace objects (F45)
+
+Every git call made for this gate carries the global option: `_run_git`
+receives `("--no-replace-objects", <subcommand>, …)`. Only the cycle
+gate's call sites pass it; `_run_git`'s signature and every other gate's
+calls are unchanged. `triage.eligibility_for_commit` is unchanged, and
+its own spawns are on the next-cycle list.
+
+### 4. Hygiene (F46)
+
+- **C1 reasons.** `_c1_reason` returns a small dataclass, `Reason(kind,
+  text)`, with kinds `no-open-cycle`, `two-open`, `form` and
+  `missing-acceptance`. The per-commit message composition (round 3 part
+  4) switches on `kind`. The `NO_OPEN` sentinel string is removed.
+- **One output channel.** The per-commit examiner returns
+  `(breaches, counts)` and does not append to a caller-owned list.
+- **Names.** Parameters and helpers named `p1*` (`_p1_state`,
+  `_opted_trees(p1s)`, `_stage_removal(..., p1, ...)`,
+  `_cycle_transition(..., p1, ...)`) become `parent*`.
+- **Docstrings.** Those of `cycle.py`, `gate_cycle` and
+  `tests/test_cycle.py` name "Revision — round 4" as governing.
+
+### 5. Instruction layer
+
+| change | source | copy |
+|---|---|---|
+| "Once the first cycle file exists, every later pushed commit is examined, whatever the flag says (the gate must run on every push); leaving the mode afterwards means landing one deliberate red commit that deletes `cycles/` and `[cycle]` (ADR-0017 R4b)" | `skills/fde-triage/SKILL.md` | `.claude/skills/fde-triage/SKILL.md` |
+| Ways out: "opens C-m while C-n is open → close first, in its own commit"; "a commit made fde.config.toml malformed → amend before push; after push the next commit repairs it" | `skills/fde-triage/SKILL.md` | same |
+| the commented `[cycle]` block: "once a cycle file exists the mode is permanent for that history (ADR-0017 R4b)" | `templates/fde.config.template.toml` | — |
+
+### 6. Tests: added; each red asserts its label and way out
+
+- **F41 temporary disarm:**
+  - push A (flag false plus code, with C-1 closed), run with `--since
+    <before A>`: red (R2c config change with no open cycle), with the
+    CYCLE row present under `--all`;
+  - pushes B and C, each run on its own range: B's run is armed by c;
+  - the sequence as one range: red.
+- **F41 re-root:** push A (flag false, `cycles/` deleted, code) on its
+  own range: red (C4 deletion, and the config change). Push B,
+  re-enabling with code: B's parent A is unopted, so B is not examined,
+  but A's red already blocks the push that contains A.
+- **F41 honest exit:** a single commit deleting `cycles/` and `[cycle]`:
+  red. After it, a later push of ordinary code with no cycle: its run is
+  unarmed and silent.
+- **Never-opted client:** `--all` output byte-identical with and without
+  the gate; `--gate cycle` gives exactly one "not in force" row; a
+  depth-1 clone of a never-opted client is silent.
+- **F42:**
+  - C-3 added while C-2 is open: red at that commit;
+  - C-2 and C-3 added together: red;
+  - the legal order (close C-2; open C-3 with Intake covering C-2; code):
+    green;
+  - the original probe range base..Z: red.
+- **F43:**
+  - commit M sets `behavior_paths = "src/"`: red at M;
+  - N restores the list: N green, with `--since M` giving N alone;
+  - N' leaves the string in place and changes code: red ("does not
+    repair it").
+- **F44:**
+  - working-tree `fde.config.toml` as a symlink with a cycle present:
+    one red row;
+  - a commit that turns the config into a symlink: red at that commit;
+  - the symlink history from the probe: red, not green.
+- **F45:** `git replace` of an undeclared commit: the run is red locally,
+  as in a fresh clone.
+- **This repository:** `--since <root>`, all-zeros and the default range
+  stay green.
+
+### 7. Next-cycle items this revision creates
+
+The orchestrator appends these to C-1:
+- `GIT_NO_REPLACE_OBJECTS` (or `--no-replace-objects`) for the kernel's
+  other git spawn sites: triage, erosion and I1 (F45).

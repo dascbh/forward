@@ -46,3 +46,7 @@ promotion decision, and the owner runs the review + retro sitting.
   the checked commit's own flag, F42 second open cycle caught only at the
   tip): the owner authorized a fix and a 5th, final round; a blocking
   finding in round 5 pauses FWD-021 unpromoted.
+- 2026-09-28 — FWD-021 round-4 decision (ADR-0017 R4): once the first
+  cycle file exists the mode is permanent for that history; leaving costs
+  one deliberately merged red commit. The owner accepted this over a
+  declared opt-out commit, which would reopen F41.

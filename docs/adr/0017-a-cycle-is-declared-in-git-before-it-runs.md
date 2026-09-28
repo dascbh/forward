@@ -832,3 +832,151 @@ touches ADR-0016's pins.
   - docstrings name the governing revision;
   - RULE eligibility is computed at most once per commit;
   - the AGENTS "Feed" bullet states R2e's mode-independent rule.
+
+## Revision — 2026-09-28 (FWD-021 review round 4)
+
+Round 4 of `reviews/FWD-021/findings.toml` recorded F41–F46: F41
+critical, and F42 blocking. The owner decided (`sprints/S-006/goal.md`)
+to fix them and run a fifth and final round. A blocking finding in round
+5 pauses the demand unpromoted. Every choice below therefore takes the
+closed rule that is red, over a rule that models the case. The build
+contract is `architecture.md`, section "Revision — round 4". It governs
+over every earlier revision.
+
+**R4a — the run is armed by history, not by HEAD's flag (F41,
+critical).** Arming read only the checked commit's own `[cycle]
+enabled`. A push that turned the flag off, with code or with `cycles/`
+deleted, therefore ran unarmed. The next push, turning it back on, then
+judged only itself. Every push was an ordinary fast-forward, and the net
+diff hid the off window.
+- *Rule.* A run is armed when any of these holds:
+  1. the working tree's `[cycle] enabled is True`, as before;
+  2. `git ls-files` lists any file under `cycles/`;
+  3. **any parent of any commit in the range is opted**, by R3a's test:
+     a `cycles` tree, or a parsed `[cycle] enabled = true`.
+
+  Test 3 needs the commit list and the batched opted test, which R3a
+  already computes. The only change is that they now run before the
+  arming decision rather than after it.
+- *The two probes.*
+  - The temporary disarm: push A's parent is opted, so push A's run is
+    armed. A is examined: its `[cycle]` change is a config change with no
+    open cycle (R2c), which is red.
+  - The re-root: push A is examined. Deleting `cycles/C-1.md` is red under
+    C4, and the config change is red as well.
+- *What a never-opted client pays.* Test 3 costs one `git log` over the
+  range and one `cat-file --batch-check`, even for a client that never
+  opted in. R9's promise holds as written: byte-identical `--all` output
+  and a single "not in force" row under `--gate cycle`. The
+  architecture's earlier "no git when off" is withdrawn. A git failure in
+  that probe gives a red row, and I1 is red on the same range for the
+  same failure.
+- *Shallow clones.* R3d's shallow-clone red row is emitted only when the
+  run is armed by test 1 or 2. When test 3 alone would arm a shallow
+  clone, the probe sees only the history present, so a never-opted
+  client on a depth-1 runner stays silent (FM-10).
+
+**R4b — once opted, always opted; the exit is a deliberate red (F41, the
+residual corrected).** The earlier residual ("a permanent opt-out, a
+working tree with `enabled = false`, disarms the run and is visible in the
+net diff") was wrong, as the probes show. Under R4a it no longer holds
+at all, for two reasons:
+- turning the flag off is an examined config change;
+- deleting a cycle file is always a C4 breach.
+
+So after the first cycle file exists, the mode is permanent for that
+history.
+
+A pure opt-out commit (delete `cycles/`, clear the flag, nothing else,
+no open cycle) was considered and **rejected**. It reopens the window F41
+exploits: opt out, act while unexamined, opt back in with a fresh C-1,
+all in one pull request. Closing that window would need rules about
+re-opt-in, which is modelling.
+
+The honest residual is this. A project that wants to leave lands one
+commit that deletes `cycles/` and removes `[cycle]`. That commit is red
+(C4), and the owner merges it deliberately past the gate. Later runs are
+unarmed, because no parent is opted any more, and full-history runs
+re-report that commit under R3e. Before the first cycle file exists,
+`enabled = false` is still a free opt-out, as the spec's "opt-out of a
+mode" intended.
+
+**R4c — the single opt-in point, with its premise stated (F41, F46).**
+R3a's argument ("an opted commit never has an unopted child that
+passes") needs one premise: every commit that reaches the protected line
+falls inside some armed run's range. With per-push CI over `before..after`
+and R4a's arming, every pushed commit with an opted parent is examined.
+- A force push whose old tip does not resolve is red (R1f).
+- A history rewritten before push is R1g's limit.
+
+The fde-triage sentence "once the first cycle file exists every later
+commit is examined, whatever the flag says" gains that premise: "every
+later pushed commit, with the gate running on every push".
+
+**R4d — serial is checked at every examined commit that touches
+`cycles/` (F42).** C5 ran only in the working tree and in the parent
+trees of behavior commits. So a push could open C-3 while C-2 was open,
+close C-2, and have C-3's opening check read C-1 as its predecessor. C-2's
+items were then disposed of by nothing.
+- *Rule.* For every examined commit whose own files touch `cycles/`, the
+  commit's **own** tree must satisfy C5: at most one open cycle, and it is
+  the highest number.
+- *Result.* Opening C-3 while C-2 is open is red at that commit:
+  `C5 <sha7>: opens <C-m> while <C-n> is open — close <C-n> first
+  (separate commit), then open <C-m>`. Adding two open cycles in one
+  commit is red the same way. With R3c this leaves one legal order:
+  close, open, code.
+
+**R4e — a malformed config is red at the commit that introduces it (F43,
+F44).** The shape error was reported at the child, including the child
+that repaired it. The rules are now:
+1. An examined commit whose own files include `fde.config.toml` has its
+   own config shape-checked. Red at that commit when any of these holds:
+   - `[cycle]` fails `cycle_config_violations`;
+   - `[gate]` paths are not lists of strings;
+   - `[scrum]` is not a table with a boolean `enabled`;
+   - the TOML does not parse;
+   - `fde.config.toml` is not a regular file. `git ls-tree` gives mode
+     `120000` for a symlink and type `tree` for a directory.
+
+   The message: `C1 <sha7>: this commit makes fde.config.toml <problem>
+   — fix it before pushing (amend or rebase); once pushed, the next
+   commit repairs it and this one stays reported`.
+2. A commit whose parent's config has such a problem is judged with the
+   parent's malformed tables **replaced by its own**, when its own are
+   well-formed. That is the repair, and it is green on its merits. When
+   its own are also malformed, it is itself red under rule 1, if it
+   touched the config, or with `C1 <sha7>: parent config <problem> and
+   this commit does not repair it`.
+3. When the gate is armed, a working-tree `fde.config.toml` that is a
+   symlink, or that is tracked with mode `120000`, gives one red row, and
+   nothing else runs: `CYCLE: fde.config.toml must be a regular file`.
+   Arming (through `Config.load`, which follows symlinks) and examination
+   (through blobs) can then never disagree about opt-in.
+
+   A parent blob that is a symlink reads as "flag not set" in the
+   examination test, as unparseable text always did. Once a cycle file
+   exists, parents are opted by their `cycles` tree regardless, and rule
+   1 is red at the commit that made the config a symlink.
+
+The red moves to its cause. A child of a malformed parent is no longer
+red when it repairs it. The introducing commit, which used to land green,
+is now always red. The acceptance amendment states this explicitly.
+
+**R4f — replace objects (F45).** Every git call the cycle gate makes
+through `_run_git` carries the global option `--no-replace-objects`, so
+a local run judges the same objects CI fetches. `triage.eligibility_for_commit`
+is unchanged and spawns its own git. Making replace objects inert across
+the kernel's other spawn sites (triage, erosion, I1) goes to the
+next-cycle list. It matters only locally, because `refs/replace/*` is not
+fetched by CI.
+
+**R4g — F46 hygiene.**
+- R3c's message above is a paraphrase. The emitted text is the one in
+  `architecture.md` round 3, section 3, and that section governs.
+- C1 reasons become a small value, kind plus text, with no string
+  sentinel.
+- The per-commit examiner returns its breaches and counts through one
+  channel.
+- Parameters named `p1*` are renamed to `parent*`, because first-parent
+  semantics were withdrawn in round 3.
