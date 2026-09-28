@@ -715,3 +715,120 @@ message now names this path.
 acceptance criteria and the owner's seven criteria name. That is not
 "only stricter". It is recorded as a question for the owner: both
 checks are enforced by C1 and C3 whether or not the items are listed.
+
+## Revision — 2026-09-28 (FWD-021 review round 3)
+
+Round 3 of `reviews/FWD-021/findings.toml` recorded F31–F40: F31
+critical, and F32 and F33 blocking. On 2026-09-28 the owner applied
+R2a's declared fallback (linear history) and authorized a fourth round
+(`sprints/S-006/goal.md`). The build contract is `architecture.md`,
+section "Revision — round 3". It governs over every earlier revision.
+R2a's first-parent merge model is withdrawn.
+
+**R3a — linear history after the opt-in point (F31, critical).** R2a let
+whoever made a merge choose which history the gate saw. Merging main
+into an orphan root, or into a branch forked before opt-in, and then
+fast-forwarding, put an unexamined first parent onto HEAD's line. The
+reviewer's point holds: "reject merges in an examined range" fails too,
+because such a merge is itself never examined when examination depends
+on its first parent. The rule is therefore stated over **all** parents.
+- *Opted tree.* A tree is **opted** when it holds a `cycles` tree, or
+  when its `fde.config.toml` parses with `[cycle].enabled is True`. This
+  is R2b's test, applied to a tree.
+- *Examined commit.* Every commit in the range with **at least one opted
+  parent** is examined, whichever parent is first.
+- *Linearity.* An examined commit must have **exactly one parent**. A
+  merge with any opted parent is red. This covers:
+  - a merge made on main;
+  - main merged into an orphan root or a pre-opt-in branch, then
+    fast-forwarded;
+  - `-s ours` deleting every cycle file.
+
+  The message names the way out: rebase the branch onto the protected
+  line (`git rebase <main>`) and push the linear result.
+- *Pre-opt-in history stays out of scope.* A commit with no opted parent
+  (roots included) is pre-opt-in history and is never judged. A merge of
+  two pre-opt-in parents is such a commit, so clients' and this
+  repository's pre-opt-in history stay green.
+- *A single opt-in point.* In a history the gate passes, the opted
+  commits reachable from HEAD form one linear chain that starts at
+  exactly one commit O: opted, with no opted parent.
+  - Below O's successors every commit has one parent, and following
+    parents from HEAD stays on opted commits until O.
+  - An opted commit never has an unopted child that passes. Such a child
+    either deleted every cycle file (C4) or turned the flag off with no
+    cycle file present, which is an R2c config change with no open
+    cycle.
+  - So a second opted chain could only join through a commit with an
+    opted parent and two parents, which is red.
+- *Residual.* Replacing the protected branch wholesale with an unrelated
+  history (a force push) creates a new O. That is history rewriting, R1g's
+  limit, and R1f turns it red when the old tip does not resolve.
+
+**R3b — the closing commit, under linearity (F32).** Every commit that
+changes a cycle file after O is examined, so it has exactly one parent.
+Walking from any examined P towards O therefore crosses no merge, and
+`git log -1 P -- cycles/C-<n>.md` equals its `--first-parent` form. The
+lookup uses `--first-parent` anyway, which makes the independence from
+merges explicit at no cost. A close that arrives through a merge is red
+at the merge (R3a), so the probe's side-branch backlog cannot be read.
+
+**R3c — close and open in one commit is red (F33).** Handling it would
+have meant a second source of "predecessor" (the commit's own tree) and a
+second definition of the closing commit. The simpler choice, which
+cannot lose items, is to forbid it. An examined commit in which one
+cycle goes from open to closed and another cycle file is added is red:
+`close <C-n> and open <C-m> in separate commits — the opening commit's
+## Intake disposes of <C-n>'s items`. The path into a new cycle is
+therefore three commits: close, open, then code. R1i's wording is
+narrowed to match.
+
+**R3d — a shallow repository is red (F34).** When armed, the gate asks
+`git rev-parse --is-shallow-repository` first. `true` gives one red row
+naming the fix: fetch full history (`fetch-depth: 0`, or `git fetch
+--unshallow`). This makes Decision 13's "a missing parent object, as in
+a shallow clone" hold. A shallow boundary commit would otherwise look
+like a root and be skipped as pre-opt-in.
+
+**R3e — a red commit already on the protected line (F35).** This is a
+named limit, with a way out that is stated rather than silently absent.
+A commit that reached the protected line while red (a direct push past
+a red CI, or before branch protection) stays red in every later
+full-history run, which is what CI does for a new branch's first push.
+The limit stays for three reasons:
+- a baseline or waiver key is exactly the bypass key the spec forbids;
+- limiting it to already-pushed history needs the range base that a new
+  branch push does not have;
+- computing a merge-base in the workflow changes the run line that
+  ADR-0016 Decision 9 pins.
+
+The ways out, stated in the breach message for full-history runs and in
+the fde-triage skill:
+- run the branch through a pull request, whose base resolves;
+- push the branch after it has at least one commit on the remote, so
+  `before` resolves.
+
+Prevention is branch protection requiring the gate. The workflow
+merge-base goes to the next-cycle list as a kernel item, because it
+touches ADR-0016's pins.
+
+**R3f — contract fixes with no new decision.**
+- **F36:** the config parser catches `RecursionError` alongside
+  `UnicodeDecodeError` and `TOMLDecodeError`. When deciding examination,
+  that reads as not opted. For an examined parent it is the "not valid
+  TOML" breach.
+- **F37:** the C1 message is composed per commit. The RULE advice
+  appears only when the commit could be RULE-exempt: no merge, no config
+  change, no claim yet. Merge advice now belongs only to R3a's
+  linearity message.
+- **F38:** the explicit report reads the working tree's `[gate]` paths
+  through R2f's shape check. An invalid shape prints `n/a (working-tree
+  [gate] paths are not a list of strings)` instead of calling git.
+  Rejecting a string `behavior_paths` in `validate()` for every client
+  is kernel-wide and goes to the next-cycle list.
+- **F39:** the pass row accounts for the whole range: examined,
+  pre-opt-in and roots.
+- **F40:**
+  - docstrings name the governing revision;
+  - RULE eligibility is computed at most once per commit;
+  - the AGENTS "Feed" bullet states R2e's mode-independent rule.

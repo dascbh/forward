@@ -445,3 +445,49 @@ relaxes. The contract is `architecture.md` "Revision — round 2".
     flag; that window is pre-opt-in (ADR-0017 R2b).
 - **Not changed (F30).** `declared-before` and `residuals` stay required
   profile keys. Removing them is an open question for the owner.
+
+## Amendment — 2026-09-28 (adversarial round 3, owner decision: linear history)
+
+Made after round 3 (`reviews/FWD-021/findings.toml`, F31–F40) and the
+owner's decision recorded in `sprints/S-006/goal.md`. Every change is
+stricter. The contract is `architecture.md` "Revision — round 3".
+
+- **Linear history after opt-in (F31).** Every commit in range with at
+  least one opted parent is examined, whichever parent is first. Such a
+  commit must have exactly one parent. These are red:
+  - a merge made on main;
+  - main merged into an orphan root or a pre-opt-in branch, then
+    fast-forwarded;
+  - `merge -s ours` deleting cycle files.
+
+  The message names rebase as the way out. This replaces the round-2
+  lines on merges ("judged against the first parent", and "a merge whose
+  first-parent diff touches nothing is green"): after opt-in, every merge
+  is red.
+- **The opt-in boundary.** History before the single opt-in commit
+  (merges and roots included) stays unexamined and green. That holds for
+  `--since` all-zeros and `--since <root>` on clients and on this
+  repository.
+- **Closing commit (F32).** Found with `--first-parent`. Under linearity
+  it cannot differ from the plain lookup.
+- **Close and open in one commit (F33).** Red. The way out is two
+  commits, so no item can lose its disposition.
+- **Shallow clone (F34).** One red row naming a full fetch, never a
+  silently narrowed range.
+- **A red commit already on main (F35).** Full-history runs append the
+  way out: a pull request, or a push once the branch exists remotely.
+  The limit itself is named (ADR-0017 R3e).
+- **No traceback (F36).** A `RecursionError` from a deeply nested config
+  is handled like any unparseable config.
+- **Messages (F37).** RULE advice appears only where RULE could apply.
+- **Report (F38).** An invalid working-tree `[gate]` shape prints `n/a`,
+  never a git-failure row.
+- **Result row (F39).** The row accounts for every commit in range:
+  examined, pre-opt-in and roots.
+- **AGENTS Feed bullet (F40).** It states the mode-independent
+  disposition rule.
+- **Residuals added:**
+  - replacing the protected branch wholesale with an unrelated history
+    creates a new opt-in point (history rewriting, ADR-0017 R1g, R3a);
+  - a commit that landed red on main keeps full-history runs red until
+    the workflow computes a merge-base (next-cycle item, R3e).

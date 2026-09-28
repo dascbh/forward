@@ -6,10 +6,11 @@ adr: docs/adr/0017-a-cycle-is-declared-in-git-before-it-runs.md
 
 # Architecture — FWD-021 declared cycle scope and a next-cycle list
 
-> **Revised 2026-09-28 after review rounds 1 and 2.** The later revision
-> section at the end of this file governs wherever it differs from the
-> text above it: "Revision — round 2" over "Revision — round 1", and both
-> over the original contract.
+> **Revised 2026-09-28 after review rounds 1, 2 and 3.** The later
+> revision sections at the end of this file govern wherever they differ
+> from the text above them, in this order: "Revision — round 3", then
+> "Revision — round 2" (including its part 7a), then "Revision — round
+> 1", then the original contract.
 
 This file is the build contract. It decides A1–A8 and A12 and records the
 owner's A9–A11. The rationale and the rejected options are in ADR-0017.
@@ -901,3 +902,166 @@ merge(s) examined)`. "Merge with no own change" is gone (ADR-0017 R2a).
 - F30: the profile keys stay (ADR-0017 R2j).
 - The working-tree checks for open cycles, closure form at close, and the
   range rules are as in round 1.
+
+## Revision — round 3 (2026-09-28)
+
+This section responds to `reviews/FWD-021/findings.toml` round 3
+(F31–F40), after the owner's 2026-09-28 decision to apply linear history
+(`sprints/S-006/goal.md`). The rationale is in ADR-0017's "Revision —
+2026-09-28 (FWD-021 review round 3)". This section governs over every
+earlier one. Round 2's merge model (its parts 1, 4 and 8, and every
+"P1"/"first parent" merge rule) is withdrawn.
+
+### 0. Preconditions: replaces round 2 part 0; runs first when armed, in this order
+
+1. **Shallow repository (F34).** `git rev-parse
+   --is-shallow-repository` prints `true` → one red row, and nothing else
+   runs: `CYCLE: shallow clone — the gate needs full history; fetch it
+   (fetch-depth: 0, or git fetch --unshallow)`.
+2. **Top level (F24).** Unchanged from round 2.
+3. **Range.** Unchanged from round 1.
+
+### 1. Examination and linearity (F31): replaces round 2 part 1
+
+1. **Commit list.** One `git log --format=%H%x1f%P%x1f%s <range>` lists
+   every commit in the range. With `--since` all-zeros or no range base,
+   `<range>` is `HEAD`. There is no `--first-parent`.
+2. **Opted parents.**
+   - Take every distinct parent of every listed commit.
+   - Decide whether each is **opted** with the batched test: a `cycles`
+     tree, or a config that parses, whose `[cycle]` is a table and whose
+     `enabled is True`.
+   - Batch 1 is `cat-file --batch-check` over `<P>:cycles` and
+     `<P>:fde.config.toml`. Batch 2 is `cat-file --batch` for the configs
+     step 2 of the test needs.
+   - A decode, `TOMLDecodeError` or `RecursionError` (F36) reads as not
+     opted. Nothing from this step is ever a breach.
+3. **Examined.** A commit is examined when **any** of its parents is
+   opted. Others are counted `pre-opt-in` (and roots also `root`) and
+   never read again.
+4. **Linearity.** An examined commit with more than one parent is red,
+   and none of its other checks run:
+   `C1 <sha7>: a merge after opt-in (parents <p7>, <q7>) — history must
+   stay linear once cycles exist; rebase the branch onto the protected
+   line (git rebase <main>) and push the result`.
+5. **The single parent.** Every other examined commit has exactly one
+   parent, P. It is judged against P, and its own files are `git
+   diff-tree -r --name-only -z P C`. Everything in round 2 parts 2, 3,
+   5, 6 and 7a applies with "P1" read as this P.
+
+### 2. Closing-commit lookup (F32): amends round 2 part 5
+
+The predecessor's closing commit is found with `git log -1 --first-parent
+--format=%H P -- cycles/C-<n>.md`. Under part 1 the result is the same
+without `--first-parent`, because every commit after O that touches a
+cycle file is examined and single-parent. The flag makes that explicit.
+
+### 3. Close + open in one commit (F33): new C4 rule
+
+An examined commit in which some cycle file is open in P and closed in
+C, **and** some cycle file absent in P is present in C, is red:
+`C4 <sha7>: closes <C-n> and opens <C-m> in one commit — commit the
+close first, then open <C-m> with its ## Intake in a separate commit`.
+Round 2 part 5's opening check is unchanged: its predecessor is read
+from P, where the close is already committed.
+
+### 4. Messages (F35, F37)
+
+- **C1 "no open cycle".** The message is composed per commit from what
+  the gate already knows:
+  - always: `open a cycle in an earlier commit`;
+  - plus `, or declare "FORWARD: RULE — <reason>" if it is RULE-sized`
+    only when the commit is not a config change and has no RULE claim;
+  - for a config change: `a change to [gate]/[triage]/[cycle] always
+    needs an open cycle`.
+- **Full-history runs.** When the range is full history (all-zero
+  `--since` or none resolvable as base), every C1–C6 breach row gains
+  the suffix `— if this commit is already on the protected line, this
+  push did not cause it: run the branch through a pull request (its base
+  resolves) or push again once the branch exists remotely (ADR-0017
+  R3e)`.
+- **Parent config not valid TOML.** The message loses "re-run with
+  --since <a base after it>" and uses the same suffix instead.
+
+### 5. Report (F38) and result row (F39): replaces round 2 part 8
+
+- **Explicit report.** It takes the working tree's `behavior_paths`
+  through R2f's shape check. When the shape is invalid it prints `n/a
+  (working-tree [gate] paths are not a list of strings)` and runs no git
+  call for the count.
+- **Pass row:** `<N> cycle(s); range <…>; <T> commit(s) in range: <E>
+  examined, <U> pre-opt-in (<Z> root(s)); <B> behavior commit(s), all
+  declared before (<R> RULE-exempt)`. Merges no longer appear, because
+  an examined merge is red.
+
+### 6. Code hygiene (F40)
+
+- The docstrings of `cycle.py`, `gate_cycle` and `tests/test_cycle.py`
+  name "Revision — round 3" as governing.
+- `triage.eligibility_for_commit` is called at most once per examined
+  commit, and its result is reused for the exemption and for the
+  explicit report's RULE-during-open-cycle count.
+
+### 7. Instruction layer: additions
+
+| change | source | copy |
+|---|---|---|
+| the "Feed" bullet states R2e: each item of a closed cycle is disposed of exactly once, checked when the next cycle opens — captured in `backlog.md` at close (required with `[scrum]` on) or listed in the next cycle's `## Intake` | `templates/AGENTS.md.template` | `AGENTS.md` |
+| the "Open" bullet adds: history stays linear once cycles exist (rebase, never merge) and the gate needs a full clone | `templates/AGENTS.md.template` | `AGENTS.md` |
+| Ways out: merge after opt-in → rebase; close + open → two commits; shallow clone → full fetch; a red commit already on main → PR or push once the branch exists (R3e). R1i's path is "close, open, code — three commits" | `skills/fde-triage/SKILL.md` | `.claude/skills/fde-triage/SKILL.md` |
+| one comment line: "requires linear history after opt-in and a full clone" | `templates/fde.config.template.toml` (commented `[cycle]`) | — |
+
+### 8. Tests: replace round 2's F18 cases and add these
+
+Each red case asserts its label and way-out text.
+
+- **F31:**
+  - (a) a merge made on main after opt-in: red (linearity);
+  - (b) main merged into an orphan root with code, then main
+    fast-forwarded to it: red. Run with `--since <before>`, `--since`
+    all-zeros and the default range;
+  - (c) the same with a branch forked before opt-in: red;
+  - (d) the same while C-1 is open, the merge rewording a frozen item:
+    red, with linearity reported;
+  - (e) an orphan root with `[cycle]` on and code, `merge -s ours` of
+    main, fast-forward: red;
+  - (f) the same content rebased linearly onto main under an open cycle:
+    green.
+- **Pre-opt-in merges.** A client history with merges and a root before
+  its opt-in commit O, then linear history after it: `--since` all-zeros
+  green, and the row counts the pre-opt-in commits and the root.
+- **F32.** Covered by (b)/(d). Also a linear close whose backlog capture
+  is read from the true closing commit: green, and `captured` is counted.
+- **F33:**
+  - close + open in one commit, with or without Intake: red, with the
+    two-commit way out;
+  - close, then open with Intake: green;
+  - close, then open without Intake: red (C6).
+- **F34.** `git clone --depth 2` of a fixture with a C1 breach behind the
+  boundary: one red "shallow clone" row, for both the default range and
+  all-zeros.
+- **F35.** A red commit on main followed by clean work: all-zeros run is
+  red with the R3e suffix; the same branch with a resolvable `--since` is
+  green.
+- **F36.** A pre-opt-in config nested 3000 deep: all-zeros is green with
+  no traceback. The same config in an examined parent gives the red
+  "not valid TOML" row, and every other gate's row still prints under
+  `--all`.
+- **F37.** A config narrowing claimed as RULE with no open cycle: the
+  message carries no RULE advice. A plain code commit with no claim: the
+  message carries it.
+- **F38.** A working-tree `behavior_paths = "src/"` under `--gate
+  cycle`: the report prints `n/a …`, with no git failure row.
+- **F39.** The pass row numbers add up: examined plus pre-opt-in equals
+  the commits in range.
+- **This repository.** `--since <root>`, `--since` all-zeros and the
+  default range stay green. The repository has no merges, and CI uses
+  `fetch-depth: 0`.
+
+### 9. Next-cycle items this revision creates
+
+The orchestrator appends these to C-1's `## Next cycle`:
+- the workflow template computes a merge-base for new-branch pushes (R3e;
+  touches ADR-0016 Decision 9's pins);
+- `validate()` rejects non-list `[gate]` paths for every client (F38);
+- supporting a project in a git subdirectory (F24, carried).

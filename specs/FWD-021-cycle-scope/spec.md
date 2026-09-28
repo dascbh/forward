@@ -398,6 +398,15 @@ change below is stricter; none loosens a criterion.
 - **R8:** every item is disposed of exactly once, checked at the next
   cycle's opening, whatever the scrum mode (F21, F25).
 
+**Revised — 2026-09-28, after adversarial round 3 and the owner's
+linear-history decision.** See ADR-0017 "Revision — … round 3".
+- **R10:** after the single opt-in commit, history is linear. Every
+  commit with an opted parent is examined and must have exactly one
+  parent. Merges after opt-in are red, with rebase as the way out (F31).
+  A shallow clone is red (F34).
+- **R5 / R8:** closing one cycle and opening the next in the same commit
+  is red (F33).
+
 **Never**
 - Hard-code seven DoD items. The profile comes from size and from declared
   stages.
