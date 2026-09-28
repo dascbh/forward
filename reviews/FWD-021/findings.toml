@@ -35,17 +35,102 @@
 # tests/support.make_project, or in a fresh `git clone` of the worktree
 # in a temp dir (driver scripts: the reviewer's scratchpad r2/h.py,
 # p1.py..p8.py), never in the real tree.
+#
+# Round 3 of 3 (last before escalation to the owner). Artifact: HEAD
+# c0323d9 — adds e9d305c (architecture revision after round 2), 18ae8ef
+# (round-2 reconciliation), 5ae1128 (R2d addendum, contract) and c0323d9
+# (R2d addendum, build) on top of the round-2 artifact: runtime/cycle.py,
+# runtime/verify.py gate_cycle and helpers, runtime/graph.py,
+# runtime/fde_lib.py (bin/fde/ copies byte-identical), tests/test_cycle.py,
+# the instruction layer, fde.config.toml [cycle], cycles/C-1.md. Spec:
+# specs/FWD-021-cycle-scope/ incl. the round-2 acceptance amendment and
+# architecture.md "Revision — round 2" with part 7a, ADR-0017 incl. both
+# revisions and the R2d addendum, sprints/S-006/goal.md owner decisions,
+# and rounds 1-2 of this file. A separate isolated reviewer (I2): artifact
+# + spec + prior findings only, no builder context. Findings only, no
+# fixes (I3). Rounds 1-2 are preserved verbatim except [meta]'s round
+# counters, commit and agent_transcript; round 3 adds
+# [meta].probed_round3, one [[verification]] per round-2 finding and per
+# round-1 partial, and new findings F31-F40 (each with round = 3). Every
+# probe ran in throwaway temp repos built with tests/support.make_project,
+# or in a fresh `git clone` of the worktree in a temp dir (driver
+# scripts: the reviewer's scratchpad r3/h.py, p1.py..p9.py, dur.py),
+# never in the real tree.
 
 [meta]
 demand_id = "FWD-021"
 context_policy = "artifact_only"
 isolation_mode = "worktree"
-rounds_planned = 2
-rounds_run = 2
-commit = "c9ecddc (round 2); 3672a689171cc1191699c9a646af0e4f0f2ffc38 (round 1)"
-agent_transcript = "agent-a5e034348d1da4961"
+rounds_planned = 3
+rounds_run = 3
+commit = "c0323d9 (round 3); c9ecddc (round 2); 3672a689171cc1191699c9a646af0e4f0f2ffc38 (round 1)"
+agent_transcript = "agent-a2886e4b38676a879"
+agent_transcript_round3 = "agent-a2886e4b38676a879"
 agent_transcript_round2 = "agent-a5e034348d1da4961"
 agent_transcript_round1 = "agent-ad6543fd04528f133"
+probed_round3 = '''
+Baseline. `git log -1` in the isolation worktree: c0323d9, the artifact
+(equal to main's HEAD). runtime/*.py and bin/fde/*.py byte-identical for
+cycle, verify, fde_lib, graph, triage; skills/fde-triage and fde-scrum
+identical to their .claude copies. Fresh clone of HEAD (p6.py): `--gate
+cycle --since 000..0` green, 1.56 s cold, "9 commit(s) examined, 4
+behavior commit(s)"; `--since <root 1a550ec>` green 0.48 s; default green
+0.20 s; `--all --since <root>` green 5.9 s. This repository has 0 merge
+commits and one root. `cd tests && python3 -m unittest test_cycle`: 131
+tests OK in 245 s under load average 8-12 (other agents running); a
+per-test re-run (dur.py) took 68 s — timing is not comparable to round 2.
+
+Round-2 re-runs (p2.py, p3.py, p4.py): F18 merges made ON the protected
+line red (pre-opt-in branch, weaker C-1 as theirs -> C4); F19 invalid TOML
+and enabled = "no" before opt-in green under zeros and root; F20 weights
+= 5 / gate = "x" before opt-in green with no traceback, an examined
+parent's behavior_paths = "src/" red; F21 R2c and R2c2 red ("C-1#k has
+no disposition"), report "missing 2"; F22 narrow/act/restore red at the
+narrowing and at the code, the narrowing claimed RULE red, a stage drop
+with no open cycle red; F23 addendum green sequence steps 1-4 green,
+variants a, b, d, e red, g commit green with the working tree red; F24
+one red row, also under --all; F25 red; F28 counts sum; F29 with only
+closed cycles both gates red.
+
+New probes, weight order:
+- Merge whose FIRST parent is never examined, then fast-forward (p1.py,
+  p9.py): an orphan root with code, main merged INTO it, main
+  fast-forwarded: green, "0 commit(s) examined"; the same with a branch
+  forked before opt-in; the same with a frozen done item reworded inside
+  that merge; an orphan root with [cycle] on and code, main merged with
+  -s ours (every cycle file deleted): green, "0 cycle(s) ... 1 merge(s)
+  examined". Control (the same merge made on main): red. -> F31.
+- C6 through a merge (p4.py P4a): C-1 closed on a side branch whose
+  backlog.md captures both items; main merges it keeping main's backlog;
+  C-2 opens with no Intake: green, report "captured 2". Linear control
+  red. -> F32.
+- Close C-n and open C-n+1 in one commit, no code (p7.py): no Intake ->
+  green (report "missing 2"); a correct Intake -> red ("names no item of
+  a closed cycle"). Separate commits control red. -> F33.
+- Shallow clone depth 2 (p5.py): a C1 breach one commit back, `--since
+  000..0` green labelled "full history (new branch)". -> F34.
+- A red commit already on main, then a new branch (p8.py): `--since
+  000..0` red forever; the PR-base range green. -> F35.
+- 3000-deep nested array in a pre-opt-in config (p4.py P4c): RecursionError
+  traceback, `--all` prints nothing. -> F36.
+- Messages on config changes and non-merges (p2.py, p4.py P4b). -> F37.
+- Working-tree behavior_paths = "src/" (p4.py P4d): explicit run prints a
+  green CYCLE row and then "CYCLE could not run ... -- s r c /"; CFG row
+  "configuration valid". -> F38.
+- Checked and clean: a client without [cycle] has no CYCLE row under
+  --all and one "not in force" pass under --gate cycle (p4.py P4e, and
+  gate_cycle returns before any git call); the C4/C3 label change in
+  check_transition (an unresolved item at close is skipped by C4 and
+  always reported by C3, which runs on every open->closed transition that
+  C4 passes; no path found where the skip loses the breach); stage removal
+  with [cycle] removed or stages made a string (treated as a removal, red
+  unless closing); stage added under an open cycle without the amended
+  item (the next behavior commit is red through the parent's form).
+
+Heuristic pass (I8) over the code and text changed since round 2 against
+.fde/spec/dimensions/quality-attributes.toml: F37 (USE-4, USE-3), F39
+(OBS-1, USE-1), F40 (MNT-4, MNT-10, MNT-8).
+'''
 probed_round2 = '''
 Baseline. `git log -1` in the isolation worktree: c9ecddc, the artifact.
 runtime/*.py and bin/fde/*.py byte-identical for cycle, verify, fde_lib,
@@ -918,4 +1003,399 @@ from skills/fde-triage/SKILL.md and cycles/C-1.md. The checks are
 correct; the cost buys no correctness.
 '''
 evidence = "runtime/cycle.py ALWAYS = (\"declared-before\", \"regression-proven\", \"review-rounds\", \"residuals\"); skills/fde-triage/SKILL.md Done-profile table."
+blocking = false
+
+# ==========================================================================
+# Round 3 — verification of round-2 findings and round-1 partials
+# ==========================================================================
+
+[[verification]]
+finding = "F18"
+round = 3
+status = "partially"
+probe = "p2.py: a pre-opt-in branch merged on main with only a closed cycle -> rc 1, 'C1 <sha> (merge): no open cycle'; a pre-opt-in C-1 rewording a frozen item merged as theirs -> rc 1, C4. Both merges have main as first parent. The same content with the merge made on the side (first parent unexamined) and main fast-forwarded is green: F31."
+
+[[verification]]
+finding = "F19"
+round = 3
+status = "resolved"
+probe = "p2.py: pre-opt-in commits with `broken = = ` and with `[cycle] enabled = \"no\"`, both reverted, then opt-in: --since 000..0 and --since <root> rc 0, '0 commit(s) examined'."
+
+[[verification]]
+finding = "F20"
+round = 3
+status = "partially"
+probe = "p2.py: pre-opt-in `weights = 5` and `gate = \"x\"`: --gate cycle rc 0, --all prints every row. An examined parent with behavior_paths = \"src/\": red 'parent [gate].behavior_paths must be a list of strings'. A traceback is still reachable from pre-opt-in data through tomllib's RecursionError: F36."
+
+[[verification]]
+finding = "F21"
+round = 3
+status = "partially"
+probe = "p3.py: R2c (scrum off close, scrum on, C-2 with no Intake) and R2c2 (on->off->close->on) -> rc 1, 'C6 <sha> C-2: C-1#1 has no disposition'. Items still vanish green when the close and the opening share one commit (F33) or when the close arrives through a merge (F32)."
+
+[[verification]]
+finding = "F22"
+round = 3
+status = "resolved"
+probe = "p2.py: behavior_paths narrowed, code, restored with only a closed C-1 -> rc 1 at the narrowing and at the code commit; the narrowing claimed 'FORWARD: RULE' -> rc 1; stages [\"live\"] -> [] with no open cycle -> rc 1."
+
+[[verification]]
+finding = "F23"
+round = 3
+status = "resolved"
+probe = "p3.py: architecture part 7a green sequence (remove live + close C-2 with live [-] carried; C-3 disposes C-2#1; code under C-3) rc 0; variant a (remove while open) red naming the closing-commit path; b (close first, then remove) red R2c; d (no carry) red C3; e (remove+close+open) red R1i; g (restore under C-3) commit green, working tree red asking for '- [ ] amended YYYY-MM-DD: live'."
+
+[[verification]]
+finding = "F24"
+round = 3
+status = "resolved"
+probe = "p3.py: project in svc/ of its repository -> one red row 'CYCLE: the project must be the git top level (found prefix svc/) — move fde.config.toml to the repository root', under --gate cycle and under --all."
+
+[[verification]]
+finding = "F25"
+round = 3
+status = "resolved"
+probe = "p3.py: C-1#1 captured, taken by C-2, taken again by C-3 -> rc 1, 'C6 <sha> C-3: C-1#1 was already taken by an earlier cycle'."
+
+[[verification]]
+finding = "F26"
+round = 3
+status = "resolved"
+probe = "p6.py fresh clone: --since 000..0 1.56 s cold (round 2: 2.08 s), --since <root> 0.48 s, default 0.20 s. tests/test_cycle.py TestF26Cost asserts the spawn count through a counter on Gate._run_git."
+
+[[verification]]
+finding = "F27"
+round = 3
+status = "resolved"
+probe = "skills/fde-triage/SKILL.md no longer carries the Triage-line sentence (diff a6968bd..HEAD); AGENTS.md and templates/AGENTS.md.template step 2 ask for size: only with [cycle] on."
+
+[[verification]]
+finding = "F28"
+round = 3
+status = "partially"
+probe = "p3.py/p4.py: counts sum to the item count ('captured 1, taken 1', 'missing 2'). architecture.md part 5 says 'missing' can only occur in history the gate did not examine; p7.py P7a shows 'missing 2' on a fully examined, green history: F33."
+
+[[verification]]
+finding = "F29"
+round = 3
+status = "resolved"
+probe = "p4.py P4b: rule_lane_max_loc raised, claimed 100-line commit, restored, only closed cycles: cycle red at all three commits, rule-lane red on the claim. With an open cycle (p3.py) cycle is green because the commit is declared, and does not rule on the claim."
+
+[[verification]]
+finding = "F30"
+round = 3
+status = "declined"
+probe = "Owner decision 2026-09-28 (sprints/S-006/goal.md, ADR-0017 R2j): declared-before and residuals stay required done items. Not re-raised."
+
+[[verification]]
+finding = "F6"
+round = 3
+status = "accepted residual"
+probe = "ADR-0017 R1g names local history rewriting before push as a limit; the skill narrows amend to 'while the opening commit is still HEAD'. Code path unchanged; not re-run."
+
+[[verification]]
+finding = "F7"
+round = 3
+status = "accepted residual"
+probe = "Owner decision 2026-09-28: no cumulative cap on claimed RULE commits (A9 unchanged). The report still counts RULE-exempt commits with no cycle (p4.py report row)."
+
+[[verification]]
+finding = "F8"
+round = 3
+status = "resolved"
+probe = "Superseded by R2c and verified under F22 above: a narrowing is a behavior commit judged against P1 and needs an open cycle."
+
+[[verification]]
+finding = "F14"
+round = 3
+status = "not re-measured"
+probe = "131 tests OK in 245 s under load average 8-12 on the reviewer's machine; a per-test re-run took 68 s in total, the slowest test 8.2 s (TestC4Frozen.test_amended_done_append_is_green). Neither number is comparable to round 2's 22.4 s; the promotion role should time it on an idle machine."
+
+[[verification]]
+finding = "F16"
+round = 3
+status = "partially"
+probe = "Ways out now cover stage removal (addendum) and merges (rebase). Two messages still name a step that cannot work: the 'no open cycle' breach on a config change or an already-claimed commit (F37), and on a commit already pushed to main (F35)."
+
+# ==========================================================================
+# Round 3 — new findings
+# ==========================================================================
+
+[[finding]]
+id = "F31"
+round = 3
+attribute = "functional_correctness"
+severity = "critical"
+probe = '''
+Merge whose FIRST parent the gate never examines, then fast-forwarded
+onto the protected line (scratchpad r3/p1.py, p9.py). R2a judges a
+merge against its first parent, but only "when its first parent is
+examined". Whoever makes the merge chooses which parent is first, so
+merging main INTO a branch whose tip is unexamined, then fast-forwarding
+main, puts an unexamined commit on HEAD's first-parent line.
+- P1a: C-1 closed on main. `git checkout --orphan side`, commit
+  src/evil.py (20 lines) as a root; `git merge main
+  --allow-unrelated-histories` on side (P1 = the orphan root); `git
+  checkout main && git merge --ff-only side`. `--since <init>`, `--since
+  000..0` and the default range: rc 0, "0 commit(s) examined, 0 behavior
+  commit(s), all declared before (... 0 merge(s) examined)".
+- P1b: the same with a branch forked BEFORE opt-in instead of an orphan
+  (no --allow-unrelated-histories needed; the ordinary "merge main into my
+  feature branch, then push" flow): rc 0.
+- P1c: C-1 OPEN with done item "the thing works"; the orphan-side merge
+  rewrites it to "it compiles"; ff. rc 0. `git diff --stat init..HEAD`:
+  cycles/C-1.md and src/evil.py. A frozen declaration and undeclared code
+  land together under a green row.
+- P9b: orphan root with [cycle] on and code, `merge -s ours` of main
+  (every cycles/ file deleted), ff: rc 0, "0 cycle(s); ... 1 merge(s)
+  examined". C4's "a cycle file is never deleted" is bypassed, and the
+  code in the root commit is never examined.
+- P1d control, the same merge made on main (P1 = main): rc 1, "C1 <sha>
+  (merge): no open cycle".
+In CI this is the push path: `--since github.event.before` covers the
+orphan root and the merge, both skipped. A PR merged through GitHub's
+merge, squash or rebase button is judged (P1 = base); a direct or
+fast-forward push is not. This repository's own flow is direct pushes
+to main.
+Contract statements this contradicts: acceptance R10 "A merge commit is
+handled exactly as the ADR records, and never silently passed"; ADR R2a
+"the gate protects the first-parent line" (the first-parent line of
+HEAD is chosen by whoever makes the merge) and its residual "a merge
+whose first parent is not the protected line ... is judged the same way
+and may be red" (it is not judged at all); skills/fde-triage "Once the
+first cycle file exists every later commit is examined, whatever the
+flag says". The tests (TestF18MergesAgainstFirstParent) only build
+merges whose first parent is main.
+Owner decision 2026-09-28 (sprints/S-006/goal.md): "fallback: linear
+history if round 3 finds a merge hole". This is that hole. Rejecting
+merge commits in an examined range does not by itself close P1a/P1b
+(the merge there is never examined); the fallback has to be stated as
+"no merge commit anywhere in the range" (or "every commit in range has
+an examined first parent, else red"), so that a root or pre-opt-in
+commit can only reach HEAD by rewriting history, which R1f already makes
+red after push. A root commit inside the range is skipped silently
+today; the row should say so (F39).
+'''
+evidence = "runtime/verify.py gate_cycle: `examined_p1 = self._examined_parents(...)`; `if p1 not in examined_p1: continue` for every commit including merges; `commits = [... if c[1]]` drops roots. _examined_parents: P1 examined only by a `cycles` tree or `[cycle] enabled = true` in P1. Reproduction: scratchpad r3/p1.py (P1a, P1b, P1c rc 0; P1d rc 1), r3/p9.py (P1c re-check, P9b rc 0)."
+blocking = true
+
+[[finding]]
+id = "F32"
+round = 3
+attribute = "functional_correctness"
+severity = "high"
+probe = '''
+C6 reads the wrong closing commit when a close arrives through a merge
+(scratchpad r3/p4.py P4a). R2e and architecture part 5 read backlog.md
+"as it stood at n's closing commit", found with `git log -1 --format=%H
+P1 -- cycles/C-<n>.md`. Git's default history simplification follows a
+merge to the parent it is TREESAME to, so for a close that reaches the
+first-parent line through a merge the lookup returns the SIDE commit.
+- C-1 open on main with backlog.md. A side branch closes C-1 with two
+  next-cycle items and captures both in ITS backlog.md ("C-1#1 ...
+  (opinion)", "C-1#2 ... (opinion)"). Main moves, then merges the side
+  branch (P1 = main, so the open->closed transition is judged at the
+  merge; scrum off, no capture required) keeping main's backlog.md. The
+  backlog at the merge holds no C-1 token. C-2 opens with no ## Intake.
+  `git log -1 M -- cycles/C-1.md` names the side commit.
+- `--since <init>`: rc 0, report "C-1 closed: 2 next-cycle item(s) —
+  captured 2 (C-1#1 C-1#2)". The same items with a linear close are red
+  ("C-1#1 has no disposition").
+The items were captured only in a backlog.md that never existed on the
+protected line, and the gate records them as disposed. The acceptance
+amendment says every item is disposed of exactly once, by the backlog at
+the closing commit or by the Intake. Linear history (F31's fallback)
+also removes this path; if merges stay, the lookup needs
+`--first-parent`.
+'''
+evidence = "runtime/verify.py _cycle_transition: `k = self._git(\"log\", \"-1\", \"--format=%H\", p1, \"--\", pred.path)` (no --first-parent); _cycle_report uses the same lookup. Reproduction: scratchpad r3/p4.py P4a rc 0, linear control rc 1."
+blocking = true
+
+[[finding]]
+id = "F33"
+round = 3
+attribute = "functional_correctness"
+severity = "high"
+probe = '''
+Closing C-n and opening C-(n+1) in one commit drops every next-cycle item
+of C-n (scratchpad r3/p7.py). Scrum off.
+- P7a: C-1 open. One commit closes C-1 with items "fix the flaky thing"
+  and "p99 latency" and adds C-2 with no ## Intake (no code, so R1i does
+  not apply). Then code under C-2. `--since <init>`: rc 0; the report
+  reads "C-1 closed: 2 next-cycle item(s) — ... missing 2 (C-1#1 C-1#2)".
+- P7b: the same commit with a correct Intake ("C-1#1 taken" with a task
+  citing it, "C-1#2 dropped — not needed"): rc 1, "intake cites C-1#1,
+  which names no item of a closed cycle — correct the token in this
+  opening commit". So the only green shape of a close+open commit is the
+  one that loses the items, and C4 then freezes C-2's Intake.
+- P7d control, close and open in separate commits with no Intake: rc 1.
+- With scrum on the capture-at-close check still fires (P7c red).
+Cause: the predecessor is "the greatest cycle number below m whose file
+in P1 is closed" (architecture part 5), and in P1 C-n is still open.
+ADR R1i names "Close-and-open without code, then code" as the path into
+a new cycle, and fde-triage does not forbid doing both in one commit.
+architecture part 5 also says `missing` "can only occur in history the
+gate did not examine"; here it occurs in an examined, green history.
+Same class as round 2's F21 (blocking): items vanish with no
+disposition, contradicting "every item is disposed of exactly once,
+whatever the scrum mode".
+'''
+evidence = "runtime/verify.py _cycle_transition: `tree = self._tree_cycles(cycle, p1)`, `closed_below = [c for c in tree if c.closed and ...]`; runtime/cycle.py check_opening (pred from `tree`; an Intake token of a cycle not closed in `tree` is red). Reproduction: scratchpad r3/p7.py P7a rc 0, P7b rc 1, P7d rc 1."
+blocking = true
+
+[[finding]]
+id = "F34"
+round = 3
+attribute = "reliability_resilience"
+severity = "medium"
+probe = '''
+A shallow clone narrows the examined range silently, and the row
+claims "full history" (scratchpad r3/p5.py). Repo: C-1 closed, a 20-line
+src/ commit with no open cycle, then a README commit.
+- full clone, `--since 000..0`: rc 1, "C1 <sha>: no open cycle".
+- `git clone --depth 2`, `--since 000..0`: rc 0, "range full history
+  (new branch); 1 commit(s) examined". The default range is also green.
+In a shallow clone the boundary commit has no parents in `git log %P`,
+so gate_cycle drops it as a root. ADR-0017 Decision 13 lists "a missing
+parent object, as in a shallow clone" as fail-closed (red), and the
+architecture fail-closed table says "P object missing (shallow clone) ->
+ls-tree fails -> GitOpFailure -> red". Neither happens. The kernel's own
+workflow template uses fetch-depth: 0, but I6 runs the gate on the
+client's runner, where depth-limited clones are a common default.
+`git rev-parse --is-shallow-repository` answers it in one call.
+'''
+evidence = "runtime/verify.py gate_cycle `commits = [c for c in self._log_commits(rev) if c[1]]   # roots skipped`; _cycle_range labels an all-zero --since 'full history (new branch)' without checking for a shallow repository. Reproduction: scratchpad r3/p5.py, full clone rc 1, depth-2 clone rc 0."
+blocking = false
+
+[[finding]]
+id = "F35"
+round = 3
+attribute = "reliability_resilience"
+severity = "medium"
+principle = "USE-4 error prevention and recovery: every error names a way out"
+probe = '''
+One red commit on the protected line turns every later new-branch push
+red, permanently (scratchpad r3/p8.py). C-1 closed; a 20-line src/
+commit with no open cycle lands on main (a direct push while CI is red,
+or before branch protection exists); C-2 opens; three commits of work;
+a new branch with one clean commit.
+- `--since 000..0` (CI's github.event.before on a new branch): rc 1,
+  "C1 <sha>: no open cycle — open one in an earlier commit, or declare
+  \"FORWARD: RULE — <reason>\" ...", naming a commit five back.
+- the same branch with the PR base as --since: rc 0.
+The named way out cannot be applied to pushed history, and CI chooses
+--since itself. The parent-TOML breach says "re-run with --since <a base
+after it>", which CI cannot do either. Nothing in ADR-0017 R1f
+(all-zeros means full history) names this consequence, and nothing in
+fde-triage's "Ways out" covers it. F19 fixed the pre-opt-in version of
+this; the post-opt-in version remains.
+'''
+evidence = "runtime/verify.py _cycle_range (`--since` all zeros -> full history from HEAD); gate_cycle C1 breach text via _c1_reason; .github/workflows/fde-gate.yml `--since \"${{ github.event.pull_request.base.sha || github.event.before }}\"`. Reproduction: scratchpad r3/p8.py."
+blocking = false
+
+[[finding]]
+id = "F36"
+round = 3
+attribute = "reliability_resilience"
+severity = "low"
+probe = '''
+A traceback from pre-opt-in data (scratchpad r3/p4.py P4c). One
+pre-opt-in commit whose fde.config.toml holds `deep = [[[...]]]` nested
+3000 deep, reverted, then opt-in. `--gate cycle --since 000..0`: rc 1,
+RecursionError traceback from tomllib; `--all --since 000..0`: rc 1,
+0 lines on stdout. _examined_parents catches only UnicodeDecodeError and
+TOMLDecodeError. The round-2 amendment says "A mistyped section in any
+parent config produces either nothing (unexamined) or a labelled red
+row. Under --all, every other gate's row is still printed." The input is
+contrived, which is why this is low, but it is history the gate
+promises never to judge.
+'''
+evidence = "runtime/verify.py _examined_parents `except (UnicodeDecodeError, tomllib.TOMLDecodeError): continue`; _p1_state and _commit_config the same. Reproduction: scratchpad r3/p4.py P4c."
+blocking = false
+
+[[finding]]
+id = "F37"
+round = 3
+attribute = "usability_accessibility"
+severity = "low"
+principle = "USE-4 error prevention and recovery: every error names a way out (also USE-3 consistency)"
+probe = '''
+The C1 "no open cycle" message names ways out that do not apply
+(scratchpad r3/p2.py, p4.py P4b). _c1_reason caches one reason per
+parent and appends it unchanged to every behavior commit:
+- a behavior_paths narrowing whose subject already is "FORWARD: RULE —
+  tiny" is told "or declare \"FORWARD: RULE — <reason>\" if it is
+  RULE-sized". R2c makes a config change never RULE-exempt, so following
+  that advice stays red. The P4b rule_lane_max_loc raise shows the same.
+- every non-merge commit is also told "a red merge is rebased instead".
+The addendum fixed the same kind of message for stage removal (F23). The
+fix belongs where the breach is formatted in gate_cycle, which already
+knows `merge`, `by_config` and the claim.
+'''
+evidence = "runtime/verify.py _c1_reason reason text (one per parent, cached); gate_cycle `breaches.append(f\"C1 {where}: {r}\")`. Messages quoted from scratchpad r3/p2.py ('F22 narrowing claimed RULE') and r3/p4.py P4b."
+blocking = false
+
+[[finding]]
+id = "F38"
+round = 3
+attribute = "reliability_resilience"
+severity = "low"
+probe = '''
+The explicit report crashes on a working-tree behavior_paths string
+(scratchpad r3/p4.py P4d). An open C-1, then a commit setting
+`behavior_paths = "src/"`. `--gate cycle --since <init>`: a green CYCLE
+row ("1 behavior commit(s), all declared before"), then a second, red
+row: "CYCLE could not run: ... git rev-list --count <sha>..HEAD -- s r c
+/ failed (exit 128)". Under --all the CFG row says "configuration valid"
+and CYCLE is green. The per-parent check (R2f) rejects this shape, but
+_cycle_report passes the working tree's gate_paths result (a string
+split into characters) to git. The next behavior commit is red through
+_p1_state, so this is not a bypass; the explicit report is one of the
+R16 signals and should not turn into a git failure.
+'''
+evidence = "runtime/verify.py _cycle_report `self._git(\"rev-list\", \"--count\", ..., \"--\", *self.behavior_paths)`; fde_lib.gate_paths does not reject a string. Reproduction: scratchpad r3/p4.py P4d."
+blocking = false
+
+[[finding]]
+id = "F39"
+round = 3
+attribute = "observability"
+severity = "low"
+principle = "OBS-1 every declared attribute emits a signal that can confirm or deny it (also USE-1 status visible)"
+probe = '''
+The pass row shows how many commits were examined, not how many in the
+range were skipped. In F31's P1a the range held two commits (an orphan
+root and a merge) and the row reads "0 commit(s) examined ... all
+declared before". In F34 the shallow boundary is dropped the same way.
+A reader cannot tell "nothing in range needed checking" from "commits in
+range were skipped as roots or pre-opt-in". A count of roots and
+unexamined commits in range, next to the examined count, would have
+flagged both F31 and F34 on sight. Read from gate_cycle's pass text and
+the p1.py / p5.py rows.
+'''
+evidence = "runtime/verify.py gate_cycle pass text (`{n_exam} commit(s) examined`); roots are filtered before counting and unexamined commits `continue` without a counter. Rows from scratchpad r3/p1.py and r3/p5.py."
+blocking = false
+
+[[finding]]
+id = "F40"
+round = 3
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-4 decisions are written where the next reader will look (also MNT-10 comments stay current; MNT-8 repeated conditionals on the same shape)"
+probe = '''
+Read from the code and text changed since round 2.
+- runtime/cycle.py module docstring: "When each check runs is the gate's
+  business (architecture.md, \"Revision — round 1\")". Round 2 and part 7a
+  now govern. tests/test_cycle.py's docstring also says "Revision — round
+  1 governing". gate_cycle's docstring names round 2 but not part 7a.
+- gate_cycle computes RULE eligibility twice with the same guard
+  (`not merge and by_paths and not by_config` for claim_ok and again for
+  rule_open), and may call triage.eligibility_for_commit twice for one
+  commit.
+- AGENTS.md and templates/AGENTS.md.template "Feed" bullet still splits
+  the rule by scrum mode ("with it off, the next cycle's ## Intake takes,
+  defers or drops each one"). Since R2e the opening check applies
+  whatever the mode; the two skills were updated and this bullet was not.
+'''
+evidence = "runtime/cycle.py lines 13-17; tests/test_cycle.py lines 1-4; runtime/verify.py gate_cycle (claim_ok / rule_open branches); AGENTS.md 'Cycle scope' Feed bullet vs skills/fde-scrum/SKILL.md after 18ae8ef."
 blocking = false
