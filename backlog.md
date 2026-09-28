@@ -60,3 +60,14 @@ Evidence for every line: usage-data (FWD-021 implementation and five isolated re
 - C-1#19 usage-data — review-rounds: F47 and F48 remain blocking after round 5; the gate is reverted from main until a new demand closes them
 - C-1#20 usage-data — promotion: FWD-021 was not promoted; a successor demand needs its own promotion
 - C-1#21 usage-data — specs/FWD-021-cycle-scope/acceptance.md: its criteria are unmet on F47/F48; the successor re-declares or inherits them
+
+## Captured from cycle C-2 (FWD-022, closed 2026-09-28)
+
+Evidence for every line: usage-data (FWD-022 implementation and its isolated review).
+
+- C-2#1 usage-data — SETUP.md does not mention cycles/; a client learns the practice only from AGENTS.md (review note)
+- C-2#2 usage-data — erosion counts cycles/ churn in clients that declare no [gate] roots (review note)
+- C-2#3 usage-data — the ## Cycle section cites MNT-9 by bare id; a client reading AGENTS.md alone cannot resolve it (review note)
+- C-2#4 usage-data — Voice asks for one status line while ## Cycle asks to show the next-cycle list verbatim; state that the list is the exception (review note)
+- C-2#5 usage-data — measure whether the instruction holds: count cycles that close with in-band fixes before considering any cycle gate (ADR-0018)
+- C-2#6 usage-data — kernel_version still 0.15.0 after ADR-0018 and FWD-022; bump on the next release
