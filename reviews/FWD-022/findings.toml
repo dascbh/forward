@@ -1,0 +1,97 @@
+# Adversarial review report
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-022"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+rounds_planned = 1
+round = 1
+commit = "fa4af8a"
+agent_transcript = "agent-aed788fa33f5ee047"
+probed = [
+  "git log -1 = fa4af8a; diff 8e1da70..fa4af8a read in full against spec.md (with ## Threat model), failure-modes.toml, acceptance.md, cycles/C-2.md, ADR-0018",
+  "tests: test_instructions.py and test_mirror.py (via discover) green at fa4af8a; the agents-md mirror pair keeps AGENTS.md and the template aligned",
+  "mutation probes on a scratch copy of AGENTS.md + template, run only against TestDeclaredCycle: 6 meaning-changing edits, 6 survived (all green)",
+  "section() helper: splits on the first '\\n## Cycle' and ends at the next line starting with '## '; no line in the section starts with '## ', so the extraction is correct today",
+  "domain boundaries: RULE lane, XS, pure refactor or docs demand, a project that does not deploy, [scrum] sprint, 'fix it NOW' arriving mid-cycle",
+  "I1 interaction: cycles/ is outside both default and self-hosted behavior_paths, so committing a cycle file alone does not trip eval-coverage",
+  "R6 / FM-5: the diff touches no runtime/ or bin/fde/ file",
+]
+notes = [
+  "Voice tension (USE-7): 'show the user the ## Next cycle list verbatim' sits beside Voice's 'process metadata is one status line'. It is defensible because the list is domain content, but Voice does not name it as an exception.",
+  "In a client that declares no [gate] roots, erosion measures everything, so cycles/*.md joins the population and counts toward add/delete and batch size.",
+  "test_skills_point_to_the_section reads only skills/; the .claude/skills copies are covered only through the mirror pair, which is an acceptable but indirect dependency.",
+  "SETUP.md does not mention cycles/ as a client-side directory, so a client learns about it only from AGENTS.md.",
+  "The shipped text cites MNT-9 by id. That id resolves in a client's .fde/spec catalog, but an agent without the catalog loaded sees a bare id.",
+  "The spec's Boundaries 'Ask first: widening a cycle's tasks mid-run' is not in the shipped section. The section says only 'A changed scope is a new cycle' (see F4).",
+  "Acceptance 7 (C-2 closed with items marked) cannot be checked at review time. Promotion or close must verify it.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "mutation of the shipped text: case the spec does not cover and the code silently accepts"
+evidence = """
+Six meaning-changing edits were applied to AGENTS.md and templates/AGENTS.md.template on a scratch copy, and TestDeclaredCycle stayed GREEN on all six:
+(a) 'blocks a declared task, fixed and noted as such.' changed to 'blocks a declared task, or any small adjacent fix.' This is exactly FM-3's declared trigger ('the text allows small adjacent fixes'), and its declared detection ('eval asserts ... the single blocking-defect exception') does not detect it, because test_r3 asserts only the substring 'blocks a declared task'.
+(b) 'write and commit' changed to 'write'. R1 says 'write and commit', and test_r1 never asserts 'commit'.
+(c) '(not met, with why)' changed to '(not met)'. R4 requires the reason, and test_r4 does not assert it.
+(d) '(next free `n`)' removed.
+(e) The 'instruction, not a gate (ADR-0018): it assumes a cooperative agent' sentence removed.
+(f) The frozen-declaration sentence removed (see F2).
+The evals are needle checks on nouns, not on the rule each sentence states. FM-3's detection is therefore not what failure-modes.toml claims.
+"""
+blocking = false   # medium; FM-3 is declared medium. Acceptance 4 (an eval per R1-R4, red before / green after) is formally met.
+
+[[finding]]
+id = "F2"
+attribute = "maintainability"
+severity = "medium"
+probe = "regression in previously accepted behavior: requirement with no measure"
+evidence = """
+R5 (the declaration is frozen after the first behavior commit, except for appending to ## Next cycle and marking done items) is stated in AGENTS.md:186-188, and acceptance 1 requires the section to state R1-R5. No eval covers it. Acceptance 4 scopes the evals to R1-R4, and no failure mode maps to R5.
+Mutation (f) deletes the whole frozen sentence from both surfaces, and every test stays green. The only thing that stops a later edit from silently dropping the freeze is review. Of all the rules, the freeze is the one that keeps a cooperative agent from quietly widening ## Tasks mid-run, which is the drift this demand exists to stop.
+"""
+blocking = false   # medium; acceptance 4 excludes R5 by its own wording
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "valid input at domain boundaries: RULE lane, pure refactor, docs-only demand"
+evidence = """
+AGENTS.md:169-182 applies to every request ('Before the first behavior change of a request, write and commit cycles/C-<n>.md'). The section makes two done items unconditional: 'regression-proven (tests red before, green after)' and 'review-rounds'.
+Boundary cases:
+(1) RULE lane (AGENTS.md:87-108). A <10-LOC change that runs no judgment now needs a separate cycle-file commit that is larger than the change. Its done list demands a review budget that RULE does not have. The section never mentions RULE, and fde-triage's new line ('the cycle file comes first') sits right after the size table that RULE sits beside.
+(2) A behavior-preserving refactor or a docs-only demand cannot, by definition, show tests red before. An honest agent must mark regression-proven '[-]' on every such cycle, or invent a red test.
+FM-2 exists so that the done list is not 'items apply to every project and size'. The section made promotion and deploy conditional but left these two unconditional. That is the same shape of defect, scoped to size and kind rather than to project.
+"""
+blocking = false   # medium; closing with '[-] + why' is allowed, so no cycle is unclosable
+
+[[finding]]
+id = "F4"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "case the spec does not cover: a second request while a cycle is open; [scrum] sprint as the unit"
+evidence = """
+AGENTS.md:171 defines 'A cycle is one request from the user', and :188 says 'A changed scope is a new cycle'. Neither says what happens to the open cycle.
+Probes:
+(a) A user asks 'also do X' mid-cycle. A new cycle C-n+1 opens, and C-n is neither closed nor declared paused. Two cycles are now open, and the text does not say which ## Next cycle a later discovery goes to.
+(b) Under [scrum], the 'fix it NOW' exception route (skills/fde-scrum/SKILL.md, the line right above the new pointer) arrives during a running cycle. Same ambiguity.
+(c) Under [scrum], demands run between sittings without a per-demand request. Whether one planning sitting is one cycle spanning the whole sprint, or each demand is its own cycle, is not stated.
+The spec's own Boundaries line 'Ask first: widening a cycle's tasks mid-run' did not ship, so the honest agent that the threat model contains has no instruction for the most common drift trigger: the owner adding a request mid-run.
+"""
+blocking = false   # medium; not a declared acceptance criterion or failure mode
+
+[[finding]]
+id = "F5"
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-1"
+evidence = """
+The start sequence is now stated in two places that disagree. AGENTS.md's demand loop, step 1 (line 113), still ends 'Announce the sizing in ONE line ..., then start.', and its steps 1-7 never mention the cycle file. The only statement is a later section (line 169). skills/fde-triage/SKILL.md:97-98 now says 'start: the cycle file comes first'.
+An agent reading AGENTS.md top-down, as it is written to be read, follows the loop and reaches '## Cycle' only after the loop's 'then start'. Because 'the skill's definition governs', the skill wins, but only for an agent that loads it. One fact, the first action after sizing, lives in two places that say different things.
+"""
+blocking = false
