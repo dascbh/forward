@@ -311,3 +311,73 @@ only adds criteria or makes them stricter. The build contract is
 - **Residual added.** Disabling `[cycle]` also stops the gate from
   examining history in that run, as with every opt-in mode. The disabling
   diff is the evidence, and review judges it.
+
+## Amendment — 2026-09-28 (adversarial round 1, ADR-0017 revision)
+
+Made after round 1 (`reviews/FWD-021/findings.toml`). Every change is
+stricter or closes a demonstrated bypass; none relaxes a criterion. The
+contract is `architecture.md` "Revision — round 1".
+
+- **Silence and compatibility (restated, F1).** The line "no commit
+  whose parent tree lacked `[cycle] enabled = true` is examined" becomes
+  "no commit whose parent tree has neither `[cycle] enabled = true` nor
+  a tracked `cycles/C-<n>.md` is examined". FM-10's protection is
+  unchanged:
+  - a client that never opts in gets no rows;
+  - this repository's pre-FWD-021 history is not examined;
+  - `--all --since <root>` stays green.
+
+  The disable → act → re-enable sandwich, both linear and through a
+  merged side branch, is red.
+- **Declared before (C1 table, F7).** The row "a RULE-eligible commit
+  with no cycle | green" now requires the `FORWARD: RULE` claim. An
+  eligible commit with no claim and no cycle is red.
+- **C1 additions:**
+  - the configuration a commit is judged by is its parent's, so
+    narrowing `behavior_paths` in the same commit as the code is red
+    (F8);
+  - a behavior commit that adds a cycle file is red (F9);
+  - a change to a non-ASCII path such as `src/ação.py` is examined (F10).
+- **Size (F2).** Size agreement reads the `size:` header line of
+  `spec.md`. These are red:
+  - a missing or unreadable `size:` for a demand the cycle names that has
+    a spec directory;
+  - a mismatch after id normalization (`fwd-050` = `FWD-50` = `FWD-050`);
+  - more than one matching spec directory.
+- **Closure (F3, F12).** A closed cycle is judged once, at its closing
+  commit. A later change to `[cycle].stages` or to a spec does not turn it
+  red. Carrying a not-met item over is one-to-one.
+- **Open cycles (F11).** An open cycle carrying `[x]` or `[-]` marks is
+  red.
+- **Dispositions (F5).** The rule for R8/C6 above is replaced:
+  - **with `[scrum]` on**, every item except `none` is cited, with an
+    evidence label, in the closing commit's `backlog.md`. Later backlog
+    grooming is green. Pulling a captured item into a later cycle's
+    `## Intake` as `taken` is green;
+  - **with it off**, the next cycle's `## Intake`, at its opening commit,
+    covers every predecessor item exactly once. Items already captured
+    in `backlog.md` are exempt.
+
+  The suite still proves red for an item with no disposition, both with
+  scrum on and with scrum off.
+- **Range (F4, F17).** These are proved:
+  - an unresolvable, non-zero `--since` is red;
+  - an all-zero `--since` examines the full history;
+  - the pass row states the range it covered.
+- **Untracked files (F13).** An untracked file under `cycles/` is
+  ignored. A tracked stray entry is still red.
+- **Ways out (F16).** Every red message names a legal next step, and
+  `skills/fde-triage` carries the "Ways out" list.
+- **Residuals added:**
+  - rewriting history locally before push (reset and cherry-pick) is
+    undetectable (F6). A force push after push is red through the range
+    rule. The skill's amend advice is narrowed to the opening commit
+    while it is still HEAD;
+  - a feature split into several self-declared RULE commits with no
+    cycle passes each one (F7), which is ADR-0015's named risk. The
+    report counts these commits;
+  - narrowing `behavior_paths` in one commit governs that commit's
+    children (F8). This is the same residual as I1's, and review judges
+    config changes;
+  - a demand declared under an id that matches no spec directory is not
+    size-checked (F2). Review judges it.

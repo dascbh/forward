@@ -6,6 +6,10 @@ adr: docs/adr/0017-a-cycle-is-declared-in-git-before-it-runs.md
 
 # Architecture — FWD-021 declared cycle scope and a next-cycle list
 
+> **Revised 2026-09-28 after review round 1.** The section
+> "Revision — round 1" at the end of this file governs wherever it
+> differs from the contract above it.
+
 This file is the build contract. It decides A1–A8 and A12 and records the
 owner's A9–A11. The rationale and the rejected options are in ADR-0017.
 Stdlib only (`tomllib`, `re`, `datetime`, `pathlib`, `subprocess` through
@@ -428,3 +432,233 @@ demands: FWD-021 (M)
 
 ## Next cycle
 ```
+
+## Revision — round 1 (2026-09-28)
+
+This section responds to `reviews/FWD-021/findings.toml` round 1. The
+rationale is in ADR-0017's "Revision — 2026-09-28". Each subsection
+replaces the contract text it names.
+
+### Examination and configuration (F1, F8): replaces C1's "It is examined when…" and the per-commit config reads
+
+- A commit C is **examined** when either of these holds for some parent
+  P:
+  - `P:fde.config.toml` has `[cycle].enabled is True`;
+  - `git ls-tree --name-only -z P -- cycles/` lists at least one
+    `cycles/C-<n>.md`.
+
+  A root commit is never examined.
+- **Every rule applied to C reads P's configuration.** For a merge, the
+  rules are conjunctions over every examined parent. From P come:
+  - `stages`;
+  - `behavior_paths`, through `gate_paths(P_raw)`;
+  - the scrum mode;
+  - the RULE `Config`, built as `Config(path=<project>/fde.config.toml,
+    raw=P_raw, weights=dict(P_raw.get("weights", {})),
+    depths=dict(P_raw.get("depths", {})))` and passed to
+    `triage.eligibility_for_commit(project, C, cfg=that)`, which is
+    unchanged.
+
+  A P with no config file reads as `{}`, so the defaults apply. A P
+  config that is not valid TOML, or whose `[cycle]` fails
+  `fde_lib.cycle_config_violations`, is red.
+- **Arming is unchanged.** The working tree's `enabled is True` arms the
+  run. Off means no row, no git and no read.
+
+### Range (F4, F17): replaces the "commits in range" row of "Git operations"
+
+The cycle gate decides its range before it calls the shared chain.
+`_resolve_range` is unchanged. One way to build it is a keyword on
+`_commits_in_range` whose default keeps rule-lane's behavior.
+
+| `--since` | range | row states |
+|---|---|---|
+| absent | `_resolve_range(None)`: `HEAD~1..HEAD`, or everything in a young repo | `range: last commit only (<sha7>)`, or `range: full history` |
+| all zeros | `git log HEAD` (full history) | `range: full history (new branch)` |
+| resolves | `<since>..HEAD` | `range: <since7>..<head7>` |
+| does not resolve | none; one red row | `CYCLE range: --since <x> does not resolve (force push or shallow clone) — fetch full history (fetch-depth: 0) or re-run with --since <merge-base>` |
+
+The pass row becomes `<N> cycle(s); range <…>; <B> behavior commit(s)
+examined, all declared before (<R> RULE-exempt, <M> merge(s) with no own
+change)`.
+
+### File lists (F10)
+
+Every file list the cycle gate reads uses NUL separation:
+- `git diff-tree --root --no-commit-id --name-only -z -r C`;
+- `-c` in place of `--root` for a merge;
+- `git ls-tree --name-only -z P -- cycles/`;
+- `git ls-files -z -- cycles/`.
+
+The output is split on NUL. All of this goes through one strict helper
+over `_run_git`: a non-zero exit is `GitOpFailure`. The strict `_git`
+keeps its line-splitting contract for everything else. I1's `changed()`
+keeps its limit; it goes to C-1's next-cycle list.
+
+### Size (F2): replaces "Size agreement"
+
+- **Declaration.** `spec.md` carries `size: <XS|S|M|L>` in its header,
+  meaning the lines before the first `## ` within the first 30 lines,
+  parsed with `graph._header_fields`. The value is stripped and
+  uppercased, and must be one of the four sizes.
+- **Id normalization.** One function, `cycle.norm_id(s)`: uppercase,
+  then replace every `\d+` run by `str(int(run))`. The rules that use it:
+  - duplicate detection in `demands:` compares normalized ids;
+  - a spec directory matches a demand when `norm_id(dir) == norm_id(id)`
+    or `norm_id(dir)` starts with `norm_id(id) + "-"`;
+  - more than one matching directory is red (ambiguous);
+  - the acceptance-path rule for S+ demands uses the same match.
+- **Check.** For each listed demand with a matching directory, the check
+  is red when:
+  - `spec.md` is absent;
+  - it has no readable `size:`. The message reads `add "size: <declared>"
+    to specs/<dir>/spec.md's header, or correct demands:`;
+  - its size differs from the declared one.
+
+  A demand declared XS with no matching directory imposes nothing.
+- **Where it runs.** It runs at the absent→open transition, against the
+  adding commit's own tree; on open cycles in the working tree; and at
+  the open→closed transition, against P. It does **not** run inside C1's
+  parent-tree form check, so history is never re-judged by a size line
+  added later.
+- **Graph.** `graph.spec_size(text)` returns the `size:` header when
+  present and otherwise falls back to the Triage-line parse. It is for
+  analytics only; the gate calls the header-only reader.
+
+### Closed cycles (F3): replaces the C2/C3 "where it is evaluated" cells
+
+| check | open cycle | closed cycle |
+|---|---|---|
+| C2 form, profile, demand part, size | working tree (current config and specs), at add, and C1's parent tree (minus size) | once, at the open→closed transition, against P's config and specs |
+| C3 closure | — | once, at the open→closed transition |
+| parse, C5, tokens | working tree | working tree |
+
+### Dispositions (F5): replaces C6
+
+- **Scrum on, read from P of the closing commit.** At the open→closed
+  transition, every item except `none` must be cited in the closing
+  commit's own `backlog.md`. The citation is a line containing the token
+  (`C-<n>#<k>(?!\d)`) and one of `opinion`, `usage-data`, `user-test`
+  or `production`. After the close, `backlog.md` is never re-read for
+  that cycle; grooming is free.
+- **Scrum off, read from P of the adding commit.** At the absent→open
+  transition of cycle m, take predecessor n, the greatest closed number
+  below m in the same tree. Every item of n that P's `backlog.md` does
+  not cite with a label must appear exactly once in m's `## Intake`, as
+  `taken`, `deferred` or `dropped — <reason>`:
+  - `taken` requires a Tasks item of m containing the token;
+  - `deferred` requires a next-cycle item of m containing it.
+- **Intake under scrum on** (P of the adding commit). Items must be
+  `taken`. They may cite any existing closed cycle's token, and each
+  token appears at most once.
+- **Invalid tokens.** An Intake token that does not exist is red at the
+  adding transition.
+- **Working tree.** C6 only reports: items of the latest closed cycle
+  not yet taken up (scrum off, no next cycle), and backlog pulls. It is
+  never red there.
+
+### C1 additions (F7, F9)
+
+- **RULE exemption.** Requires `triage.declares_rule(subject)` **and**
+  `eligible`, computed with P's `Config`. An eligible commit that does
+  not make the claim, with no valid cycle, is red:
+  `C1 <sha7>: no open cycle — open one in an earlier commit, or declare
+  "FORWARD: RULE — <reason>" if it is RULE-sized`.
+- **No cycle opened by code.** An examined commit whose own files touch
+  a behavior path must add no `cycles/C-<n>.md` (P lacks it, C has it).
+  The message reads `a behavior commit opens <path>: commit the new
+  cycle first, then the code`. Closing P's open cycle in a behavior
+  commit stays legal.
+
+### Form and closure fixes (F11, F12)
+
+- **F11.** An open cycle, in the working tree and at the absent→open
+  transition, has only `[ ]` done items. Any `[x]` or `[-]` is red: `an
+  open cycle is declared unresolved — remove the marks before
+  committing`.
+- **F12.** At close, not-met items are matched one-to-one:
+  - order the not-met texts (before the separator) by length,
+    descending;
+  - assign each to the first next-cycle item that is not yet used and
+    **starts with** that text;
+  - an item with no match is red: `not-met item "<t>" needs its own
+    next-cycle item starting with its text`.
+
+### Working-tree cycle set (F13)
+
+The working-tree cycle set is `git ls-files -z -- cycles/`, meaning
+tracked and staged files, read from disk. Among listed paths, anything
+that is not `cycles/C-<n>.md` is a stray. Untracked files are ignored.
+This adds one git call, only when the gate is armed.
+
+### One stage set and one `[cycle]` validator (F15)
+
+- `fde_lib.CYCLE_STAGES = ("live", "published")`.
+- `fde_lib.cycle_config_violations(section) -> list[Violation]` holds
+  the rule 6c logic. `validate()` calls it.
+- The parent-config check calls it on P's `[cycle]`, and any violation is
+  red.
+- `cycle.py` imports `CYCLE_STAGES`, and no other module spells the
+  literals.
+
+### Ways out (F16)
+
+Every breach string ends with the legal next step. The fde-triage
+skill's cycle section gains a short "Ways out" list:
+- a wrong declaration while the opening commit is still HEAD: amend
+  that commit;
+- otherwise: close it with `[-]` items and reasons, and open the next;
+- stages or specs changed: nothing to do for closed cycles, and fix open
+  ones in the spec (`size:`) or with an `amended` item;
+- an unresolvable `--since`: re-run with a known base;
+- code and a new cycle in one commit: split the commit before push.
+
+The skill's amend advice narrows to "only while the opening commit is
+still HEAD" (ADR-0017 R1g).
+
+### Instruction-layer additions
+
+| change | source | copy |
+|---|---|---|
+| `size:` header in `spec.md`, and the Ways out list | `skills/fde-triage/SKILL.md` | `.claude/skills/fde-triage/SKILL.md` |
+| step 2 names `spec.md` "with a `size:` header line" | `templates/AGENTS.md.template` | `AGENTS.md` (`agents-md` pair; no counted token added) |
+| backlog capture happens in the closing commit, grooming afterwards is free, and Intake under scrum on is a pull (`taken`) | `skills/fde-scrum/SKILL.md` | `.claude/skills/fde-scrum/SKILL.md` |
+| RULE exemption from C1 requires the `FORWARD: RULE` claim | `skills/fde-triage/SKILL.md` (cycle section) | `.claude/skills/fde-triage/SKILL.md` |
+
+### Tests added by this revision (each red asserts its label and remedy)
+
+- **F1:**
+  - the linear sandwich: red at Y (C4 rewording), and red at a code-only
+    Y when the tree holds only closed cycles (C1);
+  - the side-branch sandwich, merged: red;
+  - pre-opt-in history, meaning no cycle files and flag off: still not
+    examined.
+- **F2:** `size:` absent (red); mismatch (red); `fwd-050` and `FWD-50`
+  against `specs/FWD-050-x` (both matched, so mismatch is red); two
+  matching directories (red).
+- **F3:** add a stage, or remove one, after a cycle closed (green); the
+  same change while a cycle is open (red, with the ways-out remedy).
+- **F4:** all-zero `--since` examines full history and catches the
+  breach; an unresolvable `--since` is red; the pass row names the range.
+- **F5:**
+  - scrum on: backlog row removed after close (green); captured item
+    pulled as `taken` into a later cycle (green); close without capture
+    (red);
+  - scrum off: next cycle opened without covering an item (red).
+- **F7:** an eligible commit without the claim and without a cycle (red);
+  the same commit with the claim (green, counted).
+- **F8:** narrowing `behavior_paths` in the same commit as the code (red).
+- **F9:** close + open + code in one commit (red); close + code (green).
+- **F10:** a change to `src/ação.py` with no cycle (red).
+- **F11:** an open cycle added with `[x]` (red).
+- **F12:** one next-cycle item carrying two not-met items (red).
+- **F13:** an untracked `cycles/.DS_Store` (green); a tracked stray (red).
+- **This repository:** `verify.py --gate cycle --since <root>` stays
+  green. `3672a68` becomes examined, because its parent holds C-1, and
+  passes: C-1 is open, `acceptance.md` is present, and its C-1 change is
+  next-cycle appends only.
+
+**F14 (suite cost).** This is not a criterion. Build each test class's
+repositories once (`setUpClass`), and call `Gate` in-process where the
+case does not need `main()`. That brings `test_cycle` back near the
+builder's earlier 12 s.

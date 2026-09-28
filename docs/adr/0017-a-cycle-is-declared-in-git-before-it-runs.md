@@ -360,3 +360,152 @@ mode has field data (A10 again).
 immutable and are re-parsed by every later run. A future kernel may only
 widen the grammar. A narrowing change needs a superseding ADR that says
 how closed files from the older grammar are read.
+
+## Revision — 2026-09-28 (FWD-021 review round 1)
+
+`reviews/FWD-021/findings.toml` round 1 recorded 17 findings, three of
+them blocking (F1–F3). The decisions below change Decisions 4, 6, 10, 11
+and 12 and the fail-closed list. The build contract is the
+"Revision — round 1" section of `architecture.md`. Where the two differ,
+that section governs over the contract text above it.
+
+**R1a — examination follows the cycles, not only the flag (F1,
+blocking).** Examining a commit only when its parent's flag was on let a
+disable → act → re-enable sandwich pass. It also passed through a merged
+side branch, and the net diff never showed the off window.
+- *Rejected: taking the mode from the range's first enabled state.* That
+  depends on the range and on topological order, and it can examine
+  unrelated pre-opt-in commits brought in by a merge (FM-10).
+- *Rejected: making the disabling commit a breach.* Opting out must stay
+  free, and a flag rule alone still misses a later rewording.
+- *Chosen:* a commit is examined when its parent tree enables the mode
+  **or holds any tracked `cycles/C-<n>.md`**. Deleting a cycle file is
+  already a C4 breach, so once the first cycle exists every later
+  commit is examined, whatever the flag says. The sandwich is red at Y,
+  which is C4, or at the code commit, which is C1 against the open
+  cycle. The side-branch variant is red the same way, because every
+  side-branch commit is in the range and judged on its own parent.
+  - The only off switch is `enabled = false` in the working tree. It
+    disarms the whole run and stays visible in the net diff, so the
+    existing residual stands.
+  - Work done before the first cycle file exists is pre-opt-in history,
+    even if the flag was toggled around it.
+  - R9 is restated to match: a commit is never examined when its parent
+    tree has neither the flag nor a cycle file. That still keeps every
+    client that never opts in, and this repository's pre-FWD-021 history,
+    out of the gate.
+
+**R1b — a commit is judged by its parent's configuration (F8).** Mode,
+`stages`, `behavior_paths` (through `gate_paths` of the parent's raw
+config), the RULE axes and `rule_lane_max_loc` (a `Config` built from
+the parent's raw TOML, passed to the unchanged
+`triage.eligibility_for_commit`) and the scrum mode all come from P. A
+commit that narrows `behavior_paths` can no longer exempt itself.
+Narrowing `behavior_paths` in a later commit, which then governs that
+commit's children, remains a named residual. It is the same residual as
+I1's, where a config change is judged by review.
+
+**R1c — size is declared, not scraped (F2, blocking).** The Triage line
+is prose. It is unreadable in 9 of this repository's 15 specs, and a
+spec could opt out just by its wording.
+- `spec.md` carries a header line `size: XS|S|M|L` before its first `## `
+  section. The gate reads only this line.
+- A cycle that names a demand with a matching `specs/<dir>/` is red when
+  that `spec.md` has no readable `size:`, and red when the size differs
+  from the declared one. The message names the fix.
+- Demand ids are normalized before any match: uppercased, and every
+  digit run read as an integer, so `fwd-050`, `FWD-50` and `FWD-050` are
+  one id.
+- `graph.spec_size` prefers the header and keeps the Triage fallback for
+  analytics only.
+- A demand named under an id that matches no spec directory remains
+  review's to judge (residual).
+
+**R1d — closed cycles are judged once, at their closing commit (F3,
+blocking).** Re-judging frozen files against today's `stages` or specs
+made any later config change permanently red, with no legal fix.
+- The open→closed transition runs the full form check (C2) and the
+  closure check (C3) against the closing commit's parent configuration
+  and specs, and the disposition check (C6, see R1e).
+- In the working tree, a closed cycle is only parsed, for C5 and for its
+  tokens.
+- Open cycles are still checked in full in the working tree.
+- Size agreement moves the same way. It is checked at the absent→open
+  transition, on open cycles in the working tree, and at close. It is no
+  longer part of C1's parent-tree form check, so history is never
+  re-judged by a size line added later. FWD-021's own `spec.md` gains
+  `size: M` in this revision.
+
+**R1e — dispositions are events at transitions, not permanent state
+(F5).**
+- **Scrum on:** each next-cycle item must be cited, with an evidence
+  label, in `backlog.md` of the **closing commit's own tree**. After
+  that, the backlog is groomed freely. An `## Intake` item under scrum on
+  is a pull from the backlog: it must be `taken`, it may cite a token of
+  any closed cycle, and it is not a second disposition.
+- **Scrum off:** at the absent→open transition, the new cycle's
+  `## Intake` must cover every item of its immediate predecessor exactly
+  once. Items the parent's `backlog.md` already cites with a label are
+  not covered here, which handles a scrum on→off switch.
+
+Intake is frozen by C4, so the record persists. The working tree only
+reports pending items.
+
+**R1f — an unresolvable `--since` is red (F4).** The narrowing is decided
+in the cycle gate. The shared `_resolve_range` is unchanged, so I1 and
+rule-lane are unaffected.
+- A `--since` that is given, is not all zeros and does not resolve is a
+  force push or a shallow fetch. It is red and names the remedy: fetch
+  full history, or re-run with `--since <merge-base>`.
+- An all-zero `--since` is the first push of a new branch. It examines
+  the full history from HEAD.
+- The rejected alternative was a full-history fallback for every
+  unresolvable base. It passes a rewritten push by re-examining a
+  history the rewrite already made self-consistent, which is F6's case.
+
+**R1g — history rewriting before push is a named limit (F6).** Git
+cannot tell a local reset and cherry-pick from honest ordering, and
+comparing `opened:` with commit dates adds nothing, because both are
+forgeable. The limit, and what still catches part of it:
+- after push, a force push reaches R1f, which is red;
+- before push, the rewrite is undetectable, and review is the backstop;
+- the skill's advice narrows to amending the opening commit only while
+  it is still HEAD. Otherwise, close as not met and open the next cycle.
+
+**R1h — the RULE exemption requires the claim (F7).** C1 exempts a
+commit only when its first message line self-declares `FORWARD: RULE`
+**and** `triage.eligibility_for_commit` verifies it. This is still
+exemption by verification. The claim is a precondition, as ADR-0015
+already requires for the RULE lane. Every exemption is then a visible,
+rule-lane-re-verified claim.
+
+Splitting a feature into several self-declared RULE commits without a
+cycle remains possible. That is ADR-0015's named risk (mechanically
+small, semantically large). The owner's A9 decision keeps RULE outside
+cycles, so this revision does not add a cumulative bound. The report
+counts RULE-exempt commits with no cycle, and review and the retro read
+that count.
+
+**R1i — a behavior commit cannot open a cycle (F9).** A commit whose own
+changes, a merge's included, touch a behavior path must not add a cycle
+file. Closing the parent's cycle in a behavior commit stays legal: the
+code is attributed to the cycle it closes. Close-and-open without code,
+then code, is the only path into a new cycle.
+
+**Contract fixes with no new decision.**
+- **F10:** file lists use `-z`, so quoted paths match. I1's `changed()`
+  shares the limit and is out of scope; it goes to C-1's list.
+- **F11:** an open cycle, and a cycle at its adding commit, carries only
+  `[ ]` marks.
+- **F12:** carrying a not-met item over is one-to-one. Each not-met item
+  must be the prefix of a distinct next-cycle item.
+- **F13:** the working-tree set of cycle files is what `git ls-files`
+  lists, so untracked droppings are ignored.
+- **F15:** the stage set and the `[cycle]` validation live once in
+  `fde_lib`, and are used by `validate()`, the parent-config check and
+  `cycle.py`.
+- **F16:** every breach names a legal way out, and the skill carries a
+  "Ways out" list.
+- **F17:** the result row names the range it covered.
+- **F14:** suite cost, not a design change. `architecture.md` states the
+  expectation.

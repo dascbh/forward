@@ -1,5 +1,7 @@
 # FWD-021 — Declared cycle scope and a next-cycle list
 
+size: M
+
 Triage: surfaces 2 (gate runtime + instruction layer) · public ·
 reversible · ~300+ LOC → surfaces 2 + loc 2 = score 4 → **M** (spec, impl,
 adversarial 2 rounds, promotion, ADR).
@@ -359,6 +361,29 @@ decision the requirement delegated, and none loosens a criterion:
   `spec.md` Triage line when that line states one. This closes
   "declare M as XS" as a way to drop the `acceptance.md` and `promotion`
   requirements.
+
+**Revised — 2026-09-28, after adversarial round 1.** See ADR-0017
+"Revision — 2026-09-28" and `architecture.md` "Revision — round 1". Each
+change below is stricter; none loosens a criterion.
+- **R9:** a commit is examined when its parent tree enables the mode or
+  holds any tracked cycle file (F1). History from before the first cycle
+  file, and every client that never opts in, is still never examined.
+- **R3:** every rule applied to a commit reads its parent's configuration
+  (F8). The RULE exemption requires the `FORWARD: RULE` claim plus
+  verified eligibility (F7). A behavior commit may not add a cycle file
+  (F9).
+- **R1/R2:** size agreement reads a `size:` header line in `spec.md`,
+  compares normalized ids, and is red when the size is unreadable (F2).
+  This spec now carries `size: M`.
+- **R2/R5:** closed cycles are judged once, at their closing commit,
+  against the configuration in force there (F3). Carrying a not-met item
+  over is one-to-one (F12).
+- **R8:** a disposition is checked at the transition where it happens.
+  With scrum on, it is checked at close against that commit's
+  `backlog.md`. With scrum off, it is checked at the next cycle's
+  opening, against its `## Intake` (F5).
+- **R10:** an unresolvable, non-zero `--since` is red. An all-zero
+  `--since` examines the full history (F4).
 
 **Never**
 - Hard-code seven DoD items. The profile comes from size and from declared
