@@ -34,3 +34,29 @@ FWD-013.
 | # | item | hypothesis | evidence | size (est.) |
 |---|---|---|---|---|
 | 9 | Declared cycle scope and a next-cycle list (FWD-021) | long agent loops drift into side tasks and burn tokens; declaring each cycle's tasks, objective and definition of done before execution, freezing scope during it (anything discovered goes to a list presented at close, which is the next cycle's input), and gating on a cycle file carrying the definition of done would keep loops on task. The kernel lacks: a DoD below S (acceptance.md starts at S), a scope-freeze rule outside [scrum], a mandatory next-cycle list at close. Owner chose gate enforcement on 2026-09-28 | usage-data (owner-reported: a round file with seven done criteria visibly improved agent behavior) | M |
+
+## Captured from cycle C-1 (FWD-021, paused unpromoted 2026-09-28)
+
+Evidence for every line: usage-data (FWD-021 implementation and five isolated review rounds).
+
+- C-1#1 usage-data — an untracked file under cycles/ (e.g. .DS_Store) is a C2 stray entry and turns the local gate red; ignoring gitignored entries needs a decision
+- C-1#2 usage-data — C1/C4 file lists use git diff-tree --name-only without -z, so git-quoted paths (non-ASCII, tab) may miss behavior_paths; I1's changed() shares the limit
+- C-1#3 usage-data — gate_scrum crashes when [scrum] is not a table (pre-existing)
+- C-1#4 usage-data — spec_size cannot read a Triage line whose bold size wraps to the next line, so FWD-021's own size-agreement check imposes nothing
+- C-1#5 usage-data — C2 does not forbid [x]/[-] marks on done items at the moment an open cycle is added; the contract is silent
+- C-1#6 usage-data — erosion.py:242 emits a DeprecationWarning (re.split maxsplit positional) during the suite (pre-existing)
+- C-1#7 usage-data — the unit suite went from 19 s to 44 s; test_cycle alone takes 12 s
+- C-1#8 usage-data — a size or form error on an open cycle is reported twice (working tree + adding commit); collapse when the adding commit is in range and the file is unchanged
+- C-1#9 usage-data — the explicit report's "behavior commits since added" count uses working-tree behavior_paths, not the parent-config paths the gate uses
+- C-1#10 usage-data — the F9 merge check only sees cycle files in the merge's own -c list; a cycle file added on a side branch is judged on its side commit — correct but undocumented
+- C-1#11 usage-data — test_cycle cost is dominated by fixture git commits; a shared pre-built history per class with --since slices would cut it further
+- C-1#12 usage-data — the explicit report runs one git log per closed cycle to find its closing commit; batch it
+- C-1#13 usage-data — every C6 message from an opening commit repeats the same way-out clause per item; emit it once
+- C-1#14 usage-data — a workflow merge-base for new-branch pushes, so one red commit already on main does not keep full-history runs red (touches ADR-0016's pinned run line)
+- C-1#15 usage-data — validate() rejecting non-list [gate] paths for every client
+- C-1#16 usage-data — support for a project in a git subdirectory (the cycle gate requires the git top level; I1 shares the limit)
+- C-1#17 usage-data — _p1_state's name still says P1 although it reads the single parent under linear history (name only)
+- C-1#18 usage-data — --no-replace-objects for the triage, erosion and I1 git spawn sites (the cycle gate already passes it)
+- C-1#19 usage-data — review-rounds: F47 and F48 remain blocking after round 5; the gate is reverted from main until a new demand closes them
+- C-1#20 usage-data — promotion: FWD-021 was not promoted; a successor demand needs its own promotion
+- C-1#21 usage-data — specs/FWD-021-cycle-scope/acceptance.md: its criteria are unmet on F47/F48; the successor re-declares or inherits them
