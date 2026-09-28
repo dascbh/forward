@@ -6,9 +6,10 @@ adr: docs/adr/0017-a-cycle-is-declared-in-git-before-it-runs.md
 
 # Architecture — FWD-021 declared cycle scope and a next-cycle list
 
-> **Revised 2026-09-28 after review round 1.** The section
-> "Revision — round 1" at the end of this file governs wherever it
-> differs from the contract above it.
+> **Revised 2026-09-28 after review rounds 1 and 2.** The later revision
+> section at the end of this file governs wherever it differs from the
+> text above it: "Revision — round 2" over "Revision — round 1", and both
+> over the original contract.
 
 This file is the build contract. It decides A1–A8 and A12 and records the
 owner's A9–A11. The rationale and the rejected options are in ADR-0017.
@@ -662,3 +663,194 @@ still HEAD" (ADR-0017 R1g).
 repositories once (`setUpClass`), and call `Gate` in-process where the
 case does not need `main()`. That brings `test_cycle` back near the
 builder's earlier 12 s.
+
+## Revision — round 2 (2026-09-28)
+
+This section responds to `reviews/FWD-021/findings.toml` round 2 (F18–F30).
+The rationale is in ADR-0017's "Revision — 2026-09-28 (FWD-021 review
+round 2)". Each subsection replaces what it names.
+
+### 0. Preconditions (F24): new, runs first when armed
+
+1. `git rev-parse --show-prefix` must print an empty line. Otherwise
+   there is one red row: `CYCLE: the project must be the git top level
+   (found prefix <p>) — move fde.config.toml to the repository root`.
+   Nothing else runs.
+2. Range resolution follows round 1: absent, all zeros, resolves, or red.
+
+### 1. Examination (F19, F26): replaces round 1's "Examination and configuration"
+
+For every commit in range, P1 is its first parent. Root commits are
+skipped.
+
+- **Batch 1.** One `git cat-file --batch-check` gets, for every distinct
+  P1:
+  - `P1:cycles`, where the type `tree` means present;
+  - `P1:fde.config.toml`, whether it is present.
+- **Batch 2.** One `git cat-file --batch` reads the config blob of every
+  P1 that has no `cycles` tree and has a config. Use binary mode and
+  decode as UTF-8; an undecodable config means not examined.
+- **The ordered test for P1, with no breach emitted:**
+  1. `cycles` is a tree → examined.
+  2. Otherwise the config parses as TOML, `[cycle]` is a table and
+     `enabled is True` → examined.
+  3. Anything else → not examined, and never mentioned again.
+- **What an examined commit is judged by.** It is judged against P1
+  only. A merge's other parents are never consulted, and merges are
+  never RULE-eligible.
+- **Its own files.** They come from `git diff-tree -r --name-only -z P1
+  C`, which is the same command for merges and non-merges.
+- **Per-commit reads are for examined commits only:** P1's config (read
+  again or taken from batch 2), P1's cycle files, the specs C1 needs, and
+  C's config when `fde.config.toml` is among its own files.
+
+### 2. Reading P1's configuration (F20, F29): replaces every earlier parent-config read
+
+For an examined P1, parse `fde.config.toml` (a missing file reads as
+`{}`) and take exactly these values. Each shape error is a breach, and
+nothing raises:
+
+| value | shape | error message |
+|---|---|---|
+| whole file | valid TOML | `C1 <sha7>: parent config is not valid TOML — this commit was pushed under the gate; re-run with --since <a base after it>` |
+| `[cycle]` | `fde_lib.cycle_config_violations` returns nothing | `C1 <sha7>: parent [cycle] <violation>` |
+| `[gate].behavior_paths`, `[gate].eval_paths` | absent (defaults via `gate_paths`), or a list of strings | `C1 <sha7>: parent [gate].<key> must be a list of strings` |
+| `[scrum]` | absent, or a table whose `enabled` is absent or a bool | `C1 <sha7>: parent [scrum] malformed` |
+
+Nothing else in P1's config is read. **RULE eligibility uses the
+working-tree `Config`**, the same object `gate_rule_lane` receives. It is
+passed to `triage.eligibility_for_commit`, which is unchanged (F29).
+Round 1's parent-built `Config` is withdrawn.
+
+### 3. C1: replaces round 1's "C1 additions" (keeps its messages)
+
+An examined commit C is a **behavior commit** when either holds:
+
+- **(a) behavior paths.** Its own files touch P1's `behavior_paths`.
+- **(b) gate-governing config.** `fde.config.toml` is among its own files,
+  and `raw.get(k)` differs between P1 and C for any `k` in `("gate",
+  "triage", "cycle")`. The values are compared as parsed values, never
+  as text. If C's own config does not parse, that is a behavior commit
+  and a breach: `C1 <sha7>: fde.config.toml does not parse`.
+
+A behavior commit is green only when all of these hold:
+1. One of these is true:
+   - P1 holds exactly one open cycle, C5 holds in P1, the cycle passes C2
+     against P1's stages (size agreement excluded, as in round 1), and
+     every acceptance path it names exists in P1;
+   - C is not a merge, **only (a) applies** (the config is untouched),
+     its subject declares `FORWARD: RULE`, and it is eligible (F7).
+     Case (b) is never RULE-exempt.
+2. It adds no `cycles/C-<n>.md` (F9).
+3. **Stage removal (F23).** Suppose (b) holds, and some stage `s` is in
+   P1's `stages` but not in C's, while P1's open cycle carries the `s`
+   key. The commit is then red: `C1 <sha7>: removes stage '<s>' while
+   <cycle> carries it — close the cycle first (mark '<s>' [-] with a
+   reason while the stage is declared), then remove the stage`.
+
+### 4. C4 for merges (F18)
+
+C4's transition table runs against P1 only, on the first-parent diff's
+`cycles/` paths. A side branch's `cycles/C-1.md` taken as "theirs" is
+therefore a transition from P1's version, so a rewording is red.
+
+### 5. C6: replaces round 1's "Dispositions"
+
+- **At the absent→open transition of cycle m** (examined commit C,
+  parent P1): let n be the greatest cycle number below m whose file in
+  P1 is closed. If n exists:
+  - **Find n's closing commit K.** `git log -1 --format=%H P1 --
+    cycles/C-<n>.md` gives the last commit that touched the file, which
+    for a closed file is its closing commit.
+  - **Captured set.** Read `backlog.md` at K (absent reads as empty). The
+    captured set is the tokens of n that appear on a line of it that also
+    holds one of the four evidence labels.
+  - **Coverage.** Every item of n except `none` that is not captured must
+    appear exactly once in m's `## Intake` as `taken`, `deferred` or
+    `dropped — <reason>`. The rules for `taken` and `deferred` are as in
+    round 1. An item appearing zero times is red: `C6 <sha7> <m>: C-<n>#<k>
+    has no disposition — add it to ## Intake (taken/deferred/dropped) in
+    this opening commit`. An item appearing more than once is red.
+  - **Captured items** may appear in m's Intake only as `taken`; that is a
+    pull. Any other verdict on a captured item is red, because the item
+    was already disposed of.
+- **Pull uniqueness (F25).** At the same opening, a `taken` of any token
+  that some other cycle's `## Intake` in P1 already lists as `taken` is
+  red.
+- **Unknown tokens.** An Intake token that names no existing item of a
+  closed cycle in P1 is red.
+- **Scrum on at close.** When P of the closing commit has scrum on, every
+  item except `none` must be captured in the closing commit's own
+  `backlog.md`, as in round 1. This is kept as an extra, earlier
+  obligation.
+- **Report (F28), for each closed cycle n:** `captured`, `taken`,
+  `deferred`, `dropped`, `pending` and `missing`, which sum to the item
+  count. `pending` means no later cycle exists yet. `missing` means a
+  later cycle exists and the item has no disposition; it can only occur
+  in history the gate did not examine. The row lists tokens per kind.
+  The working tree emits no C6 red.
+
+### 6. Instruction layer (F27): additions to round 1's table
+
+| change | source | copy |
+|---|---|---|
+| remove the "must equal the size on the demand's spec.md Triage line" sentence; `size:` is the only size fact; add the stage-removal way out and the merge scope (rebase when a merge is red) | `skills/fde-triage/SKILL.md` | `.claude/skills/fde-triage/SKILL.md` |
+| step 2: "with `[cycle]` on, `spec.md` also carries a `size:` header line" (conditional) | `templates/AGENTS.md.template` | `AGENTS.md` |
+| C6 is checked at the next opening whatever the scrum mode; capture at close is still required with scrum on; a pull is `taken` once | `skills/fde-scrum/SKILL.md` | `.claude/skills/fde-scrum/SKILL.md` |
+| the project must be the repository root | the commented `[cycle]` block in `templates/fde.config.template.toml` (one comment line) | — |
+
+### 7. Tests added by this revision
+
+Each red case asserts its label and way-out text.
+
+- **F18:**
+  - a pre-opt-in branch merged with code while only a closed cycle
+    exists on main: red;
+  - an orphan root merged with code and no open cycle: red;
+  - a side branch's `cycles/C-1.md` rewording a frozen item, merged as
+    theirs: red (C4);
+  - a feature branch merged under an open cycle: green.
+- **F19:**
+  - a pre-opt-in commit with invalid TOML, or with `[cycle] enabled =
+    "no"`, then opt-in: `--since` all-zeros and `--since <root>` both
+    green;
+  - the same breakage after the first cycle file: red.
+- **F20:** `weights = 5` or `gate = "x"` in a pre-opt-in parent: green,
+  with no traceback. `[gate].behavior_paths = "src/"` in an examined
+  parent: red, with the row present and other gates still reported under
+  `--all`.
+- **F21:**
+  - C-1 closed with scrum off and no capture, scrum turned on, C-2 opened
+    with no Intake: red;
+  - scrum on→off→close→on with an uncaptured item, then C-2 opened
+    without it: red;
+  - the same with Intake coverage: green.
+- **F22:** narrow `behavior_paths`, change code, restore, with only closed
+  cycles: red at the narrowing commit. `stages` removed and restored the
+  same way: red. The same narrowing claimed as `FORWARD: RULE`: red.
+- **F23:** removing `live` while the open cycle carries it: red, and the
+  message names the way out. Closing with `live` `[-]` while it is
+  declared, then removing it (under a new open cycle): green.
+- **F24:** project in a subdirectory: one red row, and nothing else runs.
+- **F25:** the same captured token taken in C-2 and again in C-3: red.
+- **F26:** in a repo with 200 pre-opt-in commits, the spawn count for
+  `--since` all-zeros stays constant plus a per-examined-commit cost.
+  Assert this through a counter on `_run_git`, not wall time.
+- **F28:** report counts sum to the item count in the F21 scenarios.
+- **F29:** the parent raises `rule_lane_max_loc`, a claimed 100-line
+  commit lands, and the limit is restored: `cycle` and `rule-lane` agree
+  (both red). The raising commit is itself red under F22.
+- **This repository:** `--gate cycle --since <root>` and `--since`
+  all-zeros stay green.
+
+### 8. Result row
+
+The pass row becomes `<N> cycle(s); range <…>; <E> commit(s) examined,
+<B> behavior commit(s), all declared before (<R> RULE-exempt, <M>
+merge(s) examined)`. "Merge with no own change" is gone (ADR-0017 R2a).
+
+### 9. Not changed
+
+- F30: the profile keys stay (ADR-0017 R2j).
+- The working-tree checks for open cycles, closure form at close, and the
+  range rules are as in round 1.

@@ -33,3 +33,8 @@ promotion decision, and the owner runs the review + retro sitting.
   commented out in the client template (A10); this repo declares no extra
   stages (A11); the declaration freezes at the opening commit, and a
   declaration error found after push costs a close-and-reopen (ADR-0017).
+- 2026-09-28 — FWD-021 after review round 2: merges are judged against
+  their first parent, rebase is the way out (fallback: linear history if
+  round 3 finds a merge hole); `declared-before` and `residuals` stay
+  required done items (F30 declined); a cumulative cap on claimed RULE
+  commits with no cycle stays a declared limit (F7, A9 unchanged).

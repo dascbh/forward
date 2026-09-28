@@ -385,6 +385,19 @@ change below is stricter; none loosens a criterion.
 - **R10:** an unresolvable, non-zero `--since` is red. An all-zero
   `--since` examines the full history (F4).
 
+**Revised — 2026-09-28, after adversarial round 2.** See ADR-0017
+"Revision — … round 2" and `architecture.md` "Revision — round 2".
+- **R3 / R10:** a commit's own change is its diff against its first
+  parent. Merges are judged against the first parent only (F18). Changing
+  `[gate]`, `[triage]` or `[cycle]` counts as a behavior commit and is
+  never RULE-exempt (F22). A stage cannot be removed from under an open
+  cycle (F23). The project must be the git top level (F24).
+- **R9:** the examination decision comes first. A config in an
+  unexamined parent is never parsed as a breach (F19). RULE eligibility
+  uses the working-tree configuration, the same one rule-lane uses (F29).
+- **R8:** every item is disposed of exactly once, checked at the next
+  cycle's opening, whatever the scrum mode (F21, F25).
+
 **Never**
 - Hard-code seven DoD items. The profile comes from size and from declared
   stages.

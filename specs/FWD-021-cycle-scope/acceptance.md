@@ -381,3 +381,67 @@ contract is `architecture.md` "Revision — round 1".
     config changes;
   - a demand declared under an id that matches no spec directory is not
     size-checked (F2). Review judges it.
+
+## Amendment — 2026-09-28 (adversarial round 2, ADR-0017 revision 2)
+
+Made after round 2 (`reviews/FWD-021/findings.toml`, F18–F30). Every
+change is stricter, or conforms to a criterion already stated (R9). None
+relaxes. The contract is `architecture.md` "Revision — round 2".
+
+- **Merges (F18).** A merge is judged against its first parent, on
+  everything it brings onto that line (`diff-tree P1 M`). Each of these is
+  red:
+  - a merge bringing code from a branch forked before opt-in while no
+    cycle is open;
+  - an orphan root merged with `--allow-unrelated-histories` and no open
+    cycle;
+  - a merged side branch replacing a frozen `cycles/C-1.md` item.
+
+  The round-1 line "a merge with no change of its own is green and
+  counted" becomes: a merge whose first-parent diff touches neither a
+  behavior path, gate-governing config nor `cycles/` is green, and the
+  result row counts every merge examined.
+- **Pre-opt-in history is never judged (F19, conforming to R9).** Whether
+  a commit is examined is decided first: its parent holds a `cycles/`
+  tree, or its config parses with `[cycle] enabled = true`. An
+  unparseable or mistyped config in an unexamined parent is never a
+  breach. `--since` all-zeros and `--since <root>` over such a history
+  are green.
+- **No traceback (F20).** A mistyped section in any parent config
+  produces either nothing (unexamined) or a labelled red row. Under
+  `--all`, every other gate's row is still printed.
+- **Every item disposed of exactly once, whatever the scrum mode (F21,
+  F25).** At each cycle's opening commit, every item of its predecessor
+  is either captured in `backlog.md` as it stood at the predecessor's
+  closing commit, or listed exactly once in the new cycle's `## Intake`.
+  Each of these is red:
+  - toggling scrum between a close and the next opening so that an item
+    escapes;
+  - a captured item taken by two cycles.
+
+  With scrum on, capture at close is still required.
+- **Gate-governing config is behavior (F22).** A commit that changes
+  `[gate]`, `[triage]` or `[cycle]` in `fde.config.toml` needs an open
+  cycle and is never RULE-exempt. Narrowing then restoring
+  `behavior_paths` or `stages` around a code commit is red.
+- **Stage removal (F23).** Removing a stage while the open cycle carries
+  its key is red, and the message names the way out.
+- **Repository root (F24).** A project that is not the git top level
+  gets one red row, and the message names the way out.
+- **Report (F28).** The disposition counts (`captured`, `taken`,
+  `deferred`, `dropped`, `pending`, `missing`) sum to each closed
+  cycle's item count.
+- **One RULE verdict (F29).** The `cycle` and `rule-lane` gates judge a
+  RULE claim with the same working-tree configuration. A change to
+  `[triage]` is itself a declared-cycle change, so the same-commit gap
+  closed in round 1 stays closed.
+- **Size (F27).** Only the `size:` header is read. The fde-triage skill no
+  longer states a Triage-line rule. The client template asks for `size:`
+  only when `[cycle]` is on.
+- **Residuals added:**
+  - merges whose first parent is not the protected line are judged as if
+    it were, and may be red; rebasing is the way out *(scope)*;
+  - before the first cycle file exists, an unparseable config hides the
+    flag; that window is pre-opt-in (ADR-0017 R2b).
+- **Not changed (F30).** `declared-before` and `residuals` stay required
+  profile keys. Removing them is an open question for the owner.

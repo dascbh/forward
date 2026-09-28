@@ -509,3 +509,165 @@ then code, is the only path into a new cycle.
 - **F17:** the result row names the range it covered.
 - **F14:** suite cost, not a design change. `architecture.md` states the
   expectation.
+
+## Revision — 2026-09-28 (FWD-021 review round 2)
+
+Round 2 of `reviews/FWD-021/findings.toml` recorded F18–F30, three of
+them blocking (F18, F19, F21). The build contract is `architecture.md`,
+section "Revision — round 2". It governs over both earlier contract
+texts.
+
+This is the second round with blocking findings. Where modelling a case
+exactly would keep producing holes, this revision **shrinks the scope and
+makes the case red** instead. Those choices are marked *(shrink)* so the
+owner can see the smaller, closed gate being chosen.
+
+**R2a — a commit's own change is its diff against its first parent;
+merges are judged against the first parent only (F18, blocking)
+*(shrink)*.** The combined diff (`-c`) left out every file equal to one
+parent, on the premise that the parent had been judged. That premise
+fails for a parent the gate never examined: a branch forked before
+opt-in, an orphan root merged with `--allow-unrelated-histories`, or a
+pre-opt-in `cycles/C-1.md` taken as "theirs".
+- A merge is examined when its **first** parent is examined.
+- Its own change is `git diff-tree -r P1 M`, the whole of what it brings
+  onto the first-parent line, whether or not a side commit was already
+  judged.
+- C1, C4 and R2c's config rule apply against P1 alone. Merges are never
+  RULE-eligible.
+
+The "merge with no own change" concept is removed. Content that arrives
+through a merge is judged at the merge, against the mainline's open
+cycle.
+
+What this costs, stated as scope:
+- the gate protects the first-parent line;
+- a merge whose first parent is not the protected line (a `git pull`
+  merge on a local branch, for example) is judged the same way and may
+  be red;
+- a merge that brings in a newly opened cycle together with code is red
+  by R1i;
+- the way out is to rebase.
+
+The smaller alternative is to reject merge commits altogether in an
+examined range, making the history linear only. That alternative is
+recorded here in case round 3 finds a hole in this rule. This repository
+has no merge commits.
+
+**R2b — decide what is examined before parsing anything (F19,
+blocking).** The examination test for a parent P is ordered, and nothing
+it reads is reported as a breach:
+1. `P:cycles` is a tree → P is examined.
+2. Otherwise, if `P:fde.config.toml` parses as TOML **and**
+   `[cycle].enabled is True` → P is examined.
+3. Anything else, including an unparseable or mistyped config, means P
+   is not examined. It is pre-opt-in history.
+
+Configuration errors are breaches only for examined commits. An old
+broken config before opt-in can no longer turn full-history runs red.
+
+Named residual: before the first cycle file exists, the flag alone arms
+examination. Breaking the TOML in that window hides that window, which
+ADR-0017 R1a already treats as pre-opt-in.
+
+**R2c — gate-governing configuration is behavior (F22).** An examined
+commit is a **behavior commit for C1** when either holds:
+- its own diff touches a path in P's `behavior_paths`;
+- it changes the parsed value of `[gate]`, `[triage]` or `[cycle]`,
+  comparing C's `fde.config.toml` with P's.
+
+A config change of this kind is **never RULE-exempt**, because a
+one-line narrowing is RULE-sized. So narrowing `behavior_paths` or
+removing a stage needs an open cycle whose Tasks can be reviewed, and
+the "disable, act, restore" sandwich on `behavior_paths` or `stages` is
+red at its first commit. This also answers, as a fix, the owner question
+from round 1 about whether gate-governing config should count as
+behavior; that residual is withdrawn.
+
+Two effects follow:
+- turning the flag off inside an examined range is itself a behavior
+  commit;
+- a permanent opt-out (a working tree with `enabled = false`) disarms the
+  run, as before, and is visible in the net diff.
+
+`[scrum]` is not gate-governing. Under R2e, scrum mode no longer decides
+whether an item is disposed.
+
+**R2d — a stage cannot be removed from under an open cycle (F23).**
+- A commit that removes a stage from `[cycle].stages` is red when P's
+  open cycle carries that stage's key. The message names the way out:
+  close the cycle first, marking the item `[-]` with a reason while the
+  stage is still declared, then remove the stage.
+- Adding a stage while a cycle is open is repaired with an `amended`
+  done item, as before.
+
+The rule "an undeclared stage key is red" is unchanged. It just can no
+longer be reached by a legal path.
+
+**R2e — every next-cycle item is disposed of exactly once, checked at
+the next opening, whatever the scrum mode (F21, blocking; F25, F28).**
+- **At the absent→open transition of cycle m**, take predecessor n, the
+  greatest closed number below m in P. Every item of n except `none` is
+  disposed of by exactly one of:
+  - a line of the `backlog.md` **as it stood at n's closing commit**
+    that holds the token and an evidence label. The closing commit is
+    the last commit that touched the file, because a closed file never
+    changes;
+  - m's `## Intake`, as `taken`, `deferred` or `dropped — <reason>`.
+- **Scrum toggles cannot drop an item**, because the check does not
+  depend on the mode.
+- **Scrum on at close** (P of the closing commit) additionally requires
+  the capture in that commit's `backlog.md`, as in round 1. This is
+  stricter, never weaker.
+- **Pulling a captured item** into m's Intake as `taken` is a pull, not a
+  disposition. It is red when any earlier cycle's Intake in P already
+  took the same token (F25).
+- **The report** counts, for each closed cycle: `captured`, `taken`,
+  `deferred`, `dropped`, `pending` (no next cycle yet) and `missing`.
+  The counts sum to the item count (F28).
+
+**R2f — the parent's configuration is read narrowly, and a malformed
+section is a red row, never a traceback (F20, F29).**
+- For an examined P, the gate reads exactly three things, each shape
+  checked:
+  - `[cycle]`, through `fde_lib.cycle_config_violations`;
+  - `[gate].behavior_paths` and `eval_paths`, each a list of strings;
+  - `[scrum].enabled`, a table with a boolean.
+- A wrong shape is a breach naming the commit and key. It is never an
+  exception.
+- **RULE eligibility uses the working-tree `Config`, the same one
+  `gate_rule_lane` uses.** One claim gets one verdict (F29). This does
+  not reopen R1b's gap: any change to `[triage]` is a behavior commit
+  under R2c and needs an open cycle.
+- Round 1's "RULE `Config` built from the parent" is withdrawn.
+- `run_gate` is unchanged. The gate catches no broad exception, because
+  only the shape checks above interpret parent data.
+
+**R2g — the project must be the repository's top level (F24)
+*(shrink)*.** Tree paths (`rev:path`) are root-relative, while
+`ls-files` and `ls-tree` are cwd-relative. The kernel's other range
+gates already assume the root: I1's `changed()` compares root-relative
+names with project-relative `behavior_paths`. When `git rev-parse
+--show-prefix` is non-empty, the gate returns one red row: `CYCLE: the
+project must be the git top level (found prefix <p>) — move
+fde.config.toml to the repository root`. Supporting subdirectory
+projects is kernel-wide work and goes to C-1's next-cycle list.
+
+**R2h — cost (F26).** The examination decision is made in batch: one
+`git cat-file --batch-check` over `<P>:cycles` and `<P>:fde.config.toml`
+for every parent in range, then one `git cat-file --batch` for the
+configs R2b step 2 needs. Unexamined commits cost nothing more. Only
+examined commits pay for the per-commit diff and reads.
+
+**R2i — F27.** The size fact lives in one place: the `size:` header.
+- The fde-triage sentence about the Triage line is removed.
+- `templates/AGENTS.md.template` step 2 asks for `size:` only "with
+  `[cycle]` on".
+- `graph.spec_size` keeps its Triage-line fallback for analytics on
+  specs without a header, and no gate reads it.
+
+**R2j — F30 declined for now.** Dropping `declared-before` and
+`residuals` from the mandatory profile would remove items the
+acceptance criteria and the owner's seven criteria name. That is not
+"only stricter". It is recorded as a question for the owner: both
+checks are enforced by C1 and C3 whether or not the items are listed.
