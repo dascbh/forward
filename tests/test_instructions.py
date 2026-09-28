@@ -183,46 +183,71 @@ class TestBoundedReview(unittest.TestCase):
 
 class TestDeclaredCycle(unittest.TestCase):
     """FWD-022: the declared-cycle practice ships as instruction, not as a
-    gate (ADR-0018). One eval per requirement R1-R4."""
+    gate (ADR-0018). Each requirement is pinned as the sentence that states
+    it (whitespace-normalized), so rewording a rule away goes red — a
+    keyword check survives meaning-changing edits (reviews/FWD-022 F1)."""
 
     SURFACES = ("AGENTS.md", "templates/AGENTS.md.template")
 
-    def cycle(self, rel):
-        return section(read(rel), "Cycle")
+    RULES = {
+        "R1": ("Before the first behavior change of a request, write and "
+               "commit `cycles/C-<n>.md` (next free `n`) with an "
+               "`objective:` line, a `demands:` line (id and size each), and "
+               "three sections: `## Tasks` (what this cycle does, nothing "
+               "else), `## Done when`, `## Next cycle` (empty at opening)."),
+        "R2": ("always declared-before (this file precedes the code) and "
+               "residuals (this list, shown at close); regression-proven "
+               "(tests red before, green after) when the cycle changes "
+               "behavior; review-rounds (the size's budget spent, no "
+               "blocking finding open) for every sized demand; add promotion "
+               "only for M/L, and deploy or publish only when the project "
+               "deploys or publishes. A RULE commit (`fde-triage`) needs no "
+               "cycle."),
+        "R3": ("anything found outside `## Tasks` goes to `## Next cycle`, "
+               "never fixed in-band (MNT-9) — the one exception is a defect "
+               "that blocks a declared task, fixed and noted as such."),
+        "R5": ("The declaration is frozen after the first behavior commit "
+               "except for appending to `## Next cycle` and marking done "
+               "items. A changed scope is a new cycle."),
+        "R5-one-open": ("One cycle is open at a time: a new request that "
+                        "arrives mid-cycle goes to `## Next cycle`, unless "
+                        "the user wants it now — then the open cycle closes "
+                        "as it stands (unmet items `[-]`) and the new "
+                        "request opens its own cycle. Ask the user before "
+                        "widening `## Tasks`; the answer is a new cycle, not "
+                        "an edit."),
+        "R4": ("At close, mark each done item `[x]` (met) or `[-]` (not met, "
+               "with why), add `closed:`, and show the user the `## Next "
+               "cycle` list verbatim — it is the next cycle's input. With "
+               "`[scrum]` on, each item also enters `backlog.md` with "
+               "evidence `usage-data`."),
+    }
 
-    def test_r1_declared_and_committed_before_the_first_behavior_change(self):
+    def cycle(self, rel):
+        return " ".join(section(read(rel), "Cycle").split())
+
+    def test_each_requirement_is_stated_verbatim(self):
         for rel in self.SURFACES:
             text = self.cycle(rel)
-            for needle in ("cycles/C-<n>.md", "objective:", "demands:",
-                           "## Tasks", "## Done when", "## Next cycle",
-                           "Before the first behavior"):
-                self.assertIn(needle, text, f"{rel}: {needle}")
+            for rid, rule in self.RULES.items():
+                self.assertIn(rule, text, f"{rel}: {rid}")
 
-    def test_r2_done_list_is_project_aware(self):
+    def test_no_in_band_loophole(self):
+        # FM-3's own trigger: a "small adjacent fix" allowance
         for rel in self.SURFACES:
-            text = " ".join(self.cycle(rel).split())
-            for needle in ("declared-before", "red before, green after",
-                           "no blocking finding open", "residuals",
-                           "promotion only for M/L",
-                           "only when the project deploys or publishes"):
-                self.assertIn(needle, text, f"{rel}: {needle}")
+            self.assertNotIn("small", self.cycle(rel), rel)
 
-    def test_r3_discoveries_are_listed_not_fixed(self):
+    def test_sizing_step_names_the_cycle_file(self):
+        # reviews/FWD-022 F5: step 1 and fde-triage agree on the first act
         for rel in self.SURFACES:
-            text = " ".join(self.cycle(rel).split())
-            self.assertIn("goes to `## Next cycle`, never fixed in-band", text, rel)
-            self.assertIn("blocks a declared task", text, rel)
-            self.assertIn("A changed scope is a new cycle", text, rel)
-
-    def test_r4_close_marks_items_and_shows_the_list(self):
-        for rel in self.SURFACES:
-            text = " ".join(self.cycle(rel).split())
-            for needle in ("`[x]`", "`[-]`", "verbatim", "backlog.md",
-                           "usage-data", "next cycle's input"):
-                self.assertIn(needle, text, f"{rel}: {needle}")
+            loop = " ".join(read(rel).split())
+            self.assertIn("commit the cycle file (`## Cycle` below), then "
+                          "start.", loop, rel)
 
     def test_skills_point_to_the_section(self):
-        for rel in ("skills/fde-triage/SKILL.md", "skills/fde-scrum/SKILL.md"):
+        for rel in ("skills/fde-triage/SKILL.md", "skills/fde-scrum/SKILL.md",
+                    ".claude/skills/fde-triage/SKILL.md",
+                    ".claude/skills/fde-scrum/SKILL.md"):
             self.assertIn("AGENTS.md `## Cycle`", read(rel), rel)
 
 

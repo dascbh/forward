@@ -95,7 +95,8 @@ writing code on request; start by sizing. Pick a short demand id first
    2–3 → **S**: + spec · 4–6 → **M**: + promotion, 2 rounds, ADR ·
    ≥ 7 → **L**: all six roles, 3 rounds, ADR.
    Announce the sizing in ONE line (e.g. `FORWARD: M — spec + impl +
-   adversarial(2r) + promotion`), then start.
+   adversarial(2r) + promotion`), commit the cycle file (`## Cycle`
+   below), then start.
    **Budgets, not minimums.** Rounds after the first are delta rounds
    (the fixes, not the whole artifact again) and are never extended.
    Timebox: XS 30 min · S 1 h · M 3 h · L 1 day. Re-size on the real
@@ -158,18 +159,24 @@ Before the first behavior change of a request, write and commit
 line (id and size each), and three sections: `## Tasks` (what this cycle
 does, nothing else), `## Done when`, `## Next cycle` (empty at opening).
 
-`## Done when` fits the project, never a fixed list: always
-declared-before (this file precedes the code), regression-proven (tests
-red before, green after), review-rounds (the size's budget spent, no
-blocking finding open), and residuals (this list, shown at close); add
-promotion only for M/L, and deploy or publish only when the project
-deploys or publishes.
+`## Done when` fits the project and the change, never a fixed list:
+always declared-before (this file precedes the code) and residuals (this
+list, shown at close); regression-proven (tests red before, green after)
+when the cycle changes behavior; review-rounds (the size's budget spent,
+no blocking finding open) for every sized demand; add promotion only for
+M/L, and deploy or publish only when the project deploys or publishes. A
+RULE commit (`fde-triage`) needs no cycle.
 
 During the cycle, anything found outside `## Tasks` goes to `## Next
 cycle`, never fixed in-band (MNT-9) — the one exception is a defect that
 blocks a declared task, fixed and noted as such. The declaration is frozen
 after the first behavior commit except for appending to `## Next cycle`
-and marking done items. A changed scope is a new cycle.
+and marking done items. A changed scope is a new cycle. One cycle is
+open at a time: a new request that arrives mid-cycle goes to `## Next
+cycle`, unless the user wants it now — then the open cycle closes as it
+stands (unmet items `[-]`) and the new request opens its own cycle. Ask
+the user before widening `## Tasks`; the answer is a new cycle, not an
+edit. Under `[scrum]`, a sprint holds several cycles, one per request.
 
 At close, mark each done item `[x]` (met) or `[-]` (not met, with why),
 add `closed:`, and show the user the `## Next cycle` list verbatim — it is
