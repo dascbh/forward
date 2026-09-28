@@ -70,6 +70,23 @@ except for decisions that are genuinely theirs. A demand added mid-sprint
 must justify itself against the goal or wait. **Exception route**: "fix
 it NOW" bypasses the backlog, runs immediately, and is recorded in
 goal.md under `## Unplanned` — it surfaces at the retro, uncommented.
+Something discovered inside a running demand — an adjacent bug, a
+cleanup, an idea — is not acted on either: with `[cycle]` on it goes to
+the cycle's `## Next cycle`, otherwise it is captured as a backlog item.
+
+## Cycles feed the backlog (when `[cycle]` is also on)
+
+The cycle rule, as `fde-triage` states it: open the cycle and commit it
+before the first behavior change; anything discovered goes to
+`## Next cycle` and is not acted on in this cycle, a RULE-sized fix
+included (MNT-9); at the close, resolve every done item and present the
+next-cycle list in the closing report. With scrum on, the close also
+routes the list: each item becomes a backlog item that cites its token
+(`C-<n>#<k>`) and carries an evidence label, in the closing commit or
+before it — the `cycle` gate turns red on an item with no disposition.
+An item the next cycle executes instead goes in that cycle's `## Intake`
+as taken or dropped with a reason — never both. With scrum off, the
+next cycle's `## Intake` takes, defers or drops every item.
 
 ## Close — goal or batch, never the calendar
 

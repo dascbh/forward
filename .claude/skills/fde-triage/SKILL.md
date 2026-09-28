@@ -98,6 +98,122 @@ Announce the result in one line — size, roles, rounds — and start. The
 table is deterministic; the reasoning behind the score does not belong in
 chat.
 
+## Cycle — declared scope (when [cycle] is on)
+
+With `[cycle] enabled = true` in `fde.config.toml`, work runs in cycles
+(ADR-0017). A cycle is one declared piece of work, started by one
+request: `cycles/C-<n>.md` at the repository root, numbered like
+`sprints/S-<n>`. It names the demand(s) it executes, each with the size
+triaged above; a round of several demands is one cycle listing them all.
+The orchestrating thread writes it. The `cycle` gate checks form and git
+ordering only — never whether an item is true; review and promotion
+judge that.
+
+**Open — commit it before the first behavior change.** Write the
+objective, the tasks and the done criteria, and commit the file before
+any `[gate].behavior_paths` change; the gate checks that every behavior
+commit's parent tree holds exactly one open, well-formed cycle. For an S+
+demand the done list points at `specs/<id>/acceptance.md` (never restates
+it), and that file must already be committed too. One cycle is open at a
+time and it is the highest-numbered file ("no closure, no next cycle").
+A commit that is actually RULE-eligible needs no cycle.
+
+Schema — each `<…>` is a placeholder, and the gate rejects any field
+left as one:
+
+```
+cycle: <C-n, equal to the file name>
+objective: <one verifiable sentence: what is true when this cycle closes>
+opened: <YYYY-MM-DD>
+demands: <id (XS|S|M|L), comma-separated>
+
+## Tasks
+- <one line per task this cycle executes>
+
+## Done when
+- [ ] <one line per profile key the table below requires>
+- [ ] <the acceptance.md path of each S+ demand>
+- [ ] <one checkable criterion per XS demand>
+
+## Next cycle
+- <anything discovered and not acted on, appended while open>
+
+## Intake
+- <one line per item of the previous cycle: taken, deferred, or dropped with a reason>
+```
+
+`## Intake` is needed only when the previous cycle closed with items
+and `[scrum]` is off. `## Next cycle` starts empty.
+
+Done profile — computed from the declared sizes and `[cycle].stages`,
+never hard-coded. Each required key is one done item, exactly once:
+
+| key | required for | resolved by |
+|---|---|---|
+| `declared-before` | every size | the gate itself; listing it is informational |
+| `regression-proven` | every size | the test id, or "red on `<sha>`, green on `<sha>`", or `n/a — <reason>` |
+| `review-rounds` | every size | `reviews/<id>/findings.toml`, the size's rounds, no open blocking finding |
+| `promotion` | M, L | `promotions/<id>/decision.md` |
+| `live` | only when `stages` declares `live` | the live-check evidence the project names |
+| `published` | only when `stages` declares `published` | the publication evidence the project names |
+| `residuals` | every size | the cycle's own `## Next cycle` list |
+
+Then the demand-specific part: the `acceptance.md` path of each S+
+demand, and at least one inline, checkable item for each XS demand.
+A declared size must equal the size on the demand's `spec.md` Triage
+line when that line states one.
+
+Minimal valid cycle for one XS demand, no stages:
+
+```
+cycle: C-12
+objective: validate() rejects a [cycle] section that is not a table
+opened: 2026-10-02
+demands: FWD-030 (XS)
+
+## Tasks
+- reject a non-table [cycle] in fde_lib.validate()
+
+## Done when
+- [ ] declared-before
+- [ ] regression-proven
+- [ ] review-rounds
+- [ ] residuals
+- [ ] `[cycle] = 1` yields a CYCLE-TYPE violation
+
+## Next cycle
+```
+
+**Scope freeze — during execution.** Anything discovered goes to
+`## Next cycle` and is not acted on in this cycle: an adjacent bug, a
+cleanup, an improvement (MNT-9 — adjacent improvements are noted for
+later, never fixed in-band). This includes a RULE-sized fix: RULE
+commits stay outside every cycle, and the gate cannot tell a planned one
+from a discovered one (owner decision A9), so review judges it under
+MNT-9. The declaration is frozen from the opening commit. The only
+allowed changes while open are appends to `## Next cycle` and
+`- [ ] amended YYYY-MM-DD: <text>` appends to `## Done when`; the header,
+`## Tasks`, `## Intake` and every existing item stay byte-for-byte. A
+wrong declaration found before push is fixed by `git commit --amend`;
+after push, close the cycle with the items marked not met and open the
+next.
+
+**Close.** In one commit: add `closed: YYYY-MM-DD` and resolve every done
+item — `[x]` met or `[-]` not met, then ` — <evidence or reason>`
+appended to the unchanged text. Carry each not-met item into
+`## Next cycle`; if nothing is left, the list is the single item
+`- none`. Then present the next-cycle list in the closing report: it is
+domain content, and the Voice rule's one status line does not suppress
+it. A closed file never changes again.
+
+**Feed the next cycle.** Item *k* of cycle *n*'s list is the token
+`C-<n>#<k>`; `--gate cycle` prints each one. With `[scrum]` on, each
+item becomes a backlog item citing its token with an evidence label.
+With it off, the next cycle's `## Intake` lists each item as
+`C-<n>#<k> taken` (a task cites the token), `C-<n>#<k> deferred` (its own
+`## Next cycle` cites it) or `C-<n>#<k> dropped — <reason>`. Exactly one
+disposition per item.
+
 ## What never scales
 
 The invariants. At XS and at L, all eight apply equally. What varies is the

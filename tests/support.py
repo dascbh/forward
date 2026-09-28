@@ -45,7 +45,7 @@ qa_test_strategy = 1
 def make_project(dir, data_class="internal", behavior='["src/"]',
                  evals='["evals/", "tests/"]', security=14, cost=7,
                  scrum=False, reversibility="reversible",
-                 rule_lane_max_loc=None) -> Path:
+                 rule_lane_max_loc=None, cycle=False, stages=None) -> Path:
     p = Path(dir)
     import tomllib
     with open(ROOT / "spec" / "invariants.toml", "rb") as fh:
@@ -61,6 +61,11 @@ def make_project(dir, data_class="internal", behavior='["src/"]',
         reversibility=reversibility, rule_lane_max_loc_line=rlm_line)
     if scrum:
         body += "\n[scrum]\nenabled = true\n"
+    if cycle:
+        # stages=None omits the key: the gate's own "absent means []"
+        body += "\n[cycle]\nenabled = true\n"
+        if stages is not None:
+            body += f"stages = {json.dumps(list(stages))}\n"
     (p / "fde.config.toml").write_text(body, encoding="utf-8")
     dest = p / "bin" / "fde"
     dest.mkdir(parents=True, exist_ok=True)

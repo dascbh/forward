@@ -80,6 +80,15 @@ tools = ["claude-code"]
 [scrum]
 enabled = true
 
+# Declared cycle scope (ADR-0017, FWD-021). Each cycle declares tasks,
+# objective and done criteria in cycles/C-<n>.md before its first
+# behavior commit; discoveries go to its next-cycle list.
+# stages = [] — owner decision A11, 2026-09-28: nothing deploys, and the
+# push is the gate's own CI, so done ends at promotion + residuals.
+[cycle]
+enabled = true
+stages = []
+
 # Exhibit A (ADR-0011): the kernel gates its own decay. Current signals
 # leave honest headroom — a real regression trips the gate, normal growth
 # does not. window excludes nothing; max_change_lines is omitted because

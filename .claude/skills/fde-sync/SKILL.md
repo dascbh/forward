@@ -40,6 +40,12 @@ Idempotent: same sources, same output.
 - Copy directories, never a remembered list of filenames — an enumerated
   set silently omits whatever the update added.
 
+With `[cycle]` on, a sync or version bump that rewrites a declared
+behavior path is a behavior change like any other and runs inside an
+open cycle — there is no exemption by path (ADR-0017, A7). In a client
+the default behavior paths do not include `bin/fde/`, `.fde/` or
+`.claude/`, so a plain sync needs no cycle.
+
 Close by running `python3 bin/fde/verify.py --all`. A red `CFG-VER` means
 the update landed half way: the config and the installed spec disagree on
 the version.

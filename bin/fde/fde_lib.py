@@ -245,6 +245,41 @@ def validate(cfg: Config, spec: Spec) -> list[Violation]:
                 )
             )
 
+    # 6c. [cycle] (ADR-0017): two keys, closed set. An unknown key silently
+    #     ignored is how a bypass key would look, so every other key is
+    #     flagged; a typo'd stage must not silently drop a done item.
+    if "cycle" in cfg.raw:
+        cyc = cfg.raw["cycle"]
+        if not isinstance(cyc, dict):
+            v.append(Violation("CYCLE-TYPE",
+                               f"[cycle] must be a table, got {type(cyc).__name__}."))
+        else:
+            if "enabled" in cyc and not isinstance(cyc["enabled"], bool):
+                v.append(Violation(
+                    "CYCLE-TYPE",
+                    f"[cycle] enabled must be a TOML boolean (true/false), got "
+                    f"{type(cyc['enabled']).__name__}."))
+            if "stages" in cyc:
+                st = cyc["stages"]
+                if not isinstance(st, list) or not all(isinstance(x, str) for x in st):
+                    v.append(Violation("CYCLE-STAGES",
+                                       "[cycle] stages must be a list of strings."))
+                else:
+                    bad = sorted({x for x in st if x not in ("live", "published")})
+                    if bad:
+                        v.append(Violation(
+                            "CYCLE-STAGES",
+                            f"[cycle] stages {bad} unknown — the closed set is "
+                            f"\"live\", \"published\"."))
+                    if len(set(st)) != len(st):
+                        v.append(Violation("CYCLE-STAGES",
+                                           "[cycle] stages lists a stage twice."))
+            extra = sorted(k for k in cyc if k not in ("enabled", "stages"))
+            if extra:
+                v.append(Violation(
+                    "CYCLE-KEY",
+                    f"[cycle] accepts only 'enabled' and 'stages', got {extra}."))
+
     # 7. [gate] retargets I1 to the repo's real layout; it cannot empty it
     gate = cfg.raw.get("gate", {}) or {}
     for key in ("behavior_paths", "eval_paths"):

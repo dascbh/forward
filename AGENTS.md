@@ -111,7 +111,8 @@ writing code on request; start by sizing. Pick a short demand id first
    2–3 → **S**: + spec · 4–6 → **M**: + promotion, 2 rounds, ADR ·
    ≥ 7 → **L**: all six roles, 3 rounds, ADR.
    Announce the sizing in ONE line (e.g. `FORWARD: M — spec + impl +
-   adversarial(2r) + promotion`), then start.
+   adversarial(2r) + promotion`), then start. With `[cycle]` on, open
+   the cycle before the first behavior change (*Cycle scope* below).
 2. **Spec** (unless XS): `specs/<demand-id>/spec.md`,
    `failure-modes.toml`, and `acceptance.md` with a `date:` line —
    declared before any code exists (I4).
@@ -167,6 +168,27 @@ bypasses the backlog but is recorded as unplanned and surfaces at the
 retro. No dated goal, no sprint; no retro, no next sprint (`--gate
 scrum`). Detail: `fde-scrum` skill.
 
+## Cycle scope — when `[cycle]` is enabled
+
+A cycle is one declared piece of work: `cycles/C-<n>.md` with an
+objective, its demands and their sizes, `## Tasks`, `## Done when` and
+`## Next cycle`. The `cycle` gate checks form and git ordering only;
+schema, done profile and the minimal example live in the `fde-triage`
+skill.
+
+- **Open.** Write the objective, tasks and done criteria, and commit it
+  before the first behavior change. An S+ demand's done list points at
+  its `acceptance.md`, which must already be committed. One cycle is open
+  at a time, and its declaration is frozen from that commit.
+- **Execute.** Anything discovered goes to `## Next cycle` and is not
+  acted on in this cycle — a RULE-sized fix included (MNT-9).
+- **Close.** Add `closed:`, resolve every done item (`[x]` met or `[-]`
+  not met, then ` — <evidence or reason>`), carry each not-met item into
+  `## Next cycle`, and present the next-cycle list in the closing report.
+- **Feed.** With `[scrum]` on, each item becomes a backlog item citing
+  its token (`C-<n>#<k>`) with an evidence label; with it off, the next
+  cycle's `## Intake` takes, defers or drops each one.
+
 ## Voice — the kernel is infrastructure
 
 The kernel is plumbing, not the protagonist. Do not narrate it, praise
@@ -183,6 +205,9 @@ subject of your reports.
 - The kernel earns more than one line in chat only when: the gate blocked
   something (say which invariant and the fix), or a decision is genuinely
   the user's to make.
+- A cycle's next-cycle list is domain content, not process metadata: at
+  the close it is presented in full, and the one-status-line rule does
+  not suppress it.
 
 ## Detail
 
