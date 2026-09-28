@@ -33,7 +33,8 @@ example of the format. Every claim carries how it was obtained.
   Dependency direction is one-way and flat.
 - `[observed]` The repo is installed on itself (ADR-0007): `bin/fde/` and
   `.fde/spec/` are byte-identical copies of `runtime/` and `spec/`,
-  enforced by `tests/test_install_sync.py`.
+  enforced by `tests/test_mirror.py` over the pairs declared in
+  `tests/mirror.toml` (FWD-020).
 - `[inferred]` That mirroring is the single biggest source of structural
   risk here — four parallel copies of the same facts (source, mirror,
   template, generated surface). Inferred from the review history, not from

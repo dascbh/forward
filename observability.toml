@@ -4,7 +4,7 @@
 
 [signals]
 functional_correctness = "tests/ suite over runtime behavior + verify --all on every push (fde-gate)"
-maintainability = "tests/test_spec_integrity.py + test_install_sync.py: cross-references, catalogs, source/copy identity, version sync; decisions in docs/adr/"
+maintainability = "tests/test_spec_integrity.py + test_install_sync.py: cross-references, catalogs, version sync; tests/test_mirror.py over tests/mirror.toml: source/copy identity; decisions in docs/adr/"
 reliability_resilience = "fde-gate history on main: a red run is a broken release; pre-commit blocks locally first"
 usability_accessibility = "field reports from installed projects (ergonomics findings become demands; e.g. voice doctrine, triage granularity)"
 observability = "this file, checked for content by the I5 gate — an empty [signals] fails"

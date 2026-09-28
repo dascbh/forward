@@ -87,6 +87,9 @@ transcript.
 - error path with no clear way out
 - keyboard navigation and screen reader on the main flow
 - loading and failure states visible to the user
+- ambiguous next action with multiple plausible controls
+- irreversible action taken with no confirmation or undo
+- state change with no visible feedback
 
 ### 5. Observability & diagnosability — weight 10, 1 round
 - production failure that leaves too little trail to diagnose

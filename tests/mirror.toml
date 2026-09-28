@@ -1,0 +1,160 @@
+# The mirror manifest (FWD-020, ADR-0016): every source→copy pair of this
+# self-hosted repository, in one place. Checked by tests/mirror.py, run by
+# tests/test_mirror.py. Schema: specs/FWD-020-mirror-drift/architecture.md.
+#
+# A new copy is a new [[pair]] here, with zero new test code: the real-repo
+# check, the mutation suite, the dropped-pair check and the R8 agreement all
+# iterate this file. A dropped pair must still be noticed by something
+# outside the manifest: a directory pair's parent, the files beside a file
+# pair's copy (its directory is walked for orphans, unless it is the repo
+# root), a SETUP §6 `→` destination, or [erosion].generated_paths. A pair
+# none of those see fails test_dropping_any_one_pair_goes_red — the fix is
+# naming its destination in SETUP, not new test code.
+#
+# Closed vocabulary. Relations: identical | identical-except | absent.
+# Exceptions (identical-except only), each literal and counted:
+# placeholder | substitute | insert | replace-section. A value is
+# config:<dotted.key> or render:<invariants_list|weights_list|depths_list|
+# attack_order>. No regex, glob, or skip exists — a copy these cannot
+# describe is a finding, not a pair to exempt.
+#
+# Lives under [gate].eval_paths on purpose: dropping a pair shrinks an eval
+# file (RULE-ineligible, visible to review). Never mirrored, never installed.
+
+[meta]
+schema = 1
+
+[sources]
+config = "fde.config.toml"
+invariants = "spec/invariants.toml"
+attributes = "spec/dimensions/quality-attributes.toml"
+
+[ignore]
+# each literal entry must be a line of .gitignore; the one suffix form
+# (`*.pyc`) must be matched by a .gitignore basename pattern (`*.py[co]`);
+# and no entry may match a file git tracks (test_mirror
+# TestIgnoreNeverSilencesATrackedFile); nothing else is ignored
+entries = ["__pycache__/", "*.pyc", ".DS_Store", ".claude/worktrees/", ".fde/guard-audit.jsonl"]
+
+# --- runtime and spec (SETUP §6 steps 1-2) --------------------------------
+
+[[pair]]
+id = "runtime"
+source = "runtime/"
+copy = "bin/fde/"
+relation = "identical"
+
+[[pair]]
+id = "spec"
+source = "spec/"
+copy = ".fde/spec/"
+relation = "identical"
+
+# --- native layer (SETUP §8) ----------------------------------------------
+
+[[pair]]
+id = "skills"
+source = "skills/"
+copy = ".claude/skills/"
+relation = "identical"
+
+[[pair]]
+id = "skills-init"
+source = "skills/fde-init/"
+copy = ".claude/skills/fde-init/"
+relation = "absent"          # the bootstrap skill is never installed in-project
+
+[[pair]]
+id = "agents"
+source = "agents/"
+copy = ".claude/agents/"
+relation = "identical"
+
+[[pair]]
+id = "adversarial-role"
+source = "agents/fde-adversarial.md"
+copy = ".claude/agents/fde-adversarial.md"
+relation = "identical-except"
+
+  [[pair.except]]
+  kind = "insert"
+  before = "# Adversarial review\n"
+  text = '''
+<!--
+FDE-KERNEL:GENERATED — do not edit by hand.
+Source of truth: fde.config.toml + .fde/spec/. Regenerate with `fde sync`.
+Manual edits here are overwritten and detected as drift.
+-->
+
+
+'''
+
+  [[pair.except]]
+  kind = "replace-section"
+  heading = "## Attack order"
+  value = "render:attack_order"
+
+# --- hook and CI (SETUP §6 steps 3-4) -------------------------------------
+
+[[pair]]
+id = "pre-commit"
+source = "templates/pre-commit"
+copy = ".githooks/pre-commit"
+relation = "identical"
+erosion_measured = true      # four lines; outside [erosion].generated_paths on purpose
+
+[[pair]]
+id = "workflow"
+source = "templates/fde-gate.yml"
+copy = ".github/workflows/fde-gate.yml"
+relation = "identical-except"
+
+  [[pair.except]]
+  kind = "placeholder"
+  token = "{{TEST_COMMAND}}"
+  count = 1
+  value = "config:stack.test_command"
+
+# --- agnostic layer (SETUP §7) --------------------------------------------
+
+[[pair]]
+id = "agents-md"
+source = "templates/AGENTS.md.template"
+copy = "AGENTS.md"
+relation = "identical-except"
+
+  [[pair.except]]
+  kind = "placeholder"
+  token = "{{PROJECT_NAME}}"
+  count = 1
+  value = "config:project.name"
+
+  [[pair.except]]
+  kind = "placeholder"
+  token = "{{TEST_COMMAND}}"
+  count = 1
+  value = "config:stack.test_command"
+
+  [[pair.except]]
+  kind = "placeholder"
+  token = "{{INVARIANTS_LIST}}"
+  count = 1
+  value = "render:invariants_list"
+
+  [[pair.except]]
+  kind = "placeholder"
+  token = "{{WEIGHTS_LIST}}"
+  count = 1
+  value = "render:weights_list"
+
+  [[pair.except]]
+  kind = "placeholder"
+  token = "{{DEPTHS_LIST}}"
+  count = 1
+  value = "render:depths_list"
+
+  [[pair.except]]
+  kind = "substitute"
+  from = "DEM-042"
+  to = "FWD-002"
+  count = 1

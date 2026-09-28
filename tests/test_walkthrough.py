@@ -854,13 +854,11 @@ class TestArchitectureOutputsMatchGraphExpectations(unittest.TestCase):
     # passes on a live reintroduction of F13's own bug, reproduced
     # consistently across source and mirror — only the two methods above,
     # which derive the expected extension from graph.py, catch that bug
-    # class) and it fully duplicated pre-existing, more general coverage —
-    # `tests/test_install_sync.py::TestRuntimeCopies::
-    # test_fde_spec_is_identical_to_spec` (all of `spec/**/*.toml`,
-    # discovered, includes `spec/roles.toml`) and
-    # `TestClaudeLayerCopies::test_generic_role_files_are_installed_identically`
-    # (includes `agents/fde-architecture.md`) — that predates this commit
-    # and was untouched by it. Mirror byte-identity for these two files
+    # class) and it fully duplicated more general coverage. Since FWD-020
+    # that coverage is the `spec` pair (all of `spec/`, discovered,
+    # includes `spec/roles.toml`) and the `agents` pair (includes
+    # `agents/fde-architecture.md`) in `tests/mirror.toml`, checked by
+    # `tests/test_mirror.py`. Mirror byte-identity for these two files
     # stays covered there; it does not need a third, narrower copy here
     # dressed up as F13 regression protection it wasn't providing.
 

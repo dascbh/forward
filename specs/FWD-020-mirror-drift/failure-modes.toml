@@ -1,0 +1,172 @@
+# Failure modes — FWD-020 one declared mechanism for mirror drift
+# Declared before any code exists (I4). Each mode names what triggers it,
+# what breaks, and the requirement/acceptance line that must catch it.
+# attribute = a quality-attribute id from spec/dimensions/quality-attributes.toml
+
+[meta]
+demand_id = "FWD-020"
+date = "2026-09-28"
+amended = "2026-09-28"  # FM-15 added; FM-9/10/12 detections aligned to ADR-0016; round 2: FM-11 detection + FM-16 (F9, F12); round 3: FM-11 + FM-16 detections (F14, F15, F17)
+spec = "specs/FWD-020-mirror-drift/spec.md"
+
+[[failure_mode]]
+id = "FM-1"
+title = "pair silently dropped from the manifest"
+attribute = "functional_correctness"
+severity = "critical"
+trigger = "a manifest entry is deleted or commented out (merge conflict, refactor, 'cleanup'); its copy keeps existing and keeps drifting"
+consequence = "a protection D1-D13 gave is gone with the suite still green — the one outcome this demand must not cause"
+detection = "the orphan walk alone does NOT catch this — once the pair is gone its copy root is no longer declared, so nothing walks it. Caught by: R8's cross-check against the independent declarations (every [erosion].generated_paths entry and every SETUP §6/§8 destination must map to a declared pair, so dropping bin/fde/, .fde/spec/, .claude/*, .githooks/pre-commit, the workflow or AGENTS.md goes red); by placement under [gate].eval_paths if ADR-0016 confirms it (a removed line is an eval shrink: RULE-ineligible, visible to review); and by the promotion-time mapping of every inventory row D1-D13/G1-G6 to a live manifest pair (acceptance)"
+requirements = ["R1", "R8", "R11"]
+
+[[failure_mode]]
+id = "FM-2"
+title = "orphan copy"
+attribute = "functional_correctness"
+severity = "high"
+trigger = "a source file is deleted or renamed (runtime/x.py, skills/fde-foo/, agents/fde-bar.md) but its installed copy stays"
+consequence = "CI or agents execute a module/skill/role that no longer exists in source; today undetected under .claude/skills/, .claude/agents/, and for non-.py/.toml files (G6)"
+detection = "bidirectional walk over the whole copy root, all file types (R2); mutation 'extra orphan file' per pair (R5)"
+requirements = ["R2", "R5"]
+
+[[failure_mode]]
+id = "FM-3"
+title = "new copy nobody declares"
+attribute = "maintainability"
+severity = "high"
+trigger = "a new installed surface appears (a new mirror root, a second file inside a skill dir, a new template emitted to the repo) and no one adds it to the manifest"
+consequence = "the mechanism is only as complete as the manifest; the new copy drifts unobserved, exactly how fde-walkthrough-evaluator.md escaped D5's hard-coded list (G1)"
+detection = "root-level declarations cover every file type under the root (R2); R8 cross-checks the manifest against SETUP's install destinations and [erosion].generated_paths so a new root declared in either place but not the manifest goes red"
+requirements = ["R2", "R8"]
+
+[[failure_mode]]
+id = "FM-4"
+title = "over-broad exception"
+attribute = "functional_correctness"
+severity = "high"
+trigger = "an identical-except difference is declared as a regex, glob, whole section without verified content, or whole-file skip (D10's `[A-Z]+-\\d+` normalization is the existing instance)"
+consequence = "real drift inside the excepted span passes; the exception grows into a hiding place"
+detection = "closed vocabulary of literal differences with expected counts; replaced sections verified against their source of truth (R3); mutation inside an un-excepted region and inside a verified region goes red (R5); Never: no wildcard, no skip relation"
+requirements = ["R1", "R3", "R5"]
+
+[[failure_mode]]
+id = "FM-5"
+title = "stale exception"
+attribute = "maintainability"
+severity = "medium"
+trigger = "the difference an exception was declared for disappears (placeholder removed from template, DEM-042 example changed, marker block dropped) but the exception stays"
+consequence = "the manifest describes a relation that no longer holds; the next real difference at that spot is pre-excused"
+detection = "an exception that matches nothing, or matches a count other than declared, is red (R3); mutation 'make a declared exception stale' per identical-except pair (R5)"
+requirements = ["R3", "R5"]
+
+[[failure_mode]]
+id = "FM-6"
+title = "vacuous pass"
+attribute = "functional_correctness"
+severity = "high"
+trigger = "a declared source root is empty, missing, or mistyped (path typo, directory moved); the walk iterates zero files"
+consequence = "green with nothing checked — the failure D1's assertIn('erosion.py', modules) sanity pin exists to prevent"
+detection = "fail closed on empty/missing source root and on a pair that checked zero files (R4); fixture test with an empty root"
+requirements = ["R4"]
+
+[[failure_mode]]
+id = "FM-7"
+title = "generated region unverified"
+attribute = "functional_correctness"
+severity = "high"
+trigger = "a concretized copy (.claude/agents/fde-adversarial.md attack order, AGENTS.md invariant/weight/depth lists, workflow test command) is declared as 'replaced section' without checking what it was replaced with"
+consequence = "a copy with the wrong weights, wrong round count, missing BLOCKS MERGE, a reworded invariant, or wrong attack order passes — weaker than D6-D8 today"
+detection = "R3 requires each replaced region/placeholder to be verified against its named source of truth at >= today's strength; mutation of a weight/round/invariant statement in the copy goes red (R5)"
+requirements = ["R3", "R5"]
+
+[[failure_mode]]
+id = "FM-8"
+title = "protection lost in the collapse"
+attribute = "functional_correctness"
+severity = "critical"
+trigger = "an old test is deleted on the assumption the manifest covers it, but one of its assertions (fde-init must be absent; D1's sanity pin; D11's content needles; D9's fetch-depth/--since) has no manifest equivalent"
+consequence = "silent regression in coverage, invisible because the suite is smaller and still green"
+detection = "acceptance maps every inventory row D1-D13 to its new home (manifest pair, verified region, or retained test); a mutation proving red for each row's original protection; content assertions listed as adjacent stay (R6)"
+requirements = ["R5", "R6"]
+
+[[failure_mode]]
+id = "FM-9"
+title = "manifest drifts between source and mirror, or ships where it means nothing"
+attribute = "maintainability"
+severity = "medium"
+trigger = "the manifest is placed under spec/ — then test_fde_spec_is_identical_to_spec's rglob requires a .fde/spec/ copy, while SETUP §6 step 2 installs an enumerated subset of spec/ into clients; or two copies of the manifest exist and are edited independently"
+consequence = "a new source/copy disagreement created by the fix for source/copy disagreement; or a kernel-self-hosting file in every client's .fde/spec/"
+detection = "ADR-0016 Decision 1: single manifest at tests/mirror.toml under [gate].eval_paths, never mirrored or installed; acceptance checks it is not under spec/ or .fde/ and not named in SETUP's install steps"
+requirements = ["R1", "R8", "R11"]
+
+[[failure_mode]]
+id = "FM-10"
+title = "I6 regression — mechanism needs something the client does not have"
+attribute = "reliability_resilience"
+severity = "high"
+trigger = "the checker imports a third-party package, shells out to the claude CLI, needs network, or reads a kernel checkout outside the repo; or a new verify.py gate goes red in a client project that has no manifest"
+consequence = "the gate stops being client-runnable without the FDE (I6); CI containers without the CLI go red or skip"
+detection = "stdlib only, runs under `python3 -m unittest discover -s tests` (R9); ADR-0016 Decision 2: test-only, KNOWN_GATES/runtime//bin/fde/ unchanged, so nothing ships to clients; checker core has no subprocess/git/network; fixture tests in temp dirs"
+requirements = ["R9"]
+
+[[failure_mode]]
+id = "FM-11"
+title = "ignored-path leak"
+attribute = "reliability_resilience"
+severity = "medium"
+trigger = "the walk descends into .claude/worktrees/ (full clones of every source and copy), __pycache__/, or .fde/guard-audit.jsonl; or the ignore rule is broad enough to hide a tracked file"
+consequence = "false red on every developer machine with an agent worktree or a guard audit trail; or false green on a real orphan hidden by the ignore"
+detection = "R7: explicit narrow ignore, fixture tests for both directions (ignored runtime output not an orphan; untracked non-ignored file under a copy root is an orphan). Amended 2026-09-28 (review F9): an [ignore] entry plus a matching .gitignore line silenced tracked source and copy files (dimensions/, roles.toml, fde-implementation.md) with the suite green. A test now asserts no [ignore] entry matches any `git ls-files` path; it fails closed outside a git work tree. Amended 2026-09-28 round 3: F14 showed a bare `dimensions` entry silencing tracked directories because the F9 check tested files only while the walk matches directories; the check now applies the walk's predicate to every tracked file and every ancestor directory with its real kind. F15 showed a checkout nested in an unrelated repo listing zero tracked files and passing vacuously; the check now fails closed unless root is the work-tree top level and at least one file is tracked"
+requirements = ["R7"]
+
+[[failure_mode]]
+id = "FM-12"
+title = "second declaration of the same layout disagrees"
+attribute = "maintainability"
+severity = "medium"
+trigger = "[erosion].generated_paths, SETUP §6/§8, or tests/support.py's fixture layout is edited without the manifest (or vice versa)"
+consequence = "erosion measures a different 'generated' population than the manifest declares; SETUP instructs clients to install a layout the suite no longer describes — MNT-1 relocated, not removed"
+detection = "R8 agreement test between manifest, generated_paths (cross-checked, not derived: ADR-0016 Decision 4; erosion_measured = true for identical copies deliberately outside it), and SETUP's named destinations. tests/support.py is out of this mode by ADR-0016 Decision 5 (a minimal client fixture, not a layout declaration)"
+requirements = ["R8", "R11"]
+
+[[failure_mode]]
+id = "FM-13"
+title = "stale references to retired test ids"
+attribute = "maintainability"
+severity = "low"
+trigger = "test_install_sync.py (or specific test ids) is renamed or removed while fde.config.toml comments, observability.toml, discovery/survey.md, and test_walkthrough.py's NOTE still name it as the place mirror identity lives"
+consequence = "a reader follows the pointer to a test that does not exist (MNT-10 docs drift)"
+detection = "R10; acceptance grep for retired ids outside reviews/, promotions/, and other demands' specs/ returns nothing"
+requirements = ["R10"]
+
+[[failure_mode]]
+id = "FM-14"
+title = "checker bug hidden by an always-in-sync repo"
+attribute = "functional_correctness"
+severity = "high"
+trigger = "the checker is only exercised against the real repo, which is in sync; a bug that makes it return no violations (wrong direction, early return, path join error, exception swallowed as pass) is indistinguishable from success"
+consequence = "the single mechanism becomes a single point of silent failure for every pair at once — the concentration risk this design trades for"
+detection = "pure core run against temp fixtures with known violations (R4); per-pair mutation suite driven by the manifest (R5); a checker exception is red, never pass"
+requirements = ["R4", "R5"]
+
+[[failure_mode]]
+id = "FM-15"
+title = "generated region silently stale against its source (observed, live)"
+attribute = "functional_correctness"
+severity = "high"
+observed = "2026-09-28: .claude/agents/fde-adversarial.md ## Attack order lacks three usability_accessibility adversarial_probes present in spec/dimensions/quality-attributes.toml since FWD-017 (bcbb734, 0.13.0): 'ambiguous next action with multiple plausible controls', 'irreversible action taken with no confirmation or undo', 'state change with no visible feedback'. D6 (weight/round substrings) stayed green through three demands."
+trigger = "a source of truth for a generated region (quality-attributes.toml probes, weights, invariants) changes and the installed copy is not regenerated"
+consequence = "the isolated adversarial role attacks from a stale probe list; the attack order the kernel claims to derive from its catalog is not the one executed — undetected because needle checks sample only part of the region"
+detection = "render:attack_order compared byte-exact to the copy's section (R3); a regression test keeps the pre-fix copy as a fixture and requires `differs` on adversarial-role inside the usability block; the fix regenerates the section (never edits the source to match) and the closing diff to all copies is exactly those three lines"
+requirements = ["R3", "R5", "R12"]
+
+[[failure_mode]]
+id = "FM-16"
+title = "replaced section swallows later higher-level content"
+attribute = "functional_correctness"
+severity = "low"
+observed = "2026-09-28, review F12: replace-section ended only at the next heading with the SAME prefix, so a `# Appendix` appended to the source agents/fde-adversarial.md after `## Attack order` was absorbed into the replaced span; the copy lacked it and check returned 0 violations"
+trigger = "source content under a heading of higher level than the replaced section, placed after it"
+consequence = "source content silently never installed (false green); an installer following SETUP §8.2 literally keeps it and gets a false red"
+detection = "spec amendment F12: the section ends at the next heading of the same or higher level, or EOF; fixture with a higher-level heading after the section requires it in the copy. Amended 2026-09-28 round 3 (F17): `#\\tAppendix`, ` # Appendix` and setext `Appendix`/`========` were still absorbed; heading is now exactly CommonMark ATX (0-3 spaces, #{1,6}, then space/tab/EOL) or setext h1/h2, with one fixture per spelling; a heading-shaped line inside a code fence ends the span early and is reported as a difference (safe direction)"
+requirements = ["R3"]

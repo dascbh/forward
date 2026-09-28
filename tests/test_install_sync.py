@@ -1,8 +1,14 @@
-"""FM-2/F4: the installed copies this repo executes are change-controlled —
-they must be identical to their sources (or provably derived from them)."""
+"""The install surface beyond file identity. Source→copy identity for
+every mirrored file lives in one place: tests/mirror.toml, checked by
+tests/test_mirror.py (FWD-020, ADR-0016). What stays here is what is not a
+file copy: value carriers (kernel version, plugin names), the plugin
+distribution, content the workflow must carry, and the native-layer merge
+targets (CLAUDE.md, .claude/settings.json) SETUP §8.3/§8.4 describe."""
 from __future__ import annotations
 
-import re
+import json
+import os
+import subprocess
 import tomllib
 import unittest
 from pathlib import Path
@@ -14,47 +20,12 @@ def read(p: Path) -> str:
     return p.read_text(encoding="utf-8")
 
 
-class TestRuntimeCopies(unittest.TestCase):
-    def test_every_runtime_module_is_identical_in_bin_fde(self):
-        # ALL of runtime/, discovered — not a hardcoded list that silently
-        # omits new modules (erosion.py, graph.py) whose CI-executed copy
-        # could then drift (review finding, FWD-009)
-        modules = sorted(p.name for p in (ROOT / "runtime").glob("*.py"))
-        self.assertIn("erosion.py", modules)
-        self.assertIn("graph.py", modules)
-        for f in modules:
-            installed = ROOT / "bin" / "fde" / f
-            self.assertTrue(installed.exists(), f"{f} not installed in bin/fde/")
-            self.assertEqual(read(ROOT / "runtime" / f), read(installed), f)
-
-    def test_fde_spec_is_identical_to_spec(self):
-        # discovered, not enumerated (S-004 retro): a new spec file must
-        # not be able to ship without its installed copy
-        for src in sorted((ROOT / "spec").rglob("*.toml")):
-            rel = src.relative_to(ROOT / "spec")
-            installed = ROOT / ".fde" / "spec" / rel
-            self.assertTrue(installed.exists(), f"{rel} not installed")
-            self.assertEqual(read(src), read(installed), str(rel))
-
-    def test_no_orphan_files_in_the_installed_copies(self):
-        # the walk is bidirectional: a file deleted from the source but
-        # left installed is drift the one-directional check never sees
-        for installed in sorted((ROOT / ".fde" / "spec").rglob("*.toml")):
-            rel = installed.relative_to(ROOT / ".fde" / "spec")
-            self.assertTrue((ROOT / "spec" / rel).exists(),
-                            f"orphan installed copy: {rel}")
-        for installed in sorted((ROOT / "bin" / "fde").glob("*.py")):
-            self.assertTrue((ROOT / "runtime" / installed.name).exists(),
-                            f"orphan runtime copy: {installed.name}")
-
-
 class TestPluginDistribution(unittest.TestCase):
     """The repo is both marketplace and plugin, so `/plugin install
     forward@forward` resolves. These keep the two manifests agreeing."""
 
     @classmethod
     def setUpClass(cls):
-        import json
         cls.plugin = json.loads(read(ROOT / ".claude-plugin" / "plugin.json"))
         cls.market = json.loads(read(ROOT / ".claude-plugin" / "marketplace.json"))
 
@@ -128,35 +99,26 @@ class TestPluginDistribution(unittest.TestCase):
         self.assertEqual(len(roles), 6, sorted(roles))
 
 
-class TestClaudeLayerCopies(unittest.TestCase):
-    def test_skills_are_installed_identically_except_init(self):
-        for d in sorted((ROOT / "skills").iterdir()):
-            if not d.is_dir():
-                continue
-            installed = ROOT / ".claude" / "skills" / d.name / "SKILL.md"
-            if d.name == "fde-init":
-                self.assertFalse(installed.exists(),
-                                 "fde-init must not be installed in-project")
-            else:
-                self.assertEqual(read(d / "SKILL.md"), read(installed), d.name)
+class TestNativeLayerShape(unittest.TestCase):
+    """G7/G8 (FWD-020, ADR-0016 Decision 6): not copies — user-owned merge
+    targets — so ordinary content assertions, not manifest pairs."""
 
-    def test_generic_role_files_are_installed_identically(self):
-        for role in ("spec", "architecture", "implementation", "promotion"):
-            self.assertEqual(read(ROOT / "agents" / f"fde-{role}.md"),
-                             read(ROOT / ".claude" / "agents" / f"fde-{role}.md"),
-                             role)
+    def test_claude_md_imports_agents_md_on_its_first_line(self):
+        # SETUP §8.3: the whole standard reaches Claude Code through this
+        first = read(ROOT / "CLAUDE.md").split("\n", 1)[0]
+        self.assertEqual(first, "@AGENTS.md")
 
-    def test_adversarial_is_concretized_to_this_repos_weights(self):
-        with open(ROOT / "fde.config.toml", "rb") as fh:
-            cfg = tomllib.load(fh)
-        text = read(ROOT / ".claude" / "agents" / "fde-adversarial.md")
-        for attr, w in cfg["weights"].items():
-            rounds = max(1, round(int(w) / 10))
-            self.assertIn(f"weight {w}, {rounds} round", text, attr)
-            if int(w) >= 15:
-                blocking_line = re.search(
-                    rf"weight {w}, {rounds} rounds? — BLOCKS MERGE", text)
-                self.assertIsNotNone(blocking_line, f"{attr} must block")
+    def test_settings_run_the_guard_hook_and_branch_worktrees_from_head(self):
+        # SETUP §8.4: the $CLAUDE_PROJECT_DIR form, and isolated roles on
+        # the session's HEAD rather than a stale origin/HEAD
+        settings = json.loads(read(ROOT / ".claude" / "settings.json"))
+        commands = [h.get("command")
+                    for entry in settings["hooks"]["PreToolUse"]
+                    if entry.get("matcher") == "Write|Edit"
+                    for h in entry.get("hooks", [])]
+        self.assertIn('python3 "$CLAUDE_PROJECT_DIR/bin/fde/guard.py"',
+                      commands)
+        self.assertEqual(settings["worktree"]["baseRef"], "head")
 
 
 class TestGeneratedSurfaces(unittest.TestCase):
@@ -167,23 +129,70 @@ class TestGeneratedSurfaces(unittest.TestCase):
         with open(ROOT / "spec" / "invariants.toml", "rb") as fh:
             cls.inv = tomllib.load(fh)
 
-    def test_agents_md_lists_every_invariant_from_the_spec(self):
-        text = read(ROOT / "AGENTS.md")
-        for i in self.inv["invariant"]:
-            self.assertIn(f"**{i['id']} {i['name']}**", text, i["id"])
-
-    def test_agents_md_carries_this_repos_weights_and_test_command(self):
-        text = read(ROOT / "AGENTS.md")
-        self.assertIn(self.cfg["stack"]["test_command"], text)
-        for attr, w in self.cfg["weights"].items():
-            self.assertIn(f"- {attr}: {w}", text, attr)
-
     def test_workflow_runs_tests_and_a_ranged_gate_on_full_history(self):
+        # content, not identity (ADR-0016 Decision 7): the workflow pair in
+        # tests/mirror.toml proves the copy matches its template; this
+        # proves the template still fetches full history for a ranged gate
         wf = read(ROOT / ".github" / "workflows" / "fde-gate.yml")
         self.assertIn(self.cfg["stack"]["test_command"], wf)
         self.assertIn("fetch-depth: 0", wf)
         self.assertIn("--since", wf)
         self.assertNotIn("{{TEST_COMMAND}}", wf)
+
+    # ADR-0016 Decision 9 pins, on the template AND the installed copy (a
+    # template-plus-copy edit keeps the identity pairs green; these do
+    # not). Exact literals, no YAML/shell parsing (FWD-020 F3, F10).
+    GATE_STEP = (
+        "      - name: FDE gate\n"
+        "        run: python bin/fde/verify.py --all --since "
+        "\"${{ github.event.pull_request.base.sha || "
+        "github.event.before }}\"\n")
+    TRIGGER = "\non: [push, pull_request]\n"
+    NEVER_IN_THE_GATE_FILES = ("continue-on-error", "if:", '"if"', "'if'",
+                               '"on"', "'on'",
+                               "|| true", "|| exit 0", "; true", "exit 0")
+
+    def test_ci_gate_step_is_the_last_step_and_cannot_be_made_advisory(self):
+        for rel in ("templates/fde-gate.yml", ".github/workflows/fde-gate.yml"):
+            with self.subTest(file=rel):
+                wf = read(ROOT / rel)
+                # every gate (--all), the last step, nothing after it
+                self.assertTrue(wf.endswith(self.GATE_STEP), rel)
+                # on every push and PR: the exact trigger line, once (F16)
+                self.assertEqual(wf.count(self.TRIGGER), 1)
+                self.assertEqual(wf.count("\non:"), 1)
+                for needle in self.NEVER_IN_THE_GATE_FILES:
+                    self.assertNotIn(needle, wf)
+
+    def test_pre_commit_runs_the_staged_gate_first(self):
+        # exec replaces the shell, so nothing after it runs; nothing may
+        # run before it either: it is the first line that is not the
+        # shebang, a comment or blank
+        for rel in ("templates/pre-commit", ".githooks/pre-commit"):
+            with self.subTest(file=rel):
+                text = read(ROOT / rel)
+                lines = text.splitlines()
+                self.assertEqual(lines[0], "#!/bin/sh")
+                code = [ln for ln in lines[1:]
+                        if ln.strip() and not ln.lstrip().startswith("#")]
+                self.assertEqual(code[0],
+                                 "exec python3 bin/fde/verify.py --staged")
+                for needle in self.NEVER_IN_THE_GATE_FILES:
+                    self.assertNotIn(needle, text)
+
+    def test_installed_pre_commit_is_executable(self):
+        # SETUP §6 step 3: "then `chmod +x` it". Git silently skips a
+        # non-executable hook, and the byte-identical pair cannot see a
+        # mode (FWD-020 F21). Both what runs here (the working tree) and
+        # what every clone gets (the index mode, via git — tests only,
+        # ADR-0016 Decision 10) must be executable.
+        hook = ROOT / ".githooks" / "pre-commit"
+        self.assertTrue(os.access(hook, os.X_OK), "not executable")
+        staged = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-files", "-s", "--",
+             ".githooks/pre-commit"], check=True, capture_output=True,
+            text=True).stdout.split()
+        self.assertEqual(staged[:1], ["100755"])
 
     def test_kernel_version_matches_the_spec_here_too(self):
         self.assertEqual(self.cfg["project"]["kernel_version"],

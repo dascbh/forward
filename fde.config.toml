@@ -33,7 +33,8 @@ eval_command = "python3 bin/fde/verify.py --gate eval"
 # Per ADR-0001 the instructions ARE the runtime — so they are behavior.
 # The installed copies (bin/fde/, .fde/, .claude/, workflow, AGENTS.md) are
 # what CI and agents actually execute: change-controlled too (finding F4);
-# their eval is the source/copy identity suite in tests/test_install_sync.py.
+# their eval is the mirror manifest tests/mirror.toml, checked by
+# tests/test_mirror.py (FWD-020, ADR-0016).
 behavior_paths = [
   "runtime/", "spec/", "skills/", "agents/", "templates/", "SETUP.md",
   "bin/fde/", ".fde/", ".claude/", ".claude-plugin/", ".github/workflows/",
@@ -88,8 +89,9 @@ window = 50
 max_add_delete_ratio = 12.0
 max_duplication_pct = 6.0
 # The installed copies are byte-identical mirrors of runtime/, spec/,
-# skills/ and agents/ — tests/test_install_sync.py fails if they ever
-# diverge. Counting them doubles every change and makes the mirror read
+# skills/ and agents/ — tests/test_mirror.py fails if they ever diverge
+# from the pairs tests/mirror.toml declares, and cross-checks this list
+# against that manifest. Counting them doubles every change and makes the mirror read
 # as duplication. They stay in behavior_paths (I1 change-controls them);
 # they are declared here so erosion measures the source once.
 # WITHOUT this line the ratio is 12.13 (over budget) and duplication

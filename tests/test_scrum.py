@@ -174,16 +174,11 @@ class TestScrumConfigShape(unittest.TestCase):
 
 
 class TestScrumR2R3Artifacts(unittest.TestCase):
-    """R2/R3 (finding DOM-5): the skill and the AGENTS surfaces are verified,
-    and the duplicated scrum section cannot drift between template and repo."""
+    """R2/R3 (finding DOM-5): the skill is verified here; that the scrum
+    section cannot drift between template and repo is the agents-md pair
+    in tests/mirror.toml (FWD-020)."""
 
     ROOT = Path(__file__).resolve().parent.parent
-
-    @staticmethod
-    def section(text: str) -> str:
-        m = text.split("\n## Scrum mode", 1)
-        assert len(m) == 2, "scrum-mode section missing"
-        return m[1].split("\n## ", 1)[0]
 
     def test_skill_defines_the_eight_elements_r2_names(self):
         skill = (self.ROOT / "skills" / "fde-scrum" / "SKILL.md").read_text()
@@ -191,10 +186,12 @@ class TestScrumR2R3Artifacts(unittest.TestCase):
                         "Review", "Retro", "Unplanned"):
             self.assertIn(element, skill, element)
 
-    def test_template_and_repo_carry_the_same_scrum_section(self):
-        template = (self.ROOT / "templates" / "AGENTS.md.template").read_text()
-        agents = (self.ROOT / "AGENTS.md").read_text()
-        self.assertEqual(self.section(template), self.section(agents))
+    def test_both_agents_surfaces_carry_a_scrum_section(self):
+        # content only (each file on its own); the old byte-equality of the
+        # two sections also implied both exist, so that half stays here
+        for rel in ("templates/AGENTS.md.template", "AGENTS.md"):
+            text = (self.ROOT / rel).read_text(encoding="utf-8")
+            self.assertIn("\n## Scrum mode", text, rel)
 
 
 if __name__ == "__main__":

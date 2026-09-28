@@ -151,12 +151,6 @@ class TestReferenceBase(unittest.TestCase):
         for s in samples:
             self.assertTrue(self._code_hits(s), f"guard missed: {s[:40]}")
 
-    def test_base_is_installed_byte_identical(self):
-        installed = ROOT / ".fde" / "spec" / "references" / "ui-patterns.toml"
-        self.assertTrue(installed.exists(), "reference base not installed")
-        self.assertEqual(BASE.read_text(encoding="utf-8"),
-                         installed.read_text(encoding="utf-8"))
-
 
 class TestFrameworksAndArchetypes(unittest.TestCase):
     """FWD-012 + its review: frameworks scaffold, archetypes compose, and

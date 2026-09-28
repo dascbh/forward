@@ -29,17 +29,10 @@ class TestPerDemandTriage(unittest.TestCase):
                        "hard to undo"):
             self.assertIn(needle, skill, needle)
 
-    def test_demand_loop_carries_the_rule_identically_in_both_surfaces(self):
-        import re
-        template = read("templates/AGENTS.md.template")
-        agents = read("AGENTS.md")
-
-        def normalized(text: str) -> str:
-            # the example demand id is legitimately local (DEM-042 vs FWD-002)
-            return re.sub(r"`[A-Z]+-\d+`", "`ID`", section(text, "Demand loop"))
-
-        self.assertEqual(normalized(template), normalized(agents))
-        flat = " ".join(section(agents, "Demand loop").split())
+    def test_demand_loop_states_the_per_demand_rule(self):
+        # content only: that the template and AGENTS.md carry the same
+        # section is the agents-md pair in tests/mirror.toml (FWD-020)
+        flat = " ".join(section(read("AGENTS.md"), "Demand loop").split())
         for needle in ("judged for THIS demand", "always false",
                        "Unsure on either → true"):
             self.assertIn(needle, flat, needle)
@@ -113,24 +106,18 @@ class TestRuleLaneIsAParagraphNotATableRow(unittest.TestCase):
                             f"{rel}: RULE paragraph must precede the "
                             f"score-boundary sentence, never follow it")
 
-    def test_rule_paragraph_is_byte_identical_between_agents_and_template(self):
-        import re
-        template = read("templates/AGENTS.md.template")
-        agents = read("AGENTS.md")
-
-        def rule_paragraph(text: str) -> str:
+    def test_rule_paragraph_says_what_r5_requires(self):
+        # content only, in each surface on its own; their byte identity is
+        # the agents-md pair in tests/mirror.toml (FWD-020)
+        for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
+            text = read(rel)
             start = text.index("**RULE, checked mechanically")
-            end = text.index(self.SCORE_SENTENCE)
-            return text[start:end]
-
-        self.assertEqual(rule_paragraph(template), rule_paragraph(agents))
-        # sanity: the paragraph actually says what R5 requires, at minimum
-        para = rule_paragraph(agents)
-        for needle in ("Categorically distinct", "data_class", "reversible",
-                      "rule_lane_max_loc", "eval_paths",
-                      "eval-coverage` gate is completely unchanged",
-                      "verified_by` primacy"):
-            self.assertIn(needle, para, needle)
+            para = text[start:text.index(self.SCORE_SENTENCE)]
+            for needle in ("Categorically distinct", "data_class",
+                           "reversible", "rule_lane_max_loc", "eval_paths",
+                           "eval-coverage` gate is completely unchanged",
+                           "verified_by` primacy"):
+                self.assertIn(needle, para, f"{rel}: {needle}")
 
 
 class TestGuardAuditDocs(unittest.TestCase):
