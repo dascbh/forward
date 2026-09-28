@@ -1,0 +1,436 @@
+# Adversarial review — FWD-021 "declared cycle scope and a next-cycle list".
+# Round 1 of 2. Artifact: commit 3672a68 ("FWD-021: the cycle gate —
+# declared scope, enforced in git") on top of a6b4cd3 (runtime/cycle.py,
+# runtime/verify.py gate_cycle, runtime/graph.py spec_size + cycle node,
+# runtime/fde_lib.py rule 6c, installed copies in bin/fde/, tests/test_cycle.py,
+# tests/support.py, the instruction layer, fde.config.toml [cycle], the
+# config template, cycles/C-1.md). Spec: specs/FWD-021-cycle-scope/
+# (spec.md, failure-modes.toml, acceptance.md with its 2026-09-28
+# amendment, architecture.md) and docs/adr/0017-a-cycle-is-declared-in-git-
+# before-it-runs.md. The reviewer received artifact + spec only (I2) and
+# records findings only, no fixes (I3). Every mutation ran in throwaway
+# temp git repos built with tests/support.make_project (driver scripts in
+# the reviewer's scratchpad, p/h.py and p/p1.py..p9.py), never in the real
+# tree. Written in the reviewer's isolation worktree; copy to the main
+# checkout's reviews/FWD-021/.
+#
+# The open cycle cycles/C-1.md already lists seven next-cycle items. Per
+# skills/fde-review ("an entry in its ## Next cycle never excuses a
+# finding"), items reproduced here are recorded as findings, with the
+# token they correspond to noted.
+
+[meta]
+demand_id = "FWD-021"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 2
+rounds_run = 1
+commit = "3672a689171cc1191699c9a646af0e4f0f2ffc38"
+agent_transcript = "agent-ad6543fd04528f133"
+probed = '''
+Baseline. `git log -1` in the isolation worktree: 3672a68, the artifact.
+`python3 bin/fde/verify.py --gate cycle` on this repo: green, 0.17-0.20 s
+process wall (3 runs), so R11's +0.5 s budget holds for the default
+range; `--gate cycle --since <root 1a550ec>` 3.24 s over ~100 commits (2
+spawns per not-enabled commit). `python3 -m unittest test_cycle`: 79
+tests OK in 29.7 s on this machine.
+
+Attack order (weights): functional_correctness 30, maintainability 22,
+reliability 12, usability 12, observability 10, security 8, perf 3,
+cost 3. Probes, each a temp repo from make_project(cycle=True):
+- Disable/re-enable sandwich, linear and via a merged side branch
+  (p1.py): green. -> F1.
+- Size agreement (p4.py): control red; wrapped Triage line, 'triage' in
+  an earlier line, id spelled FWD-50 or fwd-050: green. graph.spec_size
+  over this repo's 15 specs returns None for 9, FWD-021 included. -> F2.
+- Adding or removing a delivery stage after a closed cycle (p3.py P3a,
+  p9.py P9c): permanent C2 red on a file C4 freezes. -> F3.
+- --since 000..0 and an unreachable sha, with a C4 breach in a non-last
+  commit (p7.py P7): green; control with --since root is red. -> F4.
+- Scrum on: backlog row removed after close; backlog-captured item
+  pulled into the next cycle's Intake (p3.py P3b, P3c): both red. -> F5.
+- History rewrite: code first, cycle inserted before it by
+  reset+cherry-pick; declaration reworded under existing code (p5.py
+  P5a, p7.py P8): green. -> F6.
+- Six 8-line src/ commits, no cycle file at all, no RULE claim (p2.py
+  P2a): green, "6 RULE-exempt". -> F7.
+- [gate].behavior_paths narrowed at HEAD, and in the same commit as the
+  code (p2.py P2b, P2c): green. -> F8.
+- One commit closes C-1, opens C-2 and ships C-2's code (p5.py P5b):
+  green. -> F9.
+- src/ação.py changed with no cycle (p5.py P5c): green. -> F10.
+- Open cycle added with every done item already [x] (p5.py P5d, p6.py
+  P6): accepted; its closing commit is red, so it can never close. -> F11.
+- Close with every item [-] and one next-cycle item containing all key
+  names (p3.py P3d'): green; with 'x' only: red. -> F12.
+- Untracked cycles/.DS_Store (p9.py P9a): red. -> F13.
+- Client fixture without [cycle] (p9.py P9b): no CYCLE row under --all,
+  one "not in force" pass under --gate cycle. Clean.
+- 'None' (capitalized) as the sole next-cycle item (p6.py P6c): treated
+  as a real item needing disposition. Strict, clean.
+- Checked by reading the code, not executed: GitOpFailure paths
+  (_git strict, _blob raises, run_gate turns it red), parent config not
+  TOML / [cycle] not a table (red C1), rename reads as delete+add (red C4
+  plus a C2 stray), a lower-numbered cycle added (red C5), RULE-eligible
+  commit touching cycles/ (C4 still applies). No bypass found there.
+
+Heuristic pass (I8) over maintainability, usability and observability
+principles in .fde/spec/dimensions/quality-attributes.toml: F15 (MNT-1,
+MNT-11), F16 (USE-4), F17 (OBS-1, USE-1).
+'''
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "critical"
+probe = '''
+Disable / act / re-enable sandwich (scratchpad p1.py). make_project(
+cycle=True), cycles/C-1.md open (XS, inline item "the thing works"),
+commit "init". Commit X: fde.config.toml [cycle] enabled = false, config
+only (fde.config.toml is not in behavior_paths, here or in this repo, so
+X is not a behavior commit and needs no cycle). Commit Y: src/a.py
+rewritten (20 lines, not RULE-eligible) AND the frozen done item
+reworded to "something already true". Commit Z: enabled = true again.
+`verify.py --gate cycle --since <init>`: rc 0, "0 behavior commit(s)
+examined". Y's parent (X) has the mode off, so Y is never examined for
+C1 or C4; Z's parent (Y) is off too. The working tree ends enabled and
+`git diff init..HEAD` never touches fde.config.toml, so nothing in the
+net diff shows the mode was ever off.
+Variant P1b: the same three commits on a side branch, merged into main
+after main moved: rc 0, "1 merge(s) with no own change". The merge's
+combined diff (-c) is empty because every file equals one parent.
+The declared residual (acceptance amendment, "Disabling [cycle] also
+stops the gate from examining history in that run ... the disabling diff
+is the evidence") covers a run whose working tree is disabled. Here the
+working tree is enabled, the gate runs, prints "all declared before",
+and the disabling diff is absent from the PR's net diff. FM-2 (DoD
+written after the fact) and FM-3 (DoD weakened mid-cycle) both pass.
+'''
+evidence = "runtime/verify.py gate_cycle: `enabled = [p for p in parents if confs[p][0]]; if not enabled: continue` skips C1 and C4 for any commit whose parent had the mode off, while arming is decided by the working tree; fde.config.toml is not a behavior path (fde.config.toml:38-42). Reproduction: scratchpad p1.py, both variants rc 0."
+blocking = true
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "high"
+probe = '''
+Size agreement (acceptance amendment: "A demand declared at a size
+different from its spec.md Triage size is red"), scratchpad p4.py. Each
+case: specs/FWD-050-x/spec.md triaging M, an open cycle declaring the
+demand XS (so no acceptance.md and no promotion key are required), then
+a 20-line src/ commit.
+- control, "Triage: **M**", demands "FWD-050 (XS)": red, as specified.
+- the Triage line wraps so the bold size is on the next line (the shape
+  of FWD-021's own spec.md): green.
+- a title line "# FWD-050 — triage fixes" before "Triage: **M**": green
+  (graph.spec_size stops at the FIRST line containing "triage").
+- demands "FWD-50 (XS)": green. demands "fwd-050 (XS)": green. dir_matches
+  is a case-sensitive exact prefix, while the graph joins demands through
+  canon_demand, so the cycle can name the demand in a form the size check
+  never matches against its spec directory.
+Across this repository, graph.spec_size returns None for 9 of 15 specs:
+FWD-003, 008, 010, 015, 017, 018, 019, 020 and 021. The check imposes
+nothing on 60% of the existing specs, including this demand's own, and
+any spec can opt out by wording. C-1#4 records the wrapping case only;
+the id-aliasing bypass works even on a parsable spec. Declaring M as XS
+drops both the acceptance.md-before-code requirement (C1) and the
+promotion key, which is exactly what the amendment says the check closes.
+'''
+evidence = "runtime/graph.py spec_size (first line containing 'triage' decides; SIZE_RE requires **X** on that same line); runtime/cycle.py dir_matches (case-sensitive, exact id prefix) and check_form size-agreement loop; reproduction scratchpad p4.py (P4a red, P4b-P4e rc 0) and the 9-of-15 count printed there."
+blocking = true
+
+[[finding]]
+id = "F3"
+attribute = "maintainability"
+severity = "high"
+probe = '''
+Plausible requirement change: a project starts or stops deploying
+(scratchpad p3.py P3a, p9.py P9c).
+- P3a: C-1 closed with the four-key XS profile; then fde.config.toml
+  gains stages = ["published"]. `--gate cycle`: rc 1, "C2
+  cycles/C-1.md: profile key 'published' missing from '## Done when'".
+- P9c: stages = ["live"], C-1 closed carrying a `live` item; then
+  stages = []. rc 1, "'live' is present but [cycle].stages does not
+  declare it".
+C2 runs over every cycle in the working tree, closed ones included,
+against the CURRENT stages. C4 forbids any change to a closed cycle
+("a closed cycle never changes"), and deleting one is red too. So the
+remedy the message names cannot be applied without a red C4 commit, and
+the only green path is to never change stages once any cycle has
+closed. The spec's own FM-12 says a deploying project must declare
+`live`; a project that begins deploying after its first cycle cannot.
+The same shape applies to size agreement (F2) on a closed cycle if a
+spec's Triage line is later corrected.
+'''
+evidence = "runtime/verify.py gate_cycle: `for c in wt: breaches += cycle.check_form(c, stages, ...)` with the working tree's stages, closed cycles included; runtime/cycle.py check_transition: closed-in-parent + any change -> red. Reproduction: scratchpad p3.py P3a and p9.py P9c, both rc 1 after the config change."
+blocking = true
+
+[[finding]]
+id = "F4"
+attribute = "reliability_resilience"
+severity = "high"
+probe = '''
+Silent range narrowing (scratchpad p7.py). Repo: C-1 open; commit B
+rewords a frozen done item AND changes src/ (a C4 breach); commit C is a
+harmless README change on top.
+- `--gate cycle --since <init>`: rc 1, "C4 ...: '## Done when' item
+  removed, reworded or marked while open".
+- `--since 0000000000000000000000000000000000000000` (what
+  github.event.before is on the first push of a new branch, and CI passes
+  it verbatim, .github/workflows/fde-gate.yml): rc 0.
+- `--since <unreachable sha>` (a force push: the old tip is no longer
+  fetched): rc 0.
+In both, _resolve_range falls back to HEAD~1..HEAD, only C is examined,
+and the row still says "all declared before". A force push is precisely
+the history-rewrite path F6 describes, so the gate examines the least
+exactly when history was rewritten. The fallback is shared with I1, but
+I1 diffs a net range while this gate's claim is per commit ("every
+behavior commit's parent"); the pass text does not say which range it
+covered.
+'''
+evidence = "runtime/verify.py _resolve_range (since that does not resolve -> HEAD~1..HEAD, no signal); gate_cycle pass text 'all declared before'; .github/workflows/fde-gate.yml `--since \"${{ github.event.pull_request.base.sha || github.event.before }}\"`. Reproduction: scratchpad p7.py, control rc 1, both narrowed runs rc 0."
+blocking = false
+
+[[finding]]
+id = "F5"
+attribute = "maintainability"
+severity = "high"
+probe = '''
+C6 with [scrum] on anchors a closed cycle's validity in backlog.md, a
+file the scrum cadence reorders and rewrites (scratchpad p3.py).
+- P3b: C-1 closed with one item; backlog.md gets "- C-1#1 fix the flaky
+  thing (usage-data)": green. A later commit grooms the backlog and
+  removes the row (item done): rc 1, "C6 cycles/C-1.md: C-1#1 has no
+  disposition — capture it in backlog.md". C-1 is closed and frozen,
+  so the only green state is keeping the token row in backlog.md forever.
+- P3c: the backlog-captured item is later pulled into C-2 as
+  "C-1#1 taken" with a task citing it: rc 1, "C-1#1 has 2 dispositions
+  (taken, backlog)". An Intake may only cite the immediate predecessor,
+  so a captured item can never be taken by token in any later cycle
+  either.
+skills/fde-scrum/SKILL.md says each item "becomes a backlog item that
+cites its token" but nowhere that the row may never leave the backlog,
+nor that removing the row later turns the gate red. This repository has
+scrum on, and C-1 already carries seven items, so the first backlog
+grooming after C-1 closes will hit this.
+'''
+evidence = "runtime/cycle.py check_dispositions (scrum_on: token must be cited by a labelled backlog.md line at every run; intake + backlog counted together, >1 is red); runtime/verify.py reads the working tree's backlog.md every run; skills/fde-scrum/SKILL.md 'Cycles feed the backlog'. Reproduction: scratchpad p3.py P3b, P3c."
+blocking = false
+
+[[finding]]
+id = "F6"
+attribute = "functional_correctness"
+severity = "medium"
+probe = '''
+Git ordering is forgeable by rewriting local history, and the skill tells
+the agent to rewrite it (scratchpad p5.py P5a, p7.py P8).
+- P5a: code committed with no cycle; `git reset --hard <init>`, commit
+  a cycle with `opened: 2026-09-01`, `git cherry-pick <code>`: rc 0,
+  "1 behavior commit(s) examined, all declared before".
+- P8: cycle committed with done item "p99 latency under 50 ms", code
+  committed; then the declaration commit is rewritten to "it runs" and
+  the code cherry-picked on top: rc 0.
+skills/fde-triage/SKILL.md: "A wrong declaration found before push is
+fixed by `git commit --amend`". ADR-0017 allows amend only for the
+opening commit before it is pushed; the skill generalizes to "found
+before push", which includes after code exists locally. In practice
+the freeze starts at push, not at the opening commit, and `opened:` is
+never compared with any commit date. Neither the acceptance residuals
+nor the ADR name history rewriting as a limit of "declared before".
+'''
+evidence = "skills/fde-triage/SKILL.md scope-freeze paragraph (amend advice); docs/adr/0017 lines ~110-112 (narrower allowance); acceptance.md 'Declared residuals' (no history-rewrite entry). Reproduction: scratchpad p5.py P5a, p7.py P8, both rc 0."
+blocking = false
+
+[[finding]]
+id = "F7"
+attribute = "functional_correctness"
+severity = "medium"
+probe = '''
+Commit splitting (scratchpad p2.py P2a). A 48-line feature written as
+six 8-line src/ commits, no cycle file anywhere, no "FORWARD: RULE"
+claim: `--gate cycle --since <init>` rc 0, "6 behavior commit(s)
+examined, all declared before (6 RULE-exempt ...)". The RULE exemption
+is per commit against rule_lane_max_loc with no cumulative bound and no
+claim required. The A9 residual covers "a RULE-eligible commit made
+during an open cycle"; this case has no cycle at all, so for any change
+that can be sliced into sub-10-line commits the whole "declared before
+execution" requirement is optional. The count shows in the row, but the
+row is green.
+'''
+evidence = "runtime/verify.py gate_cycle: `if triage.eligibility_for_commit(...).eligible: rule_exempt += 1` whenever _c1_reason fails; acceptance.md 'RULE as a side door' residual scoped to open cycles. Reproduction: scratchpad p2.py P2a."
+blocking = false
+
+[[finding]]
+id = "F8"
+attribute = "functional_correctness"
+severity = "medium"
+probe = '''
+behavior_paths edited in the same commit, or later (scratchpad p2.py).
+- P2c: one commit changes src/a.py (20 lines, no cycle) AND changes
+  fde.config.toml behavior_paths from ["src/"] to ["lib/"]: rc 0, "0
+  behavior commit(s) examined".
+- P2b: the src/ change in one commit, the narrowing in a later one:
+  rc 0.
+The mode and stages are read from each commit's PARENT config, but
+behavior_paths are read from the working tree for every commit in
+range, so HEAD's config decides what counted as behavior in earlier
+commits. fde.config.toml is itself not a behavior path, so the
+narrowing commit needs no cycle.
+'''
+evidence = "runtime/verify.py gate_cycle `touches = any(path_matches(f, self.behavior_paths) ...)` (working tree) versus _cycle_parent_config (parent). Reproduction: scratchpad p2.py P2b, P2c."
+blocking = false
+
+[[finding]]
+id = "F9"
+attribute = "functional_correctness"
+severity = "medium"
+probe = '''
+Close-and-open-and-ship in one commit (scratchpad p5.py P5b). C-1 open
+in the parent. One commit closes C-1 (all items met), adds C-2 (a new
+XS demand FWD-031), and adds src/b.py (20 lines) for C-2's work: rc 0.
+C1 sees C-1 open in the parent and passes, so C-2's code lands in the
+same commit that declares C-2, and the attribution rule ("a behavior
+commit belongs to the one open cycle in its parent tree") assigns it to
+a cycle that the same commit closes. The spec's definition ("every
+commit that changes a behavior file must have an open, well-formed cycle
+already present in its parent") is met literally, while the owner's
+requirement (declare before execution) is not.
+'''
+evidence = "runtime/verify.py _c1_reason (only the parent tree is consulted); runtime/cycle.py check_transition allows open->closed and absent->open in the same commit. Reproduction: scratchpad p5.py P5b."
+blocking = false
+
+[[finding]]
+id = "F10"
+attribute = "functional_correctness"
+severity = "medium"
+probe = '''
+Quoted paths (scratchpad p5.py P5c). A 20-line change to src/ação.py
+with no cycle file: rc 0, "0 behavior commit(s) examined". git
+diff-tree without -z quotes the name ("src/a\\303\\247\\303\\243o.py"),
+which does not start with src/, so path_matches misses it. Recorded in
+C-1's own next-cycle list (C-1#2) and shared with I1's changed(); an
+entry in the list does not excuse the bypass.
+'''
+evidence = "runtime/verify.py gate_cycle `self._git(\"diff-tree\", ..., \"--name-only\", \"-r\", sha)` (no -z, core.quotepath default). Reproduction: scratchpad p5.py P5c."
+blocking = false
+
+[[finding]]
+id = "F11"
+attribute = "usability_accessibility"
+severity = "low"
+probe = '''
+A pre-ticked open cycle is accepted and can never close (scratchpad
+p5.py P5d, p6.py P6). An open cycle added with every done item "[x] ...
+— done" passes C2 and C4 (added open) and satisfies C1 for later code
+(rc 0). Its closing commit (add closed:, next "none") is red: "C4 ...
+closing rewrote done item 1 — only the mark ([x]/[-]) and an appended
+' — <evidence>' may change", because the closing rule requires every
+parent mark to be a space. The file cannot be fixed while open (C4
+freezes marks) either, so the cycle stays open, and the serial rule
+then blocks every later cycle. C-1#5 notes the contract is silent on
+marks at add; the dead end it leads to is not noted.
+'''
+evidence = "runtime/cycle.py check_form (marks on an open cycle accepted when evidence present); check_transition open->closed `ok = (p.mark == \" \" and ...)`. Reproduction: scratchpad p5.py P5d rc 0, p6.py P6 rc 1."
+blocking = false
+
+[[finding]]
+id = "F12"
+attribute = "functional_correctness"
+severity = "low"
+probe = '''
+C3 carry-over is a substring test (scratchpad p3.py P3d'). C-1 closed
+with all five done items "[-] ... — skipped" and ONE next-cycle item
+"the thing works regression-proven review-rounds residuals
+declared-before": rc 0. Each not-met item's text only has to occur
+somewhere inside some next-cycle item, so one line carries any number
+of not-met items and gets one token and one disposition. With next
+item "x" the same close is red, so the check exists, but it is weaker
+than "every not-met item is carried".
+'''
+evidence = "runtime/cycle.py check_closure `if not any(want in n for n in c.nxt)`. Reproduction: scratchpad p3.py P3d (red) and P3d' (rc 0)."
+blocking = false
+
+[[finding]]
+id = "F13"
+attribute = "usability_accessibility"
+severity = "low"
+probe = '''
+An untracked cycles/.DS_Store in the working tree (scratchpad p9.py
+P9a): rc 1, "C2 cycles/.DS_Store: stray entry". The gate reads the
+filesystem, not the index, so OS droppings or an editor swap file turn
+the local gate red on a clean commit. Listed as C-1#1.
+'''
+evidence = "runtime/verify.py _wt_cycles (iterdir over the working directory, any non C-<n>.md entry is a stray). Reproduction: scratchpad p9.py P9a."
+blocking = false
+
+[[finding]]
+id = "F14"
+attribute = "operational_cost"
+severity = "low"
+probe = '''
+`cd tests && python3 -m unittest test_cycle`: "Ran 79 tests in
+29.691s" on the reviewer's machine (C-1#7 reports 12 s on the builder's
+and the whole suite going from 19 s to 44 s). Every C1/C4 case builds a
+fresh temp repo and shells out to verify.py. The gate itself is within
+R11 (0.17-0.20 s process wall for --gate cycle here), so this is suite
+cost, not gate cost, but it more than doubles the CI Tests step.
+'''
+evidence = "tests/test_cycle.py Fixture.project/gate (a make_project + subprocess verify per case). Timing from this review's run."
+blocking = false
+
+[[finding]]
+id = "F15"
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting (also MNT-11 reuse over clone)"
+probe = '''
+The closed stage set ("live", "published") is written three times:
+runtime/cycle.py STAGES, runtime/fde_lib.py validate() rule 6c
+(`x not in ("live", "published")`), and runtime/verify.py
+_cycle_parent_config (`x in ("live", "published")`, together with its
+own duplicate check). The parent-config check re-implements rule 6c's
+stage validation instead of calling validate() or reusing cycle.STAGES.
+Adding a third stage means three edits, and missing one makes the
+parent-tree check and validate() disagree.
+'''
+evidence = "grep of runtime/*.py for the literal: fde_lib.py:268, cycle.py:37, verify.py:1123."
+blocking = false
+
+[[finding]]
+id = "F16"
+attribute = "usability_accessibility"
+severity = "medium"
+principle = "USE-4 error prevention and recovery: every error names a way out"
+probe = '''
+Several reds name a remedy the gate itself forbids, and no surface
+documents the way out:
+- F3's "profile key 'published' missing from '## Done when'" on a
+  closed cycle points at an edit C4 rejects ("a closed cycle never
+  changes").
+- F11's closing red ("only the mark ([x]/[-]) ... may change") on a
+  pre-ticked cycle has no legal next step, open or closed.
+- F5's "capture it in backlog.md" after a groomed-out row is fixable,
+  but nothing tells the reader the row must then stay forever.
+skills/fde-triage/SKILL.md covers only "wrong declaration before push:
+amend; after push: close as not met and open the next", which applies
+to none of these.
+'''
+evidence = "Messages quoted from scratchpad p3.py, p6.py, p9.py runs; skills/fde-triage/SKILL.md 'Scope freeze' and 'Close' paragraphs."
+blocking = false
+
+[[finding]]
+id = "F17"
+attribute = "observability"
+severity = "low"
+principle = "OBS-1 every declared attribute emits a signal that can confirm or deny it (also USE-1 status visible)"
+probe = '''
+The CYCLE pass row reads "N behavior commit(s) examined, all declared
+before" and never states the range it covered. Locally, `verify.py
+--all` without --since examines HEAD~1..HEAD only, and the pre-commit
+hook excludes the gate (A6), so an agent's first signal of a C1 breach
+in an earlier local commit is CI. When the range was narrowed (F4) the
+row is identical to a full-range pass. A reader cannot tell "every
+commit of this push was checked" from "one commit was checked".
+'''
+evidence = "runtime/verify.py gate_cycle pass text; _resolve_range tiers; architecture.md 'Row under --all'."
+blocking = false
