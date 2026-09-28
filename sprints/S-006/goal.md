@@ -38,3 +38,7 @@ promotion decision, and the owner runs the review + retro sitting.
   round 3 finds a merge hole); `declared-before` and `residuals` stay
   required done items (F30 declined); a cumulative cap on claimed RULE
   commits with no cycle stays a declared limit (F7, A9 unchanged).
+- 2026-09-28 — FWD-021 after review round 3 (3 blocking open: F31 merge
+  first-parent hole, F32, F33): the owner applied the declared fallback —
+  linear history in any examined range — and authorized a 4th review
+  round past fde-review's three-cycle bound.
