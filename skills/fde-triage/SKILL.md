@@ -120,9 +120,12 @@ Commit the cycle on its own: a behavior commit may not add a cycle file.
 Its done items start unmarked (`- [ ]`). A commit needs no cycle only
 when it declares `FORWARD: RULE — <reason>` as its first message line
 and is verified RULE-eligible; an eligible commit without the claim is
-red. Every commit is judged by its parent's configuration, and once the
-first cycle file exists every later commit is examined, whatever the
-flag says.
+red. Every commit is judged against its first parent: its own change is
+its diff against that parent, merges included, and a red merge is fixed
+by rebasing. Once the first cycle file exists every later commit is
+examined, whatever the flag says. A change to `[gate]`, `[triage]` or
+`[cycle]` in `fde.config.toml` is itself a behavior change, never
+RULE-exempt. The project must be the repository's top level.
 
 A demand's `spec.md` declares its size in a header line before its
 first `## ` section — `size: M` — and it must equal the size declared in
@@ -170,8 +173,6 @@ never hard-coded. Each required key is one done item, exactly once:
 
 Then the demand-specific part: the `acceptance.md` path of each S+
 demand, and at least one inline, checkable item for each XS demand.
-A declared size must equal the size on the demand's `spec.md` Triage
-line when that line states one.
 
 Minimal valid cycle for one XS demand, no stages:
 
@@ -222,12 +223,14 @@ suppress it. A closed file never changes again.
 **Feed the next cycle.** Item *k* of cycle *n*'s list is the token
 `C-<n>#<k>`; `--gate cycle` prints each one. With `[scrum]` on, each
 item becomes a backlog item citing its token with an evidence label, in
-the closing commit itself; the backlog is groomed freely afterwards, and a
-later cycle pulls a captured item with `C-<n>#<k> taken` in its
-`## Intake`. With it off, the next cycle's `## Intake`, in its opening
-commit, lists each item of its predecessor exactly once as
-`C-<n>#<k> taken` (a task cites the token), `C-<n>#<k> deferred` (its own
-`## Next cycle` cites it) or `C-<n>#<k> dropped — <reason>`.
+the closing commit itself; the backlog is groomed freely afterwards.
+Whatever the scrum mode, the next cycle's opening commit is where every
+item is checked: an item captured in `backlog.md` as it stood at the
+closing commit is disposed of; every other item appears exactly once in
+the new cycle's `## Intake` as `C-<n>#<k> taken` (a task cites the
+token), `C-<n>#<k> deferred` (its own `## Next cycle` cites it) or
+`C-<n>#<k> dropped — <reason>`. A captured item is pulled into a later
+cycle only as `taken`, and only once.
 
 **Ways out.** Every red names its next step; the usual ones:
 - a wrong declaration while the opening commit is still HEAD: amend that
@@ -239,7 +242,11 @@ commit, lists each item of its predecessor exactly once as
 - `--since` does not resolve: re-run with a known base
   (`--since <merge-base>`, or fetch full history);
 - code and a new cycle in one commit: split the commit before push —
-  cycle first, then the code.
+  cycle first, then the code;
+- a stage to remove while the open cycle carries its key: close the cycle
+  first, marking that item `[-]` with a reason while the stage is still
+  declared, then remove the stage;
+- a red merge: rebase onto the protected line instead of merging.
 
 ## What never scales
 

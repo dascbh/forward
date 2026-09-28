@@ -77,6 +77,7 @@ tools = {{TOOLS}}   # e.g.: ["claude-code"] - which native layers step 8 emitted
 # its tasks, objective and done criteria in cycles/C-<n>.md before its
 # first behavior commit, and anything discovered goes to its next-cycle
 # list instead of into the cycle — the gate is silent when this is absent
+# the project must be the repository's top level (git rev-parse --show-prefix empty)
 # enabled = true
 # stages = []      # delivery stages done must cover: "live", "published"
 

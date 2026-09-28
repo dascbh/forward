@@ -85,11 +85,14 @@ routes the list: each item becomes a backlog item that cites its token
 (`C-<n>#<k>`) and carries an evidence label, in the closing commit
 itself — the `cycle` gate turns red on an item the closing commit's
 `backlog.md` does not capture. After the close the backlog is groomed
-freely: reorder, rewrite or remove the row once the item is done. A later
-cycle that executes a captured item pulls it with `C-<n>#<k> taken` in
-its `## Intake` (under scrum on an intake item is always a pull, never
-deferred or dropped). With scrum off, the next cycle's `## Intake` takes,
-defers or drops every item of its predecessor.
+freely: reorder, rewrite or remove the row once the item is done. The
+next cycle's opening commit checks every item whatever the scrum mode —
+turning scrum on or off between a close and the next opening drops
+nothing: an item captured at the close is disposed of, and every other
+item goes in the new cycle's `## Intake` as taken, deferred or dropped
+with a reason. A later cycle that executes a captured item pulls it with
+`C-<n>#<k> taken` in its `## Intake`, once — a second pull of the same
+token is red.
 
 ## Close — goal or batch, never the calendar
 

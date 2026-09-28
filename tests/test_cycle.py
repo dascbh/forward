@@ -190,7 +190,7 @@ class TestC1DeclaredBefore(Fixture):
         commit_all(p, "spec first")
         write(p, "src/a.py", BIG)
         commit_all(p, "code")
-        self.assertGreen(self.gate(p, root), "1 behavior commit(s) examined")
+        self.assertGreen(self.gate(p, root), "1 behavior commit(s), all declared before")
 
     def test_rule_exemption_needs_the_claim(self):
         # F7: eligible without the claim is red; with it, green and counted
@@ -250,7 +250,7 @@ class TestC1DeclaredBefore(Fixture):
         root = commit_all(p, "init")
         write(p, "docs/notes.md", BIG)
         commit_all(p, "docs")
-        self.assertGreen(self.gate(p, root), "0 behavior commit(s) examined")
+        self.assertGreen(self.gate(p, root), "0 behavior commit(s), all declared before")
 
     def test_narrowing_behavior_paths_with_the_code_is_red(self):
         # F8: the commit is judged by its parent's behavior_paths
@@ -280,7 +280,7 @@ class TestC1DeclaredBefore(Fixture):
         write(q, "cycles/C-1.md", closed_cyc(1))
         write(q, "src/b.py", BIG)
         commit_all(q, "last code, and close")
-        self.assertGreen(self.gate(q, root), "1 behavior commit(s) examined")
+        self.assertGreen(self.gate(q, root), "1 behavior commit(s), all declared before")
 
     def test_a_quoted_path_is_still_a_behavior_path(self):
         # F10: NUL-separated file lists
@@ -356,7 +356,7 @@ class TestExaminationFollowsCycles(Fixture):
         cfg = (p / "fde.config.toml").read_text(encoding="utf-8")
         write(p, "fde.config.toml", cfg.replace("enabled = false", "enabled = true"))
         commit_all(p, "enable")
-        self.assertGreen(self.gate(p, root), "0 behavior commit(s) examined")
+        self.assertGreen(self.gate(p, root), "0 behavior commit(s), all declared before")
 
 
 # ---------------------------------------------------------------------------
@@ -545,20 +545,27 @@ class TestClosedCyclesJudgedOnce(Fixture):
         commit_all(p, "close")
         return p, root
 
-    def test_adding_a_stage_after_close_is_green(self):
+    def test_adding_a_stage_after_close_leaves_the_closed_cycle_green(self):
+        # a stage change is gate-governing config (R2c): it lands under a
+        # new open cycle, which takes the new key as an amended item
         p, root = self.closed_repo()
+        write(p, "cycles/C-2.md", cyc(2, intake=()))
+        commit_all(p, "open C-2")
         cfg = (p / "fde.config.toml").read_text(encoding="utf-8")
         write(p, "fde.config.toml", cfg.replace("[cycle]\nenabled = true",
                                                 '[cycle]\nenabled = true\nstages = ["published"]'))
+        write(p, "cycles/C-2.md", cyc(2, intake=(),
+                                      done=XS_DONE + ("amended 2026-10-02: published on PyPI",)))
         commit_all(p, "start publishing")
         self.assertGreen(self.gate(p, root))
 
-    def test_removing_a_stage_after_close_is_green(self):
+    def test_removing_a_stage_with_only_closed_cycles_is_red(self):
+        # F22: removing a stage is a behavior commit and needs an open cycle
         p, root = self.closed_repo(done=XS_DONE + ("live checks pass",), stages=["live"])
         cfg = (p / "fde.config.toml").read_text(encoding="utf-8")
         write(p, "fde.config.toml", cfg.replace('stages = ["live"]', "stages = []"))
-        commit_all(p, "stop deploying")
-        self.assertGreen(self.gate(p, root))
+        sha = commit_all(p, "stop deploying")
+        self.assertRed(self.gate(p, root), f"C1 {sha[:7]}: no open cycle")
 
     def test_the_same_change_while_open_is_red_with_the_way_out(self):
         p = self.project()
@@ -803,12 +810,12 @@ class TestC6Dispositions(Fixture):
         write(p, "cycles/C-1.md", closed_cyc(1, nxt=("a bug in x",)))
         write(p, "backlog.md", BACKLOG + "- fix the bug in x (C-1#1) · usage-data\n")
         commit_all(p, "close and capture")
-        self.assertGreen(self.gate(p, root, explicit=True), "backlog 1")
+        self.assertGreen(self.gate(p, root, explicit=True), "captured 1 (C-1#1)")
         write(p, "backlog.md", BACKLOG)
         commit_all(p, "groom: row removed")
         write(p, "cycles/C-2.md", cyc(2, tasks=("fix the bug (C-1#1)",), intake=("C-1#1 taken",)))
         commit_all(p, "open C-2, pulling C-1#1")
-        self.assertGreen(self.gate(p, root, explicit=True), "taken 1")
+        self.assertGreen(self.gate(p, root, explicit=True), "captured 1 (C-1#1)")
 
     def test_scrum_on_intake_must_be_a_pull(self):
         p, root = self.open_one(True)
@@ -817,8 +824,8 @@ class TestC6Dispositions(Fixture):
         commit_all(p, "close and capture")
         write(p, "cycles/C-2.md", cyc(2, intake=("C-1#1 dropped — dup",)))
         sha = commit_all(p, "open C-2")
-        self.assertRed(self.gate(p, root), f"C6 {sha[:7]} cycles/C-2.md: C-1#1 dropped — "
-                                           f"with [scrum] on, an intake item is a pull")
+        self.assertRed(self.gate(p, root), f"C6 {sha[:7]} C-2: C-1#1 is already captured in "
+                                           f"the backlog, so it may appear only as 'taken'")
 
     def test_scrum_off_next_cycle_must_cover_every_item(self):
         p, root = self.open_one(False)
@@ -826,8 +833,9 @@ class TestC6Dispositions(Fixture):
         commit_all(p, "close")
         write(p, "cycles/C-2.md", cyc(2, tasks=("fix a (C-1#1)",), intake=("C-1#1 taken",)))
         sha = commit_all(p, "open C-2, forgetting C-1#2")
-        self.assertRed(self.gate(p, root), f"C6 {sha[:7]} cycles/C-2.md: C-1#2 of C-1 has no "
-                                           f"disposition", "before committing")
+        self.assertRed(self.gate(p, root), f"C6 {sha[:7]} C-2: C-1#2 has no disposition — add "
+                                           f"it to ## Intake (taken/deferred/dropped) in this "
+                                           f"opening commit")
 
     def test_scrum_off_taken_deferred_dropped_are_green(self):
         p, root = self.open_one(False)
@@ -837,7 +845,7 @@ class TestC6Dispositions(Fixture):
                                       intake=("C-1#1 taken", "C-1#2 deferred",
                                               "C-1#3 dropped — not worth it")))
         commit_all(p, "open C-2")
-        self.assertGreen(self.gate(p, root, explicit=True), "taken 1, deferred 1, dropped 1")
+        self.assertGreen(self.gate(p, root, explicit=True), "taken 1 (C-1#1), deferred 1 (C-1#2), dropped 1 (C-1#3)")
 
     def test_taken_without_a_citing_task_and_missing_token_are_red(self):
         p, root = self.open_one(False)
@@ -846,15 +854,14 @@ class TestC6Dispositions(Fixture):
         write(p, "cycles/C-2.md", cyc(2, intake=("C-1#1 taken", "C-1#4 dropped — x")))
         sha = commit_all(p, "open C-2")
         r = self.gate(p, root)
-        self.assertRed(r, f"C6 {sha[:7]} cycles/C-2.md: C-1#1 taken, but no '## Tasks' item "
-                          f"cites it", "intake cites C-1#4, which does not exist")
+        self.assertRed(r, f"C6 {sha[:7]} C-2: C-1#1 taken, but no '## Tasks' item "
+                          f"cites it", "intake cites C-1#4, which names no item")
 
     def test_pending_in_the_working_tree_is_reported_not_red(self):
         p, root = self.open_one(False)
         write(p, "cycles/C-1.md", closed_cyc(1, nxt=("a bug in x",)))
         commit_all(p, "close")
-        self.assertGreen(self.gate(p, root, explicit=True), "C-1 closed: 1 next-cycle item(s)", "pending 1",
-                         "C-1#1 a bug in x", "no open cycle — 0 behavior commit(s)")
+        self.assertGreen(self.gate(p, root, explicit=True), "C-1 closed: 1 next-cycle item(s)", "pending 1 (C-1#1)", "no open cycle — 0 behavior commit(s)")
 
     def test_token_boundary(self):
         self.assertTrue(cycle.cites("see C-3#1.", "C-3#1"))
@@ -869,7 +876,7 @@ class TestR10(Fixture):
     def branch(self, p):
         return git_out(p, "rev-parse", "--abbrev-ref", "HEAD")
 
-    def test_merge_with_no_own_change_is_green_and_counted(self):
+    def test_feature_branch_merged_under_an_open_cycle_is_green(self):
         p = self.project()
         write(p, "cycles/C-1.md", cyc(1))
         root = commit_all(p, "init")
@@ -881,8 +888,8 @@ class TestR10(Fixture):
         write(p, "src/c.py", BIG)
         commit_all(p, "main code")
         run_git(p, "merge", "-q", "--no-ff", "-m", "merge side", "side")
-        self.assertGreen(self.gate(p, root), "1 merge(s) with no own change",
-                         "2 behavior commit(s) examined")
+        self.assertGreen(self.gate(p, root), "3 commit(s) examined, 3 behavior commit(s)",
+                         "1 merge(s) examined")
 
     def test_evil_merge_without_a_cycle_in_one_parent_is_red(self):
         p = self.project()
@@ -895,38 +902,41 @@ class TestR10(Fixture):
         run_git(p, "merge", "-q", "--no-ff", "--no-commit", "side")
         write(p, "src/a.py", BIG)
         sha = commit_all(p, "evil merge")
-        self.assertRed(self.gate(p, root), f"C1 {sha[:7]} (merge, parent {root[:7]}): "
-                                           f"no open cycle")
+        self.assertRed(self.gate(p, root), f"C1 {sha[:7]} (merge): no open cycle",
+                       "a red merge is rebased instead")
 
-    def test_unparseable_parent_config_is_red(self):
+    def test_unparseable_config_in_an_examined_commit_is_red(self):
         p = self.project()
+        write(p, "cycles/C-1.md", cyc(1))
         root = commit_all(p, "init")
         good = (p / "fde.config.toml").read_text(encoding="utf-8")
         write(p, "fde.config.toml", good + "\n[[[ not toml\n")
-        commit_all(p, "break config")
+        broke = commit_all(p, "break config")
         write(p, "fde.config.toml", good)
-        sha = commit_all(p, "fix config")
-        self.assertRed(self.gate(p, root), f"C1 {sha[:7]}: parent config fde.config.toml "
-                                           f"is not valid TOML")
+        fixed = commit_all(p, "fix config")
+        r = self.gate(p, root)
+        self.assertRed(r, f"C1 {broke[:7]}: fde.config.toml does not parse",
+                       f"C1 {fixed[:7]}: parent config is not valid TOML — this commit "
+                       f"was pushed under the gate; re-run with --since <a base after it>")
 
-    def test_invalid_cycle_section_in_parent_config_is_red(self):
+    def test_invalid_cycle_section_in_an_examined_parent_is_red(self):
         p = self.project(cycle=False)
         good = (p / "fde.config.toml").read_text(encoding="utf-8")
         write(p, "fde.config.toml", "cycle = 1\n" + good)
         root = commit_all(p, "init")
         write(p, "fde.config.toml", good + "\n[cycle]\nenabled = true\n")
-        sha = commit_all(p, "fix it")
-        self.assertRed(self.gate(p, root), f"C1 {sha[:7]}: parent config [cycle] must be a "
-                                           f"table", "[CYCLE-TYPE]")
+        commit_all(p, "fix it")
+        self.assertGreen(self.gate(p, root))    # the parent is pre-opt-in (R2b)
         q = self.project()
+        write(q, "cycles/C-1.md", cyc(1))
         root = commit_all(q, "init")
         self.set_config(q, "", (q / "fde.config.toml").read_text(encoding="utf-8")
                         .replace("[cycle]\nenabled = true", '[cycle]\nenabled = true\nstages = ["beta"]'))
         commit_all(q, "bad stage")
         write(q, "docs/x.md", "x\n")
         sha = commit_all(q, "anything")
-        self.assertRed(self.gate(q, root), f"C1 {sha[:7]}: parent config [cycle] stages",
-                       "[CYCLE-STAGES]")
+        self.assertRed(self.gate(q, root), f"C1 {sha[:7]}: parent [cycle] stages ['beta'] "
+                                           f"unknown")
 
     def test_range_is_named_and_never_silently_narrowed(self):
         p = self.project()
@@ -1140,7 +1150,7 @@ class TestInstructionLayer(unittest.TestCase):
             text = (ROOT / rel).read_text(encoding="utf-8")
             loop = text.split("## Demand loop", 1)[1].split("\n## ", 1)[0]
             self.assertIn("open\n   the cycle before the first behavior change", loop)
-            self.assertIn("`specs/<demand-id>/spec.md` with a `size:`\n   header line", loop)
+            self.assertIn("`specs/<demand-id>/spec.md` (with `[cycle]`\n   on, it also carries a `size:` header line)", loop)
             self.assertIn("## Cycle scope — when `[cycle]` is enabled", text)
             self.assertLess(text.index("## Scrum mode"), text.index("## Cycle scope"))
             voice = " ".join(text.split("## Voice", 1)[1].split("\n## ", 1)[0].split())
@@ -1155,7 +1165,8 @@ class TestInstructionLayer(unittest.TestCase):
         for n in ("`size: M`", "declares `FORWARD: RULE — <reason>`",
                   "a behavior commit may not add a cycle file",
                   "only while the opening commit is still HEAD", "**Ways out.**",
-                  "split the commit before push"):
+                  "split the commit before push", "rebase onto the protected line",
+                  "marking that item `[-]` with a reason"):
             self.assertIn(n, t)
 
     def test_scrum_skill_captures_in_the_closing_commit(self):
@@ -1176,6 +1187,373 @@ class TestInstructionLayer(unittest.TestCase):
             self.assertIn("cycles/**:read", roles[rid]["inputs"])
             self.assertIn("- `cycles/**:read`", (ROOT / agent).read_text(encoding="utf-8"))
             self.assertNotIn("cycles/**", str(roles[rid].get("write_scope", "")))
+
+
+# ---------------------------------------------------------------------------
+# Round 2 (architecture.md "Revision — round 2", part 7)
+# ---------------------------------------------------------------------------
+def _flag(p: Path, on: bool) -> None:
+    cfg = (p / "fde.config.toml").read_text(encoding="utf-8")
+    a, b = ("enabled = false", "enabled = true") if on else ("enabled = true", "enabled = false")
+    write(p, "fde.config.toml", cfg.replace("[cycle]\n" + a, "[cycle]\n" + b))
+
+
+def _cfg_sub(p: Path, a: str, b: str) -> None:
+    cfg = (p / "fde.config.toml").read_text(encoding="utf-8")
+    assert a in cfg, a
+    write(p, "fde.config.toml", cfg.replace(a, b))
+
+
+class TestF18MergesAgainstFirstParent(Fixture):
+    def branch(self, p):
+        return git_out(p, "rev-parse", "--abbrev-ref", "HEAD")
+
+    def test_pre_opt_in_branch_merged_with_only_a_closed_cycle_is_red(self):
+        p = self.project(cycle=False)
+        pre = commit_all(p, "pre-opt-in")
+        main = self.branch(p)
+        run_git(p, "checkout", "-q", "-b", "feature")
+        write(p, "src/feature.py", BIG)
+        commit_all(p, "feature, forked before opt-in")
+        run_git(p, "checkout", "-q", main)
+        self.set_config(p, "\n[cycle]\nenabled = true\n")
+        write(p, "cycles/C-1.md", cyc(1))
+        commit_all(p, "opt in, open C-1")
+        write(p, "cycles/C-1.md", closed_cyc(1))
+        commit_all(p, "close C-1")
+        run_git(p, "merge", "-q", "--no-ff", "-m", "merge feature", "feature")
+        m = git_out(p, "rev-parse", "HEAD")
+        self.assertRed(self.gate(p, pre), f"C1 {m[:7]} (merge): no open cycle", "rebased")
+
+    def test_orphan_root_merged_with_code_and_no_open_cycle_is_red(self):
+        p = self.project()
+        write(p, "cycles/C-1.md", cyc(1))
+        root = commit_all(p, "init")
+        write(p, "cycles/C-1.md", closed_cyc(1))
+        commit_all(p, "close")
+        main = self.branch(p)
+        run_git(p, "checkout", "-q", "--orphan", "evil")
+        run_git(p, "rm", "-rq", "--cached", ".")
+        for f in list(p.iterdir()):
+            if f.name != ".git":
+                shutil.rmtree(f) if f.is_dir() else f.unlink()
+        write(p, "src/evil.py", BIG)
+        commit_all(p, "orphan root")
+        run_git(p, "checkout", "-qf", main)
+        run_git(p, "merge", "-q", "--no-ff", "--allow-unrelated-histories", "-m", "m", "evil")
+        m = git_out(p, "rev-parse", "HEAD")
+        self.assertRed(self.gate(p, root), f"C1 {m[:7]} (merge): no open cycle")
+
+    def test_side_branch_cycle_file_taken_as_theirs_is_red(self):
+        p = self.project(cycle=False)
+        pre = commit_all(p, "pre-opt-in")
+        main = self.branch(p)
+        run_git(p, "checkout", "-q", "-b", "side")
+        write(p, "cycles/C-1.md", cyc(1, done=XS_DONE[:4] + ("it compiles",)))
+        commit_all(p, "a weaker C-1, before opt-in")
+        run_git(p, "checkout", "-q", main)
+        self.set_config(p, "\n[cycle]\nenabled = true\n")
+        write(p, "cycles/C-1.md", cyc(1))
+        commit_all(p, "opt in, open C-1")
+        r = subprocess_merge_theirs(p, "side")
+        self.assertEqual(r, 0)
+        m = git_out(p, "rev-parse", "HEAD")
+        self.assertRed(self.gate(p, pre), f"C4 {m[:7]}: cycles/C-1.md '## Done when'")
+
+
+def subprocess_merge_theirs(p: Path, branch: str) -> int:
+    import subprocess
+    r = subprocess.run(["git", "merge", "-q", "--no-ff", "-X", "theirs",
+                        "--allow-unrelated-histories", "-m", "merge", branch],
+                       cwd=p, capture_output=True)
+    if r.returncode != 0:   # add/add conflict: resolve to theirs by hand
+        subprocess.run(["git", "checkout", "--theirs", "--", "."], cwd=p, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=p, check=True)
+        r = subprocess.run(["git", "commit", "-qm", "merge"], cwd=p, capture_output=True)
+    return r.returncode
+
+
+class TestF19PreOptInIsNeverJudged(Fixture):
+    def history(self, breakage: str, after_cycle: bool):
+        p = self.project(cycle=False)
+        good = (p / "fde.config.toml").read_text(encoding="utf-8")
+        if after_cycle:
+            self.set_config(p, "\n[cycle]\nenabled = true\n", good)
+            good = (p / "fde.config.toml").read_text(encoding="utf-8")
+            write(p, "cycles/C-1.md", cyc(1))
+        root = commit_all(p, "init")
+        write(p, "fde.config.toml", good + breakage)
+        broke = commit_all(p, "break")
+        write(p, "fde.config.toml", good)
+        fixed = commit_all(p, "fix")
+        if not after_cycle:
+            self.set_config(p, "\n[cycle]\nenabled = true\n")
+            commit_all(p, "opt in")
+            write(p, "cycles/C-1.md", cyc(1))
+            commit_all(p, "open C-1")
+        return p, root, broke, fixed
+
+    def test_pre_opt_in_breakage_is_green_under_root_and_all_zeros(self):
+        for breakage in ("\n[[[ not toml\n", '\n[cycle]\nenabled = "no"\n'):
+            p, root, _b, _f = self.history(breakage, after_cycle=False)
+            self.assertGreen(self.gate(p, root))
+            self.assertGreen(self.gate(p, "0" * 40), "full history (new branch)")
+
+    def test_the_same_breakage_after_the_first_cycle_file_is_red(self):
+        p, root, broke, fixed = self.history("\n[[[ not toml\n", after_cycle=True)
+        self.assertRed(self.gate(p, "0" * 40), f"C1 {fixed[:7]}: parent config is not valid TOML")
+        p, root, broke, fixed = self.history('\n[scrum]\nenabled = "no"\n', after_cycle=True)
+        self.assertRed(self.gate(p, root), f"C1 {fixed[:7]}: parent [scrum] malformed")
+
+
+class TestF20NarrowReader(Fixture):
+    def test_mistyped_sections_before_opt_in_are_green_without_traceback(self):
+        for bad in ("weights = 5\n", 'gate = "x"\n'):
+            p = self.project(cycle=False)
+            good = (p / "fde.config.toml").read_text(encoding="utf-8")
+            write(p, "fde.config.toml", bad + good.replace("[weights]", "[weights_]")
+                  if bad.startswith("weights") else bad + good.replace("[gate]", "[gate_]"))
+            root = commit_all(p, "pre-opt-in, mistyped")
+            write(p, "fde.config.toml", good + "\n[cycle]\nenabled = true\n")
+            commit_all(p, "fix and opt in")
+            self.assertGreen(self.gate(p, "0" * 40))
+            r = verify(p, "--gate", "cycle", "--since", root)
+            self.assertNotIn("Traceback", r.stderr, bad)
+
+    def test_bad_behavior_paths_in_an_examined_parent_is_a_red_row_under_all(self):
+        p = self.project()
+        write(p, "cycles/C-1.md", cyc(1))
+        root = commit_all(p, "init")
+        _cfg_sub(p, 'behavior_paths = ["src/"]', 'behavior_paths = "src/"')
+        commit_all(p, "mistype")
+        _cfg_sub(p, 'behavior_paths = "src/"', 'behavior_paths = ["src/"]')
+        fixed = commit_all(p, "fix")
+        r = verify(p, "--all", "--since", root)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertIn(f"C1 {fixed[:7]}: parent [gate].behavior_paths must be a list of "
+                      f"strings", r.stdout)
+        self.assertIn("CFG ", r.stdout)
+        self.assertIn("I4 ", r.stdout)
+
+
+class TestF21DispositionsIgnoreTheScrumMode(Fixture):
+    def c1_closed(self, scrum):
+        p = self.project(scrum=scrum)
+        write(p, "backlog.md", BACKLOG)
+        write(p, "cycles/C-1.md", cyc(1, nxt=("fix the flaky thing", "p99 latency")))
+        return p, commit_all(p, "init")
+
+    def scrum(self, p, on):
+        cfg = (p / "fde.config.toml").read_text(encoding="utf-8")
+        if "[scrum]" in cfg:
+            cfg = cfg.replace("[scrum]\nenabled = " + ("false" if on else "true"),
+                              "[scrum]\nenabled = " + ("true" if on else "false"))
+        else:
+            cfg += "\n[scrum]\nenabled = " + ("true" if on else "false") + "\n"
+        write(p, "fde.config.toml", cfg)
+
+    def report_sums(self, p, root):
+        r = self.gate(p, root, explicit=True)
+        row = next(m for g, _ok, m in r.results if g == "CYCLE-RPT" and "C-1 closed" in m)
+        total = int(re.search(r"C-1 closed: (\d+) next-cycle", row).group(1))
+        counts = [int(x) for x in re.findall(
+            r"(?:captured|taken|deferred|dropped|pending|missing) (\d+)", row)]
+        self.assertEqual(len(counts), 6, row)
+        self.assertEqual(sum(counts), total, row)
+
+    def test_close_under_scrum_off_then_scrum_on_then_open_without_intake_is_red(self):
+        p, root = self.c1_closed(False)
+        write(p, "cycles/C-1.md", closed_cyc(1, nxt=("fix the flaky thing", "p99 latency")))
+        commit_all(p, "close, scrum off")
+        self.scrum(p, True)
+        commit_all(p, "scrum on")
+        write(p, "cycles/C-2.md", cyc(2))
+        sha = commit_all(p, "open C-2, no intake")
+        self.assertRed(self.gate(p, root), f"C6 {sha[:7]} C-2: C-1#1 has no disposition")
+        self.report_sums(p, root)
+
+    def test_scrum_on_off_close_on_with_an_uncaptured_item_is_red(self):
+        p, root = self.c1_closed(True)
+        self.scrum(p, False)
+        commit_all(p, "scrum off")
+        write(p, "cycles/C-1.md", closed_cyc(1, nxt=("fix the flaky thing", "p99 latency")))
+        write(p, "backlog.md", BACKLOG + "- flaky (C-1#1) · usage-data\n")
+        commit_all(p, "close; only C-1#1 captured")
+        self.scrum(p, True)
+        commit_all(p, "scrum on")
+        write(p, "cycles/C-2.md", cyc(2))
+        sha = commit_all(p, "open C-2 without C-1#2")
+        r = self.gate(p, root)
+        self.assertRed(r, f"C6 {sha[:7]} C-2: C-1#2 has no disposition")
+        self.assertNotIn("C-1#1 has no disposition", r.stdout)
+        self.report_sums(p, root)
+
+    def test_the_same_with_intake_coverage_is_green(self):
+        p, root = self.c1_closed(True)
+        self.scrum(p, False)
+        commit_all(p, "scrum off")
+        write(p, "cycles/C-1.md", closed_cyc(1, nxt=("fix the flaky thing", "p99 latency")))
+        write(p, "backlog.md", BACKLOG + "- flaky (C-1#1) · usage-data\n")
+        commit_all(p, "close; only C-1#1 captured")
+        self.scrum(p, True)
+        commit_all(p, "scrum on")
+        write(p, "cycles/C-2.md", cyc(2, intake=("C-1#2 dropped — measured, fine",)))
+        commit_all(p, "open C-2")
+        r = self.gate(p, root, explicit=True)
+        self.assertGreen(r, "captured 1 (C-1#1)", "dropped 1 (C-1#2)")
+        self.report_sums(p, root)
+
+
+class TestF22GateConfigIsBehavior(Fixture):
+    def closed_only(self, **kw):
+        p = self.project(**kw)
+        write(p, "cycles/C-1.md", cyc(1, done=kw.get("_done", XS_DONE)))
+        root = commit_all(p, "init")
+        write(p, "cycles/C-1.md", closed_cyc(1))
+        commit_all(p, "close")
+        return p, root
+
+    def test_narrow_act_restore_is_red_at_the_narrowing(self):
+        p, root = self.closed_only()
+        _cfg_sub(p, 'behavior_paths = ["src/"]', 'behavior_paths = ["lib/"]')
+        narrow = commit_all(p, "narrow")
+        write(p, "src/a.py", BIG)
+        commit_all(p, "code, invisible to the narrowed paths")
+        _cfg_sub(p, 'behavior_paths = ["lib/"]', 'behavior_paths = ["src/"]')
+        commit_all(p, "restore")
+        self.assertRed(self.gate(p, root), f"C1 {narrow[:7]}: no open cycle")
+
+    def test_stages_removed_and_restored_is_red(self):
+        p = self.project(stages=["live"])
+        done = XS_DONE + ("live checks pass",)
+        write(p, "cycles/C-1.md", cyc(1, done=done))
+        root = commit_all(p, "init")
+        write(p, "cycles/C-1.md", closed_cyc(1, done=done))
+        commit_all(p, "close")
+        _cfg_sub(p, 'stages = ["live"]', "stages = []")
+        off = commit_all(p, "remove the stage")
+        _cfg_sub(p, "stages = []", 'stages = ["live"]')
+        commit_all(p, "restore")
+        self.assertRed(self.gate(p, root), f"C1 {off[:7]}: no open cycle")
+
+    def test_narrowing_claimed_as_rule_is_red(self):
+        p, root = self.closed_only()
+        _cfg_sub(p, 'behavior_paths = ["src/"]', 'behavior_paths = ["lib/"]')
+        sha = commit_all(p, "FORWARD: RULE — tidy config")
+        self.assertRed(self.gate(p, root), f"C1 {sha[:7]}: no open cycle")
+
+
+class TestF23StageRemoval(Fixture):
+    def test_removing_a_stage_the_open_cycle_carries_is_red_with_the_way_out(self):
+        p = self.project(stages=["live"])
+        write(p, "cycles/C-1.md", cyc(1, done=XS_DONE + ("live checks pass",)))
+        root = commit_all(p, "init")
+        _cfg_sub(p, 'stages = ["live"]', "stages = []")
+        sha = commit_all(p, "stop deploying mid-cycle")
+        self.assertRed(self.gate(p, root), f"C1 {sha[:7]}: removes stage 'live' while C-1 "
+                       f"carries it — close the cycle first (mark 'live' [-] with a reason "
+                       f"while the stage is declared), then remove the stage")
+
+
+class TestF24TopLevel(Fixture):
+    def test_project_in_a_subdirectory_is_one_red_row(self):
+        outer = Path(tempfile.mkdtemp(dir=_TMP))
+        p = outer / "sub"
+        shutil.copytree(_template(cycle=True), p)
+        shutil.move(str(p / ".git"), str(outer / ".git"))
+        r = self.gate(p, explicit=True)
+        self.assertEqual(r.results, [("CYCLE", False,
+                                      "CYCLE: the project must be the git top level (found "
+                                      "prefix sub/) — move fde.config.toml to the "
+                                      "repository root")])
+
+
+class TestF25PullOnce(Fixture):
+    def test_the_same_captured_token_taken_twice_is_red(self):
+        p = self.project(scrum=True)
+        write(p, "backlog.md", BACKLOG)
+        write(p, "cycles/C-1.md", cyc(1, nxt=("a",)))
+        root = commit_all(p, "init")
+        write(p, "cycles/C-1.md", closed_cyc(1, nxt=("a",)))
+        write(p, "backlog.md", BACKLOG + "- a (C-1#1) · opinion\n")
+        commit_all(p, "close, captured")
+        write(p, "cycles/C-2.md", cyc(2, tasks=("do a (C-1#1)",), intake=("C-1#1 taken",)))
+        commit_all(p, "open C-2, pulling it")
+        write(p, "cycles/C-2.md", closed_cyc(2, tasks=("do a (C-1#1)",), intake=("C-1#1 taken",)))
+        commit_all(p, "close C-2")
+        write(p, "cycles/C-3.md", cyc(3, tasks=("do a again (C-1#1)",), intake=("C-1#1 taken",)))
+        sha = commit_all(p, "open C-3, pulling it again")
+        self.assertRed(self.gate(p, root), f"C6 {sha[:7]} C-3: C-1#1 was already taken by an "
+                                           f"earlier cycle")
+
+
+class TestF26Cost(Fixture):
+    def spawns_for(self, n_pre: int) -> int:
+        import subprocess
+        p = self.project(cycle=False)
+        commit_all(p, "init")
+        ref = git_out(p, "symbolic-ref", "HEAD")
+        stream = []
+        for i in range(1, n_pre + 1):
+            body = f"x = {i}\n".encode()
+            stream.append(f"commit {ref}\nmark :{i}\ncommitter f <f@t> {1700000000 + i} +0000\n"
+                          f"data 3\nc{i % 10}\n" + (f"from {ref}^0\n" if i == 1 else "")
+                          + f"M 100644 inline src/a.py\ndata {len(body)}\n")
+            stream.append(body.decode() + "\n")
+        subprocess.run(["git", "fast-import", "--quiet", "--force"], cwd=p, check=True,
+                       input="".join(stream).encode())
+        run_git(p, "reset", "-q", "--hard")
+        self.set_config(p, "\n[cycle]\nenabled = true\n")
+        commit_all(p, "opt in")
+        write(p, "cycles/C-1.md", cyc(1))
+        commit_all(p, "open C-1")
+        write(p, "src/a.py", BIG)
+        commit_all(p, "code")
+        calls = []
+        orig = vmod.Gate._run_git
+
+        def counting(gate, *a, **k):
+            calls.append(a[:2])
+            return orig(gate, *a, **k)
+        vmod.Gate._run_git = counting
+        try:
+            r = self.gate(p, "0" * 40)
+        finally:
+            vmod.Gate._run_git = orig
+        self.assertGreen(r, "2 commit(s) examined")
+        return len(calls)
+
+    def test_spawns_do_not_grow_with_pre_opt_in_history(self):
+        self.assertEqual(self.spawns_for(20), self.spawns_for(200))
+
+
+class TestF29OneClaimOneVerdict(Fixture):
+    def test_a_raised_rule_limit_does_not_exempt_a_big_claimed_commit(self):
+        p = self.project()
+        root = commit_all(p, "init")
+        self.set_config(p, "", (p / "fde.config.toml").read_text(encoding="utf-8")
+                        .replace("[triage]\n", "[triage]\nrule_lane_max_loc = 500\n", 1))
+        raised = commit_all(p, "raise the RULE limit")
+        write(p, "src/a.py", "".join(f"y{i} = {i}\n" for i in range(100)))
+        big = commit_all(p, "FORWARD: RULE — says it is small")
+        self.set_config(p, "", (p / "fde.config.toml").read_text(encoding="utf-8")
+                        .replace("rule_lane_max_loc = 500\n", "", 1))
+        commit_all(p, "restore")
+        r = self.gate(p, root)
+        self.assertRed(r, f"C1 {raised[:7]}: no open cycle", f"C1 {big[:7]}: no open cycle")
+        cfg = Config.load(p)
+        bp, ep = gate_paths(cfg.raw)
+        g = vmod.Gate(p, bp, ep)
+        g.gate_rule_lane(since=root)
+        self.assertFalse(g.results[0][1], g.results)
+        self.assertIn(big[:7], g.results[0][2])
+
+
+class TestThisRepositoryAllZeros(unittest.TestCase):
+    def test_this_repository_all_zeros_stays_green(self):
+        r = verify(ROOT, "--gate", "cycle", "--since", "0" * 40)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("full history (new branch)", r.stdout)
 
 
 if __name__ == "__main__":

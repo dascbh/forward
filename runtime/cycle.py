@@ -573,12 +573,35 @@ def check_capture(c: Cycle, backlog_text: str, sha: str) -> list[str]:
     return out
 
 
-def check_intake(new: Cycle, tree: list[Cycle], scrum_on: bool,
-                 backlog_text: str, sha: str) -> list[str]:
-    """At the absent→open transition of `new`, against its parent: `tree`
-    is the parent's cycles, `backlog_text` the parent's backlog.md."""
-    w = f"C6 {sha[:7]} {new.path}"
+def captured_tokens(c: Cycle, backlog_text: str) -> set[str]:
+    """The tokens of closed cycle `c` that `backlog_text` (backlog.md as it
+    stood at c's closing commit) cites on a labelled line."""
+    return {token(c.number, k) for k in range(1, len(c.next_items()) + 1)
+            if captured(backlog_text, token(c.number, k))}
+
+
+def check_opening(new: Cycle, tree: list[Cycle], closing_backlog: str,
+                  sha: str) -> list[str]:
+    """C6 at the absent→open transition of `new`, whatever the scrum mode
+    (R2e). `tree` is the parent's cycles; `closing_backlog` is backlog.md
+    at the predecessor's closing commit. Every predecessor item except
+    `none` is disposed of exactly once: captured there, or in `new`'s
+    Intake as taken/deferred/dropped. A captured item, or an item of an
+    older cycle, may appear only as `taken` — a pull — and a token may be
+    pulled once across all cycles (F25)."""
+    w = f"C6 {sha[:7]} {new.ident}"
     by_n = {c.number: c for c in tree}
+    closed_below = [c for c in tree if c.closed and c.number < new.number]
+    pred = max(closed_below, key=lambda c: c.number) if closed_below else None
+    caught = captured_tokens(pred, closing_backlog) if pred else set()
+    taken_before = set()
+    for c in tree:
+        if c.number == new.number:
+            continue
+        for t in c.intake:
+            m = INTAKE_RE.fullmatch(t)
+            if m and m.group(3) == "taken":
+                taken_before.add(token(int(m.group(1)), int(m.group(2))))
     out, seen = [], {}
     for t in new.intake:
         m = INTAKE_RE.fullmatch(t)
@@ -588,66 +611,66 @@ def check_intake(new: Cycle, tree: list[Cycle], scrum_on: bool,
         tok = token(n, k)
         src = by_n.get(n)
         if src is None or not src.closed or k > len(src.next_items()):
-            out.append(f"{w}: intake cites {tok}, which does not exist — cite "
-                       f"an item of a closed cycle")
+            out.append(f"{w}: intake cites {tok}, which names no item of a closed "
+                       f"cycle — correct the token in this opening commit")
             continue
         seen[tok] = seen.get(tok, 0) + 1
+        pull_only = tok in caught or pred is None or n != pred.number
+        if pull_only and kind != "taken":
+            why = "is already captured in the backlog" if tok in caught else \
+                "is not an item of the previous cycle"
+            out.append(f"{w}: {tok} {why}, so it may appear only as 'taken' (a "
+                       f"pull) — change it to '{tok} taken' or remove it")
+        if kind == "taken" and tok in taken_before:
+            out.append(f"{w}: {tok} was already taken by an earlier cycle — "
+                       f"remove it from '## Intake'")
         if kind == "taken" and not any(cites(x, tok) for x in new.tasks):
             out.append(f"{w}: {tok} taken, but no '## Tasks' item cites it — "
                        f"cite {tok} in the task that takes it")
         if kind == "deferred" and not any(cites(x, tok) for x in new.nxt):
             out.append(f"{w}: {tok} deferred, but no '## Next cycle' item cites "
                        f"it — re-list it there with {tok}")
-        if scrum_on and kind != "taken":
-            out.append(f"{w}: {tok} {kind} — with [scrum] on, an intake item is a "
-                       f"pull from the backlog and must be 'taken'")
     for tok, count in seen.items():
         if count > 1:
-            out.append(f"{w}: {tok} appears {count} times in '## Intake' — "
-                       f"exactly once")
-    if scrum_on:
-        return out
-    closed_below = [c for c in tree if c.closed and c.number < new.number]
-    if not closed_below:
-        return out
-    pred = max(closed_below, key=lambda c: c.number)
-    for t, ok in ((tok, tok in seen) for tok in
-                  (token(pred.number, k) for k in range(1, len(pred.next_items()) + 1))):
-        if not ok and not captured(backlog_text, t):
-            out.append(f"{w}: {t} of {pred.ident} has no disposition — add "
-                       f"'{t} taken', '{t} deferred' or '{t} dropped — <reason>' "
-                       f"to '## Intake' before committing")
-    for tok in seen:
-        if int(tok.split("#")[0][2:]) != pred.number:
-            out.append(f"{w}: intake cites {tok}, which is not an item of the "
-                       f"previous cycle {pred.ident}")
+            out.append(f"{w}: {tok} appears {count} times in '## Intake' — keep "
+                       f"exactly one")
+    if pred is not None:
+        for k in range(1, len(pred.next_items()) + 1):
+            tok = token(pred.number, k)
+            if tok not in caught and tok not in seen:
+                out.append(f"{w}: {tok} has no disposition — add it to ## Intake "
+                           f"(taken/deferred/dropped) in this opening commit")
     return out
 
 
-def disposition_report(cycles: list[Cycle], scrum_on: bool,
-                       backlog_text: str = "") -> dict:
-    """Working tree, report only (never red): per closed cycle, how its
-    items were disposed of so far. {number: {kind: count, "pending": [..]}}"""
-    nums = sorted(c.number for c in cycles)
+KINDS = ("captured", "taken", "deferred", "dropped", "pending", "missing")
+
+
+def disposition_report(cycles: list[Cycle], closing_backlogs: dict) -> dict:
+    """Report only (F28): per closed cycle n, each item's one kind —
+    captured (backlog.md at n's closing commit, `closing_backlogs[n]`),
+    else the next cycle's Intake verdict, else pending (no later cycle)
+    or missing (a later cycle, no disposition). The kinds sum to the
+    item count. {n: {kind: [tokens]}}"""
+    by_n = {c.number: c for c in cycles}
+    nums = sorted(by_n)
     out = {}
     for c in cycles:
         if not c.closed:
             continue
-        kinds = {"taken": 0, "deferred": 0, "dropped": 0, "backlog": 0, "pending": []}
-        has_next = any(n > c.number for n in nums)
-        for k, _t in enumerate(c.next_items(), 1):
+        later = [n for n in nums if n > c.number]
+        succ = by_n[later[0]] if later else None
+        verdict = {}
+        for t in (succ.intake if succ else []):
+            m = INTAKE_RE.fullmatch(t)
+            if m and int(m.group(1)) == c.number:
+                verdict.setdefault(token(c.number, int(m.group(2))), m.group(3) or "dropped")
+        caught = captured_tokens(c, closing_backlogs.get(c.number, ""))
+        kinds = {k: [] for k in KINDS}
+        for k in range(1, len(c.next_items()) + 1):
             tok = token(c.number, k)
-            hit = False
-            for other in cycles:
-                for t in other.intake:
-                    m = INTAKE_RE.fullmatch(t)
-                    if m and token(int(m.group(1)), int(m.group(2))) == tok:
-                        kinds[m.group(3) or "dropped"] += 1
-                        hit = True
-            if scrum_on and captured(backlog_text, tok):
-                kinds["backlog"] += 1
-                hit = True
-            if not hit and not has_next and not scrum_on:
-                kinds["pending"].append(tok)
+            kind = ("captured" if tok in caught else verdict.get(tok)
+                    or ("pending" if succ is None else "missing"))
+            kinds[kind].append(tok)
         out[c.number] = kinds
     return out
