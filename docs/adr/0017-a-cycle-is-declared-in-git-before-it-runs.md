@@ -1,7 +1,83 @@
 # ADR-0017 — A cycle is declared in git before it runs
 
 date: 2026-09-28
-status: accepted
+status: paused
+
+## Status — 2026-09-28: paused, not accepted; nothing shipped
+
+FWD-021 is **paused unpromoted**. The owner allowed a fifth review round
+and made it the final one (`sprints/S-006/goal.md`). Round 5
+(`reviews/FWD-021/findings.toml`) left two blocking findings, and each
+contradicts statements in this ADR that were written as guarantees, not
+as residuals.
+
+**F47: a force push whose new tip is disarmed passes silently.** The
+probe:
+- rewrite the tip into one commit that clears `[cycle] enabled`, deletes
+  `cycles/` and adds code;
+- force-push it.
+
+The old tip does not resolve, so the range is empty. Round 4 part 0 step
+5 made an unresolvable `--since` red only when the tip itself arms the
+run, so the run was unarmed: undeclared code landed, and a frozen cycle
+file was deleted. This contradicts:
+- R1g: "after push, a force push reaches R1f, which is red";
+- R3a's residual: "R1f turns it red when the old tip does not resolve";
+- R4c, the premise the single-opt-in-point argument rests on;
+- the round-1 acceptance amendment: "a force push after push is red
+  through the range rule".
+
+**F48: never-opted clients go red.** Round 4's arming tests b ("any
+tracked file under `cycles/`") and c ("an opted parent", where opted
+included any root-level `cycles` tree) read signals that are not the
+project's opt-in. Three cases showed it:
+- a client with an unrelated `cycles/` directory (billing cycles,
+  planning notes) got red C2 "stray entry" rows, and then C1 rows;
+- a client whose history once held such a directory got a CYCLE row on
+  new-branch runs;
+- a nested project in a monorepo whose root had opted got the "must be
+  the git top level" red row.
+
+This contradicts R9 (byte-identical output for a client that never opts
+in) and FM-10, rated critical in the spec. It also contradicts R4a's
+claim that a never-opted client stays silent.
+
+**Nothing shipped.** No commit of the gate was pushed. By the owner's
+decision, the gate code (`runtime/cycle.py`, `gate_cycle`, the
+`validate()` rule, the graph node), its tests, the instruction layer
+(AGENTS.md and its template, fde-triage, fde-scrum, fde-sync,
+fde-review, role inputs) and `[cycle]` in `fde.config.toml` were
+reverted on main to their state at `a6b4cd3`. The revert is `d1bb0f0`,
+because the plugin is distributed from main. This ADR, the spec,
+`architecture.md`, the five review rounds and `cycles/C-1.md` stay as the
+record. C-1 is closed, and its next-cycle items are captured in
+`backlog.md`.
+
+**What a successor demand inherits.**
+- **The starting point.** The contract as of `architecture.md`
+  "Revision — round 4", together with every earlier revision it lists
+  in precedence order, and the decisions and rejected options recorded
+  below.
+- **The review record.** The 53 findings in
+  `reviews/FWD-021/findings.toml` (F1–F53, rounds 1–5). The probes are
+  the regression suite a successor must pass.
+- **The declared residuals.** They are in `acceptance.md`: its "Declared
+  residuals" and the residual lists of each amendment.
+- **Known direction for F47.** An unresolvable `--since` is red whenever
+  the history was **ever** opted. For example, when the repository's
+  current HEAD, or any commit reachable from it, carries a valid cycle
+  file at the project root, not only when the new tip arms the run. The
+  cost to decide is the history probe that a never-opted client must
+  then pay.
+- **Known direction for F48.** Arm only on a **valid cycle file at the
+  project root**: a `cycles/C-<n>.md` that parses under the schema,
+  inside the directory that holds `fde.config.toml`. Never arm on an
+  unrelated `cycles/` directory, on stray files in it, or on the
+  repository root when the project is nested. Tests b and c, and the
+  opted test in history, must all use that one predicate.
+
+Everything below this section is the decision record as it stood when
+the demand paused. It is kept unchanged.
 
 ## Context
 

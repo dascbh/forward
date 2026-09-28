@@ -6,6 +6,11 @@ adr: docs/adr/0017-a-cycle-is-declared-in-git-before-it-runs.md
 
 # Architecture — FWD-021 declared cycle scope and a next-cycle list
 
+> **Status 2026-09-28: paused, unpromoted, reverted from main (`d1bb0f0`);
+> nothing shipped.** F47 and F48 stayed blocking after the final review
+> round. This contract, as of "Revision — round 4", is a successor's
+> starting point; see ADR-0017 "Status — 2026-09-28".
+
 > **Revised 2026-09-28 after review rounds 1–4.** The later revision
 > sections at the end of this file govern wherever they differ from the
 > text above them, in this order: "Revision — round 4", then "Revision —
