@@ -70,6 +70,9 @@ except for decisions that are genuinely theirs. A demand added mid-sprint
 must justify itself against the goal or wait. **Exception route**: "fix
 it NOW" bypasses the backlog, runs immediately, and is recorded in
 goal.md under `## Unplanned` — it surfaces at the retro, uncommented.
+Each request runs as a declared cycle (AGENTS.md `## Cycle`); its
+`## Next cycle` items enter `backlog.md` at close with evidence
+`usage-data`.
 
 ## Close — goal or batch, never the calendar
 

@@ -181,6 +181,51 @@ class TestBoundedReview(unittest.TestCase):
         self.assertIn("same commit", rev)
 
 
+class TestDeclaredCycle(unittest.TestCase):
+    """FWD-022: the declared-cycle practice ships as instruction, not as a
+    gate (ADR-0018). One eval per requirement R1-R4."""
+
+    SURFACES = ("AGENTS.md", "templates/AGENTS.md.template")
+
+    def cycle(self, rel):
+        return section(read(rel), "Cycle")
+
+    def test_r1_declared_and_committed_before_the_first_behavior_change(self):
+        for rel in self.SURFACES:
+            text = self.cycle(rel)
+            for needle in ("cycles/C-<n>.md", "objective:", "demands:",
+                           "## Tasks", "## Done when", "## Next cycle",
+                           "Before the first behavior"):
+                self.assertIn(needle, text, f"{rel}: {needle}")
+
+    def test_r2_done_list_is_project_aware(self):
+        for rel in self.SURFACES:
+            text = " ".join(self.cycle(rel).split())
+            for needle in ("declared-before", "red before, green after",
+                           "no blocking finding open", "residuals",
+                           "promotion only for M/L",
+                           "only when the project deploys or publishes"):
+                self.assertIn(needle, text, f"{rel}: {needle}")
+
+    def test_r3_discoveries_are_listed_not_fixed(self):
+        for rel in self.SURFACES:
+            text = " ".join(self.cycle(rel).split())
+            self.assertIn("goes to `## Next cycle`, never fixed in-band", text, rel)
+            self.assertIn("blocks a declared task", text, rel)
+            self.assertIn("A changed scope is a new cycle", text, rel)
+
+    def test_r4_close_marks_items_and_shows_the_list(self):
+        for rel in self.SURFACES:
+            text = " ".join(self.cycle(rel).split())
+            for needle in ("`[x]`", "`[-]`", "verbatim", "backlog.md",
+                           "usage-data", "next cycle's input"):
+                self.assertIn(needle, text, f"{rel}: {needle}")
+
+    def test_skills_point_to_the_section(self):
+        for rel in ("skills/fde-triage/SKILL.md", "skills/fde-scrum/SKILL.md"):
+            self.assertIn("AGENTS.md `## Cycle`", read(rel), rel)
+
+
 class TestGuardAuditDocs(unittest.TestCase):
     """FWD-006 R3: SETUP names the trail and the opt-in telemetry block."""
 

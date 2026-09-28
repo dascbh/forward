@@ -166,6 +166,33 @@ writing code on request; start by sizing. Pick a short demand id first
 Handoff between steps is by the artifacts named above, never by
 continuing the same conversation thread (I7).
 
+## Cycle — declared before, discovered after
+
+A cycle is one request from the user: one or more demands run together.
+Before the first behavior change of a request, write and commit
+`cycles/C-<n>.md` (next free `n`) with an `objective:` line, a `demands:`
+line (id and size each), and three sections: `## Tasks` (what this cycle
+does, nothing else), `## Done when`, `## Next cycle` (empty at opening).
+
+`## Done when` fits the project, never a fixed list: always
+declared-before (this file precedes the code), regression-proven (tests
+red before, green after), review-rounds (the size's budget spent, no
+blocking finding open), and residuals (this list, shown at close); add
+promotion only for M/L, and deploy or publish only when the project
+deploys or publishes.
+
+During the cycle, anything found outside `## Tasks` goes to `## Next
+cycle`, never fixed in-band (MNT-9) — the one exception is a defect that
+blocks a declared task, fixed and noted as such. The declaration is frozen
+after the first behavior commit except for appending to `## Next cycle`
+and marking done items. A changed scope is a new cycle.
+
+At close, mark each done item `[x]` (met) or `[-]` (not met, with why),
+add `closed:`, and show the user the `## Next cycle` list verbatim — it is
+the next cycle's input. With `[scrum]` on, each item also enters
+`backlog.md` with evidence `usage-data`. This is an instruction, not a
+gate (ADR-0018): it assumes a cooperative agent.
+
 ## Scrum mode — when `[scrum]` is enabled
 
 The cadence layer above the demand loop. Defaults shift: an idea or pain

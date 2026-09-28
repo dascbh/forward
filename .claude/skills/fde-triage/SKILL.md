@@ -94,7 +94,8 @@ score = min(3, surfaces)
 | 4–6 | M | spec, implementation, adversarial, promotion | 1 full + 1 delta | yes | 3 h |
 | ≥ 7 | L | all five | 1 full + 2 delta | yes | 1 day |
 
-Announce the result in one line — size, roles, rounds — and start. The
+Announce the result in one line — size, roles, rounds — and start: the
+cycle file comes first (AGENTS.md `## Cycle`), before any behavior change. The
 table is deterministic; the reasoning behind the score does not belong in
 chat. The rounds are a budget, not a minimum to extend: `fde-review`
 says what happens when it is spent.
