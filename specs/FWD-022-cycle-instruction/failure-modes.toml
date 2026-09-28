@@ -1,0 +1,57 @@
+# Failure modes — FWD-022 declared cycle, as instruction. Declared before
+# any code exists (I4).
+
+[meta]
+demand_id = "FWD-022"
+date = "2026-09-28"
+spec = "specs/FWD-022-cycle-instruction/spec.md"
+
+[[failure_mode]]
+id = "FM-1"
+title = "the section drifts between AGENTS.md and its template"
+attribute = "maintainability"
+severity = "high"
+trigger = "one surface is edited and the other is not"
+consequence = "clients install a different rule than the kernel states"
+detection = "the agents-md pair in tests/mirror.toml, plus the content eval in tests/test_instructions.py"
+requirements = ["R1"]
+
+[[failure_mode]]
+id = "FM-2"
+title = "done list is hard-coded"
+attribute = "functional_correctness"
+severity = "high"
+trigger = "deploy/publish or promotion items apply to every project and size"
+consequence = "a repository that deploys nothing can never close a cycle"
+detection = "eval asserts the conditional wording for promotion (M/L) and deploy/publish"
+requirements = ["R2"]
+
+[[failure_mode]]
+id = "FM-3"
+title = "discoveries are fixed in-band"
+attribute = "functional_correctness"
+severity = "medium"
+trigger = "the text allows 'small' adjacent fixes"
+consequence = "the drift the demand exists to stop continues"
+detection = "eval asserts the list-not-fix rule and the single blocking-defect exception"
+requirements = ["R3"]
+
+[[failure_mode]]
+id = "FM-4"
+title = "the list is written but never surfaced"
+attribute = "usability_accessibility"
+severity = "medium"
+trigger = "close step does not require showing the list"
+consequence = "the owner never sees it; the next cycle starts blind"
+detection = "eval asserts the close step shows the list verbatim and feeds backlog under [scrum]"
+requirements = ["R4"]
+
+[[failure_mode]]
+id = "FM-5"
+title = "the instruction silently becomes a gate"
+attribute = "maintainability"
+severity = "medium"
+trigger = "runtime/ or verify.py gains a cycle check in this demand"
+consequence = "repeats FWD-021's unbounded review loop"
+detection = "review; the diff touches no runtime/ file"
+requirements = ["R6"]
