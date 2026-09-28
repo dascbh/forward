@@ -111,10 +111,9 @@ writing code on request; start by sizing. Pick a short demand id first
    2–3 → **S**: + spec · 4–6 → **M**: + promotion, 2 rounds, ADR ·
    ≥ 7 → **L**: all six roles, 3 rounds, ADR.
    Announce the sizing in ONE line (e.g. `FORWARD: M — spec + impl +
-   adversarial(2r) + promotion`), then start. With `[cycle]` on, open
-   the cycle before the first behavior change (*Cycle scope* below).
-2. **Spec** (unless XS): `specs/<demand-id>/spec.md` (with `[cycle]`
-   on, it also carries a `size:` header line), `failure-modes.toml`, and `acceptance.md` with a `date:` line —
+   adversarial(2r) + promotion`), then start.
+2. **Spec** (unless XS): `specs/<demand-id>/spec.md`,
+   `failure-modes.toml`, and `acceptance.md` with a `date:` line —
    declared before any code exists (I4).
 3. **Architecture** (L only): `docs/adr/`, `specs/<demand-id>/architecture.md`.
    *Inherited an undocumented system?* Before the first demand, survey it
@@ -168,31 +167,6 @@ bypasses the backlog but is recorded as unplanned and surfaces at the
 retro. No dated goal, no sprint; no retro, no next sprint (`--gate
 scrum`). Detail: `fde-scrum` skill.
 
-## Cycle scope — when `[cycle]` is enabled
-
-A cycle is one declared piece of work: `cycles/C-<n>.md` with an
-objective, its demands and their sizes, `## Tasks`, `## Done when` and
-`## Next cycle`. The `cycle` gate checks form and git ordering only;
-schema, done profile and the minimal example live in the `fde-triage`
-skill.
-
-- **Open.** Write the objective, tasks and done criteria, and commit it
-  before the first behavior change. An S+ demand's done list points at
-  its `acceptance.md`, which must already be committed. One cycle is open
-  at a time, and its declaration is frozen from that commit. Once cycles
-  exist, history stays linear (rebase, never merge), and the gate needs a
-  full clone.
-- **Execute.** Anything discovered goes to `## Next cycle` and is not
-  acted on in this cycle — a RULE-sized fix included (MNT-9).
-- **Close.** Add `closed:`, resolve every done item (`[x]` met or `[-]`
-  not met, then ` — <evidence or reason>`), carry each not-met item into
-  `## Next cycle`, and present the next-cycle list in the closing report.
-- **Feed.** Each item of a closed cycle is disposed of exactly once,
-  checked when the next cycle opens: captured in `backlog.md` at the close
-  with its token (`C-<n>#<k>`) and an evidence label (required with
-  `[scrum]` on), or listed in the next cycle's `## Intake` as taken,
-  deferred or dropped with a reason.
-
 ## Voice — the kernel is infrastructure
 
 The kernel is plumbing, not the protagonist. Do not narrate it, praise
@@ -209,9 +183,6 @@ subject of your reports.
 - The kernel earns more than one line in chat only when: the gate blocked
   something (say which invariant and the fix), or a decision is genuinely
   the user's to make.
-- A cycle's next-cycle list is domain content, not process metadata: at
-  the close it is presented in full, and the one-status-line rule does
-  not suppress it.
 
 ## Detail
 

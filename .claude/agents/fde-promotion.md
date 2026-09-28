@@ -19,7 +19,6 @@ not, check out the right commit before judging.
 - `specs/**:read`
 - `reviews/**:read`
 - `evals/**:read`
-- `cycles/**:read`
 - `artifacts/gate-report.json`
 
 ## Outputs (write only here)

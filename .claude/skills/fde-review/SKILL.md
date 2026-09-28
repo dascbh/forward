@@ -28,13 +28,6 @@ the code, you **cannot** be the reviewer:
 - Any other tool: `git worktree add --detach ../.fde-review-<demand-id>`
   and run the review inside it, in a fresh session with no builder context.
 
-**Cycle scope (when `[cycle]` is on).** The reviewer also receives the
-open cycle file, `cycles/C-<n>.md`, as part of the specification. Judge
-the diff against its `## Tasks` under MNT-9: work outside the declared
-tasks is a finding. An entry in its `## Next cycle` never excuses a
-finding — the list records what was deferred, it does not approve what
-shipped.
-
 **No fixing (I3).** The adversarial role records in
 `reviews/<id>/findings.toml` and stops. Fixing belongs to the
 implementation role. A reviewer who fixes what they found erases the record

@@ -291,11 +291,7 @@ sources, and drift shows up as a diff in generated files.
 Each step is a skill in `skills/` (Agent Skills format, portable across
 tools; installed into the project for Claude Code):
 
-- `fde-triage` — sizes the demand: which roles enter, how many rounds;
-  with the opt-in `[cycle]`, each cycle declares its tasks and done
-  criteria in `cycles/C-<n>.md` before its first behavior commit, and
-  anything discovered goes to its next-cycle list (`--gate cycle`
-  reports both)
+- `fde-triage` — sizes the demand: which roles enter, how many rounds
 - `fde-design` — the design discipline for UI demands: foundation, flow,
   IA, wireframe, design QA, user validation — proportional to size
 - `fde-review` — two-pass review, isolated: adversarial probes, then

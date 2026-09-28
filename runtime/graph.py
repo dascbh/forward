@@ -87,7 +87,7 @@ class Graph:
     # shared hubs are reachable leaves, not bridges: an ego-graph includes
     # them but does not traverse THROUGH them into sibling demands
     TERMINAL = {"attribute", "principle", "probe", "transcript",
-                "product-goal", "sprint", "cycle"}
+                "product-goal", "sprint"}
 
     def ego(self, nid: str, hops: int = 4) -> "Graph":
         seen, frontier = {nid}, {nid}
@@ -208,30 +208,6 @@ def _header_fields(text: str) -> dict:
     return fm
 
 
-def spec_header_size(text: str) -> str | None:
-    """The declared size: a `size: XS|S|M|L` header line (before the first
-    `## `, within the first 30 lines), stripped and uppercased. The only
-    size the cycle gate reads (ADR-0017 R1c) — prose is never scraped."""
-    val = _header_fields("\n".join(text.splitlines()[:30])).get("size", "")
-    val = val.strip().upper()
-    return val if val in ("XS", "S", "M", "L") else None
-
-
-def spec_size(text: str) -> str | None:
-    """The size for analytics (graph weights): the `size:` header when
-    present, else the Triage line — the first line naming 'triage'
-    decides, and a line without a bold size yields None. The gate never
-    calls this; it calls spec_header_size."""
-    declared = spec_header_size(text)
-    if declared:
-        return declared
-    for line in text.splitlines():
-        if "triage" in line.lower():
-            m = SIZE_RE.search(line)
-            return m.group(1) if m else None
-    return None
-
-
 def _spec_root(project: Path) -> Path:
     ks = project / ".fde" / "spec"
     return ks if (ks / "dimensions").exists() else project / "spec"
@@ -291,9 +267,14 @@ def build_graph(project: Path) -> Graph:
         dnode = g.add_node("demand", did)
         sdir = specs.get(did)
         if sdir and (sdir / "spec.md").exists():
-            size = spec_size(_read(sdir / "spec.md"))
-            if size:
-                g.nodes[dnode]["weight"] = float(SIZE_WEIGHT[size.lower()])
+            # size from the Triage line specifically, not the first bold
+            # token anywhere in the spec
+            for line in _read(sdir / "spec.md").splitlines():
+                if "triage" in line.lower():
+                    m = SIZE_RE.search(line)
+                    if m:
+                        g.nodes[dnode]["weight"] = float(SIZE_WEIGHT[m.group(1).lower()])
+                    break
             g.add_edge(dnode, "specified_by", g.add_node("spec", did))
         if sdir and (sdir / "acceptance.md").exists():
             g.add_edge(dnode, "accepted_by", g.add_node("acceptance", did))
@@ -342,11 +323,6 @@ def build_graph(project: Path) -> Graph:
         if did in reviews and (reviews[did] / "findings.toml").exists():
             _build_review(g, dnode, did, reviews[did] / "findings.toml", has_divergence)
 
-    # cycles (ADR-0017 Decision 9): a cycle executes the demands it
-    # declares and carries into the next cycle whose Intake cites its
-    # tokens. Parsing is cycle.py's — the graph never parses cycle files.
-    _build_cycles(g, project)
-
     # ADRs + supersedes edges (the one authored edge)
     adr_dir = project / "docs" / "adr"
     if adr_dir.is_dir():
@@ -364,30 +340,6 @@ def build_graph(project: Path) -> Graph:
                 dst = known.get(tgt) or g.add_node("adr", tgt, missing=True)
                 g.add_edge(known[aid], "supersedes", dst)
     return g
-
-
-def _build_cycles(g: Graph, project: Path) -> None:
-    cdir = project / "cycles"
-    if not cdir.is_dir():
-        return
-    import cycle
-    parsed = []
-    for p in sorted(cdir.iterdir()):
-        if p.is_file() and cycle.cycle_number(p.name) is not None:
-            try:
-                data = p.read_bytes()
-            except OSError:
-                continue
-            parsed.append(cycle.parse(f"cycles/{p.name}", data))
-    parsed.sort(key=lambda c: c.number)
-    for c in parsed:
-        cnode = g.add_node("cycle", c.ident, label=c.header.get("objective"))
-        for did, _size in c.demands():
-            g.add_edge(cnode, "executes", g.add_node("demand", canon_demand(did)))
-    for prev, nxt in zip(parsed, parsed[1:]):
-        cited = [m for t in nxt.intake for m in [cycle.INTAKE_RE.fullmatch(t)] if m]
-        if any(int(m.group(1)) == prev.number for m in cited):
-            g.add_edge(_node("cycle", prev.ident), "carries", _node("cycle", nxt.ident))
 
 
 def _build_review(g: Graph, dnode: str, did: str, findings: Path,

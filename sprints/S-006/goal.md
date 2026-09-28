@@ -50,3 +50,8 @@ promotion decision, and the owner runs the review + retro sitting.
   cycle file exists the mode is permanent for that history; leaving costs
   one deliberately merged red commit. The owner accepted this over a
   declared opt-out commit, which would reopen F41.
+- 2026-09-28 — FWD-021 paused unpromoted after review round 5 (F47
+  force-push disarm, F48 never-opted clients red). The owner chose to
+  revert the gate from main and keep the record: spec, ADR-0017 (paused),
+  five review rounds, cycle C-1 closed with its items captured in
+  backlog.md. Nothing was pushed before the revert.

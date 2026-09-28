@@ -85,7 +85,7 @@ finding cites its principle, I8). Success is findings, not approval. It
 CANNOT fix what it found — a reviewer who silently fixes destroys the
 record of the finding.
 """
-inputs = ["src/**:read", "specs/**:read", "evals/**:read", "walkthroughs/**:read", "cycles/**:read"]
+inputs = ["src/**:read", "specs/**:read", "evals/**:read", "walkthroughs/**:read"]
 outputs = ["reviews/<demand-id>/findings.toml"]
 write_scope = ["reviews/**"]
 denied_paths = ["src/**", "tests/**", "evals/**", "specs/**", "infra/**"]
@@ -105,7 +105,7 @@ Evaluate the artifact against the declared criteria and decide promotion. Does
 not build, does not review: only confronts evidence with criteria and records
 the decision.
 """
-inputs = ["specs/**:read", "reviews/**:read", "evals/**:read", "cycles/**:read", "artifacts/gate-report.json"]
+inputs = ["specs/**:read", "reviews/**:read", "evals/**:read", "artifacts/gate-report.json"]
 outputs = ["promotions/<demand-id>/decision.md"]
 write_scope = ["promotions/**"]
 denied_paths = ["src/**", "tests/**", "evals/**", "specs/**", "reviews/**"]
