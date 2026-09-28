@@ -31,4 +31,6 @@ FWD-013.
 
 ## Unplanned intake
 
-None yet.
+| # | item | hypothesis | evidence | size (est.) |
+|---|---|---|---|---|
+| 9 | Declared cycle scope and a next-cycle list (FWD-021) | long agent loops drift into side tasks and burn tokens; declaring each cycle's tasks, objective and definition of done before execution, freezing scope during it (anything discovered goes to a list presented at close, which is the next cycle's input), and gating on a cycle file carrying the definition of done would keep loops on task. The kernel lacks: a DoD below S (acceptance.md starts at S), a scope-freeze rule outside [scrum], a mandatory next-cycle list at close. Owner chose gate enforcement on 2026-09-28 | usage-data (owner-reported: a round file with seven done criteria visibly improved agent behavior) | M |
