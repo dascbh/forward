@@ -1,0 +1,152 @@
+# Failure modes: FWD-021, declared cycle scope and a next-cycle list.
+# Declared before any code exists (I4). Each mode gives:
+#   trigger:     what sets it off
+#   consequence: what breaks
+#   detection:   the requirement or acceptance line that must catch it
+# `attribute` is a quality-attribute id from
+# spec/dimensions/quality-attributes.toml.
+
+[meta]
+demand_id = "FWD-021"
+date = "2026-09-28"
+spec = "specs/FWD-021-cycle-scope/spec.md"
+
+[[failure_mode]]
+id = "FM-1"
+title = "empty or boilerplate DoD passes the gate"
+attribute = "functional_correctness"
+severity = "high"
+trigger = "the agent opens a cycle with headers and sections present but empty. Or the items are copied verbatim from the skill's placeholder schema. Or it writes 'done when: it works'."
+consequence = "the gate turns green on a file that declares nothing, which is gate theatre. The owner's point was that a declared DoD changes behavior, and a vacuous one does not."
+detection = "Mechanical part: R4 rejects missing or empty headers and sections, and items byte-identical to the shipped placeholder text. R2 requires the computed profile keys. R1 requires the acceptance.md path for S+ demands, which I4 already guards for content and date. Content quality ('it works' is not verifiable) is out of the gate's reach by design (spec: Always, 'form and ordering only'). The size's isolated adversarial round judges the XS inline items against the diff (I8, MNT-9). This is declared as a residual in acceptance.md, not claimed by the gate."
+requirements = ["R1", "R2", "R4"]
+
+[[failure_mode]]
+id = "FM-2"
+title = "DoD written after the fact"
+attribute = "functional_correctness"
+severity = "critical"
+trigger = "code is written first. The cycle file, or acceptance.md for an S+ demand, is added in the same commit as the code or after it. This is the observed pattern for FWD-016 through FWD-020 (spec, Finding F-A)."
+consequence = "the definition of done describes what was built instead of constraining it. I4 and owner criterion (1) are met on paper only."
+detection = "R3 (C1) checks the parent tree. An open, well-formed cycle, plus acceptance.md for each S+ demand, must exist in the parent of every behavior commit. The same commit does not count. Mutation tests in R14 cover same-commit red and earlier-commit green."
+requirements = ["R3", "R14"]
+
+[[failure_mode]]
+id = "FM-3"
+title = "DoD weakened mid-cycle"
+attribute = "functional_correctness"
+severity = "high"
+trigger = "during execution a DoD item that turns out hard is deleted, reworded into something already true, or a closed cycle is edited to fit the outcome."
+consequence = "the declaration held until it was inconvenient, and the freeze was nominal. It is the same failure the implementation role's denial of specs/**/acceptance.md exists to prevent."
+detection = "R6 (C4): the DoD item set as of the first behavior commit's parent must stay present and unchanged in every later version of the file. Additions are only as A8 allows. R5: a closed cycle file never changes again. Both checks read git history, whichever role wrote the file."
+requirements = ["R5", "R6"]
+
+[[failure_mode]]
+id = "FM-4"
+title = "a discovered item is acted on silently"
+attribute = "maintainability"
+severity = "high"
+trigger = "mid-cycle the agent notices an adjacent defect or improvement and fixes it inside the current cycle's commits. It is never recorded in the next-cycle list."
+consequence = "this is exactly the side-task drift and token burn the owner reported. It also breaks MNT-9 ('adjacent improvements are noted for later, never fixed in-band')."
+detection = "Not mechanically detectable without a per-cycle path scope, which the spec rejects as ceremony (R15). Caught by three things. First, the instruction rule (R13b), stated in four surfaces. Second, the size's isolated review, which receives the cycle file as part of the specification and judges the diff against its declared tasks under MNT-9. Third, the explicit --gate cycle report of next-cycle item counts as a retro proxy. Declared as a residual in acceptance.md."
+requirements = ["R13", "R15", "R16"]
+
+[[failure_mode]]
+id = "FM-5"
+title = "omnibus or perpetual open cycle"
+attribute = "functional_correctness"
+severity = "high"
+trigger = "one cycle is opened with a broad objective ('improve the kernel') and never closed. Every later behavior commit finds an open cycle in its parent tree and passes C1."
+consequence = "C1 is satisfied forever by one declaration. Scope freeze and the next-cycle list never happen."
+detection = "R7 (C5, serial, subject to A2): no new cycle opens until the previous one is closed, so a perpetual cycle blocks the next declared one. The explicit --gate cycle report states the open cycle's age (opened date, commits since open). Isolated review judges an objective too broad to verify. The residual is that the gate cannot force a close."
+requirements = ["R7", "R16"]
+
+[[failure_mode]]
+id = "FM-6"
+title = "the next-cycle list is never presented or never consumed"
+attribute = "usability_accessibility"
+severity = "high"
+trigger = "the list is written in the file but not shown at the close. Or it is shown, and the next cycle opens ignoring it. With scrum on, items never reach backlog.md."
+consequence = "discoveries are lost. The 'input to the next cycle' promise fails, and the owner learns about residuals by accident."
+detection = "Consumption is mechanical. R8 (C6) requires exactly one disposition per item: in backlog.md (scrum on), or in the next cycle's ## Intake as taken, deferred, or dropped with a reason. Presentation is instruction-level only. R13c requires the list in the closing report and exempts it from the Voice rule's one-line limit. Chat is not gateable, so this is declared as a residual."
+requirements = ["R8", "R13"]
+
+[[failure_mode]]
+id = "FM-7"
+title = "the gate blocks legitimate RULE work"
+attribute = "usability_accessibility"
+severity = "high"
+trigger = "a RULE-eligible typo fix touches a behavior path while no cycle is open. C1 demands a cycle and turns the zero-judgment lane into a declared-scope lane."
+consequence = "ADR-0015 is broken. RULE stops being zero-judgment, and trivial changes pay cycle ceremony, which is the exact 'leave the process' pressure FWD-019 removed."
+detection = "R3 exempts commits that triage.eligibility_for_commit verifies as RULE-eligible against their real diff. R14 has a RULE-eligible commit with no cycle (green). A commit that claims RULE but is not eligible stays red, because the exemption is by verification, never by claim. The instruction-level residual is A9: RULE used as a side door during an open cycle."
+requirements = ["R3", "R14"]
+
+[[failure_mode]]
+id = "FM-8"
+title = "ceremony inflation on XS"
+attribute = "usability_accessibility"
+severity = "high"
+trigger = "the cycle file needs as much writing as an S spec. Or its location makes XS create specs/<id>/ and so trips gate_promotion_criteria (acceptance.md required) and graph rule 1 (spec.md required). The kernel's own warning: 'if the full flow runs on a three-line change, the framework gets turned off in week two'."
+consequence = "the owner or a client turns [cycle] off, and the demand fails its purpose."
+detection = "R12: a minimal valid XS cycle file is at most 20 lines, shipped in the skill and tested. R1 allows no required field beyond the schema. The Never list: no specs/ location for the cycle file, and XS never writes spec.md or acceptance.md. The A3 recommendation (cycles/) keeps both existing gates untouched."
+requirements = ["R1", "R12"]
+
+[[failure_mode]]
+id = "FM-9"
+title = "a second definition of done competes with acceptance.md"
+attribute = "maintainability"
+severity = "high"
+trigger = "the cycle file restates the S+ acceptance criteria, or grows its own criteria list that drifts from acceptance.md after an amendment."
+consequence = "two sources of truth for 'done'. Promotion checks one and the agent follows the other. This is MNT-1, the kernel's most-cited principle (graph --recurring, 28.0)."
+detection = "R1: for S+ demands, the demand-specific DoD part is a path to acceptance.md and never a restatement. R2: the profile keys are stable keys computed by one function, not free text. Isolated review checks for restated criteria under MNT-1."
+requirements = ["R1", "R2"]
+
+[[failure_mode]]
+id = "FM-10"
+title = "red for an existing client or on pre-opt-in history"
+attribute = "reliability_resilience"
+severity = "critical"
+trigger = "a client updates the kernel (fde-sync) and the new gate runs without [cycle] declared. Or this repo's CI runs --since <root> across FWD-016 to FWD-020, which put spec and code in the same commit."
+consequence = "the update breaks every client's CI for a mode they never chose, and the kernel is removed. Or history that predates the rule is judged by it."
+detection = "R9: the gate is silent with no result rows unless [cycle] enabled is strictly true. There is byte-identical --all output on a fixture client. No commit is examined unless its parent tree had the mode on. R14 includes pre-opt-in history (green)."
+requirements = ["R9", "R14"]
+
+[[failure_mode]]
+id = "FM-11"
+title = "a git failure, merge, or unparseable file reads as a pass"
+attribute = "reliability_resilience"
+severity = "high"
+trigger = "git exits non-zero (lock, missing object, not a repo). Or a merge commit's diff is ambiguous. Or a cycle file has malformed headers. And the check returns 'nothing to check'."
+consequence = "C1 through C6 pass vacuously. It is the same defect class FWD-019 fixed in four rounds (F4, F6, F9, F10)."
+detection = "R10: GitOpFailure goes through run_gate as a labeled red. An unparseable file is red. A merge commit is never silently passed, and architecture records its treatment. R14 mutation cases."
+requirements = ["R10", "R14"]
+
+[[failure_mode]]
+id = "FM-12"
+title = "project-unaware DoD"
+attribute = "functional_correctness"
+severity = "medium"
+trigger = "the kernel hard-codes 'live in production' and 'published' for every project. Or a project that does deploy never declares the live stage and so never has to show live checks."
+consequence = "In the first case, projects that deploy nothing (this repo) must tick boxes that mean nothing, which trains box-ticking. In the second, a deploying project closes cycles with nothing verified in production, against I5's spirit."
+detection = "R2: stages come from the closed set [cycle].stages, and an unknown stage is a config violation. Keys for undeclared stages are red when present and absent when not declared. The residual is that the gate cannot know a project deploys when it did not declare so. I5 (observability floor) and fde-init's interview remain the backstop."
+requirements = ["R2"]
+
+[[failure_mode]]
+id = "FM-13"
+title = "the instruction layer drifts from the gate"
+attribute = "maintainability"
+severity = "medium"
+trigger = "AGENTS.md states the rule but the template does not, or the reverse. Or fde-triage's schema example no longer passes the gate. Or the .claude/skills copy is stale."
+consequence = "agents follow an instruction the gate contradicts, or a client install gets a demand loop without the rule."
+detection = "tests/mirror.toml (FWD-020) covers template to AGENTS.md and skills to .claude/skills with no new drift test (R13). R12 tests the shipped minimal example against the real gate. R13 content needles in each surface pin the four rule parts."
+requirements = ["R12", "R13"]
+
+[[failure_mode]]
+id = "FM-14"
+title = "a claimed-closed cycle has unresolved or false DoD items"
+attribute = "functional_correctness"
+severity = "high"
+trigger = "closed: is added while DoD items are neither marked met nor carried with a reason. Or items are marked met without evidence, for example review-rounds ticked with a blocking finding still open."
+consequence = "the close says done when it is not, and residuals vanish instead of reaching the next cycle."
+detection = "Form is mechanical. R5 (C3): every item is resolved, and every not-met item is present in ## Next cycle. Truth is not mechanical. Promotion checks M/L against evidence, and the isolated review checks XS/S. Declared as a residual: the gate does not cross-check review-rounds against findings.toml, and architecture may choose to do so under A5."
+requirements = ["R5"]
