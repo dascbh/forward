@@ -1,0 +1,1162 @@
+# Adversarial review — FWD-020 "one declared mechanism for mirror drift".
+# Round 1 of 2. Artifact: the uncommitted working-tree changes on top of
+# 4891da7 (tests/mirror.toml, tests/mirror.py, tests/test_mirror.py, the
+# edits to tests/test_install_sync.py, test_instructions.py,
+# test_scrum.py, test_references.py, test_walkthrough.py,
+# .claude/agents/fde-adversarial.md, fde.config.toml, observability.toml,
+# discovery/survey.md, sprints/S-006/goal.md). Spec: specs/FWD-020-mirror-drift/
+# (spec.md, failure-modes.toml, acceptance.md, architecture.md) and
+# docs/adr/0016-one-manifest-for-every-mirror.md. Reviewer received
+# artifact + spec only (I2); findings only, no fixes (I3). Every mutation
+# ran in a scratch copy of the repository, never in the real working tree.
+# Written in the reviewer's isolation worktree (the harness refuses writes
+# to the shared checkout); copy to the main checkout's reviews/FWD-020/.
+#
+# Round 2 of 2 (final). Same artifact after the round-1 reconciliation
+# (still uncommitted on top of 4891da7), same spec, plus the ADR-0016
+# Revision section / Decision 9 and the amended architecture.md. A
+# separate isolated reviewer (I2): artifact + spec + round 1's findings
+# only, no builder context. Findings only, no fixes (I3). Round 1's
+# [meta].probed and F1-F8 are preserved verbatim below; round 2 adds
+# [meta].probed_round2, one [[verification]] per round-1 finding, and new
+# findings F9-F13 (each with round = 2). Every probe ran on an rsync copy
+# of the main checkout in the reviewer's scratchpad, never on the real
+# working tree.
+#
+# Round 3 (decides a clean close after round 2's blocking F9). Same
+# artifact after the round-2 reconciliation (still uncommitted on top of
+# 4891da7), same spec as amended after round 2 (spec.md, failure-modes,
+# acceptance.md, architecture.md), ADR-0016 Decisions 9-10 and its
+# Revision sections, plus rounds 1-2 of this file. A third isolated
+# reviewer (I2): artifact + spec + prior findings only, no builder
+# context. Findings only, no fixes (I3). Rounds 1-2 are preserved
+# verbatim except three [meta] values (rounds_planned, rounds_run,
+# agent_transcript) updated for round 3, with round 2's transcript moved
+# to agent_transcript_round2. Round 3 adds [meta].probed_round3, one
+# [[verification]] per round-2 finding and per round-1 partial (F3, F7),
+# and new findings F14-F18 (round = 3). Every probe ran on an rsync copy
+# of the main checkout (with .git) in the reviewer's scratchpad, never on
+# the real working tree.
+#
+# Round 4 (decides a clean close after round 3's blocking F14). Same
+# artifact after the round-3 reconciliation (still uncommitted on top of
+# 4891da7), same spec as amended after round 3, ADR-0016 Decisions 9-10
+# and its three Revision sections, plus rounds 1-3 of this file. A fourth
+# isolated reviewer (I2): artifact + spec + prior findings only, no
+# builder context. Findings only, no fixes (I3). Rounds 1-3 are preserved
+# verbatim except three [meta] values (rounds_planned, rounds_run,
+# agent_transcript) updated for round 4, with round 3's transcript moved
+# to agent_transcript_round3. Round 4 adds [meta].probed_round4, one
+# [[verification]] per round-3 finding and for round 2's partial F9, and
+# new findings F19-F22 (round = 4). Every probe ran on an rsync copy of
+# the main checkout (with .git) in the reviewer's scratchpad, never on
+# the real working tree. Written in the reviewer's isolation worktree;
+# copy to the main checkout's reviews/FWD-020/.
+
+[meta]
+demand_id = "FWD-020"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+rounds_planned = 4
+rounds_run = 4
+commit = "4891da7cc5c1c8e7cb9bcffb701ca5346b5db02a + uncommitted working tree"
+agent_transcript = "agent-ac181f37fbb77c8ca"
+agent_transcript_round3 = "agent-a5010a11b16f8d0f6"
+agent_transcript_round2 = "agent-adb0f84a295c48be1"
+agent_transcript_round1 = "agent-a94d283150d51e47a"
+probed_round4 = '''
+Baseline. `git log -1` in the isolation worktree: 4891da7 (FWD-019:
+promoted), without the artifact. The main checkout (minus
+.claude/worktrees/, with .git) was rsync'ed to scratch; each probe ran
+on its own fresh rsync copy (driver: scratchpad/probe.py + probes.py).
+Scratch baseline: `python3 -m unittest discover -s tests` 406 tests OK
+(~19 s); test_mirror alone 50 tests, 0.96 s (R9 holds); `verify.py
+--all` all gates passed.
+
+Round-3 re-probes (dispositions in [[verification]]):
+- F9/F14: `dimensions/`, `dimensions` (bare), `fde-review` (bare, with a
+  copy edit under .claude/skills/fde-review/) and the anchored
+  `.fde/spec/dimensions` each go red in
+  TestIgnoreNeverSilencesATrackedFile (2 failures; the skill and
+  anchored forms also red elsewhere). Note: `verify.py --all` still
+  says "all gates passed" on these copies because the gate does not run
+  the unit suite; CI's Tests step is what goes red.
+- F15: repository rsync'ed without .git into outer/forward/ under a
+  `git init`'ed outer dir: tracked_files raises AssertionError "not the
+  top level of its git work tree"; the validator class FAILS.
+- F16: `"if": false` under `gate:` and `on: [workflow_dispatch]`, each
+  on template + copy: 2 failures each. The pre-step overwrite of
+  verify.py stays green (named residual, context only).
+- F17: `#\tAppendix`, ` # Appendix`, setext `Appendix/========`
+  appended to the source role only: check -> differs at line 117.
+- F18: the F2 banner now sits directly above
+  TestAttackOrderIsTheKernelsPlan.
+
+New attacks on the round-3 reconciliation, in weight order:
+- Functional correctness, ignore-list bypass (any way to hide tracked
+  content from both the checker and the validator). Every caller of the
+  ignore rule goes through mirror.hidden (walk x4, copy_dirs,
+  files_under x2, silenced_tracked); _ignored has no other caller.
+  Executed and red: bare, slash and anchored directory names, a bare
+  skill name (see F9/F14 above); the fixture test already executes
+  ancestor names and `*.toml`. Checked by reading the code, not
+  executed: trailing-space and case-variant entries match nothing
+  (hidden() compares exact strings to on-disk names), so they hide
+  nothing; a symlinked dir is hidden(rel, False) in the walk and listed
+  as one file by ls-files, the same answer; a nested `absent` pair over
+  a present copy is present-but-absent (round 2 executed it); a nested
+  identical pair still compares; an anchored copy-side entry cannot hide
+  drift in an existing copy because compare() never consults hidden().
+  No new bypass found. The remaining way to excuse a tracked file's
+  drift is a counted exception (Decision 9's accepted residual).
+- tracked_files fail-closed: the validator class run from a
+  case-variant cwd spelling on APFS passes (no false red); nested export
+  raises (F15 above); an empty index raises (the fixture test executes
+  it). Clean.
+- Heading recognizer: multi-line setext heading, lazy-continuation
+  setext, blockquote heading: each absorbs source lines silently (F19).
+  Code-fence simplification: heading-shaped lines in a fence (open or
+  unclosed), in an HTML comment, `---\\n---`, and list-item-over-`---`
+  all end the span early -> differs (fail closed, as documented).
+- Workflow pins: `if : false`, `? if` / `: false`, `"i\\x66": false`,
+  `? !!str if` each on template + copy: 406 OK. PyYAML 6.0.3 and Ruby
+  Psych both read each as the key `if` (F20). Trigger line: no
+  single-document spelling found that keeps the pinned line once and
+  changes the trigger.
+- Hook: `chmod 644 .githooks/pre-commit` (mode 100755 in the index):
+  406 OK (F21).
+- Reliability (code read): test_mirror's git calls inherit the
+  environment exactly like tests/support.py (no new behavior), and
+  runtime/verify.py does not run the unit suite, so the validator never
+  runs inside the pre-commit hook's git environment. Clean.
+- Performance: test_mirror 0.96 s. Clean.
+
+Heuristic pass (maintainability, verified_by heuristic), only on code
+and records changed since round 3 (mirror.hidden, _ATX/_SETEXT/
+_heading_level, tracked_files, the install_sync pins, the new fixtures,
+ADR-0016 Revision round 3): MNT-1/MNT-4 applied (F22). hidden() as the
+single predicate satisfies MNT-1/MNT-11; the banner fix satisfies
+MNT-10.
+'''
+probed_round3 = '''
+Baseline. `git log -1` in the isolation worktree: 4891da7 (FWD-019:
+promoted), without the artifact. The main checkout (minus
+.claude/worktrees/, with .git) was rsync'ed to scratch; each probe ran
+on its own fresh rsync copy (driver: scratchpad/probe.py). Scratch
+baseline: `python3 -m unittest discover -s tests` 403 tests OK (~20 s);
+test_mirror alone 47 tests, 0.90 s (R9 holds); `verify.py --all` all
+gates passed.
+
+Round-2 re-probes (dispositions in [[verification]]):
+- F9's own probe (`dimensions/`) is now red. The one-character variant
+  (`dimensions`, no slash) is green end to end: F14.
+- F10: `exit 0` before the hook's exec line, and `continue-on-error:
+  true` in the gate step, are each red on the template and the copy.
+- F11: shortened SETUP block gives three carrier problems; a grown
+  insert text plus copy gives check [] but marker_problems red.
+- F12: `# Appendix` appended to the source role gives `differs`. Other
+  heading spellings do not: F17.
+- F13: .githooks/ as a symlink to a dir holding a stray pre-push gives
+  two not-a-regular-file violations.
+- F3's original probe (`--all` -> `--gate eval` on the workflow copy plus
+  a counted substitute exception) is now red via the ordering pin.
+
+New attacks on the round-2 reconciliation, in weight order:
+- Functional correctness:
+  - silenced_tracked vs the walk's ignore semantics (F14, blocking);
+  - forbidden-string pins, spelling and trigger escapes (F16);
+  - heading-level section end, non-`# ` heading spellings (F17);
+  - marker removed from templates/AGENTS.md.template and AGENTS.md
+    together: red, only because test_a_reworded_setup_marker_goes_red
+    expects the template as a carrier (incidental, same shape as round
+    2's F11 note; not filed);
+  - pre-commit pin vs Python splitlines() on \x0b/\x0c/\x1c-\x1e/\x85:
+    no construct found where sh executes something Python sees as a
+    comment or blank before the exec line; clean.
+- Reliability: tracked_files outside the repo's own work tree (F15).
+  Symlinked parents of directory-pair copies (.claude/) and of the
+  sibling dir (.github/): red via regular()'s parent check; clean.
+- Performance: whole module 0.90 s; clean.
+
+Heuristic pass (maintainability, verified_by heuristic): MNT-1/MNT-2
+applied to F14's root cause, MNT-4 to F15, MNT-10 to F18.
+'''
+probed_round2 = '''
+Baseline. `git log -1` in the isolation worktree: 4891da7 (FWD-019:
+promoted), without the artifact. The main checkout (minus
+.claude/worktrees/) was rsync'ed to a scratch dir, and every probe ran
+on a fresh rsync copy of that. Scratch baseline:
+`python3 -m unittest discover -s tests` 397 tests OK (18 s);
+test_mirror alone 42 tests, 0.78 s; `python3 bin/fde/verify.py --all`
+all gates passed. Closing diff to the copies is still exactly the three
+usability lines in .claude/agents/fde-adversarial.md. A grep for every
+retired D1-D13 test id outside reviews/, promotions/ and other demands'
+specs/ finds only FWD-020's own spec files (R10 holds).
+
+Round-1 re-probes (dispositions in [[verification]]):
+- F1: templates/pre-push plus .githooks/pre-push plus ONE [[pair]]
+  (erosion_measured = true), no other edit: 397 OK. A pair whose copy
+  sits at the repository root (templates/CONTRIBUTING.md ->
+  CONTRIBUTING.md) goes red in test_dropping_any_one_pair_goes_red and
+  test_a_new_pair_needs_zero_test_code until SETUP §6 names it. That is
+  the documented residual (ADR-0016 Consequences), and it needs no test
+  code.
+- F2: tests pin ties and floors to fde_lib.probe_plan. mirror._attack_order
+  builds fde_lib.Config/Spec and calls probe_plan. Config.load does
+  nothing more than dict(raw["weights"]), so the plan is the same one.
+- F3: pins added, but they are presence pins (F10).
+- F4: `python3 -m compileall -b runtime/guard.py`: check returns 0
+  violations.
+- F5: runtime/guard.py renamed to runtime/Guard.py on APFS:
+  missing-copy "exists only under another letter case" plus an orphan.
+- F6: .githooks/pre-push and .github/workflows/rogue.yml are each an
+  orphan. The skip branch for a symlinked sibling directory fails open
+  (F13).
+- F7: a reworded SETUP marker goes red. A shortened one, or a carrier
+  with an extra marker line, stays green (F11).
+- F8: the sprint row now says "more than twice ... (OBS-1, 12.0)".
+
+New attacks, in weight order:
+- Functional correctness: ignore entries as a silencer (F9, blocking),
+  pins as a guard (F10), replace-section bounds (F12), sibling-dir
+  symlink (F13). Also checked and clean:
+  - exception application order;
+  - nested `absent` or narrowed pairs used to hide a file (red through
+    present-but-absent, generated_paths agreement, and the SETUP pins);
+  - case-renamed copy directories (red);
+  - a stray file under .claude/skills/FDE-init/ (red on both
+    filesystems);
+  - the `*.<suffix>` form over a whole file type: every source root is
+    single-type today, so empty-source fails closed.
+- Maintainability: the new-pair test on repo_slice exercises every
+  manifest-iterating check. drop_unnoticed reports a missing SETUP line
+  correctly. INVENTORY no longer demands a row per pair. The probe_plan
+  import removes the second derivation. marker_problems is a prefix
+  match (F11).
+- Reliability: a checker I/O error still raises (red). The sys.path
+  insert of runtime/ matches the other test modules.
+- Performance: whole-module 0.78 s, R9 holds.
+
+Heuristic pass (maintainability): MNT-1 applied to F11. Decision 9's
+claim that a pin "survives a template-plus-copy edit" is checked
+empirically in F10, not by heuristic.
+'''
+probed = '''
+Baseline. The isolation worktree sits at 4891da7 (HEAD) without the
+artifact, which exists only as uncommitted changes in the main checkout,
+so the main checkout was rsync'ed (minus .claude/worktrees/) into a
+scratch repo and every probe ran there on its own copy.
+`python3 -m unittest discover -s tests`: 387 tests OK, 18 s.
+test_mirror alone: 33 tests, 0.31 s. mirror.check against the REAL main
+checkout (with ~40 agent worktrees under .claude/worktrees/): 0
+violations in 0.018 s, counts runtime 9, spec 5, skills 12, agents 5,
+the others 1. test_mirror.agreement() against the real checkout: []. So
+R7 (worktree present) and R9 (< 2 s) hold.
+
+Acceptance "Review" probes, each a full-suite run on a mutated copy:
+- Drop a pair: every pair dropped from the manifest goes red, via R8
+  agreement for top-level pairs and via the parent relation for the
+  nested ones (skills-init, adversarial-role). Holds.
+- Add an undeclared file under each copy root: .claude/skills/fde-verify/notes.md,
+  .claude/agents/fde-rogue.md, spec/README.md (non-toml source),
+  .fde/other.toml (outside .fde/spec/ but inside generated_paths .fde/).
+  All red. Files beside the file-pair copies (.githooks/pre-push,
+  .github/workflows/rogue.yml) are green: F6.
+- Smuggle a wildcard-strength exception: none found. regex/glob kinds,
+  extra keys and glob ignore entries are rejected as malformed, and every
+  exception is literal and counted. But a literal exception can
+  legalize a semantic drift, and that edit rides the RULE lane: F3.
+- Edit a concretized region: an AGENTS.md invariant statement
+  ("never through" -> "rarely through"), a weight in fde.config.toml
+  without regenerating (22 -> 20), and a probe line removed from the
+  adversarial copy (the performance block, not the three FWD-020
+  lines). All red.
+- Closing diff to the copies: `git diff` shows exactly the three
+  usability lines added to .claude/agents/fde-adversarial.md, after
+  "loading and failure states visible to the user", in source order.
+  No other copy changed, no source under runtime/ spec/ skills/
+  agents/ templates/ changed, and tests/support.py is unchanged.
+  generated_paths value is unchanged (only its comment changed).
+- Break the checker: (a) check_with_counts returns [] after running,
+  and (b) it returns [] and fake counts before running. Each gives 80
+  and 101 failures respectively. FM-14 holds.
+- Worktree present: green (see above).
+- D1-D13 with no live equivalent: none found. D1's sanity pin is the
+  count assertion (runtime >= 9, skills >= 12) plus empty-source.
+  D4's fde-init absence is the skills-init absent pair. D6-D8 are
+  strictly stronger (byte-exact render, not needles). D9's
+  fetch-depth/--since needles stay. The D10/D11/D12 needles and the
+  section-exists half stay. D13 is subsumed by the spec pair. The
+  retired-id grep outside reviews/, promotions/ and other demands'
+  specs/ returns only FWD-020's own spec. R10 holds.
+
+Other probes, all clean or recorded below:
+- A manifest with source == copy (runtime source "bin/fde/"): the
+  validator accepts it, but the mutation suite goes red on it (a
+  mutation of the copy is also a mutation of the "source"), so it is not
+  a finding.
+- Ties in [weights] reordered (reliability/usability): red, and it
+  diverges from the kernel's own derivation (F2).
+- An attribute removed from [weights]: the checker's render drops it,
+  and fde_lib.probe_plan keeps it at its floor (F2).
+- A case-only rename of a source on macOS APFS: green (F5).
+- A legacy *.pyc beside a source: red (F4).
+- A new real pair declared with manifest lines only: red in two tests
+  (F1).
+- A non-string relation or kind makes the checker raise TypeError
+  (unhashable) instead of returning "malformed". It fails closed, so the
+  run is red either way. That contradicts the docstring's "schema
+  problems are violations, never exceptions" but is not a finding.
+
+Heuristic pass (maintainability, observability): MNT-1, MNT-10 and
+MNT-11 applied. F2 is also an MNT-11 finding. F7 and F8 are MNT-1.
+'''
+
+[[finding]]
+id = "F1"
+attribute = "maintainability"
+severity = "high"
+probe = '''
+Demand's headline claim ("a new copy is one manifest line, not a new
+test"; spec Boundaries/Always "Adding a pair is adding manifest lines,
+with zero new test code"; acceptance "zero test-code change - the
+demand's headline claim, executed rather than asserted") tested against
+the REAL suite, not a fixture. In a scratch copy, created
+templates/pre-push and an identical .githooks/pre-push, and appended ONE
+[[pair]] (id "pre-push", identical, erosion_measured = true) to
+tests/mirror.toml. No other change. Full suite: FAILED (failures=2):
+  - TestInventoryMapping.test_every_row_points_at_something_that_exists
+    fails because "every declared pair is some row's home"
+    (tests/test_mirror.py:944-945). The new pair has no row in the
+    hand-written INVENTORY dict (tests/test_mirror.py:856-922), so
+    adding a pair requires editing test code.
+  - TestAgreement.test_dropping_any_one_pair_goes_red (dropped =
+    "pre-push") fails. A top-level pair must be named by SETUP §6 or by
+    generated_paths. Making SETUP name it breaks
+    test_setup_destinations_are_the_expected_seven, which hard-codes the
+    set of seven destinations (tests/test_mirror.py:771-778), another
+    test-code edit.
+No path exists to add a real pair with zero test-code change. The
+fixture test that "executes" the claim
+(test_a_new_pair_needs_zero_test_code, :592-655) runs only assert_clean
+and run_mutations on a fixture manifest. It never runs INVENTORY or
+agreement, which are exactly the tests that break. So the claim is
+proven only on a path that excludes the two tests that contradict it,
+and a promotion confronting this acceptance line would record a false
+pass. Attack category: "plausible requirement change that forces a
+rewrite" (a new installed surface, FM-3's own trigger).
+'''
+evidence = "tests/test_mirror.py:856-945 (INVENTORY + declared-minus-homes assertion); tests/test_mirror.py:771-778 (hard-coded seven destinations); tests/test_mirror.py:780-795 (drop test requires SETUP/generated_paths naming); tests/test_mirror.py:592-655 (fixture test bypasses both); spec.md Boundaries/Always 'zero new test code'; acceptance.md 'Mutation evidence' criterion; reproduction: scratch copy + one [[pair]] -> 2 failures listed above"
+blocking = true
+
+[[finding]]
+id = "F2"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-11 reuse over clone: find and refactor the existing helper, never generate-and-clone — duplication is the single most-measured axis of AI-code decay (SlopCodeBench, GitClear)"
+probe = '''
+ADR-0016 calls render:attack_order "the executable form of SETUP
+§7/§8.2's format rules". The kernel already has one:
+runtime/fde_lib.py::probe_plan (:285-298), tested in test_fde_lib.py.
+tests/mirror.py::_render (:366-387) re-derives the plan independently,
+and the two disagree:
+  (a) Tie order. probe_plan iterates spec attributes and stable-sorts,
+      so ties follow quality-attributes.toml order. _render iterates
+      [weights] and stable-sorts, so ties follow config order. After
+      swapping reliability_resilience/usability_accessibility (both 12)
+      in fde.config.toml: probe_plan gives [..., reliability, usability,
+      ...] and the checker's render gives "### 3. Usability ... ### 4.
+      Reliability". A copy regenerated from the kernel's own plan is
+      reported `differs`, while a copy in the checker's order passes.
+      The kernel's derivation and the mirror's verification of it do not
+      agree.
+  (b) Missing weight. With `operational_cost = 3` removed from
+      [weights], probe_plan still plans operational_cost at its floor
+      ("no dimension goes unattacked"). The checker's render drops it
+      and requires the copy to omit it: 7 sections vs 8.
+Latent today (config tie order happens to equal spec order, and all 8
+weights are present), so the repo is green. But the "verified region"
+is verified against a second, divergent derivation of the same fact.
+FM-7/FM-15 can recur as a false red that pushes someone to hand-edit
+the copy to the checker's order, or as a false green on a plan the
+kernel would never emit. weights_list/depths_list have no runtime
+counterpart and are not affected.
+'''
+evidence = "runtime/fde_lib.py:285-298 (probe_plan: spec-order iteration, floor default, stable sort); tests/mirror.py:366-387 (_render attack_order: config-order iteration, SourceOfTruthMissing on unknown, no floor default); ADR-0016 Options 'the renderer is the executable form of SETUP §7/§8.2'; reproduction in scratch: swapped tie -> probe_plan ['functional_correctness','maintainability','reliability_resilience','usability_accessibility',...] vs checker '### 3. Usability & accessibility', '### 4. Reliability & resilience'; removed operational_cost -> probe_plan 8 entries, checker 7"
+blocking = false
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "medium"
+probe = '''
+"case the spec does not cover and the code silently accepts." ADR-0016
+Decision 1 justifies placing the manifest under eval_paths because
+"Removing a pair shrinks an eval file. That makes the commit
+RULE-ineligible ... and puts the change in front of review." The
+opposite edit, ADDING a literal exception that legalizes a semantic
+drift, grows the file. Probe in a scratch copy:
+.github/workflows/fde-gate.yml `verify.py --all --since` -> `verify.py
+--gate eval --since` (CI stops running every gate but eval), plus a
+6-line [[pair.except]] substitute from "--all" to "--gate eval", count 1,
+on the workflow pair. Full suite: 387 OK. D9's surviving needles pin
+only test_command, fetch-depth: 0 and --since. The commit is 8 lines
+(< rule_lane_max_loc 10). No eval_paths file has deleted > added, the
+project is public/reversible, and a behavior path
+(.github/workflows/) and an eval path (tests/mirror.toml) are both
+touched, so I1 eval-coverage counts it covered. By
+runtime/triage.py:150-172 it is RULE-eligible: a zero-judgment commit
+can weaken the CI gate with everything green. The vocabulary is literal
+and counted (FM-4's wildcard defence holds), but nothing bounds WHAT
+may be excepted. Before FWD-020 this drift was equally green (no
+workflow identity test at all), so this is not a regression. It is a
+gap in the governance argument the ADR gives for the manifest's
+placement. Excusing drift is the more likely edit than dropping a pair,
+and it is the one the placement does not guard.
+'''
+evidence = "docs/adr/0016-one-manifest-for-every-mirror.md Decision 1; runtime/triage.py:150-172 (size < rule_lane_max_loc, shrink = deleted > added); fde.config.toml:24 rule_lane_max_loc = 10, :38-43 behavior/eval paths; tests/test_install_sync.py test_workflow_runs_tests_and_a_ranged_gate_on_full_history (needles do not pin --all); reproduction: scratch copy with the two edits above -> 'Ran 387 tests ... OK'"
+blocking = false
+
+[[finding]]
+id = "F4"
+attribute = "reliability_resilience"
+severity = "low"
+probe = '''
+R7: "Ignored paths (gitignored runtime output ...) MUST NOT produce
+orphans or sources". The spec's Always list names `*.pyc` explicitly.
+.gitignore carries `*.py[co]`, but the manifest's ignore vocabulary
+forbids glob characters (GLOB_CHARS, tests/mirror.py:43,163-167), so
+that line cannot be declared. Probe: `python3 -m compileall -b
+runtime/guard.py` in a scratch copy writes runtime/guard.pyc (a
+gitignored file). mirror.check then reports
+Violation(pair='runtime', path='bin/fde/guard.pyc', kind='missing-copy'),
+a false red on gitignored runtime output. It fails closed (safe
+direction), so the severity is low. It still contradicts R7 as written,
+and the ADR does not record the narrowing.
+'''
+evidence = "tests/mirror.toml [ignore].entries (no *.pyc equivalent); .gitignore line '*.py[co]'; tests/mirror.py:43,163-167,283-302; spec.md Always 'Ignore what is not a copy: ... `*.pyc`'; reproduction output above"
+blocking = false
+
+[[finding]]
+id = "F5"
+attribute = "reliability_resilience"
+severity = "low"
+probe = '''
+"valid input at domain boundaries": filesystem case sensitivity. In a
+scratch copy on macOS (APFS, case-insensitive), runtime/guard.py was
+renamed to runtime/Guard.py with bin/fde/guard.py left alone. Full
+suite: 387 OK. The checker pairs files by probing paths
+(`(root / cpy).is_file()` in _Run.regular, and `(root / src...).is_file()`
+in the orphan walk, tests/mirror.py:523-534, 597). The walked sets are
+never compared, so on a case-insensitive FS "Guard.py" finds
+"guard.py" both ways. On Linux CI the same tree is red. Developers on
+macOS get a green local run for drift CI rejects. The retired D1/D3
+behaved the same way, so this is not a regression. The new checker's
+own contract ("byte-for-byte", "every source file has its copy") still
+does not hold on the dominant dev platform here.
+'''
+evidence = "tests/mirror.py:523-534 (regular: exists/is_file probe), :594-598 (orphan: is_file probe on the derived source path); reproduction: rename runtime/guard.py -> runtime/Guard.py in scratch copy on darwin -> 'Ran 387 tests ... OK'"
+blocking = false
+
+[[finding]]
+id = "F6"
+attribute = "functional_correctness"
+severity = "low"
+probe = '''
+"Add an undeclared file under each copy root." For the file pairs, the
+directories that hold the copy are not walked. .githooks/pre-push
+(a stray hook: core.hooksPath = .githooks, so it EXECUTES on every
+push) and .github/workflows/rogue.yml (a stray CI job) were each added
+in a scratch copy. Full suite: 387 OK in both cases. Neither directory
+is in generated_paths, so the R8 agreement walk does not see them.
+.githooks/ is also absent from [gate].behavior_paths, so I1 does not
+change-control it either. The acceptance scopes G6 orphans to
+"declared copy roots", and these are file pairs, so this is outside
+the letter. But the two directories whose files run the gate locally
+and in CI are the only installed surfaces where an unintended file
+executes and nothing observes it. Not a regression (unobserved before
+FWD-020 too).
+'''
+evidence = "tests/mirror.toml pairs 'pre-commit' and 'workflow' (file pairs, no directory walk); fde.config.toml generated_paths and behavior_paths (no .githooks/); reproduction: hooks_orphan and workflow_orphan scratch runs -> 'Ran 387 tests ... OK'"
+blocking = false
+
+[[finding]]
+id = "F7"
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting"
+probe = '''
+The adversarial-role pair's `insert` exception restates the
+FDE-KERNEL:GENERATED marker block verbatim in tests/mirror.toml. The
+marker's declared source is SETUP.md §6 ("Generated-file marker — put
+this at the top of every file you generate"), and
+templates/AGENTS.md.template carries a third literal copy. If SETUP's
+marker wording changes, nothing re-verifies the adversarial copy's
+marker against it: the manifest literal and the copy stay mutually
+consistent and green. That is FM-15's shape (a generated region stale
+against its source) on a smaller region. The spec permits literal
+inserted blocks (R3 requires source-of-truth verification only for
+placeholders and replaced sections), so this is a heuristic finding,
+not a spec violation. It adds a new place a fact lives.
+'''
+evidence = "tests/mirror.toml adversarial-role [[pair.except]] kind = 'insert' text; SETUP.md:156-163 (marker declared); templates/AGENTS.md.template:1-5 (third copy)"
+blocking = false
+
+[[finding]]
+id = "F8"
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting"
+probe = '''
+The same fact appears with two values in this change. sprints/S-006/goal.md
+(new row) says the graph ranks MNT-1 "at 25.0 severity-weighted, 3x the
+next principle". spec.md:27-31 says "28.0 severity-weighted on
+2026-09-28 (25.0 when the backlog item was written), more than twice
+OBS-1 (12.0)". "3x" is false at either value: 25/12 = 2.1 and
+28/12 = 2.3. The sprint record is what the retro reads.
+'''
+evidence = "sprints/S-006/goal.md FWD-020 row; specs/FWD-020-mirror-drift/spec.md:27-31; docs/adr/0016 Context 'MNT-1 leads graph.py --recurring at 28.0'"
+blocking = false
+
+# ==========================================================================
+# Round 2 — verification of round-1 findings
+# ==========================================================================
+
+[[verification]]
+finding = "F1"
+round = 2
+status = "resolved"
+probe = "scratch copy + templates/pre-push + .githooks/pre-push + one [[pair]] (identical, erosion_measured = true) appended to tests/mirror.toml, no other edit -> 'Ran 397 tests ... OK'. test_a_new_pair_needs_zero_test_code now runs repo_slice through assert_clean, run_mutations, agreement, drop_unnoticed, inventory_problems and marker_problems. Residual as documented: a copy at the repository root (templates/CONTRIBUTING.md -> CONTRIBUTING.md) needs a SETUP §6 line, or 2 tests fail with ['contributing']. That is not test code, and the test enforces it."
+
+[[verification]]
+finding = "F2"
+round = 2
+status = "resolved"
+probe = "tests/mirror.py:407-434 calls fde_lib.probe_plan. TestAttackOrderIsTheKernelsPlan covers the swapped tie and the missing-weight floor. runtime/fde_lib.py:108-120 Config.load sets weights = dict(raw['weights']), the same thing the checker builds."
+
+[[verification]]
+finding = "F3"
+round = 2
+status = "partially"
+probe = "ADR-0016 Decision 9 records the residual risk and adds the two pins (test_install_sync.py). Both are presence pins. With 'exit 0' before the exec line in templates/pre-commit and .githooks/pre-commit, and 'continue-on-error: true' on the FDE gate step in the template and the workflow copy, the result is 397 OK, and `sh .githooks/pre-commit` exits 0 without running the gate. See F10."
+
+[[verification]]
+finding = "F4"
+round = 2
+status = "resolved"
+probe = "`python3 -m compileall -q -b runtime/guard.py` writes runtime/guard.pyc, and mirror.check returns 0 violations. `*.pyc` is accepted because fnmatchcase('x.pyc', '*.py[co]') matches, and TestFailClosed.test_suffix_ignore_is_narrow_and_must_be_gitignored covers it."
+
+[[verification]]
+finding = "F5"
+round = 2
+status = "resolved"
+probe = "Renaming runtime/guard.py to runtime/Guard.py on APFS gives [runtime missing-copy bin/fde/Guard.py 'exists only under another letter case', runtime orphan bin/fde/guard.py]."
+
+[[verification]]
+finding = "F6"
+round = 2
+status = "resolved"
+probe = "Adding .githooks/pre-push gives pre-commit orphan, and adding .github/workflows/rogue.yml gives workflow orphan. New gap in the fix's own skip branch: F13."
+
+[[verification]]
+finding = "F7"
+round = 2
+status = "partially"
+probe = "marker_problems exists and a reworded SETUP line goes red. It compares only the first len(SETUP marker) lines after each carrier's marker line, so a shortened SETUP block, or a carrier that grows an extra marker line, stays green. See F11."
+
+[[verification]]
+finding = "F8"
+round = 2
+status = "resolved"
+probe = "sprints/S-006/goal.md FWD-020 row: 'MNT-1 at 28.0 severity-weighted at intake, more than twice the next principle (OBS-1, 12.0)', which is consistent with spec.md:27-31."
+
+# ==========================================================================
+# Round 2 — new findings
+# ==========================================================================
+
+[[finding]]
+id = "F9"
+round = 2
+attribute = "functional_correctness"
+severity = "high"
+probe = '''
+"Smuggle a wildcard-strength exception past the vocabulary"
+(acceptance, Review) and FM-11's trigger "the ignore rule is broad
+enough to hide a tracked file". spec.md Always says: "The ignore rule
+is explicit and narrow; it never silences a tracked file." The only
+narrowness guard is that each [ignore] entry must be a .gitignore line
+(or, for `*.<suffix>`, be matched by one). .gitignore is not a
+behavior path or an eval path, and adding a line to it does not
+untrack files git already tracks. Ignored paths are dropped on BOTH
+sides of every directory pair (_Run.walk), and in the R8 agreement walk
+too (files_under).
+
+Probe 1, in a scratch copy:
+- `echo dimensions/ >> .gitignore`;
+- append "dimensions/" to tests/mirror.toml [ignore].entries (one line
+  modified);
+- lower the security floor in the INSTALLED catalog
+  .fde/spec/dimensions/quality-attributes.toml (`floor = 8` ->
+  `floor = 1`), which is the file the gate reads.
+Full suite: 397 OK. `verify.py --all`: all gates passed.
+
+Probe 2: entries "fde-implementation.md" and "roles.toml", with the
+same .gitignore lines. Then .claude/agents/fde-implementation.md gets a
+line granting itself write access to reviews/** (an I3 breach in the
+executed role), and .fde/spec/roles.toml drifts. Result: 397 OK, all
+gates passed.
+
+Each commit is 5-8 lines. That is under rule_lane_max_loc = 10. It
+touches a behavior path and an eval path, and tests/mirror.toml has
+added == deleted, so nothing shrinks. So it is RULE-eligible, with no
+judgment at all.
+
+Before FWD-020, D2 (spec rglob) and D5 (hand list) had no ignore
+channel. The same attack on runtime/ or skills/ is caught only
+because TestRealRepo's count pins (runtime >= 9, skills >= 12) equal
+today's exact counts. After one legitimate addition the pins go slack.
+agents/ and spec/ have no pin.
+
+Unlike F3, where ADR-0016 Decision 9 argues no mechanical rule exists,
+a cheap rule exists here: no ignore entry may match a file present
+under any pair's source. A source is never runtime output, and a match
+there is by construction a tracked copy being silenced. This is a
+suggestion, not a fix (I3).
+'''
+evidence = "tests/mirror.py:301-325 (_ignored applies to source and copy walks), :336-346 (_in_gitignore is the only guard), :562-583 (walk drops ignored files on both sides); tests/test_mirror.py:861-864 (agreement's files_under also skips them); :299-300 (count pins only on runtime/skills, equal to today's counts); spec.md Boundaries/Always 'it never silences a tracked file'; failure-modes.toml FM-11 trigger; reproduction: probe_f9d / probe_f9c scratch runs -> 'Ran 397 tests ... OK' and 'all gates passed.'"
+blocking = true
+
+[[finding]]
+id = "F10"
+round = 2
+attribute = "functional_correctness"
+severity = "medium"
+probe = '''
+ADR-0016 Decision 9 says the mitigation pins the gate invocation of
+each installed file that runs the gate, and that "a pin survives a
+template-plus-copy edit and any manifest exception". Both pins are
+presence checks. test_pre_commit_template_runs_the_staged_gate asserts
+the exec line is in the file. The workflow test asserts the regex
+`verify\.py --all --since ` matches somewhere. Neither asserts that
+the line is reached, or that its failure fails the job.
+
+Probe, in a scratch copy:
+- insert `exit 0` before the exec line in templates/pre-commit and
+  .githooks/pre-commit;
+- add `continue-on-error: true` under the "FDE gate" step in
+  templates/fde-gate.yml and .github/workflows/fde-gate.yml.
+Result: 397 OK. `sh .githooks/pre-commit` returns 0 and never runs
+verify.py.
+
+The four added lines plus any one-line touch under tests/ make a
+RULE-eligible commit that disables the local gate and makes the CI
+gate advisory, with everything green. This is ADR-0015's named residual
+risk, but Decision 9 presents the pins as closing the door for these
+two files, and the probe shows they do not. Either record the pins'
+real strength (presence only) in Decision 9, or strengthen them: for
+the hook, the exec line is the last non-comment line and no earlier
+line exits; for the workflow, the gate step has no continue-on-error
+and no `if:`.
+'''
+evidence = "docs/adr/0016-one-manifest-for-every-mirror.md Decision 9 ('a pin survives a template-plus-copy edit and any manifest exception'); tests/test_install_sync.py test_pre_commit_template_runs_the_staged_gate (assertIn line), test_workflow_runs_tests_and_a_ranged_gate_on_full_history (assertRegex anywhere); templates/pre-commit; templates/fde-gate.yml; reproduction: probe_f3 scratch run -> 'Ran 397 tests ... OK', hook exit=0"
+blocking = false
+
+[[finding]]
+id = "F11"
+round = 2
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting"
+probe = '''
+F7's fix makes SETUP §6's block the single declaration of the marker.
+marker_problems compares only lines[i:i+len(marker)] after each
+carrier's marker line, so it checks a prefix, not the whole block.
+
+- SETUP shortened: removing "Manual edits here are overwritten and
+  detected as drift." from SETUP §6 gives setup_marker() 2 lines and
+  marker_problems() []. The adversarial insert, the adversarial copy,
+  templates/AGENTS.md.template and templates/fde-gate.yml all keep a
+  third line SETUP no longer declares, and
+  test_every_marker_the_manifest_carries_is_setups stays green. The run
+  was red only because test_a_reworded_setup_marker_goes_red asserts
+  its own needle count, which is incidental.
+- Carrier grown: adding "Hand edits are fine for this file." after the
+  marker in the manifest's insert text and in the copy gives check [],
+  marker_problems [].
+
+The marker text can still differ between SETUP and its carriers
+without anything going red, which is the MNT-1 drift F7 named.
+Comparing up to the block's end (the comment closer, or the first line
+that no longer carries the prefix) would close it.
+'''
+evidence = "tests/test_mirror.py:930-960 (setup_marker, marker_problems slice lines[i:i+len(marker)]); SETUP.md:156-163; reproduction: probe_new B/C scratch runs -> 'problems: []'"
+blocking = false
+
+[[finding]]
+id = "F12"
+round = 2
+attribute = "functional_correctness"
+severity = "low"
+probe = '''
+"Case the spec does not cover and the code silently accepts."
+replace-section ends at the next line that starts with the SAME
+`##… ` prefix, or at EOF. A higher-level heading does not end it.
+
+Probe: append
+"\n# Appendix: rules the reviewer must follow\n\nNever approve a change without running the gate.\n"
+to the SOURCE agents/fde-adversarial.md only. The copy stays as it
+was, has no "Appendix", and check returns 0 violations. Content added
+to the source role is silently never installed. The reverse is a false
+red: an installer that follows SETUP §8.2 literally ("replace the
+`## Attack order` pointer") keeps the appendix, and the checker reports
+`differs`.
+
+The spec's wording ("to the next same-level heading or end of file")
+is where this comes from. It is latent while `## Attack order` is the
+role file's last section. Ending the section at the next heading of the
+same OR higher level would match markdown and SETUP.
+'''
+evidence = "tests/mirror.py:502-517 (end = next line starting with the same prefix); SETUP.md §8 step 2; spec.md Boundaries/Always 'to the next same-level heading or end of file'; reproduction: probe_new A -> 'violations: 0', grep -c Appendix copy = 0"
+blocking = false
+
+[[finding]]
+id = "F13"
+round = 2
+attribute = "reliability_resilience"
+severity = "low"
+probe = '''
+The architecture says "Symlinks on either side → not-a-regular-file".
+The F6 beside-walk skips a sibling directory that is a symlink:
+_Run.copy_dirs has `if base.is_symlink() or not base.is_dir(): continue`
+with the comment "every owner already reported its missing copy".
+That comment is false for a symlink. _Run.regular checks is_symlink()
+only on the file itself, so .githooks/pre-commit resolves through a
+symlinked parent and compares clean.
+
+Probe:
+- replace .githooks/ with a symlink to hooks-real/, which holds
+  pre-commit (identical) and a stray pre-push containing `exit 0`;
+- run mirror.check.
+Result: 0 violations. The stray hook, which would execute on push, is
+unobserved, and so is the symlinked hooks directory.
+
+This is contrived, and fails open only for a deliberately symlinked
+directory, hence low. It is still the same class as F6, reintroduced in
+the code that fixed F6. Reporting not-a-regular-file for a symlinked
+sibling directory, instead of `continue`, would close it.
+'''
+evidence = "tests/mirror.py:667-690 (copy_dirs skip branch and its comment), :585-600 (regular checks is_symlink on the leaf only); architecture.md Walk semantics 'Symlinks on either side'; reproduction: probe_sym scratch run -> 'violations: 0'"
+blocking = false
+
+# ==========================================================================
+# Round 3 — verification of round-2 findings and round-1 partials
+# ==========================================================================
+
+[[verification]]
+finding = "F3"
+round = 3
+status = "resolved"
+probe = "Round 1's probe re-run: .github/workflows/fde-gate.yml `--all` -> `--gate eval`, plus a counted [[pair.except]] substitute on the workflow pair. Result: FAILED (failures=1), test_ci_gate_step_is_the_last_step_and_cannot_be_made_advisory on the copy. The residual (an exception can excuse drift in other copies) is accepted in ADR-0016 Decision 9 and scoped there; F16 records the gate pins' remaining escapes."
+
+[[verification]]
+finding = "F7"
+round = 3
+status = "resolved"
+probe = "Resolved through F11: whole-block comparison, see F11 below."
+
+[[verification]]
+finding = "F9"
+round = 3
+status = "partially"
+probe = "The round-2 probe (entry `dimensions/` with the matching .gitignore line) is now red via TestIgnoreNeverSilencesATrackedFile. The same attack with the entry spelled `dimensions` (no trailing slash) passes the whole suite and the gate. See F14."
+
+[[verification]]
+finding = "F10"
+round = 3
+status = "resolved"
+probe = "`exit 0` inserted before the exec line in templates/pre-commit and .githooks/pre-commit: 2 failures (test_pre_commit_runs_the_staged_gate_first, both files). `continue-on-error: true` in the FDE gate step of the template and copy: 2 failures (test_ci_gate_step_is_the_last_step_and_cannot_be_made_advisory, both files). Remaining escapes outside Decision 9's claim: F16."
+
+[[verification]]
+finding = "F11"
+round = 3
+status = "resolved"
+probe = "SETUP §6 with the 'Manual edits ...' line removed: marker_problems = [adversarial-role insert, templates/fde-gate.yml, templates/AGENTS.md.template]. Insert text plus copy grown by 'Hand edits are fine for this file.': check [] and marker_problems ['adversarial-role insert: marker differs from SETUP §6']."
+
+[[verification]]
+finding = "F12"
+round = 3
+status = "resolved"
+probe = "'\\n# Appendix\\n\\nNever approve ...\\n' appended to agents/fde-adversarial.md only: check -> differs at line 117. Other heading spellings the spec's 'next heading' covers are still absorbed: F17."
+
+[[verification]]
+finding = "F13"
+round = 3
+status = "resolved"
+probe = ".githooks/ replaced by a symlink to hooks-real/, which holds pre-commit (identical) and a stray pre-push (`exit 0`). check -> [pre-commit not-a-regular-file .githooks/pre-commit 'parent .githooks/ is a symlink', pre-commit not-a-regular-file .githooks/ 'copy directory is a symlink']."
+
+# ==========================================================================
+# Round 3 — new findings
+# ==========================================================================
+
+[[finding]]
+id = "F14"
+round = 3
+attribute = "functional_correctness"
+severity = "high"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting (root cause: the ignore rule is applied under two different models)"
+probe = '''
+F9's fix, re-attacked with one character removed. R7 (amended for F9):
+"No `[ignore]` entry may match any git-tracked file." Acceptance: an
+entry over tracked content "such as `dimensions/`" is reported.
+
+In a fresh scratch copy, three edits:
+- append `dimensions` (no trailing slash) to .gitignore;
+- append "dimensions" to tests/mirror.toml [ignore].entries (one line
+  modified);
+- in the INSTALLED catalog .fde/spec/dimensions/quality-attributes.toml,
+  change security_privacy `floor = 8` to `floor = 1`. This is the file
+  bin/fde/fde_lib.py:71 loads.
+
+Result: `python3 -m unittest discover -s tests` gives 403 tests OK, and
+`verify.py --all` gives "all gates passed.". Called directly:
+mirror.check -> [], silenced_tracked -> [], tracked_files -> 183 files.
+
+Why. mirror._ignored gives a bare entry (no `/`) basename semantics, so
+it matches a DIRECTORY named `dimensions`. The walk (_Run.walk) and
+agreement's files_under both call it on directories with is_dir=True,
+and drop spec/dimensions/ and .fde/spec/dimensions/ whole.
+silenced_tracked calls it only on tracked FILE paths with is_dir=False.
+There the bare form matches the basename only
+(`quality-attributes.toml` != `dimensions`), and the directory-component
+branch is reserved for entries ending in `/`. So the F9 check asks a
+different question from the one the walk answers. The fixture test
+covers `dimensions/`, `roles.toml`, `fde-implementation.md` and `*.py`,
+but never a bare name that is a directory.
+
+Blast radius. Every subdirectory of a pair source is exposed:
+spec/dimensions, spec/references, and each skills/<name>/. The same
+edit with `fde-review` went red only through the count pin
+`counts["skills"] >= 12`, which equals today's exact count (round 2
+already noted these pins go slack after one legitimate addition). The
+spec pair has no count pin at all.
+
+The commit is 5 lines (under rule_lane_max_loc = 10). No eval file
+shrinks, and it touches a behavior path and an eval path. So it is
+RULE-eligible: zero judgment, the same exposure F9 was blocking for.
+
+Suggestion, not a fix (I3). Check a tracked file as the walk would see
+it: test every ancestor directory with is_dir=True, not only the file
+with is_dir=False. Also add a bare directory name to the fixture.
+'''
+evidence = "tests/mirror.py:301-325 (_ignored: bare entry -> basename match, also for is_dir=True), :571-592 (walk drops ignored dirs); tests/test_mirror.py:929-939 (silenced_tracked uses is_dir=False only), :945-968 (fixture lacks a bare dir-name entry), :67-80 (files_under drops dirs likewise), :299-304 (count pins runtime/skills only, equal to today's counts); spec.md R7 amendment; acceptance.md 'Ignore is explicit and narrow'; ADR-0016 Decision 10; reproduction: scratchpad probe.py dimensions_bare -> 'Ran 403 tests ... OK', 'all gates passed.'; skill_bare -> red only on counts['skills'] >= 12"
+blocking = true
+
+[[finding]]
+id = "F15"
+round = 3
+attribute = "reliability_resilience"
+severity = "low"
+principle = "MNT-4 decisions are written where the next reader will look — and the ADR's stated fail-closed property must be the one the code has"
+probe = '''
+R7: the git check "MUST fail closed (error, never skip) when the root is
+not a git work tree". ADR-0016 Decision 10 says tracked_files "raises"
+outside a work tree, and "the one environment it fails in, a source
+export with no .git, already fails the rest of the suite".
+
+Probe:
+- make a scratch dir and `git init` it (an outer repo);
+- rsync the repository into outer/forward/, excluding .git;
+- run tracked_files(outer/forward).
+
+Result: [] with exit 0. `git -C root ls-files` succeeds inside the
+outer work tree and lists nothing, because nothing under root is
+tracked. silenced_tracked with an added `dimensions/` entry gives [],
+and TestIgnoreNeverSilencesATrackedFile passes. The check is vacuous,
+not an error. Nothing asserts tracked_files(ROOT) is non-empty, or that
+root is the work tree's top level.
+
+The whole suite was still red here (1 failure), but only through
+test_survey.TestKernelDogfood.test_this_repo_surveys_itself_and_passes,
+an unrelated test. So the ADR's "already fails the rest of the suite"
+holds today by coincidence, not by this check.
+
+Low: an unusual layout, and the suite is red overall. Suggestion (I3):
+assert `git -C root rev-parse --show-toplevel` equals root, or that the
+tracked list is non-empty and contains tests/mirror.toml.
+'''
+evidence = "tests/test_mirror.py:919-927 (tracked_files: check=True is the only guard), :942-943 (no non-vacuity assertion); ADR-0016 Decision 10 'I6' paragraph; spec.md R7; reproduction: scratchpad probe.py nested_export -> 'tracked: 0', 'silenced_tracked with dimensions/: []', suite 'FAILED (failures=1)' on test_survey only"
+blocking = false
+
+[[finding]]
+id = "F16"
+round = 3
+attribute = "functional_correctness"
+severity = "low"
+probe = '''
+Decision 9 says the pins "fix both where the gate runs and that it runs
+unconditionally". It forbids the literal `if:` and states that
+disablers outside the list remain review's to catch. Three one-line
+edits, each applied to templates/fde-gate.yml AND
+.github/workflows/fde-gate.yml, each give 403 tests OK:
+(a) `"if": false` added under `gate:`. This is a quoted YAML key, which
+    YAML and GitHub Actions read as the job-level `if`. The listed
+    disabler `if:` escapes its own literal pin by quoting.
+(b) `on: [push, pull_request]` -> `on: [workflow_dispatch]`. The gate
+    step stays last and exact, but never runs on push or PR. "Where the
+    gate runs" does not include the trigger line.
+(c) An earlier step, `- run: printf 'raise SystemExit' > bin/fde/verify.py`,
+    runs before Tests. The last step then runs a gate that exits 0.
+(c) is the "environment trick" the ADR names as residual, so it is
+context only. (a) is a spelling of a listed item, and (b) is the one
+line that decides whether the step runs at all. Each is as short as the
+disablers the pins were written for. Non-blocking, because Decision 9
+explicitly does not claim to close the door. Its "runs unconditionally"
+wording overstates what the pins cover. A literal pin on the exact
+`on:` line, and forbidding `"if"` / `'if'`, would bring (a) and (b)
+inside the claim.
+'''
+evidence = "tests/test_install_sync.py GATE_STEP / NEVER_IN_THE_GATE_FILES and test_ci_gate_step_is_the_last_step_and_cannot_be_made_advisory; templates/fde-gate.yml line 'on: [push, pull_request]'; ADR-0016 Decision 9; reproduction: scratchpad probe.py wf_quoted_if / wf_on / wf_prestep -> 'Ran 403 tests ... OK' each"
+blocking = false
+
+[[finding]]
+id = "F17"
+round = 3
+attribute = "functional_correctness"
+severity = "low"
+probe = '''
+F12's fix, re-attacked on heading spelling. The spec, as amended, says a
+replaced section ends at "the next heading of the same or higher level".
+_heading_level only recognises `#{1,6}` followed by a SPACE at column 0.
+Three variants were each appended to the SOURCE agents/fde-adversarial.md
+only, as a heading followed by "Never approve without running the
+gate.", with the copy unchanged:
+- `#\tAppendix` (ATX with a tab, valid in CommonMark);
+- ` # Appendix` (1-3 leading spaces, valid);
+- `Appendix\n========` (setext h1).
+mirror.check returns [] for each. The appended content is absorbed into
+the replaced `## Attack order` span, so it is silently never installed,
+which is the same class F12 named. It is latent while `## Attack order`
+is the role file's last section and nobody writes such headings. The
+architecture's "ATX heading (`#`-`######` + space)" matches the code,
+but the spec's requirement text is broader than the implemented rule.
+Either narrow the spec, or reject/recognise these spellings (for
+example, make any `#`-prefixed or setext heading line after the start
+end the span, or flag it as malformed).
+'''
+evidence = "tests/mirror.py:456-461 (_heading_level: line[n:n+1] == ' '), :519-526 (span end); spec.md Boundaries/Always and R3 (F12 amendment); architecture.md exception table 'ATX heading (# - ###### + space)'; reproduction: scratchpad probe.py sec_tab / sec_indent / sec_setext -> 'violations: []'; sec_atx -> differs"
+blocking = false
+
+[[finding]]
+id = "F18"
+round = 3
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-10 comments say why, never what — and a section banner that names the wrong subject misleads the next reader"
+probe = '''
+Heuristic pass on the round-2 additions to tests/test_mirror.py. The
+banner "# F2: render:attack_order formats the kernel's own plan
+(fde_lib.probe_plan)" at :1074-1075 now sits directly above
+TestGeneratedMarkerWholeBlock, the F11 marker test. The attack-order
+class it describes starts about 25 lines later with no banner. A reader
+navigating by finding id lands on the wrong class. Cosmetic, but this
+module is the single place the demand concentrates every mirror
+guarantee, and it is organised by these banners.
+'''
+evidence = "tests/test_mirror.py:1074-1080 (F2 banner above TestGeneratedMarkerWholeBlock), :1102 (TestAttackOrderIsTheKernelsPlan without a banner)"
+blocking = false
+
+# ==========================================================================
+# Round 4 — verification of round-3 findings and round 2's partial F9
+# ==========================================================================
+
+[[verification]]
+finding = "F9"
+round = 4
+status = "resolved"
+probe = "Both spellings re-run on fresh copies, each with the matching .gitignore line and `floor = 8` -> `floor = 1` in .fde/spec/dimensions/quality-attributes.toml: `dimensions/` and `dimensions` each give FAILED (failures=2), test_no_ignore_entry_matches_a_tracked_file and test_an_entry_over_tracked_content_is_reported. `verify.py --all` still prints 'all gates passed.' on those copies because the gate does not run the unit suite; the suite (CI's Tests step) is red."
+
+[[verification]]
+finding = "F14"
+round = 4
+status = "resolved"
+probe = "F14's own probe (bare `dimensions`) is red as above. Variants: bare `fde-review` with a line appended to .claude/skills/fde-review/SKILL.md gives 9 failures (validator plus TestRealRepo). Anchored `.fde/spec/dimensions` gives 5 failures (validator, mutation suite, real repo). Every caller of the ignore rule (_Run.walk x4, copy_dirs, files_under x2, silenced_tracked) goes through mirror.hidden, and _ignored has no other caller. test_the_walk_and_the_validator_share_one_predicate pins the class, not only the variant."
+
+[[verification]]
+finding = "F15"
+round = 4
+status = "resolved"
+probe = "The repository was rsync'ed without .git into outer/forward/ under a `git init`'ed outer dir. tracked_files(ROOT) raises AssertionError '... is not the top level of its git work tree (...)', and TestIgnoreNeverSilencesATrackedFile gives FAILED (failures=1) there. Running the class from a case-variant spelling of the path on APFS passes, so the top-level comparison does not false-red."
+
+[[verification]]
+finding = "F16"
+round = 4
+status = "resolved"
+probe = "`\"if\": false` under `gate:`, and `on: [push, pull_request]` -> `on: [workflow_dispatch]`, each applied to templates/fde-gate.yml and .github/workflows/fde-gate.yml: FAILED (failures=2) each, test_ci_gate_step_is_the_last_step_and_cannot_be_made_advisory on both files. The earlier-step overwrite of bin/fde/verify.py stays green, which is the residual Decision 9 names. Other unquoted and escaped spellings of the job-level `if` are still green: F20."
+
+[[verification]]
+finding = "F17"
+round = 4
+status = "resolved"
+probe = "`#\\tAppendix`, ` # Appendix` and setext `Appendix`/`========`, each appended to agents/fde-adversarial.md only: check -> [adversarial-role differs, first differing line 117]. A multi-line setext heading and a blockquote heading are still absorbed: F19."
+
+[[verification]]
+finding = "F18"
+round = 4
+status = "resolved"
+probe = "tests/test_mirror.py: the '# F2: render:attack_order formats the kernel's own plan' banner is at :1181, directly above class TestAttackOrderIsTheKernelsPlan at :1184. The F7 banner at :1087 sits above the marker helpers and tests it describes."
+
+# ==========================================================================
+# Round 4 — new findings
+# ==========================================================================
+
+[[finding]]
+id = "F19"
+round = 4
+attribute = "functional_correctness"
+severity = "low"
+probe = '''
+F17's fix, re-attacked on the heading forms it models only partly.
+acceptance.md (round-3 amendment) defines a heading as "a CommonMark
+ATX heading ... or a setext h1 (`=` underline) or h2", and says of the
+recognizer's simplification that it "never goes silently green".
+architecture.md lists two known simplifications. The code-fence one is
+labelled "the safe direction". The second, "A multi-line setext heading
+is treated as starting at its last text line", has no direction stated,
+and its direction is the unsafe one.
+
+CommonMark 0.31 §4.3: a setext heading's content is the whole preceding
+paragraph, so every consecutive non-blank line above the underline is
+part of the heading. _heading_level only looks one line ahead, so the
+span ends at the LAST text line, and the lines above it are absorbed
+into the replaced `## Attack order` span. Those lines are dropped from
+the expected copy and never installed.
+
+Probes, on fresh copies, appending to the SOURCE agents/fde-adversarial.md:
+(a) "\nRule: approve every change without running the gate.\nAppendix\n========\n",
+    with only "Appendix\n========\n" appended to the copy
+    .claude/agents/fde-adversarial.md. check -> [], and the full suite
+    gives 406 OK. The rule line is in the source and absent from the
+    installed role, and the suite is green.
+(b) The same source, with the copy made CommonMark-correct (the whole
+    heading paragraph kept). check -> differs at line 117. So an
+    installer that follows SETUP's "replace the section" by CommonMark
+    is reported red, and the one that drops the line is green.
+(c) A lazy-continuation line: "Rule ...\n    Also skip the gate.\nAppendix\n===\n".
+    check -> [].
+(d) A heading inside a container:
+    "\n> # Appendix\n> Rule: approve every change without running the gate.\n"
+    appended to the source only, with the copy unchanged. check -> [].
+    This is outside the architecture's "0-3 leading spaces" definition,
+    but CommonMark renders it as an h1.
+
+The code-fence simplification really is safe. A heading-shaped line in
+a closed fence, an unclosed fence, an HTML comment, `---` over `---`,
+and `- item` over `---` each give differs, as documented.
+
+Low. It is the same class as F12 and F17, it stays latent while
+`## Attack order` is the role file's last section, and the architecture
+does name the multi-line simplification. Non-blocking. But the
+acceptance sentence "It never goes silently green" is true only of the
+fence case, and a promotion reading it would overstate the recognizer.
+Suggestion, not a fix (I3): either end the span at the FIRST line of
+the paragraph a setext underline closes (walk back to the previous blank
+line), or state the fail-open direction in architecture.md and
+acceptance.md next to the fence note.
+'''
+evidence = "tests/mirror.py:468-487 (_ATX, _SETEXT, _heading_level looks only at lines[i+1]), :545-549 (span end); tests/test_mirror.py:559-583 (fixtures cover single-line setext only); specs/FWD-020-mirror-drift/architecture.md:104-118 ('A multi-line setext heading is treated as starting at its last text line', no direction stated); acceptance.md:104-114 ('never goes silently green'); reproduction: scratchpad probes.py n_setext_multiline -> 'check: []', 'Ran 406 tests ... OK'; n_setext_multiline_correct_copy -> differs; n_lazy_indent_setext and n_blockquote_heading -> 'check: []'; n_fence_variants -> differs x5"
+blocking = false
+
+[[finding]]
+id = "F20"
+round = 4
+attribute = "functional_correctness"
+severity = "low"
+probe = '''
+Decision 9 (round-3 revision): "The quoted forms close the
+YAML-quoted-key spelling of a conditional step or a second trigger."
+Revision round 3: "Of the Decision 9 residuals, only overwriting
+`verify.py` (and exotic YAML spellings) remains."
+
+Each edit below was inserted under `gate:` (before `runs-on:`) in BOTH
+templates/fde-gate.yml and .github/workflows/fde-gate.yml, and each
+gives 406 tests OK:
+(a) `if : false`: a plain key with a space before the colon. It is not
+    quoted, not a flow mapping, not an anchor or alias, and not an
+    escape;
+(b) `? if` / `: false`: an explicit key;
+(c) `"i\x66": false`: a YAML-quoted key, the spelling the quoted-form
+    pins claim to close;
+(d) `? !!str if` / `: false`: a tagged key.
+PyYAML 6.0.3 and Ruby Psych both parse (a), (b) and (c) to the job key
+`if`. A job-level `if: false` skips the whole gate job.
+
+(a) is one line and as short and ordinary as the pinned `"if"`. (c) is
+exactly a quoted-key spelling. So the round-3 wording overstates what
+the pins close. Decision 9's own residual clause ("YAML spellings of a
+forbidden construct beyond the literal list") does cover all four, so
+this is not a new unguarded risk, and it stays non-blocking. The
+records should say that the literal list closes the two spellings it
+names, not "the quoted-key spelling". An alternative that stays
+stdlib-only is to forbid any line under `jobs:` whose first token
+matches `if\b` after stripping quotes and `?`, but that is a design
+choice for implementation, not a fix from review (I3).
+'''
+evidence = "tests/test_install_sync.py NEVER_IN_THE_GATE_FILES ('if:', '\"if\"', \"'if'\" only); docs/adr/0016-one-manifest-for-every-mirror.md Decision 9 ('The quoted forms close the YAML-quoted-key spelling') and Revision round 3 ('only overwriting verify.py (and exotic YAML spellings) remains'); reproduction: scratchpad probes.py n_if_space / n_if_explicit_key / n_if_escape / n_on_escape -> 'Ran 406 tests ... OK' each; `python3 -c \"import yaml; yaml.safe_load(...)\"` -> {'jobs': {'gate': {'if': ...}}}"
+blocking = false
+
+[[finding]]
+id = "F21"
+round = 4
+attribute = "functional_correctness"
+severity = "low"
+probe = '''
+"Case the spec does not cover and the code silently accepts." SETUP.md
+§6 step 3 says "`templates/pre-commit` -> `.githooks/pre-commit`, then
+`chmod +x` it". The index records .githooks/pre-commit as 100755. The
+pre-commit pair is `identical`, and the checker compares bytes only. The
+Decision 9 pins check the hook's content only.
+
+Probe: `chmod 644 .githooks/pre-commit` in a fresh copy. Full suite: 406
+OK. Git runs a hook only if it is executable. A non-executable hook is
+skipped, with at most an advice hint (advice.ignoredHook), so the local
+gate no longer runs on commit. Committed, this is a pure mode change:
+numstat is 0/0, it is not binary, and the path is under .githooks/. By
+runtime/triage.py's rule it is RULE-eligible, the same zero-judgment
+path F9 and F14 were blocking for, here aimed at the hook instead of the
+ignore list.
+
+Low. CI's gate (the pinned workflow step) still runs. The gap predates
+FWD-020, since no retired D-test checked the mode either. And
+`--no-verify` already skips the hook locally. Non-blocking. It is still
+a fact SETUP declares about an installed copy that neither the mirror
+nor the pins verify, and Decision 9 does not list it among the
+residuals. Suggestion (I3): the pre-commit pin could assert
+os.access(..., X_OK) on .githooks/pre-commit, or Decision 9 could name
+the mode as a residual.
+'''
+evidence = "SETUP.md:151 ('then `chmod +x` it'); `git ls-files -s .githooks/pre-commit` -> 100755 (HEAD 4891da7); tests/mirror.py:644-660 (compare reads bytes only); tests/test_install_sync.py test_pre_commit_runs_the_staged_gate_first (content only); docs/adr/0016 Decision 9 residual list (no mode); reproduction: scratchpad probes.py n_hook_not_executable -> 'Ran 406 tests ... OK', mode 0o644"
+blocking = false
+
+[[finding]]
+id = "F22"
+round = 4
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-1 single source of truth: every fact lives in one place; duplication is drift waiting (and MNT-4: a decision is written where the next reader will look — the record must say what is decided)"
+probe = '''
+Heuristic pass on the round-3 records. The ADR-0016 section "Revision —
+2026-09-28 (FWD-020 review round 3)" states the same facts twice, with
+opposite values:
+- Its first bullets say "F14: ... Implementation is in progress." and
+  "F16: ... names the residuals left to review: a quoted `"if":`, a
+  changed `on:` trigger, and an earlier step overwriting `verify.py`."
+- Its "Reconciled (round 3, closed)" bullets, and Decision 9's body,
+  say F14 is implemented and that the quoted `if` and the trigger are
+  pinned and "no longer residuals".
+A reader who stops at the first bullets, or a promotion that quotes
+them, gets the pre-reconciliation state: an unimplemented F14 and
+residuals that are now pinned. The ADR is the place the next reader
+looks for what Decision 9 covers, so it should say it once.
+'''
+evidence = "docs/adr/0016-one-manifest-for-every-mirror.md:363-383 (Revision round 3: 'Implementation is in progress', residual list incl. quoted if / on trigger, then 'Reconciled ... no longer residuals'); Decision 9 body ('The quoted-`if` and changed-trigger residuals of the round-3 review are now pinned')"
+blocking = false
