@@ -82,11 +82,14 @@ before the first behavior change; anything discovered goes to
 included (MNT-9); at the close, resolve every done item and present the
 next-cycle list in the closing report. With scrum on, the close also
 routes the list: each item becomes a backlog item that cites its token
-(`C-<n>#<k>`) and carries an evidence label, in the closing commit or
-before it — the `cycle` gate turns red on an item with no disposition.
-An item the next cycle executes instead goes in that cycle's `## Intake`
-as taken or dropped with a reason — never both. With scrum off, the
-next cycle's `## Intake` takes, defers or drops every item.
+(`C-<n>#<k>`) and carries an evidence label, in the closing commit
+itself — the `cycle` gate turns red on an item the closing commit's
+`backlog.md` does not capture. After the close the backlog is groomed
+freely: reorder, rewrite or remove the row once the item is done. A later
+cycle that executes a captured item pulls it with `C-<n>#<k> taken` in
+its `## Intake` (under scrum on an intake item is always a pull, never
+deferred or dropped). With scrum off, the next cycle's `## Intake` takes,
+defers or drops every item of its predecessor.
 
 ## Close — goal or batch, never the calendar
 

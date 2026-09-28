@@ -116,7 +116,17 @@ commit's parent tree holds exactly one open, well-formed cycle. For an S+
 demand the done list points at `specs/<id>/acceptance.md` (never restates
 it), and that file must already be committed too. One cycle is open at a
 time and it is the highest-numbered file ("no closure, no next cycle").
-A commit that is actually RULE-eligible needs no cycle.
+Commit the cycle on its own: a behavior commit may not add a cycle file.
+Its done items start unmarked (`- [ ]`). A commit needs no cycle only
+when it declares `FORWARD: RULE — <reason>` as its first message line
+and is verified RULE-eligible; an eligible commit without the claim is
+red. Every commit is judged by its parent's configuration, and once the
+first cycle file exists every later commit is examined, whatever the
+flag says.
+
+A demand's `spec.md` declares its size in a header line before its
+first `## ` section — `size: M` — and it must equal the size declared in
+`demands:`; a missing `size:` is red. Ids compare normalized (`fwd-050` = `FWD-50` = `FWD-050`).
 
 Schema — each `<…>` is a placeholder, and the gate rejects any field
 left as one:
@@ -194,25 +204,42 @@ MNT-9. The declaration is frozen from the opening commit. The only
 allowed changes while open are appends to `## Next cycle` and
 `- [ ] amended YYYY-MM-DD: <text>` appends to `## Done when`; the header,
 `## Tasks`, `## Intake` and every existing item stay byte-for-byte. A
-wrong declaration found before push is fixed by `git commit --amend`;
-after push, close the cycle with the items marked not met and open the
-next.
+wrong declaration is fixed by `git commit --amend` only while the opening
+commit is still HEAD; otherwise close the cycle with the items marked not
+met and open the next.
 
 **Close.** In one commit: add `closed: YYYY-MM-DD` and resolve every done
 item — `[x]` met or `[-]` not met, then ` — <evidence or reason>`
 appended to the unchanged text. Carry each not-met item into
 `## Next cycle`; if nothing is left, the list is the single item
-`- none`. Then present the next-cycle list in the closing report: it is
-domain content, and the Voice rule's one status line does not suppress
-it. A closed file never changes again.
+`- none` (one next-cycle item per not-met item, starting with its text).
+The gate judges the closed cycle once, here, against the closing commit's
+parent configuration; a later change to `stages` or to a spec never
+re-opens it. Then present the next-cycle list in the closing report: it
+is domain content, and the Voice rule's one status line does not
+suppress it. A closed file never changes again.
 
 **Feed the next cycle.** Item *k* of cycle *n*'s list is the token
 `C-<n>#<k>`; `--gate cycle` prints each one. With `[scrum]` on, each
-item becomes a backlog item citing its token with an evidence label.
-With it off, the next cycle's `## Intake` lists each item as
+item becomes a backlog item citing its token with an evidence label, in
+the closing commit itself; the backlog is groomed freely afterwards, and a
+later cycle pulls a captured item with `C-<n>#<k> taken` in its
+`## Intake`. With it off, the next cycle's `## Intake`, in its opening
+commit, lists each item of its predecessor exactly once as
 `C-<n>#<k> taken` (a task cites the token), `C-<n>#<k> deferred` (its own
-`## Next cycle` cites it) or `C-<n>#<k> dropped — <reason>`. Exactly one
-disposition per item.
+`## Next cycle` cites it) or `C-<n>#<k> dropped — <reason>`.
+
+**Ways out.** Every red names its next step; the usual ones:
+- a wrong declaration while the opening commit is still HEAD: amend that
+  commit;
+- otherwise: close the cycle with `[-]` items and reasons, and open the
+  next;
+- `stages` or a spec changed: nothing to do for closed cycles; for the
+  open one, fix the spec's `size:` or append an `amended` done item;
+- `--since` does not resolve: re-run with a known base
+  (`--since <merge-base>`, or fetch full history);
+- code and a new cycle in one commit: split the commit before push —
+  cycle first, then the code.
 
 ## What never scales
 

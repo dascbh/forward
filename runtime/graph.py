@@ -208,11 +208,23 @@ def _header_fields(text: str) -> dict:
     return fm
 
 
+def spec_header_size(text: str) -> str | None:
+    """The declared size: a `size: XS|S|M|L` header line (before the first
+    `## `, within the first 30 lines), stripped and uppercased. The only
+    size the cycle gate reads (ADR-0017 R1c) — prose is never scraped."""
+    val = _header_fields("\n".join(text.splitlines()[:30])).get("size", "")
+    val = val.strip().upper()
+    return val if val in ("XS", "S", "M", "L") else None
+
+
 def spec_size(text: str) -> str | None:
-    """The triaged size (XS|S|M|L) from a spec's Triage line specifically,
-    not the first bold token anywhere in the spec: the first line naming
-    'triage' decides, and a line without a bold size yields None. One
-    definition, shared by build_graph and cycle.py's size agreement."""
+    """The size for analytics (graph weights): the `size:` header when
+    present, else the Triage line — the first line naming 'triage'
+    decides, and a line without a bold size yields None. The gate never
+    calls this; it calls spec_header_size."""
+    declared = spec_header_size(text)
+    if declared:
+        return declared
     for line in text.splitlines():
         if "triage" in line.lower():
             m = SIZE_RE.search(line)

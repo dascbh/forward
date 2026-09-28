@@ -27,6 +27,7 @@ from fde_lib import (  # noqa: E402
     DEFAULT_EVAL_PATHS,
     Config,
     Spec,
+    cycle_config_violations,
     escalated_security_floor,
     gate_paths,
     path_matches,
@@ -278,16 +279,15 @@ class Gate:
         gate_cycle share this, so there is one range definition, one log
         call per caller and one tier-3 HEAD check. Same failure contract
         as `_commits_in_range`: nothing here catches `GitOpFailure`."""
-        rng = self._resolve_range(since)
-        fmt = "--format=%H%x1f%P%x1f%s"
-        if rng is not None:
-            args = ("log", fmt, rng)
-        else:
-            if not self._rev_ok("HEAD"):
-                return []
-            args = ("log", fmt, "HEAD")
+        return self._log_commits(self._resolve_range(since) or "HEAD")
+
+    def _log_commits(self, rev: str) -> list[tuple[str, list[str], str]]:
+        """One `git log` of `rev` (a range, or "HEAD" for everything
+        reachable — which a repo with no commit yet legitimately lacks)."""
+        if rev == "HEAD" and not self._rev_ok("HEAD"):
+            return []
         out = []
-        for line in self._git(*args):
+        for line in self._git("log", "--format=%H%x1f%P%x1f%s", rev):
             sha, _, rest = line.partition("\x1f")
             parents, _, subj = rest.partition("\x1f")
             out.append((sha, parents.split(), subj))
@@ -896,17 +896,24 @@ class Gate:
     # -- cycle: declared scope, in git before it runs (ADR-0017) ----------
     def gate_cycle(self, cfg: Config, since: str | None = None,
                    explicit: bool = False) -> None:
-        """Opt-in by `[cycle] enabled = true` (strict boolean). Off: no
-        row under --all, no git, no file read; one "not in force" pass
-        under `--gate cycle`. On: the working tree's cycles pass C2 form,
-        C3 closure, C5 serial and C6 dispositions; every commit in range
-        whose PARENT tree enables the mode is examined for C1 (declared
-        before) and C4 (frozen declaration). A commit whose parent did
-        not enable the mode is never examined (R9). Every breach is
-        labelled `C<k> <where>: <reason>`; one CYCLE row joins the first
-        three. A git failure raises `GitOpFailure`, which the dispatch
-        site's `run_gate` turns into a red CYCLE row — never a pass. The
-        contract is specs/FWD-021-cycle-scope/architecture.md."""
+        """Opt-in by `[cycle] enabled = true` (strict boolean) in the
+        working tree. Off: no row under --all, no git, no file read; one
+        "not in force" pass under `--gate cycle`.
+
+        On: the working tree's tracked cycles are parsed; open ones pass
+        C2 form (with size), all of them C5 serial. Every commit in range
+        whose parent tree enables the mode OR holds a tracked cycle file
+        is examined (R1a), and judged by that PARENT's configuration
+        (R1b): C1 declared before, the no-cycle-opened-by-code rule, C4
+        frozen declaration, and at the transitions C2/C3/C6 for the cycle
+        being added or closed (R1d, R1e). A commit whose parent has
+        neither the flag nor a cycle file is never examined (R9).
+
+        Every breach is labelled `C<k> <where>: <reason> — <way out>`; one
+        CYCLE row joins the first three. A git failure raises
+        `GitOpFailure`, which the dispatch site's `run_gate` turns into a
+        red CYCLE row — never a pass. Contract:
+        specs/FWD-021-cycle-scope/architecture.md, "Revision — round 1"."""
         sec = cfg.raw.get("cycle")
         if not (isinstance(sec, dict) and sec.get("enabled") is True):
             if explicit:
@@ -925,87 +932,143 @@ class Gate:
         self._cyc_cache: dict = {}
         breaches: list[str] = []
 
-        # -- working tree: C2, C3, C5, C6 ---------------------------------
+        # -- working tree: open cycles in full, every cycle for C5 --------
         wt, strays = self._wt_cycles(cycle)
         breaches += strays
         for c in wt:
-            breaches += cycle.check_form(c, stages, self._wt_spec_texts(cycle, c))
-            breaches += cycle.check_closure(c)
+            if not c.closed:
+                breaches += cycle.check_form(c, stages, self._wt_spec_texts(cycle, c))
         breaches += cycle.check_serial(wt, "cycles/")
         scrum = cfg.raw.get("scrum")
         scrum_on = isinstance(scrum, dict) and scrum.get("enabled") is True
         backlog = self.project / "backlog.md"
         backlog_text = backlog.read_text(encoding="utf-8", errors="replace") \
             if scrum_on and backlog.is_file() else ""
-        disp = cycle.check_dispositions(wt, scrum_on, backlog_text)
-        for n in sorted(disp):
-            breaches += disp[n].breaches
 
-        # -- history: C1, C4 (and C5 for added cycle files) ---------------
+        # -- range: decided here, never silently narrowed (R1f) -----------
+        rev, label, bad = self._cycle_range(since)
+        commits = []
+        if bad:
+            breaches.insert(0, bad)
+        else:
+            commits = self._log_commits(rev)
+
+        # -- history ------------------------------------------------------
         behavior = rule_exempt = rule_open = quiet_merges = 0
-        for sha, parents, _subj in self._commit_log(since):
+        for sha, parents, subj in commits:
             if not parents:
-                continue   # a root commit has no parent tree: mode off
-            confs, why = {}, None
-            for p in parents:
-                confs[p] = self._cycle_parent_config(p)
-                why = why or confs[p][2]
+                continue   # a root commit has no parent tree
+            states = {p: self._parent_state(cycle, p) for p in parents}
+            why = next((states[p]["err"] for p in parents if states[p]["err"]), None)
             if why:
                 breaches.append(f"C1 {sha[:7]}: {why}")
                 continue
-            enabled = [p for p in parents if confs[p][0]]
-            if not enabled:
+            examined = [p for p in parents if states[p]["examined"]]
+            if not examined:
                 continue
             merge = len(parents) > 1
-            files = self._git("diff-tree", "-c" if merge else "--root",
-                              "--no-commit-id", "--name-only", "-r", sha)
-            touches = any(path_matches(f, self.behavior_paths) for f in files)
+            files = self._git_z("diff-tree", "-c" if merge else "--root",
+                                "--no-commit-id", "--name-only", "-z", "-r", sha)
+            touching = [p for p in examined
+                        if any(path_matches(f, states[p]["bp"]) for f in files)]
             cyc_files = sorted({f for f in files if f.startswith("cycles/")
                                 and cycle.cycle_number(f[len("cycles/"):]) is not None})
-            if merge and not touches and not cyc_files:
+            if merge and not touching and not cyc_files:
                 quiet_merges += 1
                 continue
-            if touches:
+            tag = f"{sha[:7]}"
+            if touching:
                 behavior += 1
-                if merge:
-                    for p in enabled:
-                        r = self._c1_reason(cycle, p, confs[p][1])
-                        if r:
-                            breaches.append(f"C1 {sha[:7]} (merge, parent "
-                                            f"{p[:7]}): {r}")
-                else:
-                    r = self._c1_reason(cycle, parents[0], confs[parents[0]][1])
-                    if r:
-                        if triage.eligibility_for_commit(self.project, sha,
-                                                         cfg=cfg).eligible:
-                            rule_exempt += 1
-                        else:
-                            breaches.append(f"C1 {sha[:7]}: {r}")
-                    elif explicit and triage.eligibility_for_commit(
-                            self.project, sha, cfg=cfg).eligible:
-                        rule_open += 1
+                for f in cyc_files:   # R1i: code never opens a cycle
+                    if self._cycle_at(cycle, sha, f) is not None and all(
+                            self._cycle_at(cycle, p, f) is None for p in parents):
+                        breaches.append(f"C1 {tag}: a behavior commit opens {f}: "
+                                        f"commit the new cycle first, then the code")
+                for p in touching:
+                    r = self._c1_reason(cycle, p, states[p]["stages"])
+                    if r is None:
+                        if explicit and not merge and triage.eligibility_for_commit(
+                                self.project, sha, cfg=states[p]["cfg"]).eligible:
+                            rule_open += 1
+                        continue
+                    if not merge and triage.declares_rule(subj) and \
+                            triage.eligibility_for_commit(
+                                self.project, sha, cfg=states[p]["cfg"]).eligible:
+                        rule_exempt += 1   # R1h: claimed AND verified
+                        continue
+                    where = f"{tag} (merge, parent {p[:7]})" if merge else tag
+                    breaches.append(f"C1 {where}: {r}")
             for f in cyc_files:
-                after = self._cycle_at(cycle, sha, f)
-                having = [p for p in parents if self._cycle_at(cycle, p, f) is not None]
-                for p in (having or parents):
-                    before = self._cycle_at(cycle, p, f)
-                    nums = () if before is not None else [
-                        cycle.cycle_number(x[len("cycles/"):])
-                        for x in self._tree_cycle_names(p)
-                        if cycle.cycle_number(x[len("cycles/"):]) is not None]
-                    breaches += cycle.check_transition(f, sha, before, after, nums)
+                breaches += self._cycle_transitions(cycle, sha, parents, states, f)
 
         if breaches:
             self.add("CYCLE", False, "; ".join(breaches[:3]))
         else:
             self.add("CYCLE", True,
-                     f"{len(wt)} cycle(s), {behavior} behavior commit(s) "
-                     f"examined, all declared before ({rule_exempt} "
+                     f"{len(wt)} cycle(s); range {label}; {behavior} behavior "
+                     f"commit(s) examined, all declared before ({rule_exempt} "
                      f"RULE-exempt, {quiet_merges} merge(s) with no own change)")
         if explicit:
-            self._cycle_report(cycle, wt, disp, rule_exempt, rule_open)
+            self._cycle_report(cycle, wt, scrum_on, backlog_text, rule_exempt, rule_open)
 
-    def _cycle_report(self, cycle, wt, disp, rule_exempt: int, rule_open: int) -> None:
+    def _cycle_transitions(self, cycle, sha: str, parents: list[str],
+                           states: dict, f: str) -> list[str]:
+        """C4 for one cycle file against every parent that has it (or all
+        parents when none does), plus the checks that belong to the
+        transition itself: form, size and intake at add (against the
+        adding commit's tree and parent), form, size, closure and
+        backlog capture at close (against the parent's config and specs)."""
+        out = []
+        after = self._cycle_at(cycle, sha, f)
+        having = [p for p in parents if self._cycle_at(cycle, p, f) is not None]
+        for p in (having or parents):
+            st = states[p]
+            before = self._cycle_at(cycle, p, f)
+            nums = [] if before is not None else self._tree_numbers(cycle, p)
+            found = cycle.check_transition(f, sha, before, after, nums)
+            out += found
+            if found or after is None or after.fatal:
+                continue
+            where = f"{sha[:7]} {f}"
+            ids = [i for i, _ in after.demands()]
+            if before is None and not after.closed:
+                out += cycle.check_form(after, st["stages"],
+                                        self._tree_spec_texts(cycle, sha, ids),
+                                        where=where, fix=cycle.FIX_OPENING)
+                out += cycle.check_intake(after, self._tree_cycles(cycle, p),
+                                          st["scrum"], self._tree_text(p, "backlog.md"),
+                                          sha)
+            elif before is not None and not before.closed and after.closed:
+                out += cycle.check_form(after, st["stages"],
+                                        self._tree_spec_texts(cycle, p, ids),
+                                        where=where, fix=cycle.FIX_CLOSE)
+                out += cycle.check_closure(after, where=where)
+                if st["scrum"]:
+                    out += cycle.check_capture(after, self._tree_text(sha, "backlog.md"), sha)
+        return out
+
+    def _cycle_range(self, since: str | None) -> tuple[str | None, str | None, str | None]:
+        """(rev for `git log`, label, breach). The shared `_resolve_range`
+        chain stays as it is for I1 and rule-lane; this gate refuses to
+        narrow silently (R1f, F17)."""
+        if since and set(since) == {"0"}:
+            return "HEAD", "full history (new branch)", None
+        if since:
+            if self._rev_ok(since):
+                s, head = self._git("rev-parse", since, "HEAD")
+                return f"{since}..HEAD", f"{s[:7]}..{head[:7]}", None
+            return None, None, (
+                f"CYCLE range: --since {since} does not resolve (force push or "
+                f"shallow clone) — fetch full history (fetch-depth: 0) or re-run "
+                f"with --since <merge-base>")
+        rng = self._resolve_range(None)
+        if rng is not None:
+            head = self._git("rev-parse", "HEAD")[0]
+            return rng, f"last commit only ({head[:7]})", None
+        return "HEAD", "full history", None
+
+    def _cycle_report(self, cycle, wt, scrum_on: bool, backlog_text: str,
+                      rule_exempt: int, rule_open: int) -> None:
         """R16: informational rows, explicit mode only."""
         open_ = [c for c in wt if not c.closed]
         if open_:
@@ -1022,42 +1085,48 @@ class Gate:
                      f"{c.header.get('opened', '?')}): {since}")
         else:
             self.add("CYCLE-RPT", True, "no open cycle — 0 behavior commit(s)")
+        disp = cycle.disposition_report(wt, scrum_on, backlog_text)
         for c in wt:
             if not c.closed:
                 continue
-            d = disp.get(c.number)
-            kinds = [k for ks in (d.tokens.values() if d else ()) for k in ks]
-            count = {k: kinds.count(k) for k in ("taken", "deferred", "dropped", "backlog")}
+            d = disp[c.number]
             toks = ", ".join(cycle.token(c.number, k) + " " + t
                              for k, t in enumerate(c.next_items(), 1))
             self.add("CYCLE-RPT", True,
                      f"{c.ident} closed: {len(c.next_items())} next-cycle item(s) — "
-                     f"taken {count['taken']}, deferred {count['deferred']}, "
-                     f"dropped {count['dropped']}, backlog {count['backlog']}, "
-                     f"pending {len(d.pending) if d else 0}"
-                     + (f"; {toks}" if toks else ""))
+                     f"taken {d['taken']}, deferred {d['deferred']}, "
+                     f"dropped {d['dropped']}, backlog {d['backlog']}, "
+                     f"pending {len(d['pending'])}" + (f"; {toks}" if toks else ""))
         self.add("CYCLE-RPT", True,
                  f"{rule_exempt} behavior commit(s) in range RULE-exempt with no "
                  f"valid cycle; {rule_open} RULE-eligible behavior commit(s) "
                  f"made while a cycle was open")
 
+    def _git_z(self, *args: str) -> list[str]:
+        """Strict, NUL-separated file lists (F10): a git-quoted path
+        (non-ASCII, tab) arrives as itself, so path matching sees it."""
+        out = self._run_git(*args, binary=True)
+        if out.returncode != 0:
+            raise GitOpFailure(
+                f"git {' '.join(args)} failed (exit {out.returncode}): "
+                f"{out.stderr.decode('utf-8', 'replace').strip() or '(no stderr)'}")
+        return [x for x in out.stdout.decode("utf-8", "surrogateescape").split("\0") if x]
+
     def _wt_cycles(self, cycle) -> tuple[list, list[str]]:
-        d = self.project / "cycles"
-        if not d.exists():
-            return [], []
-        if not d.is_dir():
-            return [], ["C2 cycles: not a directory"]
+        """The tracked (or staged) files under cycles/, read from disk
+        (F13): untracked droppings are ignored, a tracked stray is red."""
         found, strays = [], []
-        for p in sorted(d.iterdir()):
-            rel = f"cycles/{p.name}"
-            if not (p.is_file() and cycle.cycle_number(p.name) is not None):
+        for rel in self._git_z("ls-files", "-z", "--", "cycles/"):
+            if cycle.cycle_number(rel[len("cycles/"):]) is None:
                 strays.append(f"C2 {rel}: stray entry — cycles/ holds only "
-                              f"C-<n>.md files")
+                              f"C-<n>.md files; git rm it")
                 continue
             try:
-                data = p.read_bytes()
+                data = (self.project / rel).read_bytes()
+            except FileNotFoundError:
+                continue   # deleted, not yet committed: C4 judges the commit
             except OSError as e:
-                strays.append(f"C2 {rel}: unreadable ({e})")
+                strays.append(f"C2 {rel}: unreadable ({e}) — fix its permissions")
                 continue
             found.append(cycle.parse(rel, data))
         return sorted(found, key=lambda c: c.number), strays
@@ -1068,13 +1137,14 @@ class Gate:
         out = {}
         if specs.is_dir():
             for d in sorted(specs.iterdir()):
-                sp = d / "spec.md"
-                if any(cycle.dir_matches(d.name, i) for i in ids) and sp.is_file():
-                    out[d.name] = sp.read_text(encoding="utf-8", errors="ignore")
+                if d.is_dir() and any(cycle.dir_matches(d.name, i) for i in ids):
+                    sp = d / "spec.md"
+                    out[d.name] = sp.read_text(encoding="utf-8", errors="ignore") \
+                        if sp.is_file() else None
         return out
 
     def _tree_has(self, rev: str, path: str) -> bool:
-        return path in self._git("ls-tree", "--name-only", rev, "--", path)
+        return path in self._git_z("ls-tree", "--name-only", "-z", rev, "--", path)
 
     def _blob(self, rev: str, path: str) -> bytes:
         out = self._run_git("show", f"{rev}:{path}", binary=True)
@@ -1084,12 +1154,24 @@ class Gate:
                 f"{out.stderr.decode('utf-8', 'replace').strip() or '(no stderr)'}")
         return out.stdout
 
-    def _tree_cycle_names(self, rev: str) -> list[str]:
-        key = ("names", rev)
+    def _tree_text(self, rev: str, path: str) -> str:
+        return self._blob(rev, path).decode("utf-8", "replace") \
+            if self._tree_has(rev, path) else ""
+
+    def _tree_listing(self, rev: str) -> list[str]:
+        """fde.config.toml and the entries of cycles/ in `rev`, one call."""
+        key = ("listing", rev)
         if key not in self._cyc_cache:
-            self._cyc_cache[key] = self._git("ls-tree", "--name-only", rev,
-                                             "--", "cycles/")
+            self._cyc_cache[key] = self._git_z("ls-tree", "--name-only", "-z", rev,
+                                               "--", "fde.config.toml", "cycles/")
         return self._cyc_cache[key]
+
+    def _tree_cycle_names(self, rev: str) -> list[str]:
+        return [n for n in self._tree_listing(rev) if n.startswith("cycles/")]
+
+    def _tree_numbers(self, cycle, rev: str) -> list[int]:
+        return [n for n in (cycle.cycle_number(x[len("cycles/"):])
+                            for x in self._tree_cycle_names(rev)) if n is not None]
 
     def _cycle_at(self, cycle, rev: str, path: str):
         """The parsed cycle file `path` in `rev`, or None when absent."""
@@ -1099,83 +1181,99 @@ class Gate:
                 if path in self._tree_cycle_names(rev) else None
         return self._cyc_cache[key]
 
-    def _cycle_parent_config(self, rev: str) -> tuple[bool, list, str | None]:
-        """(enabled, stages, breach) from `rev`'s own fde.config.toml —
-        a commit is examined only when its parent tree enables the mode
-        (R9); a parent config that cannot be read is red, never "off"."""
-        key = ("config", rev)
+    def _tree_cycles(self, cycle, rev: str) -> list:
+        return [c for c in (self._cycle_at(cycle, rev, n)
+                            for n in self._tree_cycle_names(rev)
+                            if cycle.cycle_number(n[len("cycles/"):]) is not None)]
+
+    def _parent_state(self, cycle, rev: str) -> dict:
+        """Everything a commit is judged by, read from its parent `rev`
+        (R1b): examined (flag on OR a tracked cycle file, R1a), stages,
+        behavior paths, scrum mode and the RULE Config. A parent config
+        that is not valid TOML, or whose [cycle] fails rule 6c, is red."""
+        key = ("state", rev)
         if key in self._cyc_cache:
             return self._cyc_cache[key]
-        res: tuple[bool, list, str | None] = (False, [], None)
-        if self._tree_has(rev, "fde.config.toml"):
+        listing = self._tree_listing(rev)
+        raw, err = {}, None
+        if "fde.config.toml" in listing:
             try:
-                data = tomllib.loads(self._blob(rev, "fde.config.toml").decode("utf-8"))
+                raw = tomllib.loads(self._blob(rev, "fde.config.toml").decode("utf-8"))
             except (UnicodeDecodeError, tomllib.TOMLDecodeError) as e:
-                data, res = None, (False, [], f"parent config fde.config.toml is "
-                                             f"not valid TOML ({e})")
-            if data is not None and "cycle" in data:
-                sec = data["cycle"]
-                if not isinstance(sec, dict):
-                    res = (False, [], "parent config [cycle] is not a table")
-                elif sec.get("enabled") is True:
-                    st = sec.get("stages", [])
-                    if not isinstance(st, list) or not all(
-                            x in ("live", "published") for x in st) \
-                            or len(set(st)) != len(st):
-                        res = (True, [], f"parent config [cycle].stages is "
-                                         f"invalid ({st!r})")
-                    else:
-                        res = (True, st, None)
-        self._cyc_cache[key] = res
-        return res
+                raw, err = {}, (f"parent config fde.config.toml is not valid TOML "
+                                f"({e}) — fix that commit before pushing")
+        sec = raw.get("cycle")
+        if err is None and "cycle" in raw:
+            viol = cycle_config_violations(sec)
+            if viol:
+                err = (f"parent config {viol[0].message} [{viol[0].code}] — fix "
+                       f"that commit before pushing")
+        on = isinstance(sec, dict) and sec.get("enabled") is True
+        scrum = raw.get("scrum")
+        state = {
+            "err": err,
+            "examined": on or any(cycle.cycle_number(n[len("cycles/"):]) is not None
+                                  for n in self._tree_cycle_names(rev)),
+            "stages": list(sec.get("stages", [])) if isinstance(sec, dict) else [],
+            "bp": gate_paths(raw)[0],
+            "scrum": isinstance(scrum, dict) and scrum.get("enabled") is True,
+            "cfg": Config(path=self.project / "fde.config.toml", raw=raw,
+                          weights=dict(raw.get("weights", {}) or {}),
+                          depths=dict(raw.get("depths", {}) or {})),
+        }
+        self._cyc_cache[key] = state
+        return state
 
     def _c1_reason(self, cycle, parent: str, stages: list) -> str | None:
         """None when `parent`'s tree declares the work: exactly one open,
-        well-formed cycle, serial order intact, and every acceptance.md it
-        names for an S+ demand already present. Else the first failing
-        reason, in the contract's order."""
+        well-formed cycle (size is not re-judged here, R1c), serial order
+        intact, and every acceptance.md it names for an S+ demand already
+        present. Else the first failing reason, with its way out."""
         key = ("c1", parent)
         if key in self._cyc_cache:
             return self._cyc_cache[key]
-        cycles = [c for c in (self._cycle_at(cycle, parent, n)
-                              for n in self._tree_cycle_names(parent)
-                              if cycle.cycle_number(n[len("cycles/"):]) is not None)]
+        cycles = self._tree_cycles(cycle, parent)
         opened = [c for c in cycles if not c.closed]
         reason = None
         if not opened:
-            reason = ("no open cycle in the parent tree — open and commit "
-                      "cycles/C-<n>.md before the first behavior change")
+            reason = ("no open cycle — open one in an earlier commit, or declare "
+                      "\"FORWARD: RULE — <reason>\" if it is RULE-sized")
         elif len(opened) > 1:
             reason = (f"{len(opened)} open cycles in the parent tree "
-                      f"({', '.join(c.ident for c in opened)})")
+                      f"({', '.join(c.ident for c in opened)}) — close all but "
+                      f"one in an earlier commit")
         else:
             serial = cycle.check_serial(cycles, "parent tree")
             c = opened[0]
             if serial:
                 reason = serial[0]
             else:
-                form = cycle.check_form(c, stages, self._tree_spec_texts(
-                    cycle, parent, [i for i, _ in c.demands()]))
+                form = cycle.check_form(c, stages, None)
                 if form:
                     reason = f"the parent's open {c.ident} fails its form: {form[0]}"
                 else:
                     for acc in cycle.acceptance_paths(c):
                         if not self._tree_has(parent, acc):
                             reason = (f"{acc} is absent from the parent tree — "
-                                      f"acceptance must precede the code it "
-                                      f"governs (I4)")
+                                      f"commit acceptance.md in an earlier "
+                                      f"commit than the code it governs (I4)")
                             break
         self._cyc_cache[key] = reason
         return reason
 
     def _tree_spec_texts(self, cycle, rev: str, ids: list[str]) -> dict:
+        """{dir: spec.md text or None} for every specs/<dir> in `rev` that
+        matches one of `ids` (normalized, R1c)."""
         out = {}
-        for path in self._git("ls-tree", "--name-only", rev, "--", "specs/"):
+        for entry in self._git_z("ls-tree", "-z", rev, "--", "specs/"):
+            meta, _, path = entry.partition("\t")
+            if meta.split()[1:2] != ["tree"]:
+                continue
             d = path[len("specs/"):]
             if any(cycle.dir_matches(d, i) for i in ids):
                 sp = f"specs/{d}/spec.md"
-                if self._tree_has(rev, sp):
-                    out[d] = self._blob(rev, sp).decode("utf-8", "ignore")
+                out[d] = self._blob(rev, sp).decode("utf-8", "ignore") \
+                    if self._tree_has(rev, sp) else None
         return out
 
     # -- survey: the brownfield map is complete, labeled and anchored -----

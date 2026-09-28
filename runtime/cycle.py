@@ -10,11 +10,17 @@ closure (C3), transition (C4), serial (C5) and disposition (C6) checks.
 C1 ("declared before") is ordering in git, so it lives in
 `verify.Gate.gate_cycle`, which reads the trees and calls in here.
 
+When each check runs is the gate's business (architecture.md, "Revision
+— round 1"): an open cycle is judged in the working tree and at the
+commit that adds it; a closed cycle is judged once, at its closing
+commit, against that commit's parent configuration — never re-judged
+later against today's config.
+
 Pure: no git, no filesystem. Inputs are bytes/texts and plain data, so
-every rule is unit-testable without a repository. Header parsing and the
-demand join key are graph.py's (MNT-11: one definition, imported, never
-copied). The build contract, grammar included, is
-specs/FWD-021-cycle-scope/architecture.md. Stdlib only (I6).
+every rule is unit-testable without a repository. Header parsing, the
+declared spec size and the stage set are imported, never copied
+(MNT-11, F15). Every breach names its legal way out (F16). Stdlib only
+(I6).
 """
 
 from __future__ import annotations
@@ -27,15 +33,16 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from graph import _header_fields, spec_size  # noqa: E402 — MNT-11
+from fde_lib import CYCLE_STAGES  # noqa: E402 — F15, one stage set
+from graph import _header_fields, spec_header_size  # noqa: E402 — MNT-11
 
 CYCLES_DIR = "cycles"
 NAME_RE = re.compile(r"C-(0|[1-9][0-9]*)\.md")
 HEADER_MAX_LINES = 30
 
 ALWAYS = ("declared-before", "regression-proven", "review-rounds", "residuals")
-STAGES = ("live", "published")
-ALL_KEYS = ALWAYS + ("promotion",) + STAGES
+STAGES = CYCLE_STAGES
+ALL_KEYS = ALWAYS + ("promotion",) + tuple(STAGES)
 SIZES = ("XS", "S", "M", "L")
 EVIDENCE_LABELS = ("opinion", "usage-data", "user-test", "production")
 
@@ -51,6 +58,13 @@ AMENDED_RE = re.compile(r"amended (\d{4}-\d{2}-\d{2}): (.*)")
 ACCEPTANCE_RE = re.compile(r"specs/([^/\s`'\"()<>]+)/acceptance\.md")
 INTAKE_RE = re.compile(
     r"C-(0|[1-9][0-9]*)#([1-9][0-9]*) (?:(taken|deferred)|dropped(?: — | -- )(.*))")
+
+# the legal ways out (F16) — every breach ends with one
+FIX_OPEN = ("fix it before committing; once committed, amend while the "
+            "opening commit is still HEAD, else close this cycle with [-] "
+            "items and open the next")
+FIX_CLOSE = "fix the closing commit before pushing (the cycle is still open in its parent)"
+FIX_OPENING = "fix the opening commit before pushing, or close it and open the next"
 
 
 def _valid_date(s: str) -> date | None:
@@ -85,6 +99,19 @@ def cites(text: str, tok: str) -> bool:
 def cycle_number(name: str) -> int | None:
     m = NAME_RE.fullmatch(name)
     return int(m.group(1)) if m else None
+
+
+def norm_id(s: str) -> str:
+    """One demand id, however written: uppercased, every digit run read
+    as an integer — `fwd-050`, `FWD-50` and `FWD-050` are one id (F2)."""
+    return re.sub(r"\d+", lambda m: str(int(m.group(0))), s.upper())
+
+
+def dir_matches(d: str, ident: str) -> bool:
+    """`specs/<d>` belongs to demand `ident`: equal after normalization,
+    or `ident-…` — so FWD-1 never matches FWD-17-x."""
+    nd, ni = norm_id(d), norm_id(ident)
+    return nd == ni or nd.startswith(ni + "-")
 
 
 # ---------------------------------------------------------------------------
@@ -213,12 +240,6 @@ def item_key(item: DoneItem) -> str | None:
     return None
 
 
-def dir_matches(d: str, ident: str) -> bool:
-    """`specs/<d>` belongs to demand `ident`: equal, or `ident-…` — so
-    FWD-1 never matches FWD-17-x."""
-    return d == ident or d.startswith(ident + "-")
-
-
 def acceptance_paths(c: Cycle) -> list[str]:
     """Every `specs/<dir>/acceptance.md` a done item names for one of the
     cycle's S+ demands — the paths C1 requires in the parent tree."""
@@ -233,19 +254,24 @@ def acceptance_paths(c: Cycle) -> list[str]:
 
 def _mentions_id(text: str, ident: str) -> bool:
     return re.search(r"(?<![A-Za-z0-9._-])" + re.escape(ident)
-                     + r"(?![A-Za-z0-9_-])(?!\.[A-Za-z0-9])", text) is not None
+                     + r"(?![A-Za-z0-9_-])(?!\.[A-Za-z0-9])", text,
+                     re.IGNORECASE) is not None
 
 
 # ---------------------------------------------------------------------------
 # C2 — form
 # ---------------------------------------------------------------------------
-def check_form(c: Cycle, stages, spec_texts: dict | None = None) -> list[str]:
-    """C2 for one cycle. `spec_texts` maps a `specs/<dir>` name to its
-    spec.md text in the tree being checked (size agreement)."""
-    w = f"C2 {c.path}"
+def check_form(c: Cycle, stages, spec_texts: dict | None = None,
+               where: str | None = None, fix: str = FIX_OPEN) -> list[str]:
+    """C2 for one cycle. `spec_texts` maps each `specs/<dir>` name that
+    matches a listed demand to its spec.md text (None when the directory
+    has no spec.md) in the tree being checked; None skips size agreement
+    (C1's parent-tree check never re-judges size, R1c). `where` defaults
+    to the cycle's path; `fix` is the way out appended to each breach."""
+    w = f"C2 {where or c.path}"
     out = [f"{w}: {f}" for f in c.fatal]
     if c.fatal and not c.header and not c.sections:
-        return out   # undecodable: nothing further is readable
+        return [f"{b} — {fix}" for b in out]   # undecodable: nothing further
 
     hdr = c.header
     for key in ("cycle", "objective", "opened", "demands"):
@@ -279,9 +305,9 @@ def check_form(c: Cycle, stages, spec_texts: dict | None = None) -> list[str]:
             if not m:
                 out.append(f"{w}: demand '{part.strip()}' is not '<id> (XS|S|M|L)'")
                 continue
-            if m.group(1) in seen:
+            if norm_id(m.group(1)) in seen:
                 out.append(f"{w}: demand {m.group(1)} is listed twice")
-            seen.add(m.group(1))
+            seen.add(norm_id(m.group(1)))
             demands.append((m.group(1), m.group(2)))
 
     for sec in (TASKS, DONE, NEXT):
@@ -310,6 +336,10 @@ def check_form(c: Cycle, stages, spec_texts: dict | None = None) -> list[str]:
         if it.before.startswith("amended ") and not _amended_ok(it.before):
             out.append(f"{w}: '## Done when' item {i} is not "
                        f"'amended YYYY-MM-DD: <text>'")
+    if not c.closed and any(it.mark != " " for it in c.done):
+        # F11: a pre-ticked open cycle could never close legally
+        out.append(f"{w}: an open cycle is declared unresolved — remove the "
+                   f"marks before committing")
     if "none" in c.nxt and not c.closed:
         out.append(f"{w}: '- none' in '## Next cycle' of an open cycle")
     for i, t in enumerate(c.intake, 1):
@@ -328,13 +358,15 @@ def check_form(c: Cycle, stages, spec_texts: dict | None = None) -> list[str]:
             counts[k] += 1
     for k in sorted(need):
         if counts[k] == 0:
-            out.append(f"{w}: profile key '{k}' missing from '## Done when'")
+            out.append(f"{w}: profile key '{k}' missing from '## Done when' "
+                       f"(while open, append '- [ ] amended YYYY-MM-DD: {k}')")
         elif counts[k] > 1:
             out.append(f"{w}: profile key '{k}' appears {counts[k]} times")
     for k in STAGES:
         if counts[k] and k not in (stages or []):
             out.append(f"{w}: '{k}' is present but [cycle].stages does not "
-                       f"declare it")
+                       f"declare it (declare the stage, or resolve the item "
+                       f"[-] at close)")
 
     # demand-specific part
     xs = [i for i, s in demands if s == "XS"]
@@ -354,40 +386,68 @@ def check_form(c: Cycle, stages, spec_texts: dict | None = None) -> list[str]:
             if not any(_mentions_id(it.text, ident) for it in inline):
                 out.append(f"{w}: XS demand {ident} is named by no inline done item")
 
-    # size agreement
+    if spec_texts is not None:
+        out += check_size(demands, spec_texts, w)
+    return [f"{b} — {fix}" for b in out]
+
+
+def check_size(demands, spec_texts: dict, w: str) -> list[str]:
+    """R1c: a demand with a matching `specs/<dir>/` must declare the same
+    size in that spec.md's `size:` header. Ambiguous or unreadable is red."""
+    out = []
     for ident, size in demands:
-        for d, text in sorted((spec_texts or {}).items()):
-            if not dir_matches(d, ident):
-                continue
-            s = spec_size(text)
-            if s is not None and s != size:
-                out.append(f"{w}: {ident} is declared {size} but "
-                           f"specs/{d}/spec.md triages it {s}")
+        dirs = sorted(d for d in spec_texts if dir_matches(d, ident))
+        if len(dirs) > 1:
+            out.append(f"{w}: {ident} matches {len(dirs)} spec directories "
+                       f"({', '.join(dirs)}) — name the demand unambiguously")
+            continue
+        if not dirs:
+            continue
+        d = dirs[0]
+        text = spec_texts[d]
+        if text is None:
+            out.append(f"{w}: specs/{d}/spec.md is absent — add it with a "
+                       f"\"size: {size}\" header, or correct demands:")
+            continue
+        s = spec_header_size(text)
+        if s is None:
+            out.append(f"{w}: add \"size: {size}\" to specs/{d}/spec.md's "
+                       f"header, or correct demands:")
+        elif s != size:
+            out.append(f"{w}: {ident} is declared {size} but specs/{d}/spec.md "
+                       f"says size: {s} — correct demands: or the spec's size:")
     return out
 
 
 # ---------------------------------------------------------------------------
-# C3 — closure
+# C3 — closure (run once, at the closing commit)
 # ---------------------------------------------------------------------------
-def check_closure(c: Cycle) -> list[str]:
+def check_closure(c: Cycle, where: str | None = None, fix: str = FIX_CLOSE) -> list[str]:
     if not c.closed:
         return []
-    w = f"C3 {c.path}"
+    w = f"C3 {where or c.path}"
     out = []
     for i, it in enumerate(c.done, 1):
         if it.mark == " ":
             out.append(f"{w}: closed with '## Done when' item {i} unresolved")
-        elif it.mark == "-":
-            want = it.before.strip()
-            if not any(want in n for n in c.nxt):
-                out.append(f"{w}: not-met item '{want}' is not carried into "
-                           f"'## Next cycle'")
+    # F12: one next-cycle item per not-met item, matched by prefix
+    unmet = sorted((it.before.strip() for it in c.done if it.mark == "-"),
+                   key=len, reverse=True)
+    used: set[int] = set()
+    for t in unmet:
+        k = next((j for j, n in enumerate(c.nxt)
+                  if j not in used and n.startswith(t)), None)
+        if k is None:
+            out.append(f"{w}: not-met item \"{t}\" needs its own next-cycle "
+                       f"item starting with its text")
+        else:
+            used.add(k)
     if not c.nxt:
         out.append(f"{w}: closed with an empty '## Next cycle' (write '- none' "
                    f"when nothing is left)")
     elif "none" in c.nxt and len(c.nxt) > 1:
         out.append(f"{w}: '- none' alongside other '## Next cycle' items")
-    return out
+    return [f"{b} — {fix}" for b in out]
 
 
 # ---------------------------------------------------------------------------
@@ -399,10 +459,11 @@ def check_serial(cycles: list[Cycle], where: str) -> list[str]:
     out = []
     if len(opened) > 1:
         out.append(f"C5 {where}: {len(opened)} open cycles "
-                   f"({', '.join(f'C-{n}' for n in opened)}) — close one first")
+                   f"({', '.join(f'C-{n}' for n in opened)}) — close one "
+                   f"first; {FIX_OPENING}")
     elif opened and cycles and opened[0] != max(c.number for c in cycles):
         out.append(f"C5 {where}: open cycle C-{opened[0]} is not the "
-                   f"highest-numbered cycle")
+                   f"highest-numbered cycle — {FIX_OPENING}")
     return out
 
 
@@ -418,57 +479,63 @@ def check_transition(path: str, sha: str, before: Cycle | None,
     """C4: the one allowed change between a parent's version (`before`)
     and a commit's version (`after`) of one cycle file."""
     w = f"C4 {sha[:7]}"
+    later = ("the declaration is frozen; close this cycle with [-] items "
+             "and reasons, and open the next")
     if before is None and after is None:
         return []
     if before is None:
         out = []
         if after.fatal:
-            return [f"{w}: {path} added but cannot be parsed: {after.fatal[0]}"]
+            return [f"{w}: {path} added but cannot be parsed: {after.fatal[0]} "
+                    f"— {FIX_OPENING}"]
         if after.closed:
             out.append(f"{w}: {path} is added already closed — a cycle is "
-                       f"added open")
+                       f"added open, then closed in a later commit")
         higher = [n for n in parent_numbers if n >= after.number]
         if higher:
             out.append(f"C5 {sha[:7]}: {path} is numbered at or below the "
-                       f"existing C-{max(higher)}")
+                       f"existing C-{max(higher)} — number it C-{max(parent_numbers) + 1}")
         return out
     if after is None:
-        return [f"{w}: {path} was deleted — a cycle file is never deleted"]
+        return [f"{w}: {path} was deleted — a cycle file is never deleted; "
+                f"restore it"]
     if before.fatal:
         return [f"{w}: cannot verify transition of {path}: the parent's "
-                f"version does not parse ({before.fatal[0]})"]
+                f"version does not parse ({before.fatal[0]}) — restore a "
+                f"parseable parent version before pushing"]
     if after.fatal:
         return [f"{w}: cannot verify transition of {path}: this version "
-                f"does not parse ({after.fatal[0]})"]
+                f"does not parse ({after.fatal[0]}) — fix this commit before "
+                f"pushing"]
     if before.closed:
         return [f"{w}: {path} is closed in the parent and changed — a closed "
-                f"cycle never changes"]
+                f"cycle never changes; revert the edit"]
     out = []
     if _header_sans_closed(before) != _header_sans_closed(after):
-        out.append(f"{w}: {path} header changed — the declaration is frozen "
-                   f"from the opening commit")
+        out.append(f"{w}: {path} header changed — {later}")
     if before.tasks != after.tasks:
         out.append(f"{w}: {path} '## Tasks' changed — a discovery goes to "
-                   f"'## Next cycle', never into the running cycle")
+                   f"'## Next cycle', never into the running cycle; {later}")
     if before.intake != after.intake:
-        out.append(f"{w}: {path} '## Intake' changed")
+        out.append(f"{w}: {path} '## Intake' changed — {later}")
     if before.nxt != after.nxt[:len(before.nxt)]:
         out.append(f"{w}: {path} '## Next cycle' item removed or reworded — "
-                   f"the list is append-only")
+                   f"the list is append-only; restore the items")
     pd = [(i.mark, i.text) for i in before.done]
     if not after.closed:
         if pd != [(i.mark, i.text) for i in after.done[:len(pd)]]:
             out.append(f"{w}: {path} '## Done when' item removed, reworded or "
-                       f"marked while open — the done list is frozen")
+                       f"marked while open — {later}")
         for it in after.done[len(pd):]:
             if it.mark != " " or not _amended_ok(it.text):
                 out.append(f"{w}: {path} added done item '{it.text}' is not "
-                           f"'- [ ] amended YYYY-MM-DD: <text>'")
+                           f"'- [ ] amended YYYY-MM-DD: <text>' — rewrite it "
+                           f"in that form")
         return out
     # open -> closed
     if len(before.done) != len(after.done):
         out.append(f"{w}: {path} closing changed the number of done items "
-                   f"({len(before.done)} -> {len(after.done)})")
+                   f"({len(before.done)} -> {len(after.done)}) — {FIX_CLOSE}")
         return out
     for i, (p, q) in enumerate(zip(before.done, after.done), 1):
         ok = (p.mark == " " and q.mark in ("x", "-")
@@ -477,99 +544,110 @@ def check_transition(path: str, sha: str, before: Cycle | None,
                       for s in (" — ", " -- ")))
         if not ok:
             out.append(f"{w}: {path} closing rewrote done item {i} — only the "
-                       f"mark ([x]/[-]) and an appended ' — <evidence>' may change")
+                       f"mark ([x]/[-]) and an appended ' — <evidence>' may "
+                       f"change; {FIX_CLOSE}")
     return out
 
 
 # ---------------------------------------------------------------------------
-# C6 — dispositions
+# C6 — dispositions, checked at the transition where they happen (R1e)
 # ---------------------------------------------------------------------------
-@dataclass
-class Disposition:
-    tokens: dict = field(default_factory=dict)   # token -> list of kinds
-    breaches: list = field(default_factory=list)
-    pending: list = field(default_factory=list)
+def captured(backlog_text: str, tok: str) -> bool:
+    """A labelled backlog.md line cites `tok`."""
+    return any(cites(line, tok) and any(lbl in line for lbl in EVIDENCE_LABELS)
+               for line in backlog_text.splitlines())
 
 
-def check_dispositions(cycles: list[Cycle], scrum_on: bool,
+def check_capture(c: Cycle, backlog_text: str, sha: str) -> list[str]:
+    """Scrum on, at the open→closed transition: every item except `none`
+    is cited, with an evidence label, in the closing commit's own
+    backlog.md. Afterwards the backlog is groomed freely."""
+    out = []
+    for k, _t in enumerate(c.next_items(), 1):
+        tok = token(c.number, k)
+        if not captured(backlog_text, tok):
+            out.append(f"C6 {sha[:7]}: {tok} is not captured in the closing "
+                       f"commit's backlog.md — add a line citing {tok} with an "
+                       f"evidence label ({', '.join(EVIDENCE_LABELS)}) in the "
+                       f"same commit")
+    return out
+
+
+def check_intake(new: Cycle, tree: list[Cycle], scrum_on: bool,
+                 backlog_text: str, sha: str) -> list[str]:
+    """At the absent→open transition of `new`, against its parent: `tree`
+    is the parent's cycles, `backlog_text` the parent's backlog.md."""
+    w = f"C6 {sha[:7]} {new.path}"
+    by_n = {c.number: c for c in tree}
+    out, seen = [], {}
+    for t in new.intake:
+        m = INTAKE_RE.fullmatch(t)
+        if not m:
+            continue   # C2 reports the grammar
+        n, k, kind = int(m.group(1)), int(m.group(2)), (m.group(3) or "dropped")
+        tok = token(n, k)
+        src = by_n.get(n)
+        if src is None or not src.closed or k > len(src.next_items()):
+            out.append(f"{w}: intake cites {tok}, which does not exist — cite "
+                       f"an item of a closed cycle")
+            continue
+        seen[tok] = seen.get(tok, 0) + 1
+        if kind == "taken" and not any(cites(x, tok) for x in new.tasks):
+            out.append(f"{w}: {tok} taken, but no '## Tasks' item cites it — "
+                       f"cite {tok} in the task that takes it")
+        if kind == "deferred" and not any(cites(x, tok) for x in new.nxt):
+            out.append(f"{w}: {tok} deferred, but no '## Next cycle' item cites "
+                       f"it — re-list it there with {tok}")
+        if scrum_on and kind != "taken":
+            out.append(f"{w}: {tok} {kind} — with [scrum] on, an intake item is a "
+                       f"pull from the backlog and must be 'taken'")
+    for tok, count in seen.items():
+        if count > 1:
+            out.append(f"{w}: {tok} appears {count} times in '## Intake' — "
+                       f"exactly once")
+    if scrum_on:
+        return out
+    closed_below = [c for c in tree if c.closed and c.number < new.number]
+    if not closed_below:
+        return out
+    pred = max(closed_below, key=lambda c: c.number)
+    for t, ok in ((tok, tok in seen) for tok in
+                  (token(pred.number, k) for k in range(1, len(pred.next_items()) + 1))):
+        if not ok and not captured(backlog_text, t):
+            out.append(f"{w}: {t} of {pred.ident} has no disposition — add "
+                       f"'{t} taken', '{t} deferred' or '{t} dropped — <reason>' "
+                       f"to '## Intake' before committing")
+    for tok in seen:
+        if int(tok.split("#")[0][2:]) != pred.number:
+            out.append(f"{w}: intake cites {tok}, which is not an item of the "
+                       f"previous cycle {pred.ident}")
+    return out
+
+
+def disposition_report(cycles: list[Cycle], scrum_on: bool,
                        backlog_text: str = "") -> dict:
-    """C6 over the working tree. Returns {cycle number: Disposition}; each
-    Disposition's `breaches` are red, `pending` are reported only."""
-    by_n = {c.number: c for c in cycles}
-    nums = sorted(by_n)
-    result = {}
-    backlog_lines = backlog_text.splitlines() if scrum_on else []
-
-    def successor(n):
-        later = [m for m in nums if m > n]
-        return by_n[later[0]] if later else None
-
-    def predecessor(n):
-        earlier = [m for m in nums if m < n]
-        return by_n[earlier[-1]] if earlier else None
-
-    # intake lines citing a token that is not the immediate predecessor's
-    stray = []
-    for c in cycles:
-        pred = predecessor(c.number)
-        for t in c.intake:
-            m = INTAKE_RE.fullmatch(t)
-            if not m:
-                continue
-            n, k = int(m.group(1)), int(m.group(2))
-            if pred is None or n != pred.number:
-                stray.append(f"C6 {c.path}: intake cites C-{n}#{k}, which is "
-                             f"not an item of the immediately previous cycle")
-            elif k > len(pred.next_items()):
-                stray.append(f"C6 {c.path}: intake cites C-{n}#{k}, which does "
-                             f"not exist (C-{n} has {len(pred.next_items())} item(s))")
-
+    """Working tree, report only (never red): per closed cycle, how its
+    items were disposed of so far. {number: {kind: count, "pending": [..]}}"""
+    nums = sorted(c.number for c in cycles)
+    out = {}
     for c in cycles:
         if not c.closed:
             continue
-        d = Disposition()
-        nxt = successor(c.number)
-        for k, text in enumerate(c.next_items(), 1):
+        kinds = {"taken": 0, "deferred": 0, "dropped": 0, "backlog": 0, "pending": []}
+        has_next = any(n > c.number for n in nums)
+        for k, _t in enumerate(c.next_items(), 1):
             tok = token(c.number, k)
-            kinds = []
-            if nxt is not None:
-                for t in nxt.intake:
+            hit = False
+            for other in cycles:
+                for t in other.intake:
                     m = INTAKE_RE.fullmatch(t)
-                    if not m or token(int(m.group(1)), int(m.group(2))) != tok:
-                        continue
-                    kind = m.group(3) or "dropped"
-                    if kind == "taken" and not any(cites(x, tok) for x in nxt.tasks):
-                        d.breaches.append(f"C6 {nxt.path}: {tok} taken, but no "
-                                          f"'## Tasks' item cites it")
-                    elif kind == "deferred" and not any(cites(x, tok) for x in nxt.nxt):
-                        d.breaches.append(f"C6 {nxt.path}: {tok} deferred, but no "
-                                          f"'## Next cycle' item cites it")
-                    kinds.append(kind)
-            unlabelled = False
-            for line in backlog_lines:
-                if cites(line, tok):
-                    if any(lbl in line for lbl in EVIDENCE_LABELS):
-                        kinds.append("backlog")
-                    else:
-                        unlabelled = True
-            d.tokens[tok] = kinds
-            if len(kinds) > 1:
-                d.breaches.append(f"C6 {c.path}: {tok} has {len(kinds)} "
-                                  f"dispositions ({', '.join(kinds)}) — exactly "
-                                  f"one is allowed")
-            elif not kinds:
-                why = (" (backlog.md cites it without an evidence label)"
-                       if unlabelled else "")
-                if scrum_on:
-                    d.breaches.append(f"C6 {c.path}: {tok} has no disposition — "
-                                      f"capture it in backlog.md with an "
-                                      f"evidence label{why}")
-                elif nxt is not None:
-                    d.breaches.append(f"C6 {c.path}: {tok} has no disposition in "
-                                      f"{nxt.ident}'s '## Intake'")
-                else:
-                    d.pending.append(tok)
-        result[c.number] = d
-    if stray:
-        result.setdefault(-1, Disposition()).breaches.extend(stray)
-    return result
+                    if m and token(int(m.group(1)), int(m.group(2))) == tok:
+                        kinds[m.group(3) or "dropped"] += 1
+                        hit = True
+            if scrum_on and captured(backlog_text, tok):
+                kinds["backlog"] += 1
+                hit = True
+            if not hit and not has_next and not scrum_on:
+                kinds["pending"].append(tok)
+        out[c.number] = kinds
+    return out

@@ -245,40 +245,9 @@ def validate(cfg: Config, spec: Spec) -> list[Violation]:
                 )
             )
 
-    # 6c. [cycle] (ADR-0017): two keys, closed set. An unknown key silently
-    #     ignored is how a bypass key would look, so every other key is
-    #     flagged; a typo'd stage must not silently drop a done item.
+    # 6c. [cycle] (ADR-0017): two keys, closed set — cycle_config_violations
     if "cycle" in cfg.raw:
-        cyc = cfg.raw["cycle"]
-        if not isinstance(cyc, dict):
-            v.append(Violation("CYCLE-TYPE",
-                               f"[cycle] must be a table, got {type(cyc).__name__}."))
-        else:
-            if "enabled" in cyc and not isinstance(cyc["enabled"], bool):
-                v.append(Violation(
-                    "CYCLE-TYPE",
-                    f"[cycle] enabled must be a TOML boolean (true/false), got "
-                    f"{type(cyc['enabled']).__name__}."))
-            if "stages" in cyc:
-                st = cyc["stages"]
-                if not isinstance(st, list) or not all(isinstance(x, str) for x in st):
-                    v.append(Violation("CYCLE-STAGES",
-                                       "[cycle] stages must be a list of strings."))
-                else:
-                    bad = sorted({x for x in st if x not in ("live", "published")})
-                    if bad:
-                        v.append(Violation(
-                            "CYCLE-STAGES",
-                            f"[cycle] stages {bad} unknown — the closed set is "
-                            f"\"live\", \"published\"."))
-                    if len(set(st)) != len(st):
-                        v.append(Violation("CYCLE-STAGES",
-                                           "[cycle] stages lists a stage twice."))
-            extra = sorted(k for k in cyc if k not in ("enabled", "stages"))
-            if extra:
-                v.append(Violation(
-                    "CYCLE-KEY",
-                    f"[cycle] accepts only 'enabled' and 'stages', got {extra}."))
+        v.extend(cycle_config_violations(cfg.raw["cycle"]))
 
     # 7. [gate] retargets I1 to the repo's real layout; it cannot empty it
     gate = cfg.raw.get("gate", {}) or {}
@@ -293,6 +262,45 @@ def validate(cfg: Config, spec: Spec) -> list[Violation]:
                 )
             )
 
+    return v
+
+
+# The closed set of delivery stages a cycle's done profile can cover
+# (ADR-0017). One definition: validate(), the cycle gate's parent-config
+# check and cycle.py all read it (F15).
+CYCLE_STAGES = ("live", "published")
+
+
+def cycle_config_violations(section) -> list[Violation]:
+    """Rule 6c for a raw `[cycle]` value: two keys, closed set. An unknown
+    key silently ignored is how a bypass key would look, so every other
+    key is flagged; a typo'd stage must not silently drop a done item."""
+    v: list[Violation] = []
+    if not isinstance(section, dict):
+        return [Violation("CYCLE-TYPE",
+                          f"[cycle] must be a table, got {type(section).__name__}.")]
+    if "enabled" in section and not isinstance(section["enabled"], bool):
+        v.append(Violation(
+            "CYCLE-TYPE",
+            f"[cycle] enabled must be a TOML boolean (true/false), got "
+            f"{type(section['enabled']).__name__}."))
+    if "stages" in section:
+        st = section["stages"]
+        if not isinstance(st, list) or not all(isinstance(x, str) for x in st):
+            v.append(Violation("CYCLE-STAGES", "[cycle] stages must be a list of strings."))
+        else:
+            bad = sorted({x for x in st if x not in CYCLE_STAGES})
+            if bad:
+                v.append(Violation(
+                    "CYCLE-STAGES",
+                    f"[cycle] stages {bad} unknown — the closed set is "
+                    f"{', '.join(CYCLE_STAGES)}."))
+            if len(set(st)) != len(st):
+                v.append(Violation("CYCLE-STAGES", "[cycle] stages lists a stage twice."))
+    extra = sorted(k for k in section if k not in ("enabled", "stages"))
+    if extra:
+        v.append(Violation("CYCLE-KEY",
+                           f"[cycle] accepts only 'enabled' and 'stages', got {extra}."))
     return v
 
 
