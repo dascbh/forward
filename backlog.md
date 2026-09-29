@@ -79,3 +79,4 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 - (C-5) usage-data — a demand can merge without its review; the board's merge line should require the review record (FWD-031 merged unreviewed, caught at promotion)
 - (C-5) usage-data — the cycle plan template should give a range revert from the last pushed SHA as the rollback of a multi-commit release (reviews/C-5 F4)
 - (C-5) usage-data — AGENTS.md sits at 1600/1600 words; the next cycle that adds a rule must remove text
+- usage-data — under Claude Code auto mode, the classifier blocks the sync's permission merge (SETUP §8.4) and the sync stops half way (kernel_version and permissions left undone); fde-sync should say up front that it writes permissions and tell the user to leave auto mode if blocked (owner report, 2026-09-29)
