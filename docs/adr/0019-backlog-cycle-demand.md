@@ -105,15 +105,25 @@ Rules:
    the cycle stops; the user is told the outcome, not asked beforehand.
    The only thing that returns to the user is a replan, triggered by a
    fact that invalidates the plan.
-8. **Tool permissions follow the plan.** Harness prompts are outside the
-   kernel's control. The kernel scopes them instead: the project's
-   `.claude/settings.json` allowlists:
-   - the gate and test commands, always;
-   - the deploy commands named in the signed-off `deploy.md`.
+8. **The sign-off is the permission.** While a cycle runs, no tool call
+   waits for a prompt. There is no allowlist and no "destructive"
+   exception: a harness judgment of what is destructive is opaque to the
+   user, and it blocks work that the plan already assessed.
 
-   Nothing else is allowlisted. A destructive command outside the plan
-   still prompts; that prompt is what catches an agent that left the
-   plan. Neither auto mode nor per-deploy approval is required.
+   The owner sets the harness permission mode for the project. The
+   kernel assumes that setting and never changes it by itself (owner,
+   2026-09-29).
+
+   An agent that leaves the plan is contained by deterministic checks
+   instead:
+   - the role write-scope guard (`guard.py`) denies paths outside a
+     role's scope and logs every decision to `.fde/guard-audit.jsonl`;
+   - the gate runs on every commit and in CI;
+   - every deploy step verifies and rolls back on failure;
+   - the owner reads the outcome at close.
+
+   The accepted trade-off: an action outside the plan is caught after
+   the fact, not before.
 9. **The panel (`fde-backlog`).** The user operates the backlog and the
    cycles from one skill:
    - see the backlog with stable ids (`B-<n>`);
@@ -154,7 +164,7 @@ Rules:
 
 - The user's attention is spent once per cycle, at the sign-off of the
   plan, and again only if a fact forces a replan. Demands, merge,
-  promotion and deploy run without asking.
+  promotion and deploy run without asking, with no tool prompts.
 - Demands get faster: no ADR, no promotion, no acceptance of their own.
 - Walkthrough and integration testing get a defined place: at the cycle, and
   only for the layers the cycle touches.
