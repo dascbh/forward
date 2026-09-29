@@ -1,6 +1,6 @@
 ---
 name: fde-review
-description: Runs the isolated adversarial and heuristic review, attack ordered by the project's weights. Use before promotion, or when the user asks for review, code review, red team, "try to break this", or whether something is secure or robust enough.
+description: Runs the isolated review sized by risk: code, adversarial, plan or cycle. Use before promotion, or when the user asks for review, code review, red team, "try to break this", or whether something is secure or robust enough.
 ---
 
 # fde-review
@@ -15,19 +15,37 @@ description: Runs the isolated adversarial and heuristic review, attack ordered 
    `.fde/spec/dimensions/quality-attributes.toml` (`adversarial_probes`).
 3. Read `plan.md`'s `## Threat model`: who the cycle must contain, and
    what is declared out of scope. It bounds every probe.
-4. Demand mode: create `reviews/<demand-id>/findings.toml` from
-   `.fde/templates/findings.template.toml`. Cycle mode: write
-   `cycles/C-<n>/review.md`.
+4. Code or adversarial mode: create `reviews/<demand-id>/findings.toml`
+   from `.fde/templates/findings.template.toml`, with its `kind`. Plan
+   mode: `reviews/C-<n>/findings-plan.toml`, `kind = "plan"`. Cycle
+   mode: write `cycles/C-<n>/review.md`.
 
-## Mode — demand or cycle (kernel ADR-0019 rule 12)
+## Mode — review by weight (kernel ADR-0021)
 
-- **Demand**: the code against the demand spec, plus conformance to the
-  cycle ADRs it cites, plus its layer's check (`back` unit + contract
-  tests, `front` design QA against the approved wireframe, `infra` plan
-  diff + policy check). 1 round.
-- **Cycle**: the objective on the integrated result; it never re-reviews
-  a demand. *Functioning*: every `plan.md` criterion shown end to end
-  (integration for back, usability for front, live checks for infra).
+A coding demand inside a signed-off plan: isolated code review (diff ×
+demand spec, ADR conformance, tests, the layer's check; `kind = "code"`;
+~10 minutes; no scratch repositories or probe hunt). A sensitive or
+irreversible demand, or a real diff over ~300 production lines:
+adversarial review. An M/L plan, before sign-off: adversarial plan
+review (`kind = "plan"`). The cycle review is unchanged.
+
+Every mode stays isolated (I2), every finding cites a probe or a
+principle (I8), blocking follows `## What blocks`, and a code review's
+record satisfies the promotion gate like any review.
+
+- **Code** (~10 minutes): the diff against the demand spec, plus
+  conformance to the cycle ADRs it cites, plus the tests and its layer's
+  check (`back` unit + contract tests, `front` design QA against the
+  approved wireframe, `infra` plan diff + policy check). No scratch
+  repositories, no probe hunt; the heuristic pass still runs. 1 round.
+- **Adversarial**: the code review's scope, then the probe plan above,
+  scratch repositories allowed (`kind = "adversarial"`). 1 round.
+- **Plan**: attack `plan.md`'s criteria, threat model and demand split,
+  and the cycle's ADRs, before the owner signs off. 1 round.
+- **Cycle** (kernel ADR-0019 rule 12, `kind = "cycle"`): the objective
+  on the integrated result; it never re-reviews a demand. *Functioning*:
+  every `plan.md` criterion shown end to end (integration for back,
+  usability for front, live checks for infra).
   *Readiness*: `deploy.md` complete with each step's verification and
   rollback exercised where the project allows, the signals the criteria
   declare (I5), runbook and README current. `fde-walkthrough` runs here,

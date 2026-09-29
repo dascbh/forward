@@ -3,7 +3,8 @@
 
 [meta]
 demand_id = "{{DEMAND_ID}}"
-context_policy = "artifact_only"   # I2: no builder context
+kind = "{{REVIEW_KIND}}"           # code | adversarial | plan | cycle (kernel ADR-0021)
+context_policy = "artifact_only"   # I2: no builder context, whatever the kind
 isolation_mode = "worktree"
 rounds_planned = {{ROUNDS_PLANNED}}   # demand review 1; cycle review XS/S 1, M/L 2 — never extended
 # round = 1                          # 1 is full; every later round is delta

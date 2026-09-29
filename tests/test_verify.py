@@ -1465,6 +1465,50 @@ class TestCyclePromotionNeedsReviews(unittest.TestCase):
             self.assertEqual(r.returncode, 0, gate + r.stdout)
 
 
+class TestCodeReviewRecordPassesTheGate(unittest.TestCase):
+    """FWD-036 FM2 (kernel ADR-0021): a code review is a review. A promoted
+    demand whose findings.toml is the installed template filled in with
+    `kind = "code"` passes I2 and TRACE; the gate reads isolation, not
+    the review's kind, so a code review without the isolation declaration
+    still fails I2."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+        d = cycle_plan(self.p, 1, ["| FWD-121 | back | — | x | A1 |"])
+        (d / "promotion.md").write_text("decision: promote\n")
+        cycle_spec(self.p, "FWD-121", cycle="C-1")
+        template = (ROOT / "templates" / "findings.template.toml").read_text(
+            encoding="utf-8")
+        self.record = (template.replace("{{DEMAND_ID}}", "FWD-121")
+                       .replace("{{REVIEW_KIND}}", "code")
+                       .replace("{{ROUNDS_PLANNED}}", "1"))
+        self.f = Path(self.p) / "reviews" / "FWD-121" / "findings.toml"
+        self.f.parent.mkdir(parents=True)
+        self.f.write_text(self.record)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_the_filled_template_is_a_code_review(self):
+        import tomllib
+        self.assertNotIn("{{", self.record)
+        self.assertEqual(tomllib.loads(self.record)["meta"]["kind"], "code")
+
+    def test_code_review_record_passes_i2_trace_and_i8(self):
+        for gate in ("adversarial-isolation", "traceability",
+                     "finding-discipline"):
+            r = verify(self.p, "--gate", gate)
+            self.assertEqual(r.returncode, 0, gate + r.stdout)
+
+    def test_code_review_without_isolation_still_fails_i2(self):
+        self.f.write_text(self.record.replace(
+            'context_policy = "artifact_only"', ""))
+        r = verify(self.p, "--gate", "adversarial-isolation")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("without isolation declaration", r.stdout)
+
+
 class TestBothLayoutsStayGreen(unittest.TestCase):
     """FM1 (C-5): the gate change must not turn an old-layout repository
     red. One fixture per layout, one mixed, and this repository itself."""

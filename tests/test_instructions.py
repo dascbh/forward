@@ -228,8 +228,10 @@ class TestDeclaredCycle(unittest.TestCase):
         "replan": ("The one exception is a fact that invalidates the "
                    "demand's own ADR or criteria: the demand stops and the "
                    "cycle replans."),
+        # FWD-036 (C-13): "everything else goes to the backlog" repeated
+        # "new-fact" and the non-blocking path of DEMAND_BLOCKER; trimmed
         "owns": ("The cycle owns its declared criteria and its blocking "
-                 "findings; everything else goes to the backlog."),
+                 "findings."),
         "size": "Size is set on the cycle, never on a demand.",
         "ceiling": ("A demand is at most about 300 production lines and has "
                     "exactly one layer: `front`, `back` or `infra`."),
@@ -311,9 +313,11 @@ class TestDeclaredCycle(unittest.TestCase):
                           "never by one more round.", flat, rel)
             self.assertIn(self.BUDGET_RULE, self.cycle(rel), rel)
             # FWD-031: sprints are retired, so there is no retro to surface at
+            # FWD-036 (C-13): the pointer to ## Cycle was trimmed for the
+            # word budget; the rule is unchanged
             self.assertIn("\"Fix it NOW\" skips the backlog order, never the "
-                          "open cycle (`## Cycle`): it becomes the next "
-                          "cycle's first demand.", flat, rel)
+                          "open cycle: it becomes the next cycle's first "
+                          "demand.", flat, rel)
             self.assertNotIn("surfaces at the retro", flat, rel)
             self.assertNotIn("bypasses the backlog", flat, rel)
         # reviews/FWD-028 F4: the budget's way out is ADR-0019's replan
@@ -346,8 +350,8 @@ class TestDeclaredCycle(unittest.TestCase):
     def test_sizing_step_names_the_plan(self):
         # reviews/FWD-022 F5: step 1 and fde-triage agree on the first act
         for rel in self.SURFACES:
-            self.assertIn("commit `plan.md` (`## Cycle` below), and stop at "
-                          "the sign-off.", self.flat(rel), rel)
+            self.assertIn("commit `plan.md`, and stop at the sign-off.",
+                          self.flat(rel), rel)
         self.assertIn("`plan.md` comes first (AGENTS.md `## Cycle`)",
                       " ".join(read("skills/fde-triage/SKILL.md").split()))
 
@@ -528,7 +532,10 @@ class TestReconcileText(unittest.TestCase):
             text = self.flat(rel)
             self.assertIn("At every size `fde-spec` writes `plan.md` "
                           "(minimal at XS)", text, rel)
-            self.assertIn("the cycle closes with a promotion", text, rel)
+            # FWD-036 (C-13): step 1's "the cycle closes with a promotion"
+            # repeated step 8, which stays the one statement
+            self.assertIn("(minimal at XS) and a demand review is 1 round",
+                          text, rel)
             self.assertIn("promotion, at every size, is `fde-promotion`'s "
                           "decision", text, rel)
             self.assertNotIn("promotion (M/L)", text, rel)
@@ -830,6 +837,76 @@ class TestReconcileC5(unittest.TestCase):
         readme = self.flat("README.md")
         self.assertIn("`fde-triage` — sizes the cycle", readme)
         self.assertNotIn("sizes the demand", readme)
+
+
+class TestReviewByWeight(unittest.TestCase):
+    """FWD-036 (C-13, kernel ADR-0021): review is sized by what is at risk.
+    FM1: one rule, pinned verbatim, in AGENTS.md step 5 (+ template),
+    fde-review and fde-adversarial (+ installed copies), so the texts
+    cannot disagree on which review a demand gets."""
+
+    RULE = ("A coding demand inside a signed-off plan: isolated code "
+            "review (diff × demand spec, ADR conformance, tests, the layer's "
+            "check; `kind = \"code\"`; ~10 minutes; no scratch repositories "
+            "or probe hunt). A sensitive or irreversible demand, or a real "
+            "diff over ~300 production lines: adversarial review. An M/L "
+            "plan, before sign-off: adversarial plan review (`kind = "
+            "\"plan\"`). The cycle review is unchanged.")
+
+    SURFACES = ("AGENTS.md", "templates/AGENTS.md.template",
+                "skills/fde-review/SKILL.md",
+                ".claude/skills/fde-review/SKILL.md",
+                "agents/fde-adversarial.md",
+                ".claude/agents/fde-adversarial.md")
+
+    def flat(self, text):
+        return " ".join(text.split())
+
+    def test_the_rule_is_stated_verbatim_everywhere(self):
+        for rel in self.SURFACES:
+            text = self.flat(read(rel))
+            self.assertIn(self.RULE, text, rel)
+            self.assertEqual(text.count(self.RULE), 1, rel)
+            self.assertIn("kernel ADR-0021", text, rel)
+
+    def test_agents_md_states_it_in_step_5(self):
+        for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
+            loop = section(read(rel), "Demand loop")
+            start = loop.index("\n5. **")
+            step5 = self.flat(loop[start:loop.index("\n6. **", start)])
+            self.assertIn(self.RULE, step5, rel)
+            # the old one-size list is gone: the rule replaces it
+            self.assertNotIn("weight-ordered: tests, code review", step5, rel)
+
+    def test_review_skill_states_it_under_mode(self):
+        for rel in ("skills/fde-review/SKILL.md",
+                    ".claude/skills/fde-review/SKILL.md"):
+            self.assertIn(self.RULE, self.flat(section(read(rel), "Mode")),
+                          rel)
+
+    def test_the_reviewer_knows_its_mode_and_budget(self):
+        for rel in ("agents/fde-adversarial.md",
+                    ".claude/agents/fde-adversarial.md"):
+            mode = self.flat(section(read(rel), "Mode"))
+            self.assertIn(self.RULE, mode, rel)
+            for needle in ("- **code**:", "- **adversarial**:",
+                           "- **plan**:", "- **cycle**:",
+                           "Budget: about 10 minutes, 1 round.",
+                           "Budget: 1 round.",
+                           "1 round at XS/S, full + delta at M/L"):
+                self.assertIn(needle, mode, f"{rel}: {needle}")
+            desc = description(rel)
+            for word in ("code", "adversarial", "plan", "cycle"):
+                self.assertIn(word, desc.lower(), f"{rel}: {word}")
+
+    def test_findings_template_carries_kind_and_isolation(self):
+        for rel in ("templates/findings.template.toml",
+                    ".fde/templates/findings.template.toml"):
+            text = read(rel)
+            self.assertIn('kind = "{{REVIEW_KIND}}"', text, rel)
+            self.assertIn('code | adversarial | plan | cycle', text, rel)
+            # a code review is isolated too (I2)
+            self.assertIn('context_policy = "artifact_only"', text, rel)
 
 
 if __name__ == "__main__":

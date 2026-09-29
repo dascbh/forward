@@ -80,6 +80,10 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 - B-48 (C-12) usage-data — prove a reader against a real client (headlabs) before the cycle review, not only against this repo's layout (C-12 F1 was invisible here)
 - B-49 (C-12) usage-data — commit the demand reviews before the cycle review starts, so the cycle reviewer sees them (C-12 F2 was stale)
 
+- B-50 (C-13) usage-data — the I2 gate reads only files named `findings.toml` (`gate_adversarial`, `rglob("findings.toml")`), so a plan review recorded in `reviews/C-<n>/findings-plan.toml` (kernel ADR-0021) is never checked for `context_policy = "artifact_only"` (FWD-036)
+- B-51 (C-13) usage-data — AGENTS.md is at 1,599 of 1,600 words after FWD-036; almost every sentence is pinned verbatim, so the next instruction change pays for its words with pin edits (FWD-036 trimmed pointers and in-file repeats to fit)
+- B-52 (C-13) opinion — AGENTS.md step 1 says "Size sets only the planner's depth and the cycle review rounds", while kernel ADR-0021 also lets size (M/L) decide the adversarial plan review (FWD-036)
+
 ## Discarded (2026-09-29)
 
 Reviewed against 0.19.0 with the owner; ids stay retired.

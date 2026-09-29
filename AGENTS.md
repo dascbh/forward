@@ -25,8 +25,8 @@ python3 bin/fde/verify.py    # full gate (the same one CI runs)
 - **I7 artifact-handoff** — Roles communicate through versioned artifacts on disk (spec, ADR, suite, review report), never through conversation continuity.
 - **I8 principled-judgment** — Quality that cannot be verified by execution (eval) or by demonstrated failure (adversarial probe) is verified by heuristic review: judgment against a declared, versioned principle catalog. Every finding cites either the probe that broke it or the principle it violates, with severity. Judgment without a named principle is not a finding.
 
-No key turns off an invariant. If the delivery does not fit one, the
-scope shrinks — the standard does not.
+No key turns off an invariant: if the delivery does not fit one, the
+scope shrinks, not the standard.
 
 ## Agreed priority (vector A, budget 100)
 
@@ -65,7 +65,7 @@ roles" means the five working roles; the walkthrough evaluator is a
 sixth role that writes nothing. The adversarial and promotion roles run
 isolated: artifact + spec only, never the builder's thread.
 
-## Demand loop — backlog > cycle > demand
+## Demand loop
 
 Never start code on request: code starts only inside a signed-off cycle
 (kernel ADR-0019). A demand (e.g. `FWD-002`) is one page derived from
@@ -81,34 +81,37 @@ the plan; it decides nothing new.
    score ≤ 1 → **XS** · 2–3 → **S** · 4–6 → **M** · ≥ 7 → **L**.
    Size sets only the planner's depth and the cycle review rounds: 1
    round at XS/S, full + delta at M/L. At every size `fde-spec` writes
-   `plan.md` (minimal at XS), a demand review is 1 round, and the cycle
-   closes with a promotion. M adds architecture: `fde-architecture`
-   writes the ADRs, so M and L run all five roles. Announce the size in
-   one line, commit `plan.md` (`## Cycle` below), and stop at the
-   sign-off. **Budgets, not minimums**, never extended. Timebox: XS 30
-   min, S 1 h, M 3 h, L 1 day. An overrun is not re-split at review: it
-   goes on the board; the cycle replans only if a criterion or an ADR
-   changes. A new rule ships as instruction first; a gate needs
+   `plan.md` (minimal at XS) and a demand review is 1 round. M adds
+   architecture: `fde-architecture` writes the ADRs, so M and L run all
+   five roles. Announce the size in one line, commit `plan.md`, and stop
+   at the sign-off. **Budgets, not minimums**, never extended. Timebox:
+   XS 30 min, S 1 h, M 3 h, L 1 day. An overrun is not re-split at
+   review: it goes on the board; the cycle replans only if a criterion or
+   an ADR changes. A new rule ships as instruction first; a gate needs
    usage-data showing it failed.
 2. **Plan** the cycle: `plan.md` carries a `## Threat model`, criteria
    and failure modes with ids dated before the first demand commit (I4),
    and the demand list; `deploy.md` the deploy plan; `docs/adr/` the
    decisions. An ADR is the only home of a decision; plan and specs cite
-   it by id, and a demand never amends it. A demand is at most about 300
+   it by id; a demand never amends it. A demand is at most about 300
    production lines and has exactly one layer: `front`, `back` or
    `infra`. A change that spans layers is always split, however small.
    Undocumented system: `fde-survey` first. UI: `fde-design`.
 3. **Sign-off**: Approval happens once, at plan sign-off, and is
-   inherited by everything after it: demands, merges, promotion and
-   every `deploy.md` step, irreversible ones included. Only a replan
-   asks the owner again.
+   inherited by everything after it, irreversible `deploy.md` steps
+   included. Only a replan asks the owner again.
 4. **Build**: Demands run in parallel by default, coordinated on
    `cycles/C-<n>/board.md`. Each runs in its own worktree once its
-   dependencies merge. Code lands with its eval entries (I1); a root
-   with no suite gets a minimal one. Never `--no-verify`. README and
-   runbook change with how the system runs (MNT-10).
-5. **Review the demand** (`fde-review`): isolated, weight-ordered:
-   tests, code review, ADR conformance, the layer's check. Blocking =
+   dependencies merge. A root with no suite gets a minimal one (I1).
+   Never `--no-verify`. README and runbook change with how the system
+   runs (MNT-10).
+5. **Review the demand** (`fde-review`, kernel ADR-0021). A coding
+   demand inside a signed-off plan: isolated code review (diff × demand
+   spec, ADR conformance, tests, the layer's check; `kind = "code"`; ~10
+   minutes; no scratch repositories or probe hunt). A sensitive or
+   irreversible demand, or a real diff over ~300 production lines:
+   adversarial review. An M/L plan, before sign-off: adversarial plan
+   review (`kind = "plan"`). The cycle review is unchanged. Blocking =
    critical/high, reachable inside the threat model, breaks a declared
    criterion — never weight alone. At most five findings per round. A
    blocker is fixed in the demand (`## Cycle`), never by one more round.
@@ -125,7 +128,7 @@ the plan; it decides nothing new.
    never bundled with a reversible one. A failed step rolls back and the
    cycle stops; the user is told the outcome, not asked beforehand.
 
-## Cycle — plan once, derive down
+## Cycle
 
 A cycle is `cycles/C-<n>/` (next free `n`), from
 `.fde/templates/cycle/`: `plan.md`, `deploy.md`, `board.md`, `review.md`
@@ -144,9 +147,8 @@ only edits it takes.
 A new fact always goes to the backlog — never a fix, an amendment or a
 question. The one exception is a fact that invalidates the demand's own
 ADR or criteria: the demand stops and the cycle replans. The cycle owns
-its declared criteria and its blocking findings; everything else goes to
-the backlog. Nothing is fixed in-band (MNT-9) except a defect that
-blocks a declared task, noted as such.
+its declared criteria and its blocking findings. Nothing is fixed
+in-band (MNT-9) except a defect blocking a declared task, noted as such.
 
 A demand review's blocking finding is fixed inside that demand and
 proven by its regression test; the owner is asked only when the fix
@@ -156,15 +158,15 @@ cycle fixes it. A cycle review budget spent with a blocker open is the
 owner's call: narrow, declare the limit, or pause, recorded on
 `board.md` and marked in `promotion.md` at close.
 
-The board is the record (I7), not the conversation. A decision inside
-the plan is taken by the agents and recorded there. Two demands needing
-the same file: the later posts `blocked-on` and waits.
+The board is the record (I7), not the conversation. Agents decide inside
+the plan and record it there. Two demands needing the same file: the
+later posts `blocked-on` and waits.
 
 Gates follow the owning level. Cycle: I4, promotion, I5, traceability;
 demand: I1, I2, I3; commit: RULE.
 
 A cycle closes when its criteria are met with integration evidence and
-it is deployed (or published); show the user the backlog lines it added
+it is deployed or published; show the user its backlog lines
 (`fde-status`). A cycle opened before kernel ADR-0019 finishes under its
 own rules.
 
@@ -176,17 +178,15 @@ acknowledgment, nothing more. A backlog line is `B-<n>`, the text,
 < user-test < production`). `backlog.md` starts with `goal:` (or `goal:
 not set`) and `date:`; with `[scrum] enabled = true`, `--gate scrum`
 requires them. The owner orders it; evidence never blocks a bet. "Fix it
-NOW" skips the backlog order, never the open cycle (`## Cycle`): it
-becomes the next cycle's first demand. Sprints are retired; `sprints/`
-is history. Detail: `fde-scrum` skill.
-
-## Voice
-
-Report the change, its evidence and what remains open, never the kernel.
-Process is one closing `FORWARD:` line; more only when the gate blocked
-or a decision is the user's.
+NOW" skips the backlog order, never the open cycle: it becomes the next
+cycle's first demand. Sprints are retired; `sprints/` is history.
+Detail: `fde-scrum` skill.
 
 ## Detail
+
+Report the change, its evidence and what stays open, never the kernel;
+process gets one closing `FORWARD:` line unless the gate blocked or the
+user must decide.
 
 Skills govern where this file compresses. Never escalate
 kernel-interpretation questions to the user mid-demand: resolve from the

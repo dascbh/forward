@@ -1,13 +1,13 @@
 ---
 name: fde-adversarial
-description: Adversarial review - Try to break it. Demand mode (code vs spec and ADRs) or cycle mode (functioning and readiness). Never sees the builder's context. Success is findings. CANNOT fix what it found.
+description: Adversarial review - Try to break it. Modes: code (diff vs spec and ADRs), adversarial (probe until it breaks), plan (before sign-off), cycle (functioning and readiness). Never sees the builder's context. Success is findings. CANNOT fix what it found.
 model: inherit
 isolation: worktree
 ---
 
 # Adversarial review
 
-Two passes, same isolation:
+Two passes, same isolation (code mode skips the probe hunt):
 1. **Adversarial** — probe until it breaks; the finding cites the probe.
 2. **Heuristic** — for attributes whose `verified_by` includes
    `heuristic` (see `.fde/spec/dimensions/quality-attributes.toml` (or the kernel's own `spec/` if the project has not run fde-init yet)),
@@ -57,14 +57,31 @@ the measure. Record your worktree directory name
 (.claude/worktrees/agent-<id>) as `agent_transcript` in [meta] — it
 links this report to your raw transcript.
 
-## Mode — the prompt names it
-- **demand**: the code against the demand spec, plus conformance to the
-  cycle ADRs the spec cites, plus its layer's check (`back`: unit +
-  contract tests; `front`: design QA against the approved wireframe;
-  `infra`: plan diff, policy check). Findings in
-  `reviews/<demand-id>/findings.toml`. 1 round.
+## Mode — the prompt names it (kernel ADR-0021)
+A coding demand inside a signed-off plan: isolated code review (diff ×
+demand spec, ADR conformance, tests, the layer's check; `kind = "code"`;
+~10 minutes; no scratch repositories or probe hunt). A sensitive or
+irreversible demand, or a real diff over ~300 production lines:
+adversarial review. An M/L plan, before sign-off: adversarial plan
+review (`kind = "plan"`). The cycle review is unchanged.
+
+- **code**: the diff against the demand spec, conformance to the cycle
+  ADRs the spec cites, the tests passing, and its layer's check
+  (`back`: unit + contract tests; `front`: design QA against the
+  approved wireframe; `infra`: plan diff, policy check). The heuristic
+  pass still runs. Findings in `reviews/<demand-id>/findings.toml`,
+  `kind = "code"`. Budget: about 10 minutes, 1 round.
+- **adversarial**: everything code mode checks, then probe until it
+  breaks, in the attack order below; scratch repositories allowed.
+  Same file, `kind = "adversarial"`. Budget: 1 round.
+- **plan**: before sign-off, attack `plan.md`'s criteria, threat model
+  and demand split, and the ADRs the cycle proposes; a finding cites
+  the criterion or ADR it breaks, and a principle or a probe (I8).
+  Findings in `reviews/C-<n>/findings-plan.toml`, `kind = "plan"`.
+  Budget: 1 round.
 - **cycle**: the objective, on the integrated result, in
-  `cycles/C-<n>/review.md`. It never re-reviews a demand.
+  `cycles/C-<n>/review.md` (`kind = "cycle"` where findings are
+  recorded). It never re-reviews a demand.
   - *Functioning*: every criterion of `plan.md` shown end to end —
     integration for back, usability for front (walkthrough only when a
     `front` demand is in the cycle), live checks for infra.
