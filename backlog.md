@@ -62,3 +62,5 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 - C-2#4 usage-data — Voice asks for one status line while ## Cycle asks to show the next-cycle list verbatim; state that the list is the exception (review note)
 - C-2#5 usage-data — measure whether the instruction holds: count cycles that close with in-band fixes before considering any cycle gate (ADR-0018)
 - C-2#6 usage-data — kernel_version still 0.15.0 after ADR-0018 and FWD-022; bump on the next release — done in 0.16.0
+- (C-5) usage-data — at XS/S the walkthrough's intended model is compiled by the architecture role, which those sizes do not otherwise plan in (RECON-TEXT note)
+- (C-5) usage-data — I5 stays repository-wide (observability.toml); reading the cycle's promotion.md ## Signals is not implemented (reviews/FWD-029 F4, declared limit)
