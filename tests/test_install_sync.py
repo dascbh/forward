@@ -633,3 +633,45 @@ class TestRetiredAndMigrations(unittest.TestCase):
         self.assertIn("## 3. Retired names and migrations", skill)
         self.assertIn("A retired name is never reused.", skill)
         self.assertIn("check its `detect` signals (read only)", skill)
+
+
+class TestErosionRatchetAtInstallAndSync(unittest.TestCase):
+    """SlopCodeBench gap 3: no client declared an [erosion] budget, so the
+    gate never ran. Install and sync now write one from the project's own
+    measurement and tell the owner; a declared budget is never touched."""
+
+    def test_setup_and_sync_state_the_ratchet(self):
+        setup = " ".join(read(ROOT / "SETUP.md").split())
+        self.assertIn("8. Erosion ratchet.", setup)
+        self.assertIn("`python3 bin/fde/erosion.py --ratchet`", setup)
+        self.assertIn("A project that already declares a ceiling is never touched.", setup)
+        self.assertIn("Tell the owner, in one line, the ceilings written", setup)
+        skill = " ".join(_skill().split())
+        self.assertIn("declares no `[erosion]` ceiling gets one now", skill)
+        self.assertIn("A declared budget is never touched.", skill)
+        tpl = read(ROOT / "templates" / "fde.config.template.toml")
+        self.assertIn("max_structural_erosion", tpl)
+
+    def test_the_ratchet_prints_a_budget_the_gate_accepts(self):
+        import sys
+        import tempfile
+        from support import commit_all, make_project
+        sys.path.insert(0, str(ROOT / "runtime"))
+        from fde_lib import Config, Spec, validate
+        with tempfile.TemporaryDirectory() as tmp:
+            p = make_project(tmp)
+            (p / "src").mkdir(exist_ok=True)
+            (p / "src" / "a.py").write_text(
+                "def f(x):\n    if x:\n        return 1\n    return 2\n")
+            commit_all(p, "code")
+            out = subprocess.run(
+                [sys.executable, str(p / "bin" / "fde" / "erosion.py"), "--ratchet"],
+                cwd=p, capture_output=True, text=True)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            budget = tomllib.loads(out.stdout)["erosion"]
+            self.assertIn("window", budget)
+            self.assertTrue(any(k.startswith("max_") for k in budget), budget)
+            c = Config(path=p / "fde.config.toml", raw={"erosion": budget},
+                       weights={}, depths={})
+            self.assertNotIn("EROSION-BUDGET",
+                             {v.code for v in validate(c, Spec.load())})

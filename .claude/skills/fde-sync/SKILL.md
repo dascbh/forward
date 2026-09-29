@@ -66,6 +66,10 @@ in the kernel. Idempotent: same sources, same output.
   directory whose name does not start with `fde-` is the user's and
   stays.
 
+A project whose `fde.config.toml` declares no `[erosion]` ceiling gets
+one now, from its own measurement (SETUP §6 step 8), and the owner is
+told the ceilings written. A declared budget is never touched.
+
 Then set `kernel_version` in `fde.config.toml` to the kernel's version
 (`.fde/spec/invariants.toml` → `[meta] kernel_version`).
 Change nothing else in the config except what a migration below names.

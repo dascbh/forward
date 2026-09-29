@@ -170,6 +170,16 @@ kernel checkout present. Copy from the kernel into the project:
    project's own `docs/adr/` holds the project's decisions and is never
    written, merged into or renumbered by install or sync.
 7. Run `git config core.hooksPath .githooks` in the project.
+8. Erosion ratchet. When `fde.config.toml` declares no `[erosion]`
+   ceiling (no `max_*` key), run `python3 bin/fde/erosion.py --ratchet`
+   and put the `[erosion]` table it prints into `fde.config.toml`,
+   keeping an existing `generated_paths`. Tell the owner, in one line,
+   the ceilings written; when the report finds copy groups, say that
+   declaring them in `generated_paths` keeps a mirror out of the
+   duplication number. The ceilings are today's values rounded up to the
+   next step: decay from here fails the gate, and the project lowers them
+   as it improves. A project that already declares a ceiling is never
+   touched.
 
 Generated-file marker — put this at the top of every file you generate in
 steps 7–8 (comment syntax of the file's format):

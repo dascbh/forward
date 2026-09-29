@@ -31,6 +31,13 @@ cycle_rounds_small = 1    # cycle review rounds at XS/S
 cycle_rounds_large = 2    # cycle review rounds at M/L (full + delta)
 max_findings = 5          # [[finding]] entries per round
 
+# [erosion] — written at install and sync from the project's first
+# measurement when absent (SETUP §6 step 8): each max_* is the measured
+# value rounded up to the next step; lower them as the code improves.
+# Keys: window, max_duplication_pct, max_add_delete_ratio,
+# max_structural_erosion (Python only), max_change_lines, max_dependencies,
+# generated_paths.
+
 [stack]
 languages = {{LANGUAGES}}
 test_runners = {{TEST_RUNNERS}}
