@@ -1,6 +1,7 @@
 cycle: C-13
-state: running
+state: closed
 date: 2026-09-29
+closed: 2026-09-29
 size: S
 objective: review by weight — a coding demand gets a code review; adversarial review is for M/L plans before sign-off and for sensitive, irreversible or oversized demands
 signed-off: 2026-09-29 (owner: "aprovado")
