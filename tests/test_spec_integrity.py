@@ -254,3 +254,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn('kind = "code"', (ROOT / "skills/fde-review/SKILL.md").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 21, 0))
+
+    def test_kernel_version_ships_the_clean_backlog(self):
+        # C-14: the AGENTS.md skeleton, the [backlog] switch and .fde/adr
+        # reach clients only through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "skills/fde-backlog-format/SKILL.md").exists())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 22, 0))
