@@ -75,6 +75,7 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 
 - B-45 (C-12) usage-data — `--demand` parses findings.toml twice (code review FWD-034 F3)
 - B-46 (C-12) usage-data — nested `d and d[...]` expressions in status.py's panel helpers are hard to read (code review FWD-035 F2)
+- B-47 (C-12) usage-data — the panel's promotion cell shows a bold decision as `\**promovido**` (the leading `*` escaped as a list marker) and cuts it at 40 characters mid-word (`--panel --root headlabs-platform`, DEM-002, DEM-013)
 
 ## Discarded (2026-09-29)
 

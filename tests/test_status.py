@@ -267,7 +267,7 @@ class TestRoundOneFindings(StatusCase):
         out = run(self.root).stdout
         self.assertIn("C-1 has an empty closed: line and still counts as open", out)
         self.assertIn("#2 a | b", out)
-        self.assertIn("(before any section)", out)
+        self.assertIn("Unsectioned", out)
 
 
 PLAN = """cycle: C-5
@@ -1007,7 +1007,7 @@ class TestPanel(DemandsCase):
 
     def test_overview(self):
         ov = "\n".join(section(panel(self.root), "Overview"))
-        self.assertIn("- running: C-3 — the new layout — criteria 1/1 met", ov)
+        self.assertIn("- running: C-3 — the new layout — done 1/1", ov)
         self.assertIn("- planned: C-7", ov)
         self.assertIn("- drafts: C-6", ov)
         self.assertIn("- next ids: B-6 · C-8", ov)
@@ -1025,8 +1025,8 @@ class TestPanel(DemandsCase):
 
     def test_running_and_planned_cycles_in_full(self):
         cy = "\n".join(section(panel(self.root), "Cycles"))
-        self.assertIn("### C-3 · running · criteria 1/1 met", cy)
-        self.assertIn("| FWD-030 | back | 1 finding, 0 blocking | promote |", cy)
+        self.assertIn("### C-3 · running · done 1/1", cy)
+        self.assertIn("| FWD-030 | back | 1 finding recorded, none blocking | promote |", cy)
         self.assertIn("| FWD-033 | front | no spec | — |", cy)
         self.assertIn("| FWD-031 | front | not reviewed | promote |", cy)
         self.assertIn("- artifacts: cycles/C-3/plan.md, cycles/C-3/board.md, "
@@ -1038,13 +1038,13 @@ class TestPanel(DemandsCase):
         self.assertIn("- C-6 — later", cy)
         self.assertIn("  - B-1 table item", cy)
         ended = [l for l in cy if l.startswith("- C-1 ")]
-        self.assertEqual(ended, ["- C-1 · closed 2026-08-09 · done 1/1 met · 1 demand · "
+        self.assertEqual(ended, ["- C-1 · closed 2026-08-09 · done 1/1 · 1 demand · "
                                  "the old layout"])
 
     def test_loose_demands_one_line_each(self):
         dm = [l for l in section(panel(self.root), "Demands") if l.startswith("- ")]
-        self.assertEqual(dm, ["- FWD-002 · old · not reviewed · promotion hold",
-                              "- FWD-032 · new · findings.toml unreadable · promotion —"])
+        self.assertEqual(dm, ["- FWD-002 · legacy layout (no cycle) · not reviewed · promotion hold",
+                              "- FWD-032 · no cycle · findings.toml unreadable · promotion —"])
 
     def test_discarded_with_reason(self):
         ds = [l for l in section(panel(self.root), "Discarded") if l.startswith("- ")]
@@ -1132,6 +1132,129 @@ class TestPanelScale(StatusCase):
         self.assertLessEqual(max(len(line) for line in out), 260)
         self.assertNotIn("A3 —", "\n".join(out))  # ended cycles fold
 
+
+
+class TestCycleReviewC12(DemandsCase):
+    """C-12 cycle review F1, F3, F4, F5; FWD-034 F1; FWD-035 F1."""
+
+    def slugged(self):
+        # a loose legacy demand whose review and promotion live in slugged dirs
+        self.write("specs/FWD-040-erase/spec.md", "# FWD-040\n")
+        self.write("specs/FWD-040-erase/acceptance.md", "date: 2026-08-09\n")
+        self.write("reviews/FWD-040-erase-source/findings.toml", OLD_FINDINGS)
+        self.write("promotions/FWD-040-erase-source/decision.md", "decision: promote\n")
+        # a longer id with the same prefix is not FWD-040's
+        self.write("reviews/FWD-0400-other/findings.toml", NEW_FINDINGS)
+        # a linked demand reviewed in a slugged dir
+        self.write("reviews/FWD-031-retire/findings.toml", NEW_FINDINGS)
+
+    def test_f1_slugged_review_and_promotion_dirs_are_found(self):
+        self.slugged()
+        d = {x["id"]: x for x in self.load()["demands"]}
+        self.assertEqual(d["FWD-040"]["review"]["path"],
+                         "reviews/FWD-040-erase-source/findings.toml")
+        self.assertEqual(d["FWD-040"]["review"]["blocking"], 1)
+        self.assertEqual(d["FWD-040"]["promotion"],
+                         {"path": "promotions/FWD-040-erase-source/decision.md",
+                          "decision": "promote"})
+        self.assertEqual(d["FWD-031"]["review"]["path"],
+                         "reviews/FWD-031-retire/findings.toml")
+        self.assertEqual(d["FWD-001"]["review"]["path"], "reviews/FWD-001/findings.toml")
+        out = run(self.root, "--demand", "FWD-040").stdout
+        self.assertIn("review:    reviews/FWD-040-erase-source/findings.toml", out)
+        self.assertIn("F1  high  blocking", out)
+        self.assertIn("promotion: promotions/FWD-040-erase-source/decision.md — promote",
+                      out)
+        loose = [l for l in section(panel(self.root), "Demands") if "FWD-040" in l]
+        self.assertEqual(loose, ["- FWD-040 · legacy layout (no cycle) · "
+                                 "1 blocking finding recorded (2 in all) · promotion promote"])
+
+    def test_f1_bare_directory_is_preferred(self):
+        self.write("reviews/FWD-030-panel/findings.toml", OLD_FINDINGS)
+        d = {x["id"]: x for x in self.load()["demands"]}
+        self.assertEqual(d["FWD-030"]["review"]["path"], "reviews/FWD-030/findings.toml")
+
+    def test_f3_cycle_drill_down_shows_review_and_promotion(self):
+        self.slugged()
+        out = run(self.root, "--cycle", "C-1").stdout
+        self.assertIn("FWD-001  —  1 blocking finding recorded (2 in all) · "
+                      "promotion promote", out)
+        out = run(self.root, "--cycle", "C-3").stdout
+        self.assertIn("FWD-030  back  1 finding recorded, none blocking · promotion promote",
+                      out)
+        self.assertIn("FWD-031  front  1 finding recorded, none blocking · promotion promote",
+                      out)
+        self.assertIn("FWD-033  front  depends on FWD-030  no spec · promotion —", out)
+
+    def test_f4_vocabulary(self):
+        self.write("backlog.md", "- B-1 top item\n\n## Ideas\n\n- B-2 idea\n")
+        long = "cycles with their demands and every loose one " * 4
+        self.write("cycles/C-3/plan.md", DEMANDS_PLAN.replace(
+            "objective: the new layout", f"objective: {long}"))
+        out = panel(self.root)
+        self.assertIn("### Unsectioned", out)
+        self.assertNotIn("before any section", out)
+        self.assertNotIn("criteria 1/1", out)
+        self.assertNotIn(" met", "\n".join(section(out, "Cycles")))
+        self.assertIn(f"- running: C-3 — {' '.join(long.split())} — done 1/1",
+                      out)  # in full, in the Overview
+        cy = [l for l in section(out, "Cycles") if l.startswith("- objective:")][0]
+        self.assertTrue(cy.endswith("…"), cy)
+        self.assertIn(cy[len("- objective: "):-1].split()[-1],
+                      long.split())  # cut at a word boundary
+
+    def test_f4_next_action(self):
+        def nxt():
+            return [l for l in section(panel(self.root), "Overview")
+                    if l.startswith("- next:")]
+        # running C-3: FWD-031 has a spec and no review
+        self.assertEqual(nxt(), ["- next: review FWD-031 (C-3)"])
+        self.write("reviews/FWD-031/findings.toml", NEW_FINDINGS)
+        self.assertEqual(nxt(), ["- next: run the cycle review of C-3"])
+        self.write("cycles/C-3/review.md", "# review\n")
+        self.assertEqual(nxt(), ["- next: close C-3 (every criterion met)"])
+        self.write("cycles/C-3/promotion.md", "decision: hold\n")
+        self.assertEqual(nxt(), ["- next: promote and close C-3 (1 criterion pending)"])
+        self.write("cycles/C-3/plan.md", DEMANDS_PLAN.replace("state: running",
+                                                              "state: planned"))
+        self.assertEqual(nxt(), ["- next: sign off C-3 (planned)"])
+        self.write("cycles/C-3/plan.md", DEMANDS_PLAN.replace("state: running",
+                                                              "closed: 2026-09-01"))
+        self.write("cycles/C-6/plan.md", "state: draft\nobjective: d\n")
+        self.write("cycles/C-8/plan.md", "state: draft\nobjective: d\n")
+        self.assertEqual(nxt(), ["- next: specify a draft (C-6, C-8)"])
+
+    def test_f5_warnings_fold_after_ten(self):
+        for n in range(1, 16):
+            self.write(f"cycles/C-{100 + n}/plan.md", "closed: 2026-09-01\nobjective: o\n")
+        warns = self.load()["warnings"]
+        self.assertGreater(len(warns), 10)
+        ov = section(panel(self.root), "Overview")
+        shown = [l for l in ov if l.startswith("  - ")]
+        self.assertEqual(len(shown), 11)
+        self.assertEqual(shown[-1],
+                         f"  - … {len(warns) - 10} more (status.py --format json)")
+        self.assertIn(f"- warnings: {len(warns)}", ov)
+
+    def test_fwd034_f1_empty_demand_id_is_a_bad_argument(self):
+        for bad in ("", "  "):
+            r = run(self.root, "--demand", bad)
+            self.assertEqual(r.returncode, 2, bad)
+            self.assertEqual(r.stdout, "")
+        self.assertEqual(run(self.root, "--cycle", "").returncode, 2)
+
+    def test_fwd035_f1_dangling_cycle_link_is_loose_and_warns(self):
+        self.write("specs/FWD-050-lost/spec.md", "# FWD-050\n\ncycle: C-99 · layer: back\n")
+        data = self.load()
+        d = {x["id"]: x for x in data["demands"]}["FWD-050"]
+        self.assertTrue(d["loose"])
+        self.assertIsNone(d["cycle"])
+        self.assertEqual(d["dangling_cycle"], "C-99")
+        self.assertTrue(any("FWD-050" in w and "C-99" in w for w in data["warnings"]),
+                        data["warnings"])
+        dm = [l for l in section(panel(self.root), "Demands") if "FWD-050" in l]
+        self.assertEqual(dm, ["- FWD-050 · no cycle (C-99 not in cycles/) · "
+                              "not reviewed · promotion —"])
 
 if __name__ == "__main__":
     unittest.main()

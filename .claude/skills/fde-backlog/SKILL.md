@@ -13,7 +13,8 @@ reads. Every write below is yours, made with your own file tools.
 Run `python3 bin/fde/status.py --panel` and show the output as it is.
 Do not summarize, reorder or reword it. It prints five sections from
 the same data as `--format json`: Overview, Backlog, Cycles, Demands,
-Discarded. Running and planned cycles show in full, with their demands
+Discarded. The Overview ends with a suggested `next:` action. Running
+and planned cycles show in full, with their demands
 and artifacts. Drafts show with their items. Ended cycles and loose
 demands show one line each.
 
@@ -44,7 +45,8 @@ in the conversation. The actions:
   mark each grouped item in backlog.md: append ` → C-<n>` to its text
   (in a table row, to its item cell).
 - **open** — "abre C-<n>": run `python3 bin/fde/status.py --cycle
-  C-<n>` and show the output as it is. Its artifacts (plan, deploy,
+  C-<n>` and show the output as it is (each demand with its review and
+  promotion). Its artifacts (plan, deploy,
   board, review, promotion, the demand specs `specs/<id>/spec.md`, the
   ADRs it cites) are named on the panel; read any one on request.
 - **show** — "mostra <id>": run `python3 bin/fde/status.py --demand

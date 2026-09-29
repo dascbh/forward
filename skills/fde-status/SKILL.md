@@ -52,10 +52,13 @@ The format comes from AGENTS.md `## Cycle`.
 - JSON items carry the full `text` and, for a table row, every `cells`
   value; only the text view clips.
 - A demand is a `specs/<id>/` directory, linked by a plan's `## Demands`
-  table or its spec's `cycle:` line, else loose, with its review summary
-  and promotion.
-- `--panel` renders only from the JSON; `--demand` on an unknown id
-  exits 2.
+  table or its spec's `cycle:` line, else loose (a `cycle:` naming no
+  cycle on disk warns), with its review summary and promotion, read from
+  `reviews/<id>/` and `promotions/<id>/`, bare or `-<slug>`.
+- `--cycle` lists each demand with its review and promotion.
+- `--panel` renders only from the JSON: its Overview ends with a
+  `next:` action and shows at most ten warnings. `--demand` on an
+  unknown or empty id exits 2.
 - An old-format `## Next cycle` list is shown with a warning to move it
   into `backlog.md`.
 

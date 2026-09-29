@@ -26,10 +26,13 @@ directory or old file.
 
 The demands (FWD-034): every `specs/<id>/` (bare or `<id>-<slug>`), linked
 to a cycle by a plan's `## Demands` table or an old file's `demands:`
-line, else by the spec's own `cycle:` line, else loose; its review summary
-from `reviews/<id>/findings.toml` (a malformed file is named, never
+line, else by the spec's own `cycle:` line (one naming no cycle on disk
+warns and the demand is loose), else loose; its review summary from
+`reviews/<id>[-<slug>]/findings.toml` (a malformed file is named, never
 raised); its promotion from the cycle's promotion.md or the old
-`promotions/<id>/`. Each cycle also carries its artifact paths.
+`promotions/<id>[-<slug>]/`. Each cycle also carries its artifact paths.
+The panel's Overview ends with a suggested next action; it folds warnings
+after ten.
 
 A report, never a gate (ADR-0018): exit 0 on any content, exit 2 only for
 a bad argument. Read-only, stdlib only, no git.
@@ -72,6 +75,7 @@ GROUP_MARK = re.compile(r"(?:\u2192|->)\s*(C-\d+)(?!\d)")
 ANY_B_ID = re.compile(r"(?<![\w-])B-(\d+)(?!\d)")
 NONE_CELL = {"", "-", "\u2014", "\u2013", "none", "n/a"}
 WIDTH = 110
+UNSECTIONED = "Unsectioned"  # backlog items above the first `##`
 
 
 def _read(path: Path) -> str:
@@ -82,8 +86,15 @@ def _read(path: Path) -> str:
 
 
 def _clip(text: str) -> str:
+    """One line of at most WIDTH characters, cut at a word boundary."""
     text = " ".join(text.split())
-    return text if len(text) <= WIDTH else text[:WIDTH - 1] + "…"
+    if len(text) <= WIDTH:
+        return text
+    cut = text[:WIDTH - 1]
+    space = cut.rfind(" ")
+    if space >= WIDTH // 2:
+        cut = cut[:space]
+    return cut.rstrip(" ,;:·—–-") + "…"
 
 
 def _sections(text: str) -> list[tuple[str, list[str]]]:
@@ -428,7 +439,7 @@ def load_backlog(root: Path, problems: list[str] | None = None):
             if m:
                 loose(m.group(1), s)
         if items:
-            out.append((heading or "(before any section)", items))
+            out.append((heading or UNSECTIONED, items))
     return out
 
 
@@ -524,19 +535,30 @@ def _item_lines(c: Cycle) -> list[str]:
             for it in c.items]
 
 
-def show_cycle(c: Cycle, backlog, title: str) -> list[str]:
+def show_cycle(c: Cycle, backlog, title: str,
+               demands: list[dict] | None = None) -> list[str]:
+    """The cycle in full; with `demands`, each of its demands carries its
+    review and promotion, as the panel's table does."""
     out = [f"{title} {c.id} ({c.ended or c.state})",
            f"  objective: {_clip(c.objective) or '—'}"]
     if c.layout == "directory":
         out.append(f"  artifacts: {', '.join(c.artifacts) or '—'}")
     if c.header.get("demands"):
         out.append(f"  demands:   {_clip(c.header['demands'])}")
-    if c.demand_rows:
-        out.append(f"  demands:   {len(c.demand_rows)}")
-        for d in c.demand_rows:
-            line = f"    {_clip(d['id'])}  {_clip(d['layer']) or '—'}"
-            if d["depends_on"]:
-                line += f"  depends on {_clip(', '.join(d['depends_on']))}"
+    by_id = {d["id"]: d for d in demands or []}
+    rows = c.demand_rows if c.demand_rows or demands is None else c.demands
+    named = {r["id"].upper() for r in rows}
+    rows = rows + [{"id": d["id"], "layer": d["layer"], "depends_on": []}
+                   for d in demands or [] if d["cycle"] == c.id and d["id"] not in named]
+    if rows:
+        out.append(f"  demands:   {len(rows)}")
+        for r in rows:
+            d = by_id.get(r["id"].upper())
+            line = f"    {_clip(r['id'])}  {_clip(r['layer'] or (d or {}).get('layer', '')) or '—'}"
+            if r["depends_on"]:
+                line += f"  depends on {_clip(', '.join(r['depends_on']))}"
+            if demands is not None:
+                line += f"  {_review_cell(d)} · promotion {_promotion_cell(d)}"
             out.append(line)
     if c.items:
         out.append(f"  items:     {len(c.items)}")
@@ -647,12 +669,30 @@ def _finding_title(f: dict) -> str:
     return ""
 
 
+def demand_dir(root: Path, kind: str, did: str) -> Path | None:
+    """`<kind>/<id>/`, else the first `<kind>/<id>-<slug>/` in name order —
+    matched as spec directories are (`FWD-40` never takes `FWD-400-x`)."""
+    bare = root / kind / did
+    if bare.is_dir():
+        return bare
+    try:
+        entries = sorted(p for p in (root / kind).iterdir() if p.is_dir())
+    except OSError:
+        return None
+    for p in entries:
+        m = SPEC_DIR.match(p.name)
+        if m and m.group(1).upper() == did.upper():
+            return p
+    return None
+
+
 def load_findings(root: Path, did: str):
-    """(summary, findings) of `reviews/<id>/findings.toml`; (None, []) when
-    absent. A file that cannot be read as TOML, or a `finding` that is not
-    a list of tables, is named in `error`, never raised."""
-    p = root / "reviews" / did / "findings.toml"
-    if not p.is_file():
+    """(summary, findings) of `reviews/<id>[-<slug>]/findings.toml`; (None,
+    []) when absent. A file that cannot be read as TOML, or a `finding`
+    that is not a list of tables, is named in `error`, never raised."""
+    d = demand_dir(root, "reviews", did)
+    p = d / "findings.toml" if d else None
+    if p is None or not p.is_file():
         return None, []
     summary: dict = {"path": _rel(root, p), "findings": None, "by_severity": {},
                      "blocking": 0, "error": None}
@@ -684,11 +724,14 @@ def load_findings(root: Path, did: str):
 
 
 def _promotion(root: Path, did: str, cycle: Cycle | None):
-    """The cycle's promotion.md, else the old `promotions/<id>/` file."""
+    """The cycle's promotion.md, else the old `promotions/<id>[-<slug>]/`
+    file."""
     if cycle and cycle.layout == "directory" and "promotion.md" in cycle.artifacts:
         p = cycle.path / "promotion.md"
         return {"path": _rel(root, p), "decision": _clip(_decision(p))}
-    d = root / "promotions" / did
+    d = demand_dir(root, "promotions", did)
+    if d is None:
+        return None
     try:
         files = sorted(p for p in d.iterdir() if p.is_file() and p.suffix == ".md")
     except OSError:
@@ -728,15 +771,19 @@ def load_demands(root: Path, cycles: list[Cycle], problems: list[str]) -> list[d
         seen[did] = p.name
         spec = p / "spec.md"
         fields = _spec_fields(_read(spec)) if spec.is_file() else {}
-        cid, cycle, source, layer = None, None, None, ""
+        cid, cycle, source, layer, dangling = None, None, None, "", None
         if did in linked:
             cycle, row = linked[did]
             cid, source, layer = cycle.id, "plan", row["layer"]
         else:
             cm = re.match(r"[`*]*(C-\d+)(?!\d)", fields.get("cycle", ""), re.I)
-            if cm:
+            if cm and cm.group(1).upper() in by_id:
                 cid, source = cm.group(1).upper(), "spec"
-                cycle = by_id.get(cid)
+                cycle = by_id[cid]
+            elif cm:  # a link to no cycle on disk: listed as loose, named
+                dangling = cm.group(1).upper()
+                problems.append(f"specs/{p.name}/spec.md links {dangling}, which is not "
+                                f"in cycles/ — {did} is listed as loose")
         review, _ = load_findings(root, did)
         follows = []
         for n in ADR_REF.findall(fields.get("follows", "")):
@@ -747,6 +794,7 @@ def load_demands(root: Path, cycles: list[Cycle], problems: list[str]) -> list[d
             "spec": _rel(root, spec) if spec.is_file() else None,
             "layout": "old" if (p / "acceptance.md").is_file() else "new",
             "cycle": cid, "cycle_source": source, "loose": cid is None,
+            "dangling_cycle": dangling,
             "layer": _clip(layer or fields.get("layer", "")),
             "follows": follows, "review": review,
             "promotion": _promotion(root, did, cycle),
@@ -841,11 +889,12 @@ BLOCK_START = re.compile(r"^(?:[#>\-+*=<`~_]|\d+[.)])")
 DISCARD = re.compile(r"\s*[—–-]*\s*discarded\s*:\s*", re.IGNORECASE)
 
 
-def _md(text) -> str:
+def _md(text, full: bool = False) -> str:
     """File text made safe for one markdown line: whitespace collapsed,
-    clipped, table pipes escaped, a leading block marker (heading, quote,
-    list, fence, html) escaped (FM1)."""
-    t = _clip(str(text or "")).replace("\\|", "|").replace("|", "\\|")
+    clipped (unless `full`), table pipes escaped, a leading block marker
+    (heading, quote, list, fence, html) escaped (FM1)."""
+    t = " ".join(str(text or "").split()) if full else _clip(str(text or ""))
+    t = t.replace("\\|", "|").replace("|", "\\|")
     return "\\" + t if BLOCK_START.match(t) else t
 
 
@@ -861,7 +910,17 @@ def _review_cell(d: dict | None) -> str:
         return "not reviewed"
     if rev["findings"] is None:
         return "findings.toml unreadable"
-    return f"{_n(rev['findings'], 'finding')}, {rev['blocking']} blocking"
+    if rev["blocking"]:
+        return (f"{_n(rev['blocking'], 'blocking finding')} recorded "
+                f"({rev['findings']} in all)")
+    return f"{_n(rev['findings'], 'finding')} recorded, none blocking"
+
+
+def _loose_label(d: dict) -> str:
+    """Why a loose demand has no cycle, in the owner's words."""
+    if d.get("dangling_cycle"):
+        return f"no cycle ({d['dangling_cycle']} not in cycles/)"
+    return "legacy layout (no cycle)" if d["layout"] == "old" else "no cycle"
 
 
 def _n(k: int, word: str) -> str:
@@ -895,14 +954,50 @@ def panel_counts(data: dict) -> dict:
 
 
 def _progress(c: dict) -> str:
+    """One word for every cycle: criteria (directory) and done items (old
+    file) both read `done <met>/<total>`."""
     k = c["done"]
-    label = "criteria" if k["source"] == "criteria" else "done"
-    out = f"{label} {k['met']}/{k['total']} met"
+    out = f"done {k['met']}/{k['total']}"
     if k["declined"]:
         out += f", {k['declined']} declined"
-    if k["pending"]:
-        out += f", {k['pending']} pending"
     return out
+
+
+WARN_FOLD = 10
+
+
+def next_action(data: dict) -> str:
+    """The next step the state suggests: finish the running cycle, else sign
+    off a planned one, else specify a draft, else group the backlog."""
+    cycles = data.get("cycles", [])
+    running = [c for c in cycles if c["state"] == "running"]
+    if running:
+        c = running[0]
+        cid, pending = c["id"], c["done"]["pending"]
+        unreviewed = [d["id"] for d in data.get("demands", [])
+                      if d["cycle"] == cid and d["spec"] and d["review"] is None]
+        if unreviewed:
+            return f"review {', '.join(unreviewed)} ({cid})"
+        if c["layout"] == "file":
+            return (f"finish {cid} ({_n(pending, 'done item')} pending)" if pending
+                    else f"close {cid}")
+        if "review.md" not in c["artifacts"]:
+            return f"run the cycle review of {cid}"
+        if pending:
+            word = "criterion" if pending == 1 else "criteria"
+            return f"promote and close {cid} ({pending} {word} pending)"
+        return f"close {cid} (every criterion met)"
+    planned = [c["id"] for c in cycles if c["state"] == "planned"]
+    if planned:
+        return f"sign off {planned[0]} (planned)"
+    drafts = [c["id"] for c in cycles if c["state"] == "draft"]
+    if drafts:
+        return f"specify a draft ({', '.join(drafts[:3])}{'…' if len(drafts) > 3 else ''})"
+    free = sum(1 for s in (data.get("backlog") or {}).get("sections", [])
+               if not _discarded(s["heading"]) for it in s["items"] if not it["cycle"])
+    if free:
+        return f"group backlog items into a draft ({free} ungrouped)"
+    return "capture the next idea in backlog.md"
 
 
 def _item_line(it: dict, indent: str = "") -> str:
@@ -946,12 +1041,15 @@ def render_panel(data: dict) -> list[str]:
     ended = [c for c in cycles if c["ended"]]
     warns = data.get("warnings", [])
     out = ["## Overview", ""]
-    out += [f"- running: {c['id']} — {_md(c['objective']) or '—'} — {_progress(c)}"
-            for c in running] or ["- running: none"]
+    out += [f"- running: {c['id']} — {_md(c['objective'], full=True) or '—'} — "
+            f"{_progress(c)}" for c in running] or ["- running: none"]
     out.append("- planned: " + (", ".join(c["id"] for c in planned) or "none"))
     out.append("- drafts: " + (", ".join(c["id"] for c in drafts) or "none"))
     out.append(f"- warnings: {len(warns) or 'none'}")
-    out += [f"  - {_md(w)}" for w in warns]
+    out += [f"  - {_md(w)}" for w in warns[:WARN_FOLD]]
+    if len(warns) > WARN_FOLD:
+        out.append(f"  - … {len(warns) - WARN_FOLD} more (status.py --format json)")
+    out.append(f"- next: {_md(next_action(data))}")
     nxt = data.get("next", {})
     out.append(f"- next ids: {nxt.get('backlog_id', '—')} · {nxt.get('cycle_id', '—')}")
     out.append(f"- counts: backlog {k['backlog']} · discarded {k['discarded']} · "
@@ -995,7 +1093,7 @@ def render_panel(data: dict) -> list[str]:
                "opens any one.")
     out.append("")
     for d in loose:
-        out.append(f"- {_md(d['id'])} · {d['layout']} · {_review_cell(d)} · "
+        out.append(f"- {_md(d['id'])} · {_md(_loose_label(d))} · {_review_cell(d)} · "
                    f"promotion {_md(_promotion_cell(d))}")
 
     out += ["", f"## Discarded ({k['discarded']})", ""]
@@ -1045,21 +1143,22 @@ def main(argv=None) -> int:
     nxt = next_ids(root, cycles)
     demands = load_demands(root, cycles, problems)
 
-    if args.cycle:
+    if args.cycle is not None:  # an empty id is a bad argument, not no argument
         match = [c for c in cycles if c.id.lower() == args.cycle.strip().lower()]
         if not match:
-            print(f"status: no cycle {args.cycle} in cycles/", file=sys.stderr)
+            print(f"status: no cycle {args.cycle!r} in cycles/", file=sys.stderr)
             return 2
         if args.format == "json":
             return emit_json(as_json(match, backlog, warnings(cycles, backlog, problems),
-                                     ("cycles",), nxt, root))
-        print("\n".join(show_cycle(match[0], backlog, "CYCLE")))
+                                     ("cycles",), nxt, root,
+                                     [d for d in demands if d["cycle"] == match[0].id]))
+        print("\n".join(show_cycle(match[0], backlog, "CYCLE", demands)))
         return 0
 
-    if args.demand:
+    if args.demand is not None:
         match = [d for d in demands if d["id"] == args.demand.strip().upper()]
         if not match:
-            print(f"status: no demand {args.demand} in specs/", file=sys.stderr)
+            print(f"status: no demand {args.demand!r} in specs/", file=sys.stderr)
             return 2
         _, findings = load_findings(root, match[0]["id"])
         if args.format == "json":
