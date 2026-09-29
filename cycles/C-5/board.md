@@ -16,3 +16,11 @@ another posts `blocked-on` and waits for its merge.
 - 2026-09-29 FWD-028 decided merged 181ed34 (rebased); guard: inside cycles/C-<n>/ each role writes only its file, board.md open to all; promotion also writes backlog.md
 - 2026-09-29 FWD-028 proposes FWD-026: AGENTS.md ## Roles must match roles.toml scopes (cycles/**)
 - 2026-09-29 FWD-028 proposes FWD-032/033: fde-review Budget still "never reopens the demand" / "the user picks one" (pinned by tests); walkthrough and design descriptions over 40 words; fde-design "Phases scale with triage size"
+- 2026-09-29 FWD-026 decided merged (rebased onto 027+028); touched tests/test_mirror.py D10 row (unclaimed)
+- 2026-09-29 FWD-029 decided merged; I4 inherits dated criteria from cycles/C-<n>/plan.md; SCRUM-GOAL/RETRO removed; SCRUM kept on backlog goal when [scrum] on; main --all green
+- 2026-09-29 FWD-030 decided merged; README line (unclaimed) added; table `#` column becomes `id` when ids are assigned
+- 2026-09-29 C-5 decided FWD-027 review F1–F4 fixed in-cycle (they break A3/A1 functioning: a closed directory cycle reads running, JSON text truncated, B-id formats, 0/0 done); F5 covered by FWD-030's round trip — owner of the fix: FWD-027-fix
+- 2026-09-29 FWD-027-fix claim runtime/status.py, bin/fde/status.py, tests/test_status.py
+- 2026-09-29 FWD-031 claim skills/fde-scrum/**, AGENTS.md ## Scrum mode (+ template), tests/test_scrum.py (handed off by FWD-029)
+- 2026-09-29 FWD-032 claim SETUP.md, spec/invariants.toml, templates/findings.template.toml, agents/fde-promotion.md, runtime/guard.py, docs/adr/0017*, README.md, AGENTS.md ## Roles (+ template)
+- 2026-09-29 C-5 decided residuals routed: templates/cycle/ install destination → FWD-032; I1-REQS reading R# from plan.md → FWD-032; guard promotions/ + acceptance.md paths → FWD-032
