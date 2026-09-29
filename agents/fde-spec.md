@@ -49,7 +49,9 @@ it by id; a demand never amends it.
   of scope. Review blocks only inside it.
 - The demand list: id, layer (`front`/`back`/`infra`), dependencies (a
   contract, a file, a migration — not a sequence), the criteria it meets,
-  the ADRs it follows. A change that spans layers is split. A demand over
+  the ADRs it follows, and the files it will touch (paths or globs, the
+  `files` column): `status.py --waves C-<n>` computes from them which
+  demands run in parallel. A change that spans layers is split. A demand over
   ~300 production lines is split here, not at review.
 - `deploy.md`: steps ordered infra (expand) → back → front → infra
   (contract), each with its verification and rollback; an irreversible

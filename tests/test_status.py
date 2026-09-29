@@ -1334,3 +1334,73 @@ class TestPanelPolish(DemandsCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestWaves(unittest.TestCase):
+    """Parallel demands are computed from the plan's `files` and `depends
+    on`, not negotiated with claim lines on the board."""
+
+    PLAN = """cycle: C-9
+state: running
+
+## Demands
+
+| id | layer | depends on | files | what | meets | follows |
+|---|---|---|---|---|---|---|
+| FWD-1 | back | — | `runtime/verify.py`, tests/test_verify.py | a | A1 | — |
+| FWD-2 | back | — | runtime/status.py (+ bin/fde) | b | A1 | — |
+| FWD-3 | back | FWD-1 | skills/fde-review/SKILL.md | c | A2 | — |
+| FWD-4 | back | — | runtime/ | d | A2 | — |
+| FWD-5 | back | — | skills/*/SKILL.md | e | A3 | — |
+"""
+
+    def setUp(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "runtime"))
+        import status
+        self.status = status
+
+    def test_disjoint_files_share_a_wave_and_overlaps_wait(self):
+        w = self.status.plan_waves(self.PLAN)
+        self.assertEqual(w["waves"], [["FWD-1", "FWD-2", "FWD-5"],
+                                      ["FWD-3", "FWD-4"]])
+        self.assertEqual(w["why"]["FWD-3"], "after FWD-1")
+        self.assertIn("shares runtime/", w["why"]["FWD-4"])
+        self.assertEqual(w["unscheduled"], [])
+
+    def test_a_glob_overlaps_a_concrete_path(self):
+        self.assertEqual(self.status.shared_files(
+            ["skills/*/SKILL.md"], ["skills/fde-review/SKILL.md"]),
+            ["skills/*/SKILL.md"])
+        self.assertEqual(self.status.shared_files(["runtime/a.py"],
+                                                  ["runtime/ab.py"]), [])
+
+    def test_notes_and_backticks_are_not_paths(self):
+        self.assertEqual(self.status.demand_files(
+            "`runtime/status.py` (+ bin/fde), tests/test_status.py"),
+            ["runtime/status.py", "tests/test_status.py"])
+        self.assertEqual(self.status.demand_files("—"), [])
+
+    def test_undeclared_files_run_alone_and_warn(self):
+        plan = self.PLAN.replace("runtime/status.py (+ bin/fde)", "—")
+        w = self.status.plan_waves(plan)
+        self.assertTrue(all(len(x) == 1 for x in w["waves"]
+                            if "FWD-2" in x))
+        self.assertIn("FWD-2: no `files` declared — runs alone", w["warnings"])
+
+    def test_a_dependency_cycle_is_reported_not_looped(self):
+        plan = self.PLAN.replace("| FWD-1 | back | — |", "| FWD-1 | back | FWD-3 |")
+        w = self.status.plan_waves(plan)
+        self.assertEqual(sorted(w["unscheduled"]), ["FWD-1", "FWD-3"])
+
+    def test_cli_prints_the_waves(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp) / "cycles" / "C-9"
+            d.mkdir(parents=True)
+            (d / "plan.md").write_text(self.PLAN)
+            out = subprocess.run(
+                [sys.executable, str(Path(__file__).resolve().parent.parent
+                                     / "runtime" / "status.py"),
+                 "--root", tmp, "--waves", "C-9"],
+                capture_output=True, text=True)
+            self.assertIn("wave 1: FWD-1, FWD-2, FWD-5", out.stdout, out.stderr)
+            self.assertIn("wave 2: FWD-3, FWD-4", out.stdout)

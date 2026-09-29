@@ -1151,6 +1151,92 @@ def emit_json(data: dict) -> int:
     return 0
 
 
+# -- waves: parallel demands computed from the plan, not negotiated ----------
+# A demand declares at planning the files it will touch (`files` column of
+# the plan's `## Demands` table). Two demands run in the same wave only when
+# every `depends on` is in an earlier wave and their file sets are disjoint.
+# A demand with no `files` cell is treated as touching everything (stricter
+# reading), so it runs alone and is warned.
+
+import fnmatch  # noqa: E402
+
+FILE_TOKEN = re.compile(r"[^\s,;`]+")
+
+
+def demand_files(cell: str) -> list[str]:
+    """Path patterns of a `files` cell: comma/space separated, backticks and
+    parenthesised notes (`(+ copies)`) dropped; `—`/`-` means none."""
+    cell = re.sub(r"\([^)]*\)", " ", cell or "")
+    return [t.rstrip("/") + ("/" if t.endswith("/") else "")
+            for t in FILE_TOKEN.findall(cell) if t not in ("—", "-", "–")]
+
+
+def _overlap(a: str, b: str) -> bool:
+    a2, b2 = a.rstrip("/*"), b.rstrip("/*")
+    if a2 == b2 or a2.startswith(b2 + "/") or b2.startswith(a2 + "/"):
+        return True
+    return fnmatch.fnmatch(a, b) or fnmatch.fnmatch(b, a)
+
+
+def shared_files(fa: list[str], fb: list[str]) -> list[str]:
+    return sorted({x for x in fa for y in fb if _overlap(x, y)})
+
+
+def plan_waves(plan_text: str) -> dict:
+    """{"waves": [[id, ...], ...], "why": {id: reason}, "warnings": [...],
+    "unscheduled": [id, ...]} from the plan's `## Demands` table."""
+    rows = fde_lib.plan_demand_rows(plan_text)
+    order = list(rows)
+    files, deps, warns = {}, {}, []
+    for did, row in rows.items():
+        files[did] = demand_files(row.get("files", ""))
+        if not files[did]:
+            warns.append(f"{did}: no `files` declared — runs alone")
+        deps[did] = [d for d in (fde_lib.demand_id(t) for t in
+                                 re.split(r"[\s,;]+", row.get("depends on", "")))
+                     if d and d in rows and d != did]
+    waves, why, done, left = [], {}, set(), list(order)
+    while left:
+        wave, taken = [], []
+        for did in left:
+            waiting = [d for d in deps[did] if d not in done]
+            if waiting:
+                why.setdefault(did, f"after {', '.join(waiting)}")
+                continue
+            clash = [(o, shared_files(files[did], files[o])) for o in taken]
+            clash = [(o, sh) for o, sh in clash if sh or not files[did] or not files[o]]
+            if clash:
+                o, sh = clash[0]
+                why[did] = f"shares {', '.join(sh) or 'undeclared files'} with {o}"
+                continue
+            wave.append(did)
+            taken.append(did)
+        if not wave:
+            break
+        waves.append(wave)
+        done.update(wave)
+        left = [d for d in left if d not in done]
+    return {"waves": waves, "why": {d: why[d] for d in order if d in why
+                                    and any(d in w for w in waves[1:])},
+            "warnings": warns, "unscheduled": left}
+
+
+def show_waves(cycle: "Cycle") -> list[str]:
+    data = plan_waves(cycle.text)
+    out = [f"{cycle.id} waves (plan.md `files` + `depends on`)"]
+    out += [f"WARNING {w}" for w in data["warnings"]]
+    for i, wave in enumerate(data["waves"], 1):
+        notes = [f"{d}: {data['why'][d]}" for d in wave if d in data["why"]]
+        out.append(f"  wave {i}: {', '.join(wave)}"
+                   + (f"   ({'; '.join(notes)})" if notes else ""))
+    if data["unscheduled"]:
+        out.append("  unscheduled (dependency cycle or unknown id): "
+                   + ", ".join(data["unscheduled"]))
+    if not data["waves"] and not data["unscheduled"]:
+        out.append("  no demands in the plan's ## Demands table")
+    return out
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="cycle and backlog view")
     ap.add_argument("--root", default=".", help="project root (default: cwd)")
@@ -1162,6 +1248,9 @@ def main(argv=None) -> int:
                       help="one demand: spec, findings, promotion, ADRs")
     part.add_argument("--panel", action="store_true",
                       help="the whole panel as markdown sections")
+    part.add_argument("--waves", metavar="C-N",
+                      help="which demands run in parallel, from plan.md "
+                           "`files` and `depends on`")
     ap.add_argument("--format", choices=("text", "json"), default="text",
                     help="text (default) or json with the same content")
     args = ap.parse_args(argv)
@@ -1191,6 +1280,16 @@ def main(argv=None) -> int:
                                      ("cycles",), nxt, root,
                                      [d for d in demands if d["cycle"] == match[0].id]))
         print("\n".join(show_cycle(match[0], backlog, "CYCLE", demands)))
+        return 0
+
+    if args.waves is not None:
+        match = [c for c in cycles if c.id.lower() == args.waves.strip().lower()]
+        if not match:
+            print(f"status: no cycle {args.waves!r} in cycles/", file=sys.stderr)
+            return 2
+        if args.format == "json":
+            return emit_json(dict(plan_waves(match[0].text), cycle=match[0].id))
+        sys.stdout.write("\n".join(show_waves(match[0])) + "\n")
         return 0
 
     if args.demand is not None:

@@ -99,3 +99,16 @@ class TestNoSyncUnderARunningCycle(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestWavesFromThePlan(unittest.TestCase):
+    def test_the_plan_declares_files_and_the_runtime_computes_waves(self):
+        self.assertIn("| id | layer | depends on | files | what | meets | "
+                      "follows |", read("templates/cycle/plan.md"))
+        self.assertIn("`status.py --waves C-<n>` computes from them which "
+                      "demands run in parallel.", read("agents/fde-spec.md"))
+        self.assertIn("A demand that needs a file outside its row posts "
+                      "`claim widened`", read("templates/cycle/board.md"))
+        for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
+            self.assertIn("Parallel demands come from the plan's `files` "
+                          "(`status.py --waves`).", read(rel), rel)

@@ -33,6 +33,6 @@ Out of scope: <what the review may not block on>.
 
 ## Demands
 
-| id | layer | depends on | what | meets | follows |
-|---|---|---|---|---|---|
-| DEM-<n> | front / back / infra | — | <at most ~300 production lines, one layer> | A1 | ADR-<n> |
+| id | layer | depends on | files | what | meets | follows |
+|---|---|---|---|---|---|---|
+| DEM-<n> | front / back / infra | — | <paths or globs it will touch> | <at most ~300 production lines, one layer> | A1 | ADR-<n> |

@@ -416,8 +416,8 @@ class TestCycleTemplates(unittest.TestCase):
         "plan.md": ("cycle:", "state: draft", "date:", "size:",
                     "objective:", "signed-off:", "## Threat model",
                     "## Acceptance criteria", "## Failure modes",
-                    "## Demands", "| id | layer | depends on | what | meets "
-                    "| follows |"),
+                    "## Demands", "| id | layer | depends on | files | what "
+                    "| meets | follows |"),
         "deploy.md": ("cycle:", "date:", "infra-expand", "back", "front",
                       "infra-contract", "Verification:", "Rollback:",
                       "Irreversible:"),

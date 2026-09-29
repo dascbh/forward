@@ -121,8 +121,8 @@ pause, recorded on `board.md` and marked in `promotion.md` at close, never
 in `plan.md`.
 
 The board is the record (I7), not the conversation. Agents decide inside
-the plan and record it there. Two demands needing the same file: the
-later posts `blocked-on` and waits.
+the plan and record it there. Parallel demands come from the plan's
+`files` (`status.py --waves`).
 
 Gates follow the owning level. Cycle: I4, promotion, I5, traceability;
 demand: I1, I2, I3; commit: RULE. The RULE lane: `fde-triage`.
