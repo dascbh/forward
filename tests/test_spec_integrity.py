@@ -290,3 +290,13 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertTrue((ROOT / "runtime/backlog.py").exists())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 25, 0))
+
+    def test_kernel_version_ships_the_erosion_measures(self):
+        # SlopCodeBench v2 (owner decision, direct, 2026-09-29): copies count
+        # once, structural erosion for Python, and the ratchet budget reach
+        # clients only through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertIn("def structural_erosion",
+                      (ROOT / "runtime/erosion.py").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 26, 0))
