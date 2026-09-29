@@ -312,3 +312,48 @@ class TestLayerIsAList(unittest.TestCase):
             self.assertEqual(front_demand_criteria(root, root / "specs" / "DEM-1"),
                              ["A1", "A2"])
             self.assertIsNone(front_demand_criteria(root, root / "specs" / "DEM-2"))
+
+
+class TestErosionRatchet(unittest.TestCase):
+    """A project with no [erosion] budget gets one from its own measurement
+    (SlopCodeBench gap: the gate stayed off in every client)."""
+
+    def test_each_ceiling_is_the_next_step_above_the_measurement(self):
+        from fde_lib import erosion_ratchet
+        b = erosion_ratchet({"window": 50, "duplication_pct": 0.7,
+                             "add_delete_ratio": 7.51, "structural_erosion": 0.619})
+        self.assertEqual(b, {"window": 50, "max_duplication_pct": 1.0,
+                             "max_add_delete_ratio": 8.0,
+                             "max_structural_erosion": 0.62})
+
+    def test_a_value_on_a_step_still_gets_headroom(self):
+        from fde_lib import erosion_ratchet
+        b = erosion_ratchet({"duplication_pct": 2.0, "add_delete_ratio": 3.0,
+                             "structural_erosion": 0.4})
+        self.assertEqual((b["max_duplication_pct"], b["max_add_delete_ratio"],
+                          b["max_structural_erosion"]), (2.5, 3.5, 0.41))
+
+    def test_an_unmeasured_metric_is_left_out_never_guessed(self):
+        from fde_lib import erosion_ratchet
+        b = erosion_ratchet({"duplication_pct": 50.0, "add_delete_ratio": None,
+                             "structural_erosion": None})
+        self.assertEqual(b, {"window": 50, "max_duplication_pct": 50.5})
+
+    def test_the_toml_parses_and_passes_validation(self):
+        import tomllib
+        from fde_lib import erosion_ratchet_toml
+        raw = tomllib.loads(erosion_ratchet_toml(
+            {"duplication_pct": 12.3, "add_delete_ratio": 4.2,
+             "structural_erosion": 0.448}))
+        c = cfg(erosion=raw["erosion"])
+        self.assertNotIn("EROSION-BUDGET", codes(validate(c, Spec.load())))
+
+    def test_a_declared_budget_is_never_touched(self):
+        from fde_lib import erosion_budget_declared
+        self.assertTrue(erosion_budget_declared({"erosion": {"max_change_lines": 900}}))
+        self.assertFalse(erosion_budget_declared({"erosion": {"generated_paths": ["x/"]}}))
+        self.assertFalse(erosion_budget_declared({}))
+
+    def test_structural_erosion_is_a_share(self):
+        c = cfg(erosion={"max_structural_erosion": 45})
+        self.assertIn("EROSION-BUDGET", codes(validate(c, Spec.load())))

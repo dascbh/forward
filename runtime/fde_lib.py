@@ -287,6 +287,14 @@ def validate(cfg: Config, spec: Spec) -> list[Violation]:
                     f"{type(val).__name__}.",
                 )
             )
+        elif key == "max_structural_erosion" and not 0 <= val <= 1:
+            v.append(
+                Violation(
+                    "EROSION-BUDGET",
+                    f"[erosion] max_structural_erosion is a share of "
+                    f"complexity mass, from 0 to 1; got {val}.",
+                )
+            )
 
     # 7. [gate] retargets I1 to the repo's real layout; it cannot empty it
     gate = cfg.raw.get("gate", {}) or {}
@@ -842,3 +850,51 @@ def next_backlog_id(root: Path) -> str:
     """One more than the highest id taken anywhere `used_backlog_ids` reads."""
     used = used_backlog_ids(root)
     return f"B-{max((int(k[2:]) for k in used), default=0) + 1}"
+
+
+# -- erosion ratchet: a project with no budget gets today's values -------------
+# Install and sync measure a project that declares no [erosion] budget and
+# write one from the measurement, so decay is gated from the day it is seen
+# instead of never (SlopCodeBench gap: the gate stayed off in every client).
+# Each ceiling is the measured value rounded UP to the next step: the gate
+# runs on every commit, and a ceiling at the last decimal would fail on noise.
+
+RATCHET_KEYS = (
+    # (budget key, metric key in `erosion.py --format json`, step)
+    ("max_duplication_pct", "duplication_pct", 0.5),
+    ("max_add_delete_ratio", "add_delete_ratio", 0.5),
+    ("max_structural_erosion", "structural_erosion", 0.01),
+)
+
+
+def _ceil_step(value: float, step: float) -> float:
+    import math
+    n = math.floor(value / step + 1e-9) + 1
+    return round(n * step, 4)
+
+
+def erosion_budget_declared(raw: dict) -> bool:
+    """True when [erosion] carries any `max_*` ceiling: that project chose
+    its budget and a ratchet never touches it."""
+    ero = raw.get("erosion")
+    return isinstance(ero, dict) and any(k.startswith("max_") for k in ero)
+
+
+def erosion_ratchet(metrics: dict, window: int = 50) -> dict:
+    """The [erosion] budget written from one measurement: `window` plus one
+    ceiling per metric that was measured (a null metric is left out, never
+    guessed)."""
+    budget: dict = {"window": int(metrics.get("window") or window)}
+    for key, metric, step in RATCHET_KEYS:
+        value = metrics.get(metric)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            budget[key] = _ceil_step(float(value), step)
+    return budget
+
+
+def erosion_ratchet_toml(metrics: dict) -> str:
+    """The same budget as the TOML lines of an `[erosion]` table."""
+    lines = ["[erosion]"]
+    for k, v in erosion_ratchet(metrics).items():
+        lines.append(f"{k} = {v}")
+    return "\n".join(lines) + "\n"
