@@ -203,3 +203,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
                         .exists())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 16, 0))
+
+    def test_kernel_version_ships_the_cycle_view(self):
+        # FWD-023/024: the run-to-the-end cycle and status.py reach clients
+        # only through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "runtime/status.py").exists())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 17, 0))
