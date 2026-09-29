@@ -16,7 +16,16 @@ python3 bin/fde/verify.py --gate erosion       # enforce the [erosion] budget
 ## The signals (stdlib, language-agnostic)
 
 - **duplicate-block %** — the clone ratio, via normalized line-window
-  hashing.
+  hashing. Byte-identical files kept in several places (a shared module
+  copied into each deploy package) count once; the report says how many
+  groups it found, to declare in `generated_paths`.
+- **structural erosion** (Python) — each function's mass is cyclomatic
+  complexity × √SLOC; erosion is the share of the mass in functions with
+  CC > 10 — new logic patched into functions already complex. Tests
+  excluded, identical bodies once, docstrings out of SLOC; other
+  languages report `n/a`. Read it with its count of complex functions:
+  a share falls when much simple code lands. Human repositories average
+  about 0.34.
 - **add/delete ratio** — growth by accretion; a codebase that only grows
   never consolidates.
 - **largest change (lines)** — batch size.
@@ -59,7 +68,7 @@ over everything tracked except `cycles/`, the cycle records. A project
 that declared nothing is measured whole, never narrowed to kernel
 defaults it never asked for.
 
-Deeper metrics (exact cyclomatic complexity, structural erosion) need
+Deeper metrics (other languages' complexity, exact tool metrics) need
 per-language tools (lizard, radon, jscpd): wire them into your eval suite
 (I1), never into the gate's path (I6).
 
@@ -76,6 +85,7 @@ max_add_delete_ratio = 6.0
 max_duplication_pct = 8.0
 max_dependencies = 40
 max_change_lines = 600       # largest NON-ROOT commit; root/scaffold excluded
+max_structural_erosion = 0.6 # Python only; n/a elsewhere is reported unmeasured
 generated_paths = ["bin/generated/"]   # copies, not organic growth
 ```
 

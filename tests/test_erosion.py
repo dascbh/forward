@@ -446,3 +446,62 @@ class TestProcessOnlyRatio(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCopiesAndStructuralErosion(unittest.TestCase):
+    """SlopCodeBench v2 (arXiv 2603.24755): identical copies count once in
+    the clone ratio (a real client read 50% from deploy-package copies),
+    and structural erosion is measured for Python (§2.3)."""
+
+    SIMPLE = "def f(x):\n    return x + 1\n"
+    COMPLEX = ("def g(a, b, c):\n" + "".join(
+        f"    if a == {i} and b:\n        c += {i}\n" for i in range(11))
+        + "    return c\n")
+
+    def test_identical_files_count_once(self):
+        shared = "\n".join(f"line {i} of a shared module" for i in range(40))
+        contents = {f"lambdas/l{i}/shared.py": shared for i in range(5)}
+        contents["app/own.py"] = "\n".join(f"own {i}" for i in range(40))
+        kept, groups = erosion.dedupe_copies(contents)
+        self.assertEqual(groups, 1)
+        self.assertEqual(len(kept), 2)
+        self.assertEqual(erosion.duplicate_block_pct(kept), 0.0)
+        self.assertGreater(erosion.duplicate_block_pct(contents), 50.0)
+
+    def test_cyclomatic_counts_branches_not_nested_functions(self):
+        import ast
+        fn = ast.parse(self.COMPLEX).body[0]
+        self.assertEqual(erosion.cyclomatic(fn), 1 + 11 * 2)   # if + `and`
+        nested = ast.parse("def h():\n    def inner():\n        if x: pass\n"
+                           "    return 1\n").body[0]
+        self.assertEqual(erosion.cyclomatic(nested), 1)
+
+    def test_erosion_is_the_mass_share_of_complex_functions(self):
+        r = erosion.structural_erosion({"a.py": self.SIMPLE})
+        self.assertEqual((r["erosion"], r["functions"], r["complex"]), (0.0, 1, 0))
+        r = erosion.structural_erosion({"a.py": self.SIMPLE + self.COMPLEX})
+        self.assertEqual((r["functions"], r["complex"]), (2, 1))
+        self.assertGreater(r["erosion"], 0.9)
+
+    def test_tests_copies_and_other_languages_are_left_out(self):
+        r = erosion.structural_erosion({"tests/test_a.py": self.COMPLEX,
+                                        "web/a.ts": "x", "bad.py": "def ("})
+        self.assertEqual((r["erosion"], r["functions"], r["unparsed"]), (None, 0, 1))
+        r = erosion.structural_erosion({"a/x.py": self.COMPLEX, "b/x.py": self.COMPLEX})
+        self.assertEqual(r["functions"], 1)
+
+    def test_radon_counting_and_docstrings(self):
+        import ast
+        fn = ast.parse("def k(xs):\n    with open('f') as h:\n        pass\n"
+                       "    return [x for x in xs if x]\n").body[0]
+        self.assertEqual(erosion.cyclomatic(fn), 1 + 1 + 2)   # with; for + if
+        src = 'def d():\n    """Doc\n    more doc\n    """\n    return 1\n'
+        self.assertEqual(erosion._sloc(ast.parse(src).body[0], src.splitlines()), 2)
+
+    def test_the_budget_key_gates_and_unmeasured_is_not_a_pass(self):
+        breaches, unmeasured = erosion.check_budget(
+            {"structural_erosion": 0.7}, {"max_structural_erosion": 0.6})
+        self.assertEqual(breaches, ["structural erosion 0.7 > budget 0.6"])
+        breaches, unmeasured = erosion.check_budget(
+            {"structural_erosion": None}, {"max_structural_erosion": 0.6})
+        self.assertEqual((breaches, unmeasured), ([], ["structural erosion"]))

@@ -13,9 +13,11 @@ measurement the gate can consume (ADR-0011).
 
 Stdlib only, language-agnostic subset the papers rely on: the clone ratio
 (duplicate-block density), the add/delete ratio (growth by accretion),
-dependency count, large-change rate. Deeper metrics (exact cyclomatic
-complexity, the structural-erosion measure) are delegated to the client's
-tools, as I1 delegates the eval framework — the kernel keeps I6.
+dependency count, large-change rate — and, for Python, the paper's
+structural erosion (SlopCodeBench v2 §2.3) with the stdlib `ast`. Other
+languages report it as not measured; exact cyclomatic complexity beyond
+that stays with the client's tools, as I1 delegates the eval framework —
+the kernel keeps I6.
 
 Thresholds are project-specific, so they are DECLARED in `[erosion]`
 (I4 pattern), never hardcoded: the gate enforces the declared budget and
@@ -25,8 +27,10 @@ is silent when undeclared.
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
+import math
 import re
 import subprocess
 import sys
@@ -144,6 +148,104 @@ def _normalize(line: str) -> str:
     return re.sub(r"\s+", " ", line.strip())
 
 
+def dedupe_copies(contents: dict) -> tuple[dict, int]:
+    """Byte-identical files kept in several places (a shared module copied
+    into each deploy package) count once: they are one piece of code, and
+    counting every copy read as 50% duplication in a real client. Returns
+    (contents with one file per identical group, number of groups with
+    more than one file)."""
+    groups: dict = {}
+    for name in sorted(contents):
+        h = hashlib.blake2b(contents[name].encode(), digest_size=16).hexdigest()
+        groups.setdefault(h, []).append(name)
+    kept = {names[0]: contents[names[0]] for names in groups.values()}
+    return kept, sum(1 for names in groups.values() if len(names) > 1)
+
+
+HIGH_CC = 10   # the paper's cutoff, after Radon
+# Radon's counting: each if/elif, loop, except, with, assert, ternary,
+# comprehension `for` and its `if`s, match case, and each extra boolean
+# operand adds one.
+_BRANCHES = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.ExceptHandler,
+             ast.With, ast.AsyncWith, ast.IfExp, ast.Assert) + (
+    (ast.match_case,) if hasattr(ast, "match_case") else ())
+_OWN_SCOPE = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)
+
+
+def _is_test_path(name: str) -> bool:
+    base = name.rsplit("/", 1)[-1]
+    return ("/tests/" in f"/{name}" or "/test/" in f"/{name}"
+            or base.startswith("test_") or base.endswith("_test.py"))
+
+
+def cyclomatic(fn) -> int:
+    """1 + decision points of one function, nested functions excluded (they
+    are callables of their own)."""
+    n, todo = 1, list(ast.iter_child_nodes(fn))
+    while todo:
+        node = todo.pop()
+        if isinstance(node, _OWN_SCOPE):
+            continue
+        if isinstance(node, _BRANCHES):
+            n += 1
+        elif isinstance(node, ast.BoolOp):
+            n += len(node.values) - 1
+        elif isinstance(node, ast.comprehension):
+            n += 1 + len(node.ifs)
+        todo.extend(ast.iter_child_nodes(node))
+    return n
+
+
+def _sloc(fn, lines: list) -> int:
+    """Source lines of a function without blanks, comments and its
+    docstring: documentation is not erosion."""
+    body = lines[fn.lineno - 1:(fn.end_lineno or fn.lineno)]
+    doc = set()
+    first = fn.body[0] if fn.body else None
+    if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)):
+        doc = set(range(first.lineno - fn.lineno,
+                        (first.end_lineno or first.lineno) - fn.lineno + 1))
+    return sum(1 for i, l in enumerate(body)
+               if i not in doc and l.strip() and not l.strip().startswith("#"))
+
+
+def structural_erosion(contents: dict) -> dict:
+    """SlopCodeBench v2 §2.3 over production Python: each function's mass
+    is CC × √SLOC; erosion is the share of the total mass held by
+    functions with CC > 10 — complexity concentrated in functions already
+    complex. Test files are left out; identical function bodies count
+    once. Returns {"erosion": share rounded to 3 places or None,
+    "functions": distinct functions measured, "complex": those with
+    CC > 10, "unparsed": Python files that did not parse}."""
+    seen, total, high, complex_, unparsed = set(), 0.0, 0.0, 0, 0
+    for name, text in contents.items():
+        if not name.endswith(".py") or _is_test_path(name):
+            continue
+        try:
+            tree = ast.parse(text)
+        except (SyntaxError, ValueError):
+            unparsed += 1
+            continue
+        lines = text.splitlines()
+        for fn in ast.walk(tree):
+            if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            body = "\n".join(lines[fn.lineno - 1:(fn.end_lineno or fn.lineno)])
+            key = hashlib.blake2b(body.strip().encode(), digest_size=16).hexdigest()
+            if key in seen:
+                continue
+            seen.add(key)
+            cc = cyclomatic(fn)
+            mass = cc * math.sqrt(max(_sloc(fn, lines), 1))
+            total += mass
+            if cc > HIGH_CC:
+                high += mass
+                complex_ += 1
+    return {"erosion": round(high / total, 3) if seen and total else None,
+            "functions": len(seen), "complex": complex_, "unparsed": unparsed}
+
+
 def duplicate_block_pct(contents: dict, k: int = CLONE_K) -> float:
     """Clone ratio: fraction of k-line windows (whitespace-normalized, over
     all given files) that recur. The stdlib form of the duplication the
@@ -175,6 +277,7 @@ def check_budget(metrics: dict, budget: dict) -> tuple[list, list]:
         ("max_duplication_pct", "duplication_pct", "duplicate-block %"),
         ("max_dependencies", "dependencies", "dependency count"),
         ("max_change_lines", "largest_change", "largest change (lines)"),
+        ("max_structural_erosion", "structural_erosion", "structural erosion"),
     ]
     for bkey, mkey, label in checks:
         if bkey not in budget:
@@ -367,7 +470,12 @@ def measure(project: Path, window: int = DEFAULT_WINDOW) -> dict:
     m["churn_scope"] = ", ".join(scope) if scope else "everything tracked except cycles/"
 
     contents, excluded = _tracked_code(project, scope, gen)
+    contents, m["copy_groups"] = dedupe_copies(contents)
     m["duplication_pct"] = duplicate_block_pct(contents) if contents else None
+    se = structural_erosion(contents)
+    m["structural_erosion"] = se["erosion"]
+    m["python_functions"], m["complex_functions"] = se["functions"], se["complex"]
+    m["unparsed_python"] = se["unparsed"]
     m["files_scanned"] = len(contents)
     m["files_excluded"] = excluded
 
@@ -489,6 +597,10 @@ def population_lines(m: dict) -> list:
         out.append("excluded as generated copies (declared in [erosion] "
                    "generated_paths):")
         out.append("  " + ", ".join(m["generated"]))
+    if m.get("copy_groups"):
+        out.append(f"{m['copy_groups']} group(s) of byte-identical files counted "
+                   "once — if they are generated copies, declare them in "
+                   "[erosion] generated_paths")
     if m["stale_roots"]:
         out.append("declared but matching no tracked file (stale or "
                    "misspelled): " + ", ".join(m["stale_roots"]))
@@ -545,6 +657,13 @@ def main() -> int:
           f"(growth by accretion; lower is healthier)")
     print(f"  duplicate-block %     {fmt(m['duplication_pct'])}   "
           f"(the clone ratio the papers measure)")
+    print(f"  structural erosion    {fmt(m['structural_erosion'])}   "
+          f"(Python: share of complexity mass in the {m['complex_functions']} "
+          f"functions with CC > {HIGH_CC}, of {m['python_functions']} distinct; "
+          f"human repositories ≈ 0.34)")
+    if m.get("unparsed_python"):
+        print(f"  ({m['unparsed_python']} Python file(s) did not parse and are "
+              "not in the structural measure)")
     print(f"  dependency count      {fmt(m['dependencies'])}")
     print(f"  largest change (lines){fmt(m['largest_change'])}   "
           f"(batch size; large batches carry DORA's instability)")
@@ -557,7 +676,7 @@ def main() -> int:
         print("\n  " + mark + verdict(breaches, unmeasured))
     else:
         print("\n  no [erosion] budget declared — measured, not gated")
-    print("\n  deeper signals (exact cyclomatic complexity, structural erosion)")
+    print("\n  deeper signals (other languages' complexity, exact tool metrics)")
     print("  are delegated to your own tools, wired into the eval suite (I1).")
     return 0
 
