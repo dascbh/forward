@@ -337,5 +337,246 @@ class TestGeneratedSurfaces(unittest.TestCase):
                          self.inv["meta"]["kernel_version"])
 
 
+def _skill() -> str:
+    return read(ROOT / "skills" / "fde-sync" / "SKILL.md")
+
+
+def _setup_s6() -> str:
+    setup = read(ROOT / "SETUP.md")
+    return setup.split("\n## 6.", 1)[1].split("\n## 7.", 1)[0]
+
+
+def _adr_pair() -> dict:
+    with open(ROOT / "tests" / "mirror.toml", "rb") as fh:
+        pairs = tomllib.load(fh)["pair"]
+    got = [p for p in pairs if p["source"] == "docs/adr/"]
+    return got[0] if len(got) == 1 else {}
+
+
+class TestKernelAdrsShipped(unittest.TestCase):
+    """B-32 (FWD-040): client texts cite "kernel ADR-00NN"; the kernel's
+    docs/adr/ reaches the client read-only at .fde/adr/, never at the
+    client's own docs/adr/ (C-14 FM3)."""
+
+    def test_the_mirror_manifest_declares_the_pair(self):
+        p = _adr_pair()
+        self.assertEqual((p.get("copy"), p.get("relation")),
+                         (".fde/adr/", "identical"))
+
+    def test_setup_and_sync_name_the_destination_and_the_fence(self):
+        s6 = _setup_s6()
+        self.assertIn("`docs/adr/` → `.fde/adr/`", s6)
+        self.assertIn("read-only", s6)
+        self.assertIn("own `docs/adr/`", s6)
+        skill = _skill()
+        self.assertIn("`.fde/adr/`", skill)
+        self.assertIn("own `docs/adr/`", skill)
+
+    def test_this_repository_carries_the_install_copy(self):
+        src = sorted(f.name for f in (ROOT / "docs" / "adr").glob("*.md"))
+        dst = sorted(f.name for f in (ROOT / ".fde" / "adr").glob("*.md"))
+        self.assertTrue(src)
+        self.assertEqual(src, dst)
+
+    def test_install_leaves_a_clients_own_adrs_alone(self):
+        # FM3 fixture: a client with its own docs/adr/0001 (a number the
+        # kernel also uses) receives the manifest's pair; its directory is
+        # unchanged afterwards and every kernel ADR lands under .fde/adr/
+        import shutil
+        import tempfile
+        pair = _adr_pair()
+        self.assertTrue(pair, "no docs/adr/ pair in tests/mirror.toml")
+        body = "# 0001 the client's own decision\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            client = Path(tmp)
+            own = client / "docs" / "adr" / "0001-client-decision.md"
+            own.parent.mkdir(parents=True)
+            own.write_text(body)
+            shutil.copytree(ROOT / pair["source"], client / pair["copy"],
+                            dirs_exist_ok=True)
+            self.assertEqual([p.name for p in own.parent.iterdir()],
+                             [own.name])
+            self.assertEqual(own.read_text(), body)
+            for f in (ROOT / "docs" / "adr").glob("*.md"):
+                self.assertEqual(
+                    (client / ".fde" / "adr" / f.name).read_bytes(),
+                    f.read_bytes())
+
+
+# the [backlog] comment lines a sync rewrites (B-38): every form a client
+# installed from an earlier template may carry
+OLD_BACKLOG_COMMENTS = (
+    "# optional cadence layer: backlog + sprints (fde-scrum skill)",
+    "# gates the backlog's dated goal: backlog.md needs goal: and date: "
+    "(fde-scrum skill)",
+)
+
+
+class TestSyncRewritesTheOldConfigComment(unittest.TestCase):
+    """B-38 (FWD-040): the old `[scrum]` comment is rewritten to the
+    template's current wording; nothing else in the config changes."""
+
+    @staticmethod
+    def _current() -> tuple[str, str]:
+        lines = read(ROOT / "templates" / "fde.config.template.toml").splitlines()
+        i = lines.index("# [backlog]")
+        return lines[i], lines[i + 1]
+
+    def test_sync_names_each_old_form_and_the_current_one(self):
+        skill = _skill()
+        for old in OLD_BACKLOG_COMMENTS:
+            self.assertIn(old, skill)
+        header, enabled = self._current()
+        self.assertIn(header, skill)
+        # the current wording is the template's, verbatim — a template
+        # edit without the skill goes red here
+        self.assertIn(enabled, skill)
+
+    def test_sync_bounds_the_rewrite(self):
+        skill = _skill()
+        self.assertIn("Change nothing else in the config", skill)
+        # a live [scrum] header is the FWD-039 alias: left as it is
+        self.assertIn("`[scrum]` header stays", skill)
+
+
+class TestSyncWarnsAboutPermissionsUpFront(unittest.TestCase):
+    """B-42 (FWD-040): the sync says before it starts that it writes
+    .claude/settings.json, and what to do when auto mode blocks it."""
+
+    def test_the_notice_precedes_the_first_step(self):
+        head = _skill().split("## 1. Update the kernel", 1)[0]
+        self.assertIn("`.claude/settings.json`", head)
+        self.assertIn("auto mode", head)
+        self.assertIn("re-run", head)
+        self.assertIn("half way", head)
+
+
+class TestSyncRemovesRetiredKernelSkills(unittest.TestCase):
+    """FWD-039 review F1 (FWD-040): a client keeps .claude/skills/fde-scrum/
+    after the rename unless the sync removes installed `fde-` skills the
+    kernel no longer has — and only those."""
+
+    RULE = ("starts with `fde-`", "absent from the kernel's `skills/`",
+            "Tell the user which ones were removed")
+
+    def test_sync_and_setup_state_the_rule(self):
+        skill = " ".join(_skill().split())
+        for needle in self.RULE:
+            self.assertIn(needle, skill)
+        s8 = read(ROOT / "SETUP.md").split("\n## 8.", 1)[1].split("\n## 9.", 1)[0]
+        s8 = " ".join(s8.split())
+        self.assertIn("starts with `fde-`", s8)
+        self.assertIn("no longer exists in the kernel's `skills/`", s8)
+        self.assertIn("tell the user which ones", s8)
+
+    def test_the_rule_on_a_client_removes_only_retired_kernel_skills(self):
+        # the rule as the skill states it, applied to a client that
+        # carries the renamed fde-scrum and a skill of its own
+        import shutil
+        import tempfile
+        kernel = {d.name for d in (ROOT / "skills").iterdir() if d.is_dir()}
+        self.assertNotIn("fde-scrum", kernel)
+        with tempfile.TemporaryDirectory() as tmp:
+            installed = Path(tmp) / ".claude" / "skills"
+            for name in ("fde-scrum", "fde-sync", "my-deploy", "scrum"):
+                (installed / name).mkdir(parents=True)
+                (installed / name / "SKILL.md").write_text(name)
+            removed = sorted(d.name for d in installed.iterdir()
+                             if d.name.startswith("fde-")
+                             and d.name not in kernel)
+            for name in removed:
+                shutil.rmtree(installed / name)
+            self.assertEqual(removed, ["fde-scrum"])
+            self.assertEqual(sorted(d.name for d in installed.iterdir()),
+                             ["fde-sync", "my-deploy", "scrum"])
+
+    def test_this_repository_has_no_retired_kernel_skill_installed(self):
+        kernel = {d.name for d in (ROOT / "skills").iterdir() if d.is_dir()}
+        stale = [d.name for d in (ROOT / ".claude" / "skills").iterdir()
+                 if d.is_dir() and d.name.startswith("fde-")
+                 and d.name not in kernel]
+        self.assertEqual(stale, [])
+
+
+KERNEL_0_21_0 = "5127c29"   # "0.21.0: review by weight" — before FWD-039/040
+
+
+class TestDowngradeIgnoresTheNewShapes(unittest.TestCase):
+    """C-14 deploy step 3: a client that rolls back keeps a `[backlog]`
+    key and a `.fde/adr/` directory; the older gate must judge the project
+    exactly as it would without them."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sys
+        sys.path.insert(0, str(ROOT / "tests"))
+
+    @staticmethod
+    def _run(p: Path) -> tuple[int, str]:
+        from support import verify
+        r = verify(p, "--all")
+        return r.returncode, r.stdout
+
+    def _with_and_without(self, p: Path, add) -> tuple:
+        from support import commit_all
+        commit_all(p, "base")
+        before = self._run(p)
+        add(p)
+        commit_all(p, "new shapes")
+        return before, self._run(p)
+
+    @staticmethod
+    def _adr(p: Path) -> None:
+        import shutil
+        shutil.copytree(ROOT / "docs" / "adr", p / ".fde" / "adr")
+
+    def test_the_0_21_0_gate_ignores_fde_adr_and_backlog(self):
+        import shutil
+        import tempfile
+        from support import make_project
+        have = subprocess.run(["git", "-C", str(ROOT), "cat-file", "-e",
+                               f"{KERNEL_0_21_0}^{{commit}}"],
+                              capture_output=True)
+        if have.returncode:
+            self.skipTest("0.21.0 is not in this clone's history")
+        with open(ROOT / "spec" / "invariants.toml", "rb") as fh:
+            current = tomllib.load(fh)["meta"]["kernel_version"]
+        with tempfile.TemporaryDirectory() as tmp:
+            p = make_project(tmp)
+            # the runtime and spec a client has after rolling back to 0.21.0
+            shutil.rmtree(p / "bin" / "fde")
+            shutil.rmtree(p / ".fde" / "spec")
+            arc = subprocess.run(
+                ["git", "-C", str(ROOT), "archive", KERNEL_0_21_0,
+                 "runtime", "spec"], check=True, capture_output=True).stdout
+            subprocess.run(["tar", "-x", "-C", str(p)], input=arc, check=True)
+            (p / "runtime").rename(p / "bin" / "fde")
+            (p / "spec").rename(p / ".fde" / "spec")
+            cfg = p / "fde.config.toml"
+            cfg.write_text(cfg.read_text().replace(
+                f'kernel_version = "{current}"', 'kernel_version = "0.21.0"'))
+            self.assertIn('kernel_version = "0.21.0"',
+                          read(p / ".fde" / "spec" / "invariants.toml"))
+
+            def add(q):
+                self._adr(q)
+                cfg.write_text(cfg.read_text()
+                               + "\n[backlog]\nenabled = true\n")
+            before, after = self._with_and_without(p, add)
+            # the fixture is not a full install, so some gates are red;
+            # what matters is that the new shapes change nothing
+            self.assertIn("configuration valid", after[1])
+            self.assertEqual(after, before)
+
+    def test_the_current_gate_ignores_a_leftover_fde_adr_under_scrum(self):
+        import tempfile
+        from support import make_project
+        with tempfile.TemporaryDirectory() as tmp:
+            p = make_project(tmp, scrum=True)
+            before, after = self._with_and_without(p, self._adr)
+            self.assertIn("configuration valid", after[1])
+            self.assertEqual(after, before)
+
+
 if __name__ == "__main__":
     unittest.main()

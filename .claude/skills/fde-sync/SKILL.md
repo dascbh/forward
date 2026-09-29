@@ -10,6 +10,13 @@ re-emit the project from it.** Updating without re-emitting leaves the
 project on the old artifacts; re-emitting without updating just rewrites
 what it already had.
 
+**Say this to the user before starting:** the sync writes tool
+permissions into `.claude/settings.json` (SETUP §8.4), besides the
+generated files. Claude Code's auto mode may block that write. If it
+does, do not stop half way silently: tell the user the sync is
+incomplete, that they should leave auto mode and re-run fde-sync. The
+re-run is idempotent and finishes the job.
+
 ## 1. Update the kernel
 
 - **Installed as a plugin** — the kernel IS the plugin, so update it:
@@ -31,8 +38,11 @@ what it already had.
 Re-run `SETUP.md` steps 6–8 from the **updated** sources — read SETUP.md
 from disk now, not from memory: its procedure may itself have changed in
 the update. Sources are `fde.config.toml` + `.fde/spec/` in the project,
-and `runtime/`, `spec/`, `templates/`, `skills/`, `agents/` in the kernel.
-Idempotent: same sources, same output.
+and `runtime/`, `spec/`, `templates/`, `skills/`, `agents/`, `docs/adr/`
+in the kernel. Idempotent: same sources, same output.
+
+- The kernel's ADRs go to `.fde/adr/` only, a read-only copy that is
+  replaced whole. Never write to the project's own `docs/adr/`.
 
 - Files WITH the `FDE-KERNEL:GENERATED` marker: overwrite entirely.
 - Files WITHOUT it (user-owned `CLAUDE.md`, merged
@@ -41,10 +51,36 @@ Idempotent: same sources, same output.
   and that `[tooling] open_permissions = false` keeps the prompts.
 - Copy directories, never a remembered list of filenames — an enumerated
   set silently omits whatever the update added.
+- Remove each installed skill the kernel no longer has: a
+  `.claude/skills/` directory whose name starts with `fde-` and that is
+  absent from the kernel's `skills/` (e.g. `fde-scrum`, renamed to
+  `fde-backlog-format`). Tell the user which ones were removed. A
+  directory whose name does not start with `fde-` is the user's and
+  stays.
 
-Then set `kernel_version` in `fde.config.toml` to the kernel's version
-(`.fde/spec/invariants.toml` → `[meta] kernel_version`); change nothing
-else in the config.
+Then make two edits in `fde.config.toml`:
+
+1. Set `kernel_version` in `fde.config.toml` to the kernel's version
+   (`.fde/spec/invariants.toml` → `[meta] kernel_version`).
+2. Rewrite the old `[scrum]` comment. The switch is now `[backlog]`. A
+   line that ends in one of these old comments:
+   - `# optional cadence layer: backlog + sprints (fde-scrum skill)`
+   - `# gates the backlog's dated goal: backlog.md needs goal: and date: (fde-scrum skill)`
+
+   gets the current comment instead,
+   `# gates the backlog's dated goal: backlog.md needs goal: and date: (fde-backlog-format skill)`,
+   and keeps everything before it, its `enabled` value included. When
+   the old block is commented out, the result is the template's two
+   lines, `# [scrum]` right above becoming `# [backlog]`:
+   ```toml
+   # [backlog]
+   # enabled = true   # gates the backlog's dated goal: backlog.md needs goal: and date: (fde-backlog-format skill)
+   ```
+   A live `[scrum]` header stays as it is: it is an alias of
+   `[backlog]` (FWD-039).
+
+Change nothing else in the config: no other key, value, comment or
+section.
 
 ## 3. Migrate the project's records
 

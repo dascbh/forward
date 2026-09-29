@@ -158,7 +158,12 @@ kernel checkout present. Copy from the kernel into the project:
    `templates/findings.template.toml` → `.fde/templates/findings.template.toml`
    (a review starts from it), so the roles reach them without the
    kernel checkout
-6. Run `git config core.hooksPath .githooks` in the project.
+6. The kernel's `docs/adr/` → `.fde/adr/` (copy the directory), so a
+   project text that cites "kernel ADR-00NN" resolves. It is a read-only
+   reference: nobody edits it, and every sync overwrites it. The
+   project's own `docs/adr/` holds the project's decisions and is never
+   written, merged into or renumbered by install or sync.
+7. Run `git config core.hooksPath .githooks` in the project.
 
 Generated-file marker — put this at the top of every file you generate in
 steps 7–8 (comment syntax of the file's format):
@@ -222,7 +227,11 @@ the user names.
 5. Copy the kernel's `skills/` — every skill except `fde-init` — to
    `.claude/skills/` (one directory per skill), so triage, review, verify,
    doctor, and sync are invocable in the project without the kernel
-   checkout.
+   checkout. On a sync, a `.claude/skills/` directory whose name starts
+   with `fde-` and that no longer exists in the kernel's `skills/` (a
+   renamed or retired kernel skill, e.g. `fde-scrum`) is removed; tell
+   the user which ones. Any other directory there is the user's and
+   stays.
 6. The guard writes its decision trail to `.fde/guard-audit.jsonl`
    (timestamp, path, agent, decision, rule) — add that path to the
    project's `.gitignore`. If the user asks for operational telemetry,

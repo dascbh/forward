@@ -94,7 +94,7 @@ Manual edits here are overwritten and detected as drift.
   heading = "## Attack order"
   value = "render:attack_order"
 
-# --- hook, CI and templates (SETUP §6 steps 3-5) --------------------------
+# --- hook, CI, templates and kernel ADRs (SETUP §6 steps 3-6) -------------
 
 [[pair]]
 id = "pre-commit"
@@ -113,6 +113,12 @@ relation = "identical"
 id = "findings-template"
 source = "templates/findings.template.toml"
 copy = ".fde/templates/findings.template.toml"
+relation = "identical"
+
+[[pair]]
+id = "kernel-adr"            # read-only reference; a client's own docs/adr/ is never touched (FWD-040)
+source = "docs/adr/"
+copy = ".fde/adr/"
 relation = "identical"
 
 [[pair]]
