@@ -1,0 +1,119 @@
+# Adversarial review report — plan mode (kernel ADR-0021)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "C-14"
+kind = "plan"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+mode = "plan"
+rounds_planned = 1
+round = 1
+commit = "0b174a7"
+agent_transcript = "agent-a4491cef5c7fc2579"
+probed = [
+  "git log -1 = 0b174a7 (C-14 specified); origin/main = 9f9f3a2",
+  "read cycles/C-14/plan.md, cycles/C-14/deploy.md, docs/adr/0019, docs/adr/0021, AGENTS.md, backlog.md (B-1..B-53 rows)",
+  "wc -w AGENTS.md = 1598; words before '## Demand loop' (generated header, commands, invariants, vectors, roles) = 502; headlabs-platform AGENTS.md = 1629 words, prefix 533",
+  "tests/test_instructions.py TestTerse: AGENTS_MAX = 1600, checks this repo's AGENTS.md only; AGENTS.md carries FDE-KERNEL:GENERATED, source templates/AGENTS.md.template",
+  "skills/fde-triage/SKILL.md:30-72: sensitive/irreversible judged per cycle, +2/+2 in the score",
+  "skills/fde-sync/SKILL.md: no downgrade, stale-file or removal wording; templates/fde.config.template.toml:73 '# [scrum]' comment",
+]
+notes = [
+  "Triage comment: score 5 is squarely M; 'tie -> larger' applies only when torn between two sizes, so L rests on the 30-item count, not the rule. The L choice itself is conservative and harmless.",
+  "A8 'readable helpers' (B-46) has no observable measure; name one (e.g. no nested 'd and d[...]' expression in status.py panel helpers, pinned by a test).",
+  "A2 'one text each' is testable only if each wording is pinned; say which file owns each text (B-25 walkthrough-model author, B-29 replan, B-11 resync).",
+  "A5 covers only the `[scrum]` key; B-37 also renames the fde-scrum skill and the gate ids. Either widen A5 or record the rest as declined, so A9 can be judged.",
+  "Threat model does not name the Claude Code auto-mode classifier (B-42) as a contained actor; A6's notice is its only mitigation. Acceptable as a declared limit.",
+  "headlabs-platform AGENTS.md is 1629 words today, already over the 1600 cap this repo's test enforces; the cap is never checked on a client render.",
+  "FWD-042 follows ADR-0020, which was not in the read set; not attacked.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "maintainability"
+severity = "high"
+principle = "REL-5"
+probe = "plan.md triage comment and demand table read against kernel ADR-0019 rule 3 and ADR-0021's table"
+evidence = """
+The plan says FWD-037 is 'the rewrite of every instruction file, over ~300 lines' and routes it to adversarial review because of that size.
+ADR-0019 rule 3: 'A demand has a fixed ceiling of about 300 production lines, and it is split at planning, not at review.'
+ADR-0021 sends 'a demand ... whose real diff overruns ~300 production lines' to adversarial review. That row covers an overrun found at review. It is not permission to plan a demand over the ceiling.
+FWD-037 also bundles three criteria of different kinds: A1 (move ~700 words verbatim out of AGENTS.md into five skills, and move their pins in tests/), A2 (seven new wordings) and A3 (a sizing-rule change that is still an open owner decision).
+FWD-038/039/040 all wait on it, so one oversized demand serialises half the cycle. It also concentrates FM1 (rule dropped) and FM5 (skill collisions) in one diff.
+The plan freezes at sign-off, so this is the last point where the split can happen.
+Fix: split FWD-037 into A1 (skeleton + move + pins), A2 (wordings) and A3 (sizing). Each one is back, <= ~300 lines, and declares its dependencies.
+"""
+blocking = true   # the plan breaks the ADR it declares it follows (rule 3), at the only moment the rule allows the fix
+backlog = false
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "high"
+principle = "MNT-4"
+probe = "A3 applied to a case the plan does not cover: a sensitive + irreversible cycle with one surface and ~40 lines, sized under A3 and then under kernel ADR-0021"
+evidence = """
+Under the current skills/fde-triage the score is 1 + 2 + 2 + 0 = 5, which is M. M gets an adversarial plan review before sign-off (ADR-0021) and a full + delta cycle review (ADR-0019 rule 12).
+Under A3 the score is 1, which is XS. There is no plan review, since ADR-0021 reserves it for M/L. There is 1 cycle review round and no architecture role, yet the sign-off still inherits the irreversible deploy steps (ADR-0019 rule 7).
+ADR-0021's own evidence says 'the costly catches came from the cycle review and from reviewing the plan-level text'. A3 strips those two checks from exactly the riskiest cycles, and only per-demand adversarial review is left.
+A3 also says the flags 'act per demand', but no criterion adds a sensitive/irreversible field to the plan's demand table or to the demand spec. That gap was already reported as reviews/C-13 F2, so per-demand routing has no place to be read from.
+This changes the kernel's sizing decision, but the plan proposes no ADR, and FWD-037 'follows ADR-0019, ADR-0021' while contradicting ADR-0021's rationale. ADR-0019 rule 6 says the ADR is the only home of a decision; MNT-4 requires the rejected alternatives to be recorded.
+'The owner decides this at the sign-off' makes A3 a conditional criterion. If the owner declines, A3 has no pass or fail and FWD-037's scope is undefined.
+Fix: either keep the cycle floor for plan review and cycle review rounds (for example, a sensitive or irreversible cycle always gets the plan review whatever its size) or amend ADR-0021 through a proposed ADR with rejected alternatives. Add the per-demand flag to templates/cycle/plan.md, and make A3 unconditional.
+"""
+blocking = true   # A3 as written cannot ship without contradicting accepted kernel ADR-0021, and no ADR change is planned
+backlog = false
+
+[[finding]]
+id = "F3"
+attribute = "maintainability"
+severity = "high"
+principle = "MNT-1"
+probe = "wc -w on AGENTS.md sections; FM1's detection read against reviews/C-13 F1 (a rule placed where it is not read at the moment it applies)"
+evidence = """
+The 900-word cap arithmetic:
+- 502 of AGENTS.md's 1598 words sit before '## Demand loop' and are generated from spec/config (invariants, vectors, roles). That leaves ~400 words for the loop, cycle, backlog and detail, which take ~1100 today.
+- headlabs' prefix is 533 words.
+- A1 does not say whether 900 applies to this repo's render or to every client render. The only check (tests/test_instructions.py TestTerse) reads this repo's AGENTS.md.
+- A1 does not name templates/AGENTS.md.template, the real source.
+
+FM1's detection is not real as written:
+(a) The 'ADR-0019/0021 key terms' are not listed in the plan. The implementer writes both the move and the oracle that checks it, which makes it a self-graded test.
+(b) 'Pins move with their rule' only protects sentences that are already pinned. An unpinned sentence dropped from the ~700 words is undetected.
+(c) 'Reachable through its pointer' proves the text exists in a skill, not that it is loaded when the rule applies. Skills load on trigger. Rules that must hold in every session could become unread: 'never start code on request', 'a new fact goes to the backlog', the blocking definition, 'never --no-verify', and 'never escalate mid-demand'. That is exactly how reviews/C-13 F1 happened: the plan-review rule sat after the sign-off step.
+Fix: before FWD-037 starts, commit an inventory of every sentence in today's AGENTS.md mapped to its destination (kept / skill + anchor / declined), and a declared always-loaded list that must stay in AGENTS.md. Make FM1's test read that inventory, and state which renders the cap covers.
+"""
+blocking = false  # A1 can be met to the letter; the failure mode it declares goes undetected. Strongly advised before sign-off.
+backlog = true
+
+[[finding]]
+id = "F4"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-2"
+probe = "demand table cross-read against backlog rows B-15, B-37, B-38 and the files each item touches"
+evidence = """
+- Layer: FWD-041 carries B-15, the CI merge-base for new-branch pushes (templates/fde-gate.yml, the pipeline). ADR-0019 rule 5 puts pipelines in `infra` and says a change that spans layers is always split. B-15 also 'touches ADR-0016's pinned run line', but FWD-041 follows only ADR-0019.
+- Dependencies:
+  - FWD-040 (B-38 rewrites the old config comment) does not depend on FWD-039 (the `[scrum]` to `[backlog]` rename). The rewritten comment can name the key that FWD-039 retires.
+  - runtime/verify.py is edited by FWD-038 (I2 over every record), FWD-039 (gate_scrum) and FWD-041 (I1 -z, validate, I1-REQS). FWD-041 runs in parallel with both, and FM5 covers skills only.
+- Scope: FWD-037 moves rules into fde-scrum, and B-37 renames fde-scrum. A5 keeps only the key rename, so the order and fate of the skill rename are undeclared.
+Fix: split B-15 into an infra demand following ADR-0016; make FWD-040 depend on FWD-039; list verify.py as a shared file in FM5 with a merge order.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F5"
+attribute = "reliability_resilience"
+severity = "medium"
+principle = "REL-3"
+probe = "deploy.md rollback commands evaluated against git log and skills/fde-sync"
+evidence = """
+- Step 1: `git revert --no-commit 9f9f3a2..<release sha>` reverts every commit after 9f9f3a2, including 0b174a7 (this plan). It also reverts every cycle record written after it: board, reviews/C-14 and demand reviews, promotion.md, and the backlog lines A9 says the reviews add. A rollback of behavior would erase the I4-dated plan and the evidence of why it was rolled back. Scope it to the behavior paths (runtime/ spec/ skills/ agents/ templates/ tests/ SETUP.md, VERSION), or revert behavior commits only.
+- Step 2: 'Re-sync from 0.21.0' has no verification, and skills/fde-sync has no downgrade or stale-file wording. After a 0.22.0 sync a client keeps .fde/adr/, and keeps any `[backlog]` key or rewritten comment (A5/A6), which 0.21.0 does not read. The switch then goes silently off, while the step claims the client is restored.
+REL-3: the rollback is written before the deploy, but it has to actually restore the prior state. Add a verification line, for example: headlabs after downgrade shows kernel_version 0.21.0, the `--gate scrum` result unchanged, and .fde/adr/ removed or declared inert.
+"""
+blocking = false
+backlog = true
