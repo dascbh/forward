@@ -1,7 +1,7 @@
 # ADR-0020 — The panel is printed in the terminal
 
 date: 2026-09-29
-status: accepted with C-12's sign-off
+status: accepted (C-12 signed off 2026-09-29)
 realized by: FWD-034 (back), FWD-035 (front)
 
 ## Context

@@ -1,9 +1,9 @@
 cycle: C-12
-state: planned
+state: running
 date: 2026-09-29
 size: S
 objective: /fde-backlog prints everything in the terminal, in sections — overview, backlog, cycles with their demands and artifacts, loose demands, discarded — and drills down on request
-signed-off:
+signed-off: 2026-09-29 (owner: "sim")
 
 <!-- Triage: surfaces 2 (terminal output + reader data) · public ·
 reversible · ~270 production lines → 2 + 0 + 0 + 1 = 3 → S. Planner
