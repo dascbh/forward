@@ -1,5 +1,6 @@
 cycle: C-5
-state: planned — awaiting the owner's sign-off
+state: running
+signed-off: 2026-09-29 (owner: "aprovado, pode seguir")
 objective: the kernel runs backlog > cycle > demand (ADR-0019) — cycles plan once and own approval, review, promotion and deploy; demands derive, run in parallel and only execute; the instructions are coherent and terse
 size: L
 opened: 2026-09-29
