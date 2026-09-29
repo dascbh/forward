@@ -1,0 +1,166 @@
+# Adversarial review report
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-033"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+rounds_planned = 1
+round = 1
+commit = "39fc3e7"
+agent_transcript = "agent-a029efecc7094287b"
+probed = [
+  "git log -1 = 01b7c5b (C-5 board, a descendant of 39fc3e7); the artifact is read at HEAD and diffed as 39fc3e7^..39fc3e7",
+  "spec: specs/FWD-033-terse-pass/spec.md, cycles/C-5/plan.md (threat model, A9, FM3), docs/adr/0019-backlog-cycle-demand.md rules 1-15, reviews/FWD-032/findings.toml F1-F5",
+  "git diff 39fc3e7^ 39fc3e7 over AGENTS.md, every skills/*/SKILL.md, every agents/*.md, tests/test_instructions.py, tests/test_coherence.py, README.md, SETUP.md, ADR-0002",
+  "every sentence removed from AGENTS.md traced by grep to AGENTS.md, skills/, agents/, templates/, docs/adr/ at 39fc3e7: triage formula and inputs (fde-triage), RULE conditions (fde-triage ## RULE), design chain and divergence (fde-design), cycle review functioning/readiness (fde-review, fde-adversarial), graph/erosion doctrine (fde-graph, fde-erosion), backlog header (fde-scrum)",
+  "ADR-0019 rules 1-15 checked against the new AGENTS.md + skills: 1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 present; rule 5's 'a cycle that changes the interface always runs one' is only in skill bodies (F3)",
+  "git grep for the pre-commit pins in tests/: none of the rules in F1/F2 was pinned, so test_instructions stays green by construction",
+  "descriptions: git diff -U0 of every description: line, before and after, checked for a 'Use when' trigger",
+  "FWD-032 F1-F5 re-checked: role files render write_scope under 'Outputs (write only here)' and outputs under 'Produces'; example and 'all five' sentence fixed; findings template rounds fixed; budget-spent recorded on board.md; `fde sync` gone from generated files",
+  "cmp skills/<n>/SKILL.md .claude/skills/<n>/SKILL.md: identical for all 14 installed; AGENTS.md vs templates/AGENTS.md.template differ only in placeholders",
+  "python3 -m unittest discover -s tests: 563 OK; wc -w AGENTS.md = 1595",
+]
+notes = [
+  "AGENTS.md is 1,595 words against a 1,600 budget, but TestTerse measures only this repo's AGENTS.md. A client whose {{INVARIANTS_LIST}}, weights, depth and test command expand longer can exceed A9 with no test noticing.",
+  "AGENTS.md ## Roles now says 'each role writes only its own file' but no longer names which file (spec plan.md/deploy.md, adversarial review.md, promotion promotion.md). The guard enforces it; the text alone no longer tells an agent which one.",
+  "AGENTS.md step 8 dropped 'An irreversible step is marked' and ## Cycle dropped 'irreversible ones marked' for deploy.md. ADR-0019 rule 5 asks for the note; templates/cycle/deploy.md still carries an 'Irreversible:' field, so the rule survives in the template only.",
+  "## Voice dropped 'say which invariant and the fix' when the gate blocked, and 'show them in full' for the closing backlog lines ('show the user the backlog lines it added' remains). Small meaning shifts, no ADR carries them.",
+  "fde-adversarial body lost 'It CANNOT fix what it found' and 'You do not fix'. The description and 'Invariants upheld: I3' still carry it; acceptable.",
+  "fde-design description dropped 'when a project's design foundation is missing or drifting' and 'a screen doesn't look professional'; fde-doctor dropped 'before promising rigor guarantees to a client'. Trigger coverage narrowed, each still has a 'Use when'.",
+  "fde-spec's Outputs (write only here) lists cycles/** while the body gives it plan.md and deploy.md inside cycles/C-<n>/; fde-adversarial states its cycles/ limit ('only review.md and the board'), fde-spec and fde-promotion do not state theirs in prose.",
+  "The 'Handoff between steps is by the artifacts ... (I7)' prose and every role file's 'Handoff is by artifact on disk (I7)' line are gone (a test now asserts the absence). I7's own text stays verbatim in ## Invariants, so no rule is lost there.",
+  "tests TestNoFdeCli checks a fixed list of files; runtime/fde_lib.py:113 and bin/fde/fde_lib.py:113 are outside it (see F5).",
+]
+
+[[finding]]
+id = "F1"
+attribute = "maintainability"
+severity = "high"
+probe = "FM3 diff probe on AGENTS.md ## Roles and every agents/*.md: search for where the promotion role's isolation is stated after 39fc3e7, for a tool that reads only AGENTS.md (Codex, Cursor, Copilot...)"
+evidence = """
+Before (39fc3e7^:AGENTS.md ## Roles):
+  'Handoff is by artifact on disk, never by conversation continuity. The
+   adversarial and promotion roles run isolated: artifact + spec only, never
+   the builder's thread.'
+After (AGENTS.md, templates/AGENTS.md.template): the paragraph is deleted.
+It went into no skill and no ADR (grep 'promotion roles run isolated' over
+AGENTS.md, skills/, agents/, docs/adr/ returns nothing). What is left:
+- I2 covers only the adversarial review ('Adversarial review receives the
+  artifact and the specification').
+- Promotion isolation survives only as spec/roles.toml `isolation = true`
+  and the `isolation: worktree` frontmatter of agents/fde-promotion.md.
+  Only Claude Code reads those.
+AGENTS.md says its instructions 'apply to any coding agent'. A cooperative
+Codex or Cursor agent that follows the new AGENTS.md now runs promotion in
+the builder's thread and grades its own delivery against plan.md. That is
+the case the deleted sentence ruled out. The plan's threat model covers it
+('cooperative agents that follow the instructions but drift').
+This is a rule, not rationale. The spec allows only rationale and history
+to leave ('rationale and history move to ADRs'). FM3's detector
+('test_instructions staying green, since each rule is pinned verbatim')
+cannot see the loss, because the sentence was never pinned.
+"""
+blocking = true   # high, a rule lost by the terse rewrite (FM3), inside the threat model, not rationale (A9 moves only rationale)
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "FM3 diff probe on AGENTS.md ## Detail and loop step 8, against the plan's threat model 're-ask the owner' and ADR-0019 rules 1 and 7"
+evidence = """
+Before (39fc3e7^:AGENTS.md:306-308):
+  'Never escalate kernel-interpretation questions to the user mid-demand —
+   resolve from the skill, take the stricter reading if still torn, and flag
+   the ambiguity as kernel feedback afterwards.'
+After (AGENTS.md:194-195):
+  'Skills hold the procedures and govern where this file compresses. On
+   doubt, take the stricter reading and flag it afterwards.'
+Before (step 8): '... the cycle stops; the user is told the outcome, not
+asked beforehand.' After: '... the cycle stops; the user is told the
+outcome.'
+ADR-0019 rule 7 has the 'not asked beforehand' wording. Both deleted
+clauses are explicit prohibitions against asking the owner. That is the
+loop ADR-0019 opens with ('The owner is consulted mid-demand: 41 commits')
+and the threat model names ('re-ask the owner'). The new text keeps the
+fallback (take the stricter reading) but drops the prohibition and its
+scope ('mid-demand'). It also drops the order 'resolve from the skill
+first'. A cooperative agent can now read 'on doubt' as permission to ask.
+Neither sentence was pinned, so FM3's detector stays green. 'Only a replan
+asks the owner again' (step 3) still covers approvals, which is why this is
+medium and not high.
+"""
+blocking = false  # medium; the fallback survives and step 3 still limits asking to a replan
+
+[[finding]]
+id = "F3"
+attribute = "usability_accessibility"
+severity = "medium"
+probe = "description trigger check + FM3 on AGENTS.md step 7: does the always-loaded text still cause a walkthrough when a cycle with a front demand reaches its review (ADR-0019 rules 5 and 12)?"
+evidence = """
+Before (skills/fde-walkthrough description):
+  '... Runs at the cycle review, only when the cycle has a `front` demand,
+   before promotion. Use when the user asks whether the interface explains
+   itself to a stranger, wants a cold read / first-contact review / blind
+   usability check, or asks whether two people would understand the product
+   the same way on first sight.'
+After:
+  '... Use when asked whether the interface explains itself to a stranger.'
+Before (AGENTS.md step 7): 'Functioning: ... usability (walkthrough) for
+`front` ...'. After: 'The cycle review judges the objective — functioning
+and readiness against `plan.md` — and never re-reviews a demand.' No layer
+checks, no walkthrough.
+The rule is in skill bodies (fde-walkthrough 'When this applies', fde-review
+cycle mode, fde-adversarial), but those load only if something triggers
+them. In the text loaded every session, the only trigger left for the
+walkthrough is the user's question. ADR-0019 rule 5 says 'A cycle that
+changes the interface always runs one'. An orchestrating agent in a
+non-Claude tool, reading AGENTS.md and the descriptions, has no signal
+that the cycle review owes it. The other trigger phrases (cold read,
+first-contact review, blind usability check) were cut too.
+"""
+blocking = false  # medium; the rule survives in bodies reached through fde-review, only the trigger path narrowed
+
+[[finding]]
+id = "F4"
+attribute = "maintainability"
+severity = "medium"
+probe = "FM3 detector probe: which operative sentences deleted from AGENTS.md between 39fc3e7^ and 39fc3e7 were pinned by tests before the change"
+evidence = """
+The spec pins FM3 to 'each rule pinned by tests/test_instructions stays
+verbatim or its pin moves with it'. The plan says FM3 is 'Detected by
+`test_instructions` staying green, since each rule is pinned verbatim'.
+Probe: git grep in 39fc3e7^:tests for the deleted operative sentences
+('Never escalate', 'promotion roles run isolated', 'not asked beforehand',
+'irreversible ones marked', 'say which invariant'). Zero hits.
+So the plan's premise that each rule is pinned is false. The detector
+proves only that pinned sentences survived. F1 and F2 are losses it cannot
+see.
+The commit adds TestTerse. It measures word counts and asserts the absence
+of cut rationale ('Noise', 'Codex truncates', 'Kahneman'...). Nothing
+records where each unpinned AGENTS.md rule went. The terse rewrite has no
+trace table (old sentence -> new home) for a reviewer or a later sync to
+check. That knowledge exists only in the builder's head (attack prompt
+'knowledge that only exists in the builder's head'). MNT-10 docs drift
+applies.
+"""
+blocking = false  # medium; a gap in the detector, its concrete losses are F1-F3
+
+[[finding]]
+id = "F5"
+attribute = "maintainability"
+severity = "low"
+probe = "FWD-032 F5 re-check: any remaining instruction citing an `fde` CLI that does not exist (git grep 'fde sync|fde verify|fde init' at 39fc3e7, excluding reviews/discovery/cycles/docs)"
+evidence = """
+F5 is fixed for `fde sync`. SETUP.md, the marker, AGENTS.md, the templates,
+tests/mirror.toml and runtime/verify.py now say 'the fde-sync skill', and
+TestNoFdeCli pins them.
+The same class of defect is left in runtime/fde_lib.py:113 and its
+installed copy bin/fde/fde_lib.py:113:
+  f"{CONFIG_NAME} not found in {project}. Run `fde init` first."
+No `fde` executable exists. Install is the fde-init skill (SETUP.md), and
+this string is the error every gate prints in a repo that lacks
+fde.config.toml. TestNoFdeCli checks a fixed file list that leaves out
+fde_lib.py, so the residue is invisible to the suite.
+"""
+blocking = false  # low
