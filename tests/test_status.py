@@ -276,6 +276,8 @@ opened: 2026-09-29
 
 ## Acceptance criteria
 
+- **A1 — draft.** the panel groups items
+  into a draft
 - **A3 — the view.** status shows states
 
 ## Demands
@@ -285,10 +287,15 @@ opened: 2026-09-29
 | FWD-027 | back | — | status | A3 |
 | FWD-030 | back | FWD-027 | panel | A1 |
 | `FWD-032` | front | FWD-026, FWD-028 | coherence | A8 |
+"""
 
-## Done when
-- [x] plan signed off
-- [ ] demands merged
+PROMOTION = """cycle: C-5
+decision: hold
+
+## Evidence
+
+- A1 — tests/test_backlog_panel.py — met
+- A3 — status view — not met
 """
 
 DRAFT = """cycle: C-6
@@ -304,11 +311,12 @@ class TestCycleStates(StatusCase):
     def test_directory_cycle_with_artifacts_and_demands(self):
         self.write("cycles/C-5/plan.md", PLAN)
         self.write("cycles/C-5/board.md", "# board\n")
+        self.write("cycles/C-5/promotion.md", PROMOTION)
         self.write("backlog.md", BACKLOG)
         out = run(self.root).stdout
         self.assertIn("OPEN CYCLE C-5 (running)", out)
         self.assertIn("backlog > cycle > demand", out)
-        self.assertIn("artifacts: plan.md, board.md", out)
+        self.assertIn("artifacts: plan.md, board.md, promotion.md", out)
         self.assertIn("FWD-027  back", out)
         self.assertIn("FWD-030  back  depends on FWD-027", out)
         self.assertIn("FWD-032  front  depends on FWD-026, FWD-028", out)
@@ -346,13 +354,10 @@ class TestCycleStates(StatusCase):
         self.assertIn("C-2  closed 2026-09-28", out)
         self.assertNotIn("WARNING", out)
 
-    def test_explicit_state_wins_and_end_lines_derive(self):
-        self.write("cycles/C-1.md", "objective: o\nstate: running\nclosed: 2026-09-28\n")
+    def test_end_lines_derive_and_explicit_state_decides_the_rest(self):
         self.write("cycles/C-2/plan.md", "objective: p\nabandoned: 2026-09-20\n")
         self.write("cycles/C-3/plan.md", "objective: q\nstate: closed\n")
         out = run(self.root).stdout
-        self.assertIn("OPEN CYCLE C-1 (running)", out)
-        self.assertIn("C-1 has state: running and a closed: line", out)
         self.assertIn("C-2  abandoned 2026-09-20", out)
         self.assertIn("C-3  closed  ", out)
 
@@ -424,6 +429,7 @@ class TestJson(StatusCase):
         self.write("cycles/C-2.md", CLOSED.replace("C-1", "C-2"))
         self.write("cycles/C-5/plan.md", PLAN)
         self.write("cycles/C-5/board.md", "# board\n")
+        self.write("cycles/C-5/promotion.md", PROMOTION)
         self.write("cycles/C-6/plan.md", DRAFT)
         self.write("backlog.md", BACKLOG_IDS)
 
@@ -444,18 +450,20 @@ class TestJson(StatusCase):
         self.assertEqual(c5["state"], "running")
         self.assertEqual(c5["layout"], "directory")
         self.assertEqual(c5["objective"], "backlog > cycle > demand")
-        self.assertEqual(c5["artifacts"], ["plan.md", "board.md"])
+        self.assertEqual(c5["artifacts"], ["plan.md", "board.md", "promotion.md"])
         self.assertEqual(c5["demands"][1],
                          {"id": "FWD-030", "layer": "back", "depends_on": ["FWD-027"]})
         self.assertEqual(c5["demands"][0]["depends_on"], [])
         self.assertEqual(c5["done"]["met"], 1)
         self.assertEqual(c5["done"]["pending"], 1)
         self.assertEqual(c5["done"]["total"], 2)
-        self.assertEqual(c5["done"]["items"][0], {"mark": "x", "text": "plan signed off"})
+        self.assertEqual(c5["done"]["items"][0],
+                         {"mark": "x", "text": "A1 — draft. the panel groups items into a draft"})
+        self.assertEqual(c5["done"]["source"], "criteria")
         self.assertIn("B-3 per-demand triage (C-5)", c5["backlog_lines"])
         items = [i for s in data["backlog"]["sections"] for i in s["items"]]
-        self.assertIn({"id": "B-4", "text": "timebox report"}, items)
-        self.assertIn({"id": None, "text": "plain idea"}, items)
+        self.assertIn({"id": "B-4", "text": "timebox report", "cells": None}, items)
+        self.assertIn({"id": None, "text": "plain idea", "cells": None}, items)
         self.assertEqual(data["backlog"]["sections"][1]["heading"], "Ideas")
 
     def test_same_warnings_as_text(self):
@@ -487,6 +495,98 @@ class TestJson(StatusCase):
 
     def test_bad_format_is_a_bad_argument(self):
         self.assertEqual(run(self.root, "--format", "xml").returncode, 2)
+
+
+LONG = ("a very long item text that goes well past one hundred and ten characters "
+        "so the panel reading json gets a clipped text back ok")
+
+
+class TestReviewRoundOne(StatusCase):
+    """reviews/FWD-027 round 1: each finding's probe, red before the fix."""
+
+    def test_f1_closed_line_ends_a_running_cycle(self):
+        self.write("cycles/C-5/plan.md", PLAN.replace("opened:", "closed: 2026-10-02\nopened:"))
+        self.write("cycles/C-6/plan.md", PLAN.replace("C-5", "C-6"))
+        self.write("cycles/C-7/plan.md", "state: running\nobjective: gave up\n"
+                   "abandoned: 2026-10-01\n")
+        self.write("backlog.md", BACKLOG)
+        out = run(self.root, "--cycles").stdout
+        self.assertNotIn("cycles open", out)
+        self.assertIn("OPEN CYCLE C-6", out)
+        self.assertNotIn("OPEN CYCLE C-5", out)
+        self.assertIn("C-5  closed 2026-10-02", out)
+        self.assertIn("C-7  abandoned 2026-10-01", out)
+        self.assertIn("C-5 has state: running and a closed: line — closed: wins", out)
+
+    def test_f1_state_reads_its_first_word(self):
+        self.write("cycles/C-5/plan.md", PLAN)
+        self.write("cycles/C-6/plan.md", "state: planned (signed off 2026-09-29)\n"
+                   "objective: waiting\n")
+        self.write("backlog.md", BACKLOG)
+        out = run(self.root).stdout
+        self.assertNotIn("cycles open", out)
+        self.assertNotIn("C-6 has state:", out)
+        self.assertIn("C-6  planned  waiting", out)
+
+    def test_f2_json_carries_full_text_and_cells(self):
+        self.write("backlog.md", f"| id | item | evidence |\n|---|---|---|\n"
+                   f"| B-1 | {LONG} | usage-data (C-3) |\n| 2 | x | opinion |\n\n"
+                   f"## Ideas\n\n- B-4 — {LONG}\n")
+        self.assertIn("…", run(self.root, "--backlog").stdout)
+        data = json.loads(run(self.root, "--backlog", "--format", "json").stdout)
+        [top, ideas] = data["backlog"]["sections"]
+        self.assertEqual(top["items"][0], {"id": "B-1", "text": LONG,
+                                           "cells": ["B-1", LONG, "usage-data (C-3)"]})
+        self.assertEqual(top["items"][1]["text"], "x")
+        self.assertEqual(top["items"][1]["cells"], ["2", "x", "opinion"])
+        self.assertEqual(ideas["items"][0], {"id": "B-4", "text": LONG, "cells": None})
+        self.write("cycles/C-3.md", "objective: o\n")
+        data = json.loads(run(self.root, "--format", "json").stdout)
+        self.assertEqual(data["cycles"][0]["backlog_lines"], [f"B-1 {LONG}"])
+
+    def test_f3_ids_in_backticks_and_after_a_checkbox(self):
+        self.write("backlog.md", "| id | item |\n|---|---|\n| `B-5` | code cell |\n"
+                   "| **B-6** | bold cell |\n\n## Ideas\n\n- [ ] B-1 checkbox item\n"
+                   "- [x] `B-2` done code id\n- `B-3` code id\n- B-4 mentions B-1 inside\n")
+        data = json.loads(run(self.root, "--backlog", "--format", "json").stdout)
+        items = [(i["id"], i["text"]) for s in data["backlog"]["sections"] for i in s["items"]]
+        self.assertEqual(items, [("B-5", "code cell"), ("B-6", "bold cell"),
+                                 ("B-1", "checkbox item"), ("B-2", "done code id"),
+                                 ("B-3", "code id"), ("B-4", "mentions B-1 inside")])
+        self.assertEqual(data["warnings"], [])
+        self.assertIn("- B-1 checkbox item", run(self.root, "--backlog").stdout)
+
+    def test_f3_ids_outside_the_declared_places_warn(self):
+        self.write("backlog.md", "## Ideas\n\n### B-7 heading\n\n1. B-8 numbered\n"
+                   "- B-9x glued\n| 3 | `B-10` | late cell |\n- plain\n")
+        data = json.loads(run(self.root, "--backlog", "--format", "json").stdout)
+        ws = "\n".join(data["warnings"])
+        for bid in ("B-7", "B-8", "B-9", "B-10"):
+            self.assertIn(f"backlog.md: {bid} in", ws)
+        self.assertEqual(len(data["warnings"]), 4)
+        ids = [i["id"] for s in data["backlog"]["sections"] for i in s["items"]]
+        self.assertEqual(ids, [None, None, None])
+
+    def test_f4_directory_progress_from_criteria_and_promotion(self):
+        self.write("cycles/C-5/plan.md", PLAN)
+        out = run(self.root, "--cycles").stdout
+        self.assertIn("criteria:  0/2 met, 2 pending", out)
+        self.assertIn("[ ] A3 — the view. status shows states", out)
+        self.write("cycles/C-5/promotion.md", PROMOTION)
+        out = run(self.root, "--cycles").stdout
+        self.assertIn("criteria:  1/2 met, 1 pending", out)
+        self.assertNotIn("but no closed: line", out)
+
+    def test_f4_every_criterion_met_is_ready_to_close(self):
+        self.write("cycles/C-5/plan.md", PLAN)
+        self.write("cycles/C-5/promotion.md", PROMOTION.replace("not met", "met"))
+        out = run(self.root, "--cycles").stdout
+        self.assertIn("criteria:  2/2 met", out)
+        self.assertIn("C-5 has every criterion met in promotion.md but no closed: line", out)
+        self.write("cycles/C-5/plan.md", PLAN.replace("opened:", "closed: 2026-10-02\nopened:"))
+        out = run(self.root, "--cycles").stdout
+        self.assertNotIn("every criterion met", out)
+        self.assertIn("C-5  closed 2026-10-02  2/2 met", out)
 
 
 if __name__ == "__main__":

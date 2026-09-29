@@ -9,9 +9,12 @@ progress, demands, artifacts and the backlog lines it produced, drafts and
 planned cycles on one line each, every ended cycle on one line, then the
 backlog by section with its `B-<n>` ids. Warnings come first.
 
-A cycle's state (ADR-0019 rule 9): an explicit `state:` header line wins;
-otherwise `closed:` is closed and `abandoned:` is abandoned; otherwise it
-is running. More than one running cycle is a warning; drafts may be many.
+A cycle's state (ADR-0019 rule 9): a `closed:` or `abandoned:` header line
+with a value ends it, whatever `state:` says (a disagreement warns);
+otherwise the first word of `state:` decides; otherwise it is running.
+More than one running cycle is a warning; drafts may be many. A directory
+cycle's progress is plan.md's acceptance criteria against promotion.md
+(`- A1 — <evidence> — met`).
 
 A report, never a gate (ADR-0018): exit 0 on any content, exit 2 only for
 a bad argument. Read-only, stdlib only, no git.
@@ -38,7 +41,12 @@ CYCLE_DIR = re.compile(r"^C-(\d+)$", re.IGNORECASE)
 END_KEYS = ("closed", "abandoned")
 STATES = ("draft", "planned", "running", "closed", "abandoned")
 ARTIFACTS = ("plan.md", "deploy.md", "board.md", "review.md", "promotion.md")
-BACKLOG_ID = re.compile(r"^\**(B-\d+)\b\**\s*[:.)\u2014-]?\s*(.*)$")
+BACKLOG_ID = re.compile(r"^[`*]*(B-\d+)[`*]*(?![\w-])\s*[:.)\u2014-]?\s*(.*)$")
+ID_CELL = re.compile(r"[`*]*(B-\d+)[`*]*")
+ID_LIKE = re.compile(r"(?<![\w-])B-\d+")
+CHECKBOX = re.compile(r"^\[[^\]]{0,3}\]\s*")
+LOOSE_ID = re.compile(r"^(?:#+|\d+[.)])\s*(?:\[[^\]]{0,3}\]\s*)?[`*]*(B-\d+)")
+CRITERION = re.compile(r"^[-*+]\s+[`*]*([A-Z]+\d+)\b")
 DEMAND_ID = re.compile(r"\b[A-Z][A-Z0-9]*-\d+\b")
 NONE_CELL = {"", "-", "\u2014", "\u2013", "none", "n/a"}
 WIDTH = 110
@@ -143,6 +151,7 @@ class Cycle:
             if m:
                 self.header.setdefault(m.group(1).lower(), m.group(2).strip())
         self.done: list[tuple[str, str]] = []
+        self.criteria: list[tuple[str, str]] = []
         self.legacy_next: list[str] = []
         self.misplaced_end: list[str] = []
         self.demand_rows: list[dict] = []
@@ -157,6 +166,20 @@ class Cycle:
                     m = DONE.match(line)
                     if m:
                         self.done.append((_mark(m.group(1)), m.group(2).strip()))
+            elif h.startswith("acceptance criteria"):
+                wrapping = False
+                for line in lines:
+                    m = CRITERION.match(line)
+                    if m:
+                        text = BULLET.match(line).group(1).replace("**", "").strip()
+                        self.criteria.append((m.group(1), text))
+                        wrapping = True
+                    elif wrapping and line[:1].isspace() and line.strip() \
+                            and not BULLET.match(line):
+                        cid, text = self.criteria[-1]  # a wrapped criterion line
+                        self.criteria[-1] = (cid, f"{text} {line.strip()}")
+                    elif line.strip():
+                        wrapping = False  # the criterion's first paragraph ends
             elif h.startswith("demands"):
                 self.demand_rows += _demands_table(lines)
             elif h.startswith("next cycle"):
@@ -164,6 +187,11 @@ class Cycle:
                     m = BULLET.match(line)
                     if m:
                         self.legacy_next.append(m.group(1).strip())
+        self.done_source = "done when"
+        if directory and self.criteria:
+            met = _met_criteria(directory / "promotion.md")
+            self.done = [("x" if cid in met else " ", text) for cid, text in self.criteria]
+            self.done_source = "criteria"
 
     @property
     def objective(self) -> str:
@@ -171,15 +199,25 @@ class Cycle:
 
     @property
     def declared_state(self) -> str:
-        return self.header.get("state", "").strip().lower()
+        """The first word of `state:`, so `planned (signed off …)` reads as
+        planned."""
+        words = re.findall(r"[a-z]+", self.header.get("state", "").lower())
+        return words[0] if words else ""
 
     @property
-    def state(self) -> str:
-        if self.declared_state in STATES:
-            return self.declared_state
+    def end_key(self) -> str:
+        """The first of closed:/abandoned: carrying a value in the header."""
         for key in END_KEYS:
             if self.header.get(key):
                 return key
+        return ""
+
+    @property
+    def state(self) -> str:
+        if self.end_key:
+            return self.end_key
+        if self.declared_state in STATES:
+            return self.declared_state
         return "running"
 
     @property
@@ -222,6 +260,18 @@ class Cycle:
         return out
 
 
+def _met_criteria(path: Path) -> set[str]:
+    """Criterion ids promotion.md marks met: a bullet whose first token is
+    the id and whose last `—` field is `met` (`- A1 — <evidence> — met`)."""
+    met = set()
+    for line in _read(path).splitlines():
+        m = CRITERION.match(line.strip())
+        if m and re.split(r"\s[\u2014\u2013-]\s", line.strip())[-1] \
+                .strip(" .*`").lower() == "met":
+            met.add(m.group(1))
+    return met
+
+
 def load_cycles(root: Path, problems: list[str]) -> list[Cycle]:
     d = root / "cycles"
     if not d.is_dir():
@@ -261,28 +311,38 @@ def load_cycles(root: Path, problems: list[str]) -> list[Cycle]:
     return sorted(found, key=lambda c: c.n)
 
 
-def _item(text: str, full: str) -> tuple[str, str, str | None, str]:
-    """(shown, full, id, text without the id); the id is a leading B-<n>."""
-    m = BACKLOG_ID.match(text.strip())
-    if m:
-        return (_clip(f"{m.group(1)} {m.group(2)}"), full, m.group(1), _clip(m.group(2)))
-    return (_clip(text), full, None, _clip(text))
+def _item(line: str, full: str, bid: str | None, text: str,
+          cells: list[str] | None = None) -> dict:
+    """One backlog item: `line` the display (clipped when shown), `full` the
+    whole row (a cycle named in any cell counts), `text` the item's own
+    text, unclipped, `cells` a table row's cells."""
+    return {"line": line, "shown": _clip(line), "full": full, "id": bid,
+            "text": text, "cells": cells}
 
 
-def load_backlog(root: Path) -> list[tuple[str, list[tuple]]] | None:
-    """(section, [(shown, full, id, text)]) in file order; None when
-    backlog.md is absent. `full` is the whole row, so a cycle named in any
-    cell counts. A table row's first cell, or a bullet's first word, may be
-    a `B-<n>` id."""
+def load_backlog(root: Path, problems: list[str] | None = None):
+    """(section, [item]) in file order; None when backlog.md is absent. The
+    one id format: `B-<n>` is the first cell of a table row or the first
+    token of a bullet (after a checkbox), backticks or bold optional. A
+    B-<n> anywhere else an id could be read warns into `problems`."""
     p = root / "backlog.md"
     if not p.is_file():
         return None
+    problems = problems if problems is not None else []
     text = _read(p)
     if text.startswith("---"):
         end = text.find("\n---", 3)
         text = text[end + 4:] if end != -1 else text
+
+    def loose(bid: str, line: str):
+        problems.append(f"backlog.md: {bid} in '{_clip(line.strip())}' is not read as an "
+                        "id — an id is the first cell of a table row or the first "
+                        "token of a bullet")
     out = []
     for heading, lines in _sections(text):
+        m = LOOSE_ID.match(heading)
+        if m:
+            loose(m.group(1), "## " + heading)
         items = []
         for i, line in enumerate(lines):
             s = line.strip()
@@ -294,15 +354,35 @@ def load_backlog(root: Path) -> list[tuple[str, list[tuple]]] | None:
                 if nxt.startswith("|") and set(nxt) <= set("|-: "):
                     continue  # header row
                 if len(cells) >= 2:
-                    if re.fullmatch(r"\**B-\d+\**", cells[0]):
-                        items.append(_item(f"{cells[0]} {cells[1]}", s))
-                    else:
-                        shown = _clip(f"#{cells[0]} {cells[1]}")
-                        items.append((shown, s, None, shown))
+                    m = ID_CELL.fullmatch(cells[0])
+                    if m:
+                        items.append(_item(f"{m.group(1)} {cells[1]}", s, m.group(1),
+                                           cells[1], cells))
+                        continue
+                    first = ID_LIKE.match(cells[0].lstrip("`*"))
+                    later = [ID_CELL.fullmatch(c) for c in cells[1:]]
+                    later = [x.group(1) for x in later if x]
+                    if first or later:
+                        loose(first.group(0) if first else later[0], s)
+                    items.append(_item(f"#{cells[0]} {cells[1]}", s, None, cells[1], cells))
                 continue
             m = BULLET.match(line)
             if m:
-                items.append(_item(m.group(1), m.group(1)))
+                content = m.group(1).strip()
+                rest = CHECKBOX.sub("", content, count=1)
+                idm = BACKLOG_ID.match(rest)
+                if idm:
+                    items.append(_item(f"{idm.group(1)} {idm.group(2)}".strip(), content,
+                                       idm.group(1), idm.group(2)))
+                    continue
+                like = ID_LIKE.match(rest.lstrip("`*"))
+                if like:
+                    loose(like.group(0), s)
+                items.append(_item(content, content, None, content))
+                continue
+            m = LOOSE_ID.match(s)
+            if m:
+                loose(m.group(1), s)
         if items:
             out.append((heading or "(before any section)", items))
     return out
@@ -321,11 +401,9 @@ def warnings(cycles: list[Cycle], backlog, problems: list[str]) -> list[str]:
         if "state" in c.header and c.declared_state not in STATES:
             out.append(f"{c.id} has state: {c.header['state'] or '(empty)'} — not one "
                        f"of {', '.join(STATES)}; read as {c.state}")
-        elif c.declared_state:
-            for key in END_KEYS:
-                if c.header.get(key) and key != c.declared_state:
-                    out.append(f"{c.id} has state: {c.declared_state} and a {key}: "
-                               "line — state: wins")
+        elif c.declared_state and c.end_key and c.declared_state != c.end_key:
+            out.append(f"{c.id} has state: {c.declared_state} and a {c.end_key}: "
+                       f"line — {c.end_key}: wins")
         for key in END_KEYS:
             if running and key in c.header and not c.header[key]:
                 out.append(f"{c.id} has an empty {key}: line and still counts as open")
@@ -333,7 +411,11 @@ def warnings(cycles: list[Cycle], backlog, problems: list[str]) -> list[str]:
             out.append(f"{c.id} has a {c.misplaced_end[0]}: line below its header — "
                        "it counts only among the lines before the first ##")
         elif running and c.done and not c.pending:
-            out.append(f"{c.id} has no pending done item but no closed: line")
+            if c.done_source == "criteria":
+                out.append(f"{c.id} has every criterion met in promotion.md but no "
+                           "closed: line")
+            else:
+                out.append(f"{c.id} has no pending done item but no closed: line")
         if c.legacy_next and not c.ended:
             out.append(f"{c.id} keeps a ## Next cycle list ({len(c.legacy_next)} "
                        "lines) — under AGENTS.md ## Cycle those lines belong in backlog.md")
@@ -342,18 +424,18 @@ def warnings(cycles: list[Cycle], backlog, problems: list[str]) -> list[str]:
     ids: dict[str, int] = {}
     for _, items in backlog or []:
         for it in items:
-            if it[2]:
-                ids[it[2]] = ids.get(it[2], 0) + 1
+            if it["id"]:
+                ids[it["id"]] = ids.get(it["id"], 0) + 1
     for bid, k in ids.items():
         if k > 1:
             out.append(f"{bid} is used by {k} backlog items — an id names one item")
     return out
 
 
-def owned_lines(cid: str, backlog) -> list[str]:
+def owned_lines(cid: str, backlog, key: str = "shown") -> list[str]:
     tok = cycle_token(cid)
-    return [shown for heading, items in backlog or []
-            for shown, full, *_ in items if tok.search(heading) or tok.search(full)]
+    return [it[key] for heading, items in backlog or []
+            for it in items if tok.search(heading) or tok.search(it["full"])]
 
 
 def show_cycle(c: Cycle, backlog, title: str) -> list[str]:
@@ -370,7 +452,8 @@ def show_cycle(c: Cycle, backlog, title: str) -> list[str]:
             if d["depends_on"]:
                 line += f"  depends on {_clip(', '.join(d['depends_on']))}"
             out.append(line)
-    out.append(f"  done when: {c.progress}")
+    label = "criteria: " if c.done_source == "criteria" else "done when:"
+    out.append(f"  {label} {c.progress}")
     out += [f"    [{m}] {_clip(t)}" for m, t in c.done]
     owned = owned_lines(c.id, backlog)
     if owned:
@@ -410,7 +493,7 @@ def show_backlog(backlog) -> list[str]:
     out = [f"BACKLOG ({total} items)"]
     for heading, items in backlog:
         out.append(f"  {heading}")
-        out += [f"    - {it[0]}" for it in items]
+        out += [f"    - {it['shown']}" for it in items]
     return out + [""]
 
 
@@ -421,14 +504,16 @@ def as_json(cycles: list[Cycle], backlog, warns: list[str], parts) -> dict:
         data["cycles"] = [{
             "id": c.id, "state": c.state, "ended": c.ended, "layout": c.layout,
             "objective": c.objective, "demands": c.demands,
-            "done": dict(c.counts, items=[{"mark": m, "text": t} for m, t in c.done]),
+            "done": dict(c.counts, source=c.done_source,
+                         items=[{"mark": m, "text": t} for m, t in c.done]),
             "artifacts": c.artifacts,
-            "backlog_lines": owned_lines(c.id, backlog),
+            "backlog_lines": owned_lines(c.id, backlog, "line"),
             "legacy_next": c.legacy_next,
         } for c in cycles]
     if "backlog" in parts:
         data["backlog"] = None if backlog is None else {"sections": [
-            {"heading": heading, "items": [{"id": it[2], "text": it[3]} for it in items]}
+            {"heading": heading, "items": [
+                {"id": it["id"], "text": it["text"], "cells": it["cells"]} for it in items]}
             for heading, items in backlog]}
     return data
 
@@ -459,7 +544,7 @@ def main(argv=None) -> int:
         return 2
     problems: list[str] = []
     cycles = load_cycles(root, problems)
-    backlog = load_backlog(root)
+    backlog = load_backlog(root, problems)
 
     if args.cycle:
         match = [c for c in cycles if c.id.lower() == args.cycle.strip().lower()]
