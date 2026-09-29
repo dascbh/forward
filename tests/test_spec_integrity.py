@@ -211,3 +211,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertTrue((ROOT / "runtime/status.py").exists())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 17, 0))
+
+    def test_kernel_version_ships_open_permissions(self):
+        # FWD-025: clients receive the install allow list only through a
+        # moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertIn("open_permissions", (ROOT / "templates/fde.config.template.toml").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 18, 0))
