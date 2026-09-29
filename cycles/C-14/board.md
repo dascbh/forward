@@ -19,3 +19,5 @@
 - 2026-09-29 FWD-043 claim widened: skills/fde-review (B-48/B-49 cycle-review preconditions, one short section), skills/fde-walkthrough and agents/fde-spec.md, agents/fde-architecture.md, spec/roles.toml intended-model output moves to the planner (B-25), runtime/graph.py one comment (+ copies), tests/test_instructions.py pins
 - 2026-09-29 FWD-038 claim widened: templates/cycle/board.md (+ .fde) — the merge example line names the review record (B-39); tests/test_review_records.py (new, the four items' tests)
 - 2026-09-29 FWD-039 decided fde-scrum renamed to fde-backlog-format, not folded into fde-backlog (FWD-043 holds skills/fde-backlog; the format stays one small skill); gate id `backlog`, `--gate scrum` an alias; check ids BACKLOG, BACKLOG-ENABLED, BACKLOG-TABLE, BACKLOG-ALIAS
+- 2026-09-29 C-14 decided FWD-043, FWD-038, FWD-039 merged (rebased; board conflicts only); FWD-038's fixed_in is recorded by the reviewer (I3) — accepted; FWD-039 renamed fde-scrum → fde-backlog-format; FWD-040 starts
+- 2026-09-29 FWD-040 claim SETUP.md, skills/fde-sync (+ copy), tests/mirror.toml, .fde/adr/**, tests/test_install_sync.py
