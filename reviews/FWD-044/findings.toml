@@ -1,0 +1,46 @@
+# Code review report (light pass)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-044"
+kind = "code"
+context_policy = "artifact_only"
+isolation_mode = "artifact_and_spec"
+rounds_planned = 1
+round = 1
+commit = "e3633e8"
+agent_transcript = "agent-ad3b04ecc83bb4498"
+probed = [
+  "spec.md and ADR-0016 (pin section) read against the e3633e8 diff",
+  "diff of templates/fde-gate.yml and .github/workflows/fde-gate.yml: differs only on the run: line of the Tests step ({{TEST_COMMAND}})",
+  "Range step shell traced for: zero SHA, empty BASE, real SHA, push to default branch (zero before, HEAD is merge-base -> empty), missing origin/<default> (merge-base fails -> empty); each ends with status 0 under bash -e",
+  "python3 -m unittest discover -s tests -p test_install_sync.py: 20 tests OK",
+]
+notes = [
+  "Diff does what the spec says: zero-SHA before resolves to the merge-base with origin/<default branch>, empty when HEAD is the base or no base exists (verify.py then falls back to the last commit); mirror pair identical except {{TEST_COMMAND}}.",
+  "Injection-safe: the only ${{ }} expressions are in env: (BASE, DEFAULT_BRANCH) and in the pinned gate step reading a step output the shell itself wrote (hex SHA or empty); no ${{ }} inside the run: | block.",
+  "ADR-0016 pin honored: file still ends with the two-line FDE gate step, one on: line unchanged, no forbidden literals (no exit 0, if:, || true) in the new step.",
+  "A real SHA in before that is not in the clone (force-push) is not handled by the step; verify.py _rev_ok falls back, so it is covered downstream and unchanged by this demand.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "observability"
+severity = "low"
+principle = "OBS-1"
+evidence = """
+The Range step writes base= to GITHUB_OUTPUT only. The resolved range never appears in the job log, so a red gate on a new-branch push cannot be tied to the range it diffed (merge-base, empty fallback, or the raw before) without re-deriving it from git. One echo of the resolved base would leave the trail.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "low"
+principle = "FUNC-BOUNDARY"
+evidence = """
+An empty DEFAULT_BRANCH (payload without repository.default_branch, e.g. workflow_dispatch or schedule events) makes the step ask for origin/ with nothing after it, merge-base fails, and base is empty. That degrades to the last-commit range, the same as before the demand, so nothing regresses; the shell test covers the zero-SHA cases but not an empty DEFAULT_BRANCH.
+"""
+blocking = false
+backlog = true

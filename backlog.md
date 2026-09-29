@@ -75,6 +75,8 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 
 - B-53 owner decision — AGENTS.md keeps only the loop's skeleton and a pointer per step; detailed rules (sizing table, RULE lane, review modes, cycle states, blocker path, deploy order, backlog format) move into their skills (fde-triage, fde-review, fde-backlog, fde-scrum), with their verbatim pins moving with them; target: AGENTS.md well under the cap so a new rule never forces trims (resolves B-51; owner, 2026-09-29) → C-14
 
+- B-54 (C-14) usage-data — the CI Range step writes the resolved base only to GITHUB_OUTPUT; echo it so a red run shows the range it diffed (code review FWD-044 F1)
+
 ## Discarded (2026-09-29)
 
 Reviewed against 0.19.0 with the owner; ids stay retired.
