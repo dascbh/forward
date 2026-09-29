@@ -153,8 +153,9 @@ collides with I1.
 what the client allocates and signs; it becomes a dated record of what they
 said mattered. If everything could be high, nobody chose anything.
 
-It governs: adversarial attack order, rounds per dimension, suite sizing, and
-what blocks merge above the floor.
+It governs adversarial attack order and suite sizing. It never adds review
+rounds and never makes a finding blocking: the threat model and the declared
+criteria decide that (ADR-0018).
 
 **Vector B — technical domains.** Depth 0–3, **derived** from the stack +
 triage. Override is *upward-only*: the client can raise, never reduce. Low
@@ -298,8 +299,8 @@ tools; installed into the project for Claude Code):
   heuristic judgment citing the principle catalogs
 - `fde-debug` — stop-the-line, six-step triage to root cause, and the
   guard eval that turns the fix into an I1 entry
-- `fde-scrum` — optional cadence layer: evidence-labeled backlog, sprints
-  with dated goals, review and retro as the user's two sittings
+- `fde-scrum` — the backlog format (B-<n> ids, evidence ladder, origin);
+  `[scrum]` switches on the gate for the backlog's dated goal
 - `fde-graph` — the artifacts as a directed weighted provenance graph:
   query a demand's context, mine recurring findings, enforce traceability
 - `fde-erosion` — measure and gate long-term decay: clone ratio,

@@ -71,7 +71,7 @@ tools = {{TOOLS}}   # e.g.: ["claude-code"] - which native layers step 8 emitted
 open_permissions = true   # claude-code: step 8 opens every built-in tool (ADR-0019); false keeps the prompts
 
 # [scrum]
-# enabled = true   # optional cadence layer: backlog + sprints (fde-scrum skill)
+# enabled = true   # gates the backlog's dated goal: backlog.md needs goal: and date: (fde-scrum skill)
 
 # [erosion]
 # optional decay budget (fde-erosion skill) — the gate enforces only the

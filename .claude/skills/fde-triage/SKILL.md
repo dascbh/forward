@@ -104,7 +104,9 @@ score = min(3, surfaces)
 | ≥ 7 | L | full plan + ADRs | 1 full + 1 delta | yes | 1 day |
 
 Every size: `fde-spec` writes `plan.md`, a demand review is 1 round, and
-the cycle closes with a promotion by `fde-promotion`.
+the cycle closes with a promotion by `fde-promotion`. M adds
+architecture: `fde-architecture` writes the ADRs, so M and L run all
+five roles.
 
 Announce the result in one line — size, roles, rounds — and plan:
 `plan.md` comes first (AGENTS.md `## Cycle`), and the planner stops at the
@@ -115,9 +117,10 @@ minimum to extend: `fde-review` says what happens when it is spent.
 ## Overrun on the real diff — a fact for the board
 
 A demand's `loc` is an estimate made before code exists; the diff is the
-fact. A demand whose real diff runs more than twice the estimate, or
-above ~800 behavior + eval lines, is not re-split at review: post the
-overrun on the board and the demand proceeds. Splitting happens at
+fact. One ceiling: a demand is split at planning to fit ~300 production
+lines (tests, evals, specs, reviews and ADRs not counted). A demand
+whose real diff overruns its estimate or that ceiling is not re-split
+at review: post the overrun on the board and the demand proceeds. Splitting happens at
 planning only; the cycle replans only if a criterion or an ADR changes.
 A timebox overrun is recorded the same way.
 

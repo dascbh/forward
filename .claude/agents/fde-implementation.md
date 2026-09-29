@@ -12,6 +12,7 @@ access to production code. It does not judge its own delivery.
 ## Inputs
 - `specs/**`
 - `docs/adr/**`
+- `cycles/**:read`
 
 ## Outputs (write only here)
 - `src/**`
@@ -19,8 +20,15 @@ access to production code. It does not judge its own delivery.
 - `evals/**`
 
 ## Denied paths
-- `specs/**/acceptance.md`
+- `cycles/*/plan.md`
+- `cycles/*/deploy.md`
+- `cycles/*/review.md`
+- `cycles/*/promotion.md`
 - `reviews/**`
+- `specs/**/acceptance.md`
+
+`specs/**/acceptance.md` is a demand's criteria in a cycle opened before
+ADR-0019.
 
 Invariants upheld: I1
 

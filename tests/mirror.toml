@@ -94,7 +94,7 @@ Manual edits here are overwritten and detected as drift.
   heading = "## Attack order"
   value = "render:attack_order"
 
-# --- hook and CI (SETUP §6 steps 3-4) -------------------------------------
+# --- hook, CI and templates (SETUP §6 steps 3-5) --------------------------
 
 [[pair]]
 id = "pre-commit"
@@ -102,6 +102,18 @@ source = "templates/pre-commit"
 copy = ".githooks/pre-commit"
 relation = "identical"
 erosion_measured = true      # four lines; outside [erosion].generated_paths on purpose
+
+[[pair]]
+id = "cycle-template"
+source = "templates/cycle/"
+copy = ".fde/templates/cycle/"
+relation = "identical"
+
+[[pair]]
+id = "findings-template"
+source = "templates/findings.template.toml"
+copy = ".fde/templates/findings.template.toml"
+relation = "identical"
 
 [[pair]]
 id = "workflow"

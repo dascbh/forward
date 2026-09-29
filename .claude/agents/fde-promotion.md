@@ -19,7 +19,6 @@ not, check out the right commit before judging.
 - `specs/**:read`
 - `reviews/**:read`
 - `evals/**:read`
-- `artifacts/gate-report.json`
 
 ## Outputs (write only here)
 - `cycles/C-<n>/promotion.md`
@@ -37,8 +36,9 @@ Invariants upheld: I4, I5, I6
 ## The decision — `cycles/C-<n>/promotion.md`
 
 - One line per criterion of `plan.md` (`A1`…): met / not met, with its
-  evidence (the cycle's `review.md`, the integration checks, the gate
-  report). Checks the declared criteria only — never a hidden review
+  evidence (the cycle's `review.md`, the integration checks, and the
+  output of `python3 bin/fde/verify.py --all`, run at the promoted
+  commit). Checks the declared criteria only — never a hidden review
   round.
 - A new defect is not a condition of promotion: one line in
   `backlog.md` with `(C-<n>)` and its evidence.

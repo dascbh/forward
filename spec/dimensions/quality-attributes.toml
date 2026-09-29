@@ -10,10 +10,10 @@
 # recorded decision.
 #
 # Weight governs:
-#   - adversarial attack order and rounds spent per dimension
+#   - adversarial attack order
 #   - suite sizing (failure modes and coverage per dimension)
-#   - what blocks merge vs. what only records a finding (above the floor)
 #   - work order when dimensions conflict
+# It never adds review rounds and never makes a finding blocking (ADR-0018).
 #
 # Weight does NOT govern: anything below the floor defined in
 # spec/invariants.toml.

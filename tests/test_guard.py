@@ -40,16 +40,18 @@ class TestGuard(unittest.TestCase):
                                        "fde-adversarial"))
         self.assertEqual(r.returncode, 0, r.stderr)
 
-    def test_promotion_writes_only_in_promotions(self):
+    def test_promotion_writes_in_its_cycle_file_and_legacy_promotions(self):
         r = guard(self.p, self.payload("reviews/D-1/findings.toml",
                                        "fde-promotion"))
         self.assertEqual(r.returncode, 2)
-        r = guard(self.p, self.payload("promotions/D-1/decision.md",
-                                       "fde-promotion"))
-        self.assertEqual(r.returncode, 0, r.stderr)
+        # primary: the cycle layout (ADR-0019); legacy: pre-ADR-0019 cycles
+        for target in ("cycles/C-1/promotion.md", "promotions/D-1/decision.md"):
+            r = guard(self.p, self.payload(target, "fde-promotion"))
+            self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_implementation_cannot_rewrite_its_own_judges(self):
-        for target in ("specs/D-1/acceptance.md", "reviews/D-1/findings.toml"):
+        for target in ("cycles/C-1/plan.md", "reviews/D-1/findings.toml",
+                       "specs/D-1/acceptance.md"):  # the last: legacy layout
             r = guard(self.p, self.payload(target, "fde-implementation"))
             self.assertEqual(r.returncode, 2, target)
 
@@ -218,9 +220,17 @@ class TestGuardCycleFiles(unittest.TestCase):
                                  f"{agent} {f}")
             self.assertEqual(self.code("cycles/C-1/board.md", agent), 0, agent)
 
-    def test_promotion_appends_to_the_backlog(self):
-        self.assertEqual(self.code("backlog.md", "fde-promotion"), 0)
-        self.assertEqual(self.code("backlog.md", "fde-adversarial"), 2)
+    def test_every_role_writes_the_backlog_and_the_board(self):
+        # reviews/FWD-028 F2, ADR-0019 rules 1 and 11: a new fact or a
+        # non-blocking finding goes to backlog.md, and every role posts on
+        # the cycle's board — from any role
+        for agent in ("fde-spec", "fde-architecture", "fde-implementation",
+                      "fde-adversarial", "fde-promotion"):
+            for rel in ("backlog.md", "cycles/C-1/board.md"):
+                self.assertEqual(self.code(rel, agent), 0, f"{agent} {rel}")
+        # shared means those two files, not their neighbours
+        self.assertEqual(self.code("cycles/C-1/x/board.md", "fde-architecture"), 2)
+        self.assertEqual(self.code("docs/backlog.md", "fde-adversarial"), 2)
 
     def test_implementation_never_writes_what_judges_it(self):
         for f in ("plan.md", "deploy.md", "review.md", "promotion.md"):

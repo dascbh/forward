@@ -21,6 +21,15 @@ def load_guard_allowed() -> dict:
     spec.loader.exec_module(mod)
     return mod.ALLOWED
 
+
+def load_guard_shared() -> tuple:
+    """runtime/guard.py's SHARED: the paths every role writes (FWD-032)."""
+    spec = importlib.util.spec_from_file_location(
+        "_guard_shared_for_spec_integrity_test", ROOT / "runtime" / "guard.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.SHARED
+
 PREFIX_TO_ATTRIBUTE = {
     "USE": "usability_accessibility",
     "DOM": "functional_correctness",
@@ -142,6 +151,8 @@ class TestRolesAgentsSkills(unittest.TestCase):
             checked_any = True
             guard_prefixes = {p.rstrip("/") + "/" for p in allowed[agent]}
             for entry in r["write_scope"]:
+                if entry in load_guard_shared():
+                    continue  # enforced for every role by guard.SHARED
                 prefix = entry[:-2] if entry.endswith("**") else entry
                 prefix = prefix.rstrip("/") + "/"
                 self.assertIn(

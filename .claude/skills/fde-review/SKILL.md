@@ -14,8 +14,8 @@ description: Runs the adversarial review in an isolated context, with attack ord
    `.fde/spec/dimensions/quality-attributes.toml` (`adversarial_probes`).
 3. Read `plan.md`'s `## Threat model`: who the cycle must contain, and
    what is declared out of scope. It bounds every probe.
-4. Demand mode: create `reviews/<demand-id>/findings.toml` from the
-   kernel's `templates/findings.template.toml`. Cycle mode: write
+4. Demand mode: create `reviews/<demand-id>/findings.toml` from
+   `.fde/templates/findings.template.toml`. Cycle mode: write
    `cycles/C-<n>/review.md`.
 
 ## Mode — demand or cycle (ADR-0019 rule 12)
@@ -140,8 +140,8 @@ spans several times over, the design is wrong for this scope — narrow
 
 ## Change sizing
 
-~100 changed lines review well; ~300 is the ceiling for one logical
-change. A demand is split at planning, never at review: an overrun of
+One ceiling: a demand is split at planning to fit ~300 production lines
+(tests, evals, specs and reviews not counted), never at review: an overrun of
 its estimate is posted on the board and the review proceeds
 (`fde-triage`). One structural problem outranks ten nits — the structural
 problem IS the review. A dependency bump is a behavior change nobody

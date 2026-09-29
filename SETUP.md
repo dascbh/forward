@@ -106,8 +106,9 @@ Copy `templates/fde.config.template.toml` from the kernel to the project
 root and fill every `{{...}}` placeholder with the facts from steps 1–3.
 
 Then allocate **vector A** with the user. Explain what weight does — orders
-the adversarial attack, sizes the suite, decides what blocks merge above the
-floor — show the default allocation, and let them move points:
+the adversarial attack and sizes the suite; it never adds review rounds and
+never makes a finding blocking (ADR-0018) — show the default allocation,
+and let them move points:
 
 | attribute | default | floor |
 |---|---|---|
@@ -129,13 +130,13 @@ Validation you must enforce before writing: the eight weights **sum to
 exactly 100**; no weight below its floor; security_privacy not below its
 escalated floor for the chosen data_class. The gate re-checks all of this.
 
-If the user wants the cadence layer (backlog, sprints, review/retro),
-enable `[scrum]` — the `fde-scrum` skill defines it; do not enable it
-unasked.
+`[scrum] enabled = true` makes the backlog's dated goal a gate: `--gate
+scrum` then requires `backlog.md`'s `goal:` and `date:` lines (the
+`fde-scrum` skill defines the backlog format). Do not enable it unasked.
 
 ## 5. Create the handoff structure (I7)
 
-Create `specs/`, `docs/adr/`, `evals/`, `reviews/`, `promotions/` — plus
+Create `specs/`, `docs/adr/`, `evals/`, `reviews/`, `cycles/` — plus
 `design/` when the project has a frontend (write `design/product.md` from
 the step-2 answers) — each directory with a `.gitkeep`.
 
@@ -151,7 +152,12 @@ kernel checkout present. Copy from the kernel into the project:
 3. `templates/pre-commit` → `.githooks/pre-commit`, then `chmod +x` it
 4. `templates/fde-gate.yml` → `.github/workflows/fde-gate.yml`, filling
    `{{TEST_COMMAND}}` from `[stack]` — CI runs the tests AND the gate
-5. Run `git config core.hooksPath .githooks` in the project.
+5. `templates/cycle/` → `.fde/templates/cycle/` (a new cycle starts
+   from it) and
+   `templates/findings.template.toml` → `.fde/templates/findings.template.toml`
+   (a review starts from it), so the roles reach them without the
+   kernel checkout
+6. Run `git config core.hooksPath .githooks` in the project.
 
 Generated-file marker — put this at the top of every file you generate in
 steps 7–8 (comment syntax of the file's format):
@@ -229,7 +235,7 @@ the user names.
 frontmatter `description: FDE kernel eval gate (I1)`, `globs: src/**`,
 `alwaysApply: false`; body: a behavior change in `src/` requires a
 corresponding entry in `evals/` in the same change; the pre-commit blocks it
-otherwise; acceptance criteria live in `specs/<demand-id>/acceptance.md`.
+otherwise; acceptance criteria live in the cycle's `cycles/C-<n>/plan.md`.
 
 **codex** (tier `commit`): write `.codex/AGENTS.md` summarizing the six
 roles (label, first line of purpose, write scope, denied paths, isolation

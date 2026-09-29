@@ -41,11 +41,18 @@ preference.
 
 ## Roles
 
-- **Specification** (`fde-spec`) — writes to `specs/**, discovery/**`
-- **Architecture** (`fde-architecture`) — writes to `docs/adr/**, specs/**`
-- **Implementation** (`fde-implementation`) — writes to `src/**, tests/**, evals/**, infra/**`
-- **Adversarial review** (`fde-adversarial`) — writes to `reviews/**`
-- **Promotion** (`fde-promotion`) — writes to `promotions/**`
+- **Specification** (`fde-spec`) — writes to `specs/**, discovery/**, cycles/**, backlog.md`
+- **Architecture** (`fde-architecture`) — writes to `docs/adr/**, specs/**, walkthroughs/**, backlog.md, cycles/*/board.md`
+- **Implementation** (`fde-implementation`) — writes to `src/**, tests/**, evals/**, infra/**, backlog.md, cycles/*/board.md`
+- **Adversarial review** (`fde-adversarial`) — writes to `reviews/**, cycles/**, backlog.md`
+- **Promotion** (`fde-promotion`) — writes to `cycles/**, backlog.md, promotions/**`
+- **Walkthrough evaluator** (`fde-walkthrough-evaluator`) — writes nothing
+
+Inside `cycles/C-<n>/` each role writes only its own file (spec
+`plan.md` and `deploy.md`, adversarial `review.md`, promotion
+`promotion.md`); `board.md` and `backlog.md` are open to every role that
+writes. `promotions/**` is only for a
+cycle opened before ADR-0019. The scopes are `spec/roles.toml`'s.
 
 Handoff is by artifact on disk, never by conversation continuity. The
 adversarial and promotion roles run isolated: artifact + spec only, never
@@ -97,13 +104,15 @@ backlog, and code starts only inside a signed-off cycle.
    Size sets only the planner's depth and the cycle review rounds: 1
    round at XS/S, full + delta at M/L. At every size `fde-spec` writes
    `plan.md` (minimal at XS), a demand review is 1 round, and the cycle
-   closes with a promotion. Announce the size in ONE line (e.g.
+   closes with a promotion. M adds architecture: `fde-architecture`
+   writes the ADRs, so M and L run all five roles. Announce the size in ONE line (e.g.
    `FORWARD: M — spec + impl + adversarial(2r) + promotion`), commit
    `plan.md` (`## Cycle` below), and stop at the sign-off.
    **Budgets, not minimums.** Rounds after the first are delta rounds
    (the fixes, not the whole artifact again) and are never extended.
-   Timebox: XS 30 min · S 1 h · M 3 h · L 1 day. A demand whose real
-   diff overruns its estimate is not re-split at review: the overrun is
+   Timebox: XS 30 min · S 1 h · M 3 h · L 1 day. A demand is
+   split at planning to fit ~300 production lines; one whose real diff
+   overruns its estimate is not re-split at review: the overrun is
    posted on the board and the demand proceeds; the cycle replans only
    if a criterion or an ADR changes. A new rule ships as instruction
    first; it becomes a gate only when usage-data shows the instruction
@@ -190,7 +199,7 @@ continuing the same conversation thread (I7).
 ## Cycle — plan once, derive down
 
 A cycle is a directory `cycles/C-<n>/` (next free `n`), started from the
-kernel's `templates/cycle/`:
+`.fde/templates/cycle/` (SETUP §6):
 
 - `plan.md` — header lines (`cycle:`, `state:`, `date:`, `size:`,
   `objective:`, `signed-off:`), `## Threat model`, criteria and failure

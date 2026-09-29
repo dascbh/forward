@@ -180,7 +180,8 @@ class TestBoundedReview(unittest.TestCase):
         # reviews/FWD-026 F1: an overrun is a fact for the board, never a
         # re-split at review
         overrun = " ".join(section(skill, "Overrun on the real diff").split())
-        for needle in ("more than twice the estimate", "~800",
+        # FWD-032: one ceiling, applied at planning
+        for needle in ("split at planning to fit ~300 production lines",
                        "is not re-split at review", "timebox"):
             self.assertIn(needle, overrun, needle)
         self.assertIn("instruction", section(skill, "Smallest mechanism first"))
@@ -241,7 +242,7 @@ class TestDeclaredCycle(unittest.TestCase):
 
     # the layout lives in ## Cycle
     LAYOUT = ("`plan.md`", "`deploy.md`", "`board.md`", "`review.md`",
-              "`promotion.md`", "`templates/cycle/`",
+              "`promotion.md`", "`.fde/templates/cycle/`",
               "`specs/<id>/spec.md` plus `reviews/<id>/findings.toml`",
               "`draft → planned (signed off) → running → closed`")
 
@@ -493,7 +494,8 @@ class TestReconcileText(unittest.TestCase):
                 self.assertNotIn(gone, text, f"{rel}: {gone}")
         triage = self.flat("skills/fde-triage/SKILL.md")
         self.assertIn("a demand review is 1 round", triage)
-        for gone in ("1 full + 2 delta", "all five"):
+        # the old role-list row; "all five roles" at M/L stays (FWD-032 #3/#5)
+        for gone in ("1 full + 2 delta", "| L | all five |"):
             self.assertNotIn(gone, triage, gone)
 
     def test_every_size_has_a_plan_and_a_promotion(self):

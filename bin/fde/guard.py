@@ -41,6 +41,18 @@ ALLOWED = {
     "fde-adversarial": ("reviews/", "cycles/"),
     "fde-promotion": ("cycles/", "backlog.md", "promotions/"),
 }
+# Every role writes these (ADR-0019 rules 1 and 11): a new fact or a
+# non-blocking finding goes to the backlog, and every role posts on the
+# cycle's board. `*` is one path segment. Mirrors the same entries in each
+# role's write_scope in spec/roles.toml.
+SHARED = ("backlog.md", "cycles/*/board.md")
+
+# Paths kept only for a cycle opened before ADR-0019 (rule 15): allowed,
+# but never named as a role's primary place to write.
+LEGACY = {
+    "fde-promotion": ("promotions/",),
+}
+LEGACY_NOTE = "only for a cycle opened before ADR-0019"
 
 # Inside cycles/<C-n>/ each role writes only its own files (ADR-0019 rule
 # 10); board.md is shared by every role (rule 11). The criteria and the
@@ -57,6 +69,11 @@ def _cycle_file(rel: str) -> str:
     """Basename of a cycles/<C-n>/<file> path; '' for anything else."""
     m = re.fullmatch(r"cycles/[^/]+/([^/]+)", rel)
     return m.group(1) if m else ""
+
+
+def _shared(rel: str) -> bool:
+    return any(re.fullmatch(re.escape(e).replace(r"\*", "[^/]+"), rel)
+               for e in SHARED)
 
 
 def _matches(path: str, entries) -> bool:
@@ -164,9 +181,13 @@ def main() -> int:
         return 2
 
     for role, allowed in ALLOWED.items():
-        if role in agent and not _matches(rel, allowed):
+        if role in agent and not (_matches(rel, allowed) or _shared(rel)):
+            legacy = LEGACY.get(role, ())
+            primary = [a for a in allowed if a not in legacy]
+            where = ", ".join(primary) + "".join(
+                f" ({e} {LEGACY_NOTE})" for e in legacy)
             return block(
-                f"[FDE] role {role} writes only in {', '.join(allowed)} — not {rel}.\n"
+                f"[FDE] role {role} writes only in {where} — not {rel}.\n"
                 f"This is design, not an obstacle: the role that judges cannot rewrite\n"
                 f"what will be judged. Record the finding or delegate to the right role.",
                 "role-scope")
@@ -178,14 +199,18 @@ def main() -> int:
                     f"{', '.join(CYCLE_FILES.get(role, ()) + ('board.md',))} — not {rel}.",
                     "cycle-scope")
 
+    # specs/**/acceptance.md: a demand's criteria in a cycle opened before
+    # ADR-0019; the cycle's files are the criteria now
     if "fde-implementation" in agent and (
-        rel.startswith("reviews/")
+        _cycle_file(rel) in JUDGED_BY
+        or rel.startswith("reviews/")
         or (rel.startswith("specs/") and rel.endswith("acceptance.md"))
-        or _cycle_file(rel) in JUDGED_BY
     ):
         return block(
             f"[FDE] role fde-implementation does not write to {rel}: it cannot\n"
-            f"rewrite the criteria it will be judged by, nor the findings against it.",
+            f"rewrite the criteria it will be judged by, nor the findings against it\n"
+            f"(cycles/C-<n>/ {', '.join(JUDGED_BY)}; reviews/; "
+            f"specs/**/acceptance.md {LEGACY_NOTE}).",
             "implementation-scope")
 
     if _matches(rel, behavior):

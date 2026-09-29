@@ -1,7 +1,14 @@
 # ADR-0017 — A cycle is declared in git before it runs
 
 date: 2026-09-28
-status: abandoned — superseded by ADR-0018 and FWD-022
+status: abandoned — superseded by ADR-0018 and FWD-022, then by ADR-0019
+
+## Status — 2026-09-29: the next-cycle list is retired
+
+ADR-0019 replaced the single-file cycle this record describes. A cycle
+is now the directory `cycles/C-<n>/`, and the `## Next cycle` list is
+gone: new facts and residuals go to `backlog.md` (ADR-0019 rules 1, 2
+and 15). Nothing below describes the current model.
 
 ## Status — 2026-09-28: abandoned
 

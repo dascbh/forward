@@ -24,7 +24,7 @@ No change that alters observable system behavior lands on the main branch
 without a corresponding entry in the evaluation suite.
 """
 enforced_by = ["pre-commit", "ci"]
-verifiable_by = "fde verify --gate eval-coverage"
+verifiable_by = "python3 bin/fde/verify.py --gate eval-coverage"
 rationale = """
 Without a measure, prompt changes and code changes ship on opinion. It is the
 only mechanism that catches silent regression when the model shifts underneath
@@ -43,7 +43,7 @@ receives the context, the history, or the reasoning of whoever built the
 artifact.
 """
 enforced_by = ["ci", "adapter-isolation"]
-verifiable_by = "fde verify --gate adversarial-isolation"
+verifiable_by = "python3 bin/fde/verify.py --gate adversarial-isolation"
 rationale = """
 A reviewer who sees the very reasoning that produced the code agrees with
 itself. Without context isolation, the adversarial role is theater and the
@@ -62,7 +62,7 @@ approved. It has no write permission on the code under review — it can only
 record findings. Fixing is another role's job.
 """
 enforced_by = ["role-tool-restriction", "ci"]
-verifiable_by = "fde verify --gate adversarial-incentive"
+verifiable_by = "python3 bin/fde/verify.py --gate adversarial-isolation"
 rationale = """
 A reviewer who can fix what they found fixes it silently, and the finding
 never reaches the record. The separation is what produces an auditable trail.
@@ -79,7 +79,7 @@ No artifact is promoted to production without written, versioned, and dated
 acceptance criteria, declared before construction begins.
 """
 enforced_by = ["ci"]
-verifiable_by = "fde verify --gate promotion-criteria"
+verifiable_by = "python3 bin/fde/verify.py --gate promotion-criteria"
 rationale = """
 Criteria written after delivery are justification, not criteria. Declaring
 before is what separates high-standard delivery from retroactive
@@ -97,7 +97,7 @@ Every promoted artifact emits the minimum needed to verify in production the
 quality attributes it declared to meet.
 """
 enforced_by = ["ci"]
-verifiable_by = "fde verify --gate observability"
+verifiable_by = "python3 bin/fde/verify.py --gate observability"
 rationale = """
 It is the attribute every project downgrades under pressure and the only one
 whose absence makes all the others unverifiable after deploy.
@@ -115,7 +115,7 @@ framework component on the critical path. The deliverable includes the ability
 to run it without the FDE present.
 """
 enforced_by = ["ci", "handoff"]
-verifiable_by = "fde verify --gate portability"
+verifiable_by = "python3 bin/fde/verify.py --gate portability"
 rationale = """
 A gate that only runs on the consultant's machine is dependency disguised as
 standard. The delivered asset is the specification of correctness, not the
@@ -133,7 +133,7 @@ Roles communicate through versioned artifacts on disk (spec, ADR, suite,
 review report), never through conversation continuity.
 """
 enforced_by = ["ci", "adapter-isolation"]
-verifiable_by = "fde verify --gate artifact-handoff"
+verifiable_by = "python3 bin/fde/verify.py --gate artifact-handoff"
 rationale = """
 Handoff by conversation leaks reasoning between roles, collapses the
 separation, and leaves no trail. An artifact on disk is auditable and survives
@@ -154,7 +154,7 @@ the probe that broke it or the principle it violates, with severity.
 Judgment without a named principle is not a finding.
 """
 enforced_by = ["ci", "demand-loop"]
-verifiable_by = "fde verify --gate finding-discipline"
+verifiable_by = "python3 bin/fde/verify.py --gate finding-discipline"
 rationale = """
 Evals reach what executes; adversarial probes reach what can be shown to
 break. Usability, information architecture, and craft can be bad while

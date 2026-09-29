@@ -33,7 +33,7 @@ any code does.
 """
 inputs = ["discovery/**", "backlog.md", "docs/adr/**", "fde.config.toml"]
 outputs = ["cycles/C-<n>/plan.md", "cycles/C-<n>/deploy.md", "specs/<demand-id>/spec.md"]
-write_scope = ["specs/**", "discovery/**", "cycles/**"]
+write_scope = ["specs/**", "discovery/**", "cycles/**", "backlog.md"]
 denied_paths = ["src/**", "tests/**", "infra/**"]
 isolation = false
 satisfies = ["I1", "I4"]
@@ -54,7 +54,7 @@ outputs = ["docs/adr/*.md",
            "walkthroughs/<front-demand-id>/perceived-model-a.toml",
            "walkthroughs/<front-demand-id>/perceived-model-b.toml",
            "walkthroughs/<front-demand-id>/divergence.toml"]
-write_scope = ["docs/adr/**", "specs/**", "walkthroughs/**"]
+write_scope = ["docs/adr/**", "specs/**", "walkthroughs/**", "backlog.md", "cycles/*/board.md"]
 denied_paths = ["src/**", "tests/**"]
 isolation = false
 satisfies = ["I7"]
@@ -69,9 +69,10 @@ access to production code. It does not judge its own delivery.
 """
 inputs = ["specs/**", "docs/adr/**", "cycles/**:read"]
 outputs = ["src/**", "tests/**", "evals/**"]
-write_scope = ["src/**", "tests/**", "evals/**", "infra/**"]
-denied_paths = ["specs/**/acceptance.md", "reviews/**", "cycles/*/plan.md",
-                "cycles/*/deploy.md", "cycles/*/review.md", "cycles/*/promotion.md"]
+write_scope = ["src/**", "tests/**", "evals/**", "infra/**", "backlog.md", "cycles/*/board.md"]
+# specs/**/acceptance.md: per-demand criteria of a cycle opened before ADR-0019
+denied_paths = ["cycles/*/plan.md", "cycles/*/deploy.md", "cycles/*/review.md",
+                "cycles/*/promotion.md", "reviews/**", "specs/**/acceptance.md"]
 denied_reason = "cannot rewrite the criteria it will be judged by, nor the findings against it"
 isolation = false
 satisfies = ["I1"]
@@ -95,7 +96,7 @@ record of the finding.
 inputs = ["src/**:read", "specs/**:read", "cycles/**:read", "docs/adr/**:read",
           "evals/**:read", "walkthroughs/**:read"]
 outputs = ["reviews/<demand-id>/findings.toml", "cycles/C-<n>/review.md"]
-write_scope = ["reviews/**", "cycles/**"]
+write_scope = ["reviews/**", "cycles/**", "backlog.md"]
 denied_paths = ["src/**", "tests/**", "evals/**", "specs/**", "infra/**"]
 isolation = true                            # mandatory — I2
 isolation_mode = "worktree"
@@ -114,7 +115,7 @@ Checks declared criteria only; a new defect goes to backlog.md. Does not
 build, does not review. promotions/** only for a cycle opened before
 ADR-0019 (rule 15).
 """
-inputs = ["cycles/**:read", "specs/**:read", "reviews/**:read", "evals/**:read", "artifacts/gate-report.json"]
+inputs = ["cycles/**:read", "specs/**:read", "reviews/**:read", "evals/**:read"]
 outputs = ["cycles/C-<n>/promotion.md", "backlog.md"]
 write_scope = ["cycles/**", "backlog.md", "promotions/**"]
 denied_paths = ["src/**", "tests/**", "evals/**", "specs/**", "reviews/**"]
