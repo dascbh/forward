@@ -1327,8 +1327,8 @@ INVENTORY = {
             "test_workflow_runs_tests_and_a_ranged_gate_on_full_history"],
            "identity in the pair; fetch-depth/--since needles kept"),
     "D10": (["agents-md"],
-            ["test_instructions.TestPerDemandTriage."
-             "test_demand_loop_states_the_per_demand_rule"],
+            ["test_instructions.TestPerCycleTriage."
+             "test_demand_loop_states_the_per_cycle_rule"],
             "whole file; DEM-042 -> FWD-002 is one counted literal; "
             "needles kept"),
     "D11": (["agents-md"],

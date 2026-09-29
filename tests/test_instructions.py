@@ -19,23 +19,38 @@ def section(text: str, heading: str) -> str:
     return parts[1].split("\n## ", 1)[0]
 
 
-class TestPerDemandTriage(unittest.TestCase):
-    """FWD-003 R3."""
+class TestPerCycleTriage(unittest.TestCase):
+    """FWD-003 R3, moved to the cycle by ADR-0019 rule 3 (FWD-026)."""
 
-    def test_skill_defines_per_demand_inputs_with_tiebreaks(self):
+    def test_skill_defines_per_cycle_inputs_with_tiebreaks(self):
         skill = read("skills/fde-triage/SKILL.md")
-        for needle in ("judged for THIS demand", "always false",
+        for needle in ("judged for THIS cycle", "always false",
                        "Unsure → true", "take the larger",
                        "hard to undo"):
             self.assertIn(needle, skill, needle)
+        self.assertNotIn("judged for THIS demand", skill)
 
-    def test_demand_loop_states_the_per_demand_rule(self):
+    def test_demand_loop_states_the_per_cycle_rule(self):
         # content only: that the template and AGENTS.md carry the same
         # section is the agents-md pair in tests/mirror.toml (FWD-020)
         flat = " ".join(section(read("AGENTS.md"), "Demand loop").split())
-        for needle in ("judged for THIS demand", "always false",
+        for needle in ("judged for THIS cycle", "always false",
                        "Unsure on either → true"):
             self.assertIn(needle, flat, needle)
+        self.assertNotIn("judged for THIS demand", flat)
+
+    def test_skill_sizes_the_cycle_and_bounds_the_demand(self):
+        for rel in ("skills/fde-triage/SKILL.md",
+                    ".claude/skills/fde-triage/SKILL.md"):
+            flat = " ".join(read(rel).split())
+            for needle in ("Size is set on the cycle, never on a demand.",
+                           "A demand is at most about 300 production lines "
+                           "and has exactly one layer: `front`, `back` or "
+                           "`infra`.",
+                           "A change that spans layers is always split, "
+                           "however small.",
+                           "## RULE"):
+                self.assertIn(needle, flat, f"{rel}: {needle}")
 
 
 class TestI1BluntnessDecision(unittest.TestCase):
@@ -182,102 +197,94 @@ class TestBoundedReview(unittest.TestCase):
 
 
 class TestDeclaredCycle(unittest.TestCase):
-    """FWD-022, hardened by FWD-023: one cycle runs to the end before another
-    opens; what belongs to its request is concluded in it; everything else is
-    backlog. Instruction, not a gate (ADR-0018). Each requirement is pinned
-    as the sentence that states it (whitespace-normalized), so rewording a
-    rule away goes red (reviews/FWD-022 F1)."""
+    """FWD-026, ADR-0019: backlog > cycle > demand. The cycle plans once and
+    owns approval, review, promotion and deploy; demands derive and run in
+    parallel. Instruction, not a gate (ADR-0018). Each rule is pinned as the
+    sentence that states it (whitespace-normalized), so rewording a rule
+    away goes red (reviews/FWD-022 F1)."""
 
     SURFACES = ("AGENTS.md", "templates/AGENTS.md.template")
 
+    # anywhere in the file: the loop and ## Cycle share them
     RULES = {
-        "declare": ("Before the first behavior change of a request, write and "
-                    "commit `cycles/C-<n>.md` (next free `n`) with an "
-                    "`objective:` line, a `demands:` line (id and size each), "
-                    "and two sections: `## Tasks` (what this cycle does, "
-                    "nothing else) and `## Done when`."),
-        "done-when": ("`## Done when` carries one line per demand, marked when "
-                      "that demand is done, and the cycle's own items: always "
-                      "declared-before (this file precedes the code) and "
-                      "backlog-captured (the backlog lines this cycle added, "
-                      "shown at close); regression-proven (tests red before, "
-                      "green after) when the cycle changes behavior; "
-                      "review-rounds (the size's budget spent, no blocking "
-                      "finding open) for every sized demand; add promotion "
-                      "only for M/L, and deploy or publish only when the "
-                      "project deploys or publishes. A RULE commit "
-                      "(`fde-triage`) needs no cycle."),
-        "one-open": ("One cycle is open at a time, and it runs to the end: no "
-                     "other cycle opens while any done item is `[ ]`. Each "
-                     "item ends `[x]` (met) or `[-]` (declined by the user, "
-                     "with the date and reason). A new request that arrives "
-                     "mid-cycle goes to `backlog.md`, not to a new cycle — "
-                     "\"fix it NOW\" included: it starts when the open cycle "
-                     "closes, or at once if the user abandons the open "
-                     "cycle."),
-        "abandon": ("The only way out before the end is the user abandoning "
-                    "the cycle in so many words: add `abandoned:` to its "
-                    "header lines with the date and the user's reason and "
-                    "mark unmet items `[-]`. The agent never proposes it to "
-                    "start other work; it names it only as one of the user's "
-                    "options when a review budget is spent with a blocker "
-                    "open (step 5)."),
-        "conclude": ("What belongs to the cycle's request is concluded in the "
-                     "cycle: a review finding on its changes, a residual of "
-                     "its demands, a defect its objective owns. Concluded "
-                     "means fixed, or declined by the user — a declared "
-                     "limit, a narrowed cut, or a paused demand (step 5, "
-                     "`fde-review`), its done line marked `[-]` — never "
-                     "deferred by the agent to a later cycle; a cut or a "
-                     "paused demand enters `backlog.md` as a new idea."),
-        "backlog": ("Anything else found during the cycle goes to `backlog.md` "
-                    "as one line carrying `(C-<n>)` and its evidence, and is "
-                    "never fixed in-band (MNT-9) — the one exception is a "
-                    "defect that blocks a declared task, fixed and noted as "
-                    "such. The backlog holds ideas and discoveries, not "
-                    "commitments; create it on the first capture with a "
-                    "`goal:` line (the user's product goal, or `goal: not "
-                    "set`) and a `date:` line, so `[scrum]` adopts it "
-                    "unchanged; evidence follows `opinion < usage-data < "
-                    "user-test < production`."),
-        "frozen": ("The declaration is frozen after the first behavior commit "
-                   "except for marking done items. Ask the user before "
-                   "widening `## Tasks`; the answer is a backlog line, not an "
-                   "edit."),
-        "close": ("At close no done item is `[ ]`: add `closed:` to the "
-                  "header lines and show the user the backlog lines this "
-                  "cycle added — the user chooses the next request from the "
-                  "backlog."),
-        "view": ("`python3 bin/fde/status.py` shows the open cycle and the "
-                 "backlog (`fde-status`)."),
+        "new-fact": ("A new fact always goes to the backlog — never a fix, "
+                     "an amendment or a question."),
+        "replan": ("The one exception is a fact that invalidates the "
+                   "demand's own ADR or criteria: the demand stops and the "
+                   "cycle replans."),
+        "owns": ("The cycle owns its declared criteria and its blocking "
+                 "findings; everything else goes to the backlog."),
+        "size": "Size is set on the cycle, never on a demand.",
+        "ceiling": ("A demand is at most about 300 production lines and has "
+                    "exactly one layer: `front`, `back` or `infra`."),
+        "split": ("A change that spans layers is always split, however "
+                  "small."),
+        "merge": ("Merge happens per demand; promotion and deploy happen per "
+                  "cycle."),
+        "deploy": ("The deploy plan runs infra-expand → back → front → "
+                   "infra-contract, and every step has its own verification "
+                   "and rollback."),
+        "adr": "An ADR is the only home of a decision.",
+        "approval": ("Approval happens once, at plan sign-off, and is "
+                     "inherited by everything after it"),
+        "reask": "Only a replan asks the owner again.",
+        "parallel": ("Demands run in parallel by default, coordinated on "
+                     "`cycles/C-<n>/board.md`."),
+        "board-record": ("The board is the record (I7), not the "
+                         "conversation."),
+        "cycle-review": ("The cycle review judges the objective — "
+                         "functioning and readiness against `plan.md` — and "
+                         "never re-reviews a demand."),
+        "rationale": "the rationale is ADR-0019",
     }
+
+    # the layout lives in ## Cycle
+    LAYOUT = ("`plan.md`", "`deploy.md`", "`board.md`", "`review.md`",
+              "`promotion.md`", "`templates/cycle/`",
+              "`specs/<id>/spec.md` plus `reviews/<id>/findings.toml`",
+              "`draft → planned (signed off) → running → closed`")
+
+    def flat(self, rel):
+        return " ".join(read(rel).split())
 
     def cycle(self, rel):
         return " ".join(section(read(rel), "Cycle").split())
 
-    def test_each_requirement_is_stated_verbatim(self):
+    def test_each_rule_is_stated_verbatim(self):
         for rel in self.SURFACES:
-            text = self.cycle(rel)
+            text = self.flat(rel)
             for rid, rule in self.RULES.items():
                 self.assertIn(rule, text, f"{rel}: {rid}")
 
-    def test_no_next_cycle_list_and_no_switching(self):
-        # FWD-023: the list that grew into a second backlog is gone, and so
-        # is "the open cycle closes as it stands" to start a new request
-        # (reviews/FWD-023 note: section() stops at a heading, so the heading
-        # check reads the whole file)
+    def test_cycle_section_states_the_layout(self):
         for rel in self.SURFACES:
-            self.assertNotIn("## Next cycle", read(rel), rel)
-            self.assertNotIn("closes as it stands", self.cycle(rel), rel)
+            text = self.cycle(rel)
+            for needle in self.LAYOUT:
+                self.assertIn(needle, text, f"{rel}: {needle}")
+
+    def test_per_demand_planning_is_gone(self):
+        # ADR-0019 rule 10: a demand has no acceptance, failure modes,
+        # architecture or promotion of its own; the single-file cycle and
+        # its "concluded means declined by the user" wording are retired
+        for rel in self.SURFACES:
+            text = self.flat(rel)
+            for gone in ("specs/<demand-id>/architecture.md",
+                         "`failure-modes.toml`, and `acceptance.md`",
+                         "promotions/<demand-id>/decision.md",
+                         "Concluded means fixed, or declined by the user",
+                         "write and commit `cycles/C-<n>.md`",
+                         "## Next cycle", "closes as it stands"):
+                self.assertNotIn(gone, text, f"{rel}: {gone}")
 
     def test_budget_and_fix_it_now_agree_with_the_cycle(self):
         # reviews/FWD-023 F1, F3, F4: the rules that route findings and new
         # requests elsewhere say the same thing as ## Cycle
         for rel in self.SURFACES:
-            flat = " ".join(read(rel).split())
-            self.assertIn("Budget spent with a blocker open → the user narrows, "
-                          "declares the limit, or pauses (`## Cycle`); never "
-                          "one more round (`fde-review`).", flat, rel)
+            flat = self.flat(rel)
+            self.assertIn("Budget spent with a blocker open → replan "
+                          "(`## Cycle`): the user narrows, declares the "
+                          "limit, or pauses; never one more round "
+                          "(`fde-review`).", flat, rel)
             self.assertIn("\"Fix it NOW\" skips the backlog order, never the "
                           "open cycle (`## Cycle`), and is recorded as "
                           "unplanned; it surfaces at the retro.", flat, rel)
@@ -298,12 +305,13 @@ class TestDeclaredCycle(unittest.TestCase):
         for rel in self.SURFACES:
             self.assertNotIn("small", self.cycle(rel), rel)
 
-    def test_sizing_step_names_the_cycle_file(self):
+    def test_sizing_step_names_the_plan(self):
         # reviews/FWD-022 F5: step 1 and fde-triage agree on the first act
         for rel in self.SURFACES:
-            loop = " ".join(read(rel).split())
-            self.assertIn("commit the cycle file (`## Cycle` below), then "
-                          "start.", loop, rel)
+            self.assertIn("commit `plan.md` (`## Cycle` below), and stop at "
+                          "the sign-off.", self.flat(rel), rel)
+        self.assertIn("`plan.md` comes first (AGENTS.md `## Cycle`)",
+                      " ".join(read("skills/fde-triage/SKILL.md").split()))
 
     def test_skills_point_to_the_section(self):
         for rel in ("skills/fde-triage/SKILL.md", "skills/fde-scrum/SKILL.md",
@@ -318,6 +326,41 @@ class TestDeclaredCycle(unittest.TestCase):
             text = " ".join(read(rel).split())
             self.assertNotIn("`## Next cycle`", text, rel)
             self.assertIn("enter `backlog.md` as they are found", text, rel)
+
+
+class TestCycleTemplates(unittest.TestCase):
+    """FWD-026, ADR-0019 rules 10-12: one skeleton per cycle file, carrying
+    the header lines and sections the ADR names."""
+
+    FILES = {
+        "plan.md": ("cycle:", "state: draft", "date:", "size:",
+                    "objective:", "signed-off:", "## Threat model",
+                    "## Acceptance criteria", "## Failure modes",
+                    "## Demands", "| id | layer | depends on | what | meets "
+                    "| follows |"),
+        "deploy.md": ("cycle:", "date:", "infra-expand", "back", "front",
+                      "infra-contract", "Verification:", "Rollback:",
+                      "Irreversible:"),
+        "board.md": ("cycle:", "claim", "proposes", "blocked-on",
+                     "decided"),
+        "review.md": ("cycle:", "date:", "round:", "## Functioning",
+                      "## Readiness", "## Findings"),
+        "promotion.md": ("cycle:", "date:", "decision:", "## Evidence",
+                         "## Signals", "## What changes"),
+    }
+
+    def test_each_skeleton_carries_its_header_and_sections(self):
+        for name, needles in self.FILES.items():
+            path = ROOT / "templates" / "cycle" / name
+            self.assertTrue(path.exists(), name)
+            text = path.read_text(encoding="utf-8")
+            for needle in needles:
+                self.assertIn(needle, text, f"{name}: {needle}")
+
+    def test_no_other_file_in_the_directory(self):
+        d = ROOT / "templates" / "cycle"
+        names = sorted(p.name for p in d.iterdir()) if d.is_dir() else []
+        self.assertEqual(names, sorted(self.FILES))
 
 
 class TestGuardAuditDocs(unittest.TestCase):

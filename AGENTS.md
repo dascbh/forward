@@ -67,18 +67,25 @@ Handoff is by artifact on disk, never by conversation continuity. The
 adversarial and promotion roles run isolated: artifact + spec only, never
 the builder's thread.
 
-## Demand loop — how work enters
+## Demand loop — backlog > cycle > demand
 
-Every feature, fix, or change request follows this cycle. Do not start
-writing code on request; start by sizing. Pick a short demand id first
-(e.g. `FWD-002`).
+Work runs on three levels, each derived from the one above; the rationale
+is ADR-0019. Do not start writing code on request: a request enters the
+backlog, and code starts only inside a signed-off cycle.
 
-1. **Triage**: `score = min(3, surfaces) + (sensitive ? 2 : 0) +
+- **Backlog** (`backlog.md`) — ideas and new facts; never a commitment.
+- **Cycle** (`cycles/C-<n>/`, `## Cycle`) — plans once: threat model,
+  dated criteria, ADRs, demand list, deploy plan.
+- **Demand** (e.g. `FWD-002`) — one page derived from the plan; it
+  decides nothing new.
+
+1. **Triage** the cycle. Size is set on the cycle, never on a demand.
+   `score = min(3, surfaces) + (sensitive ? 2 : 0) +
    (irreversible ? 2 : 0) + (loc < 50 ? 0 : loc < 300 ? 1 : 2)`.
-   All four inputs are judged for THIS demand, never inherited wholesale:
+   All four inputs are judged for THIS cycle, never inherited wholesale:
    `surfaces` = how many of UI/frontend, API, data/schema, infra this
-   demand touches. `loc` = estimated lines of this change. `sensitive` =
-   this demand touches data of the class declared in `[triage]` (in a
+   cycle touches. `loc` = estimated lines of this cycle. `sensitive` =
+   this cycle touches data of the class declared in `[triage]` (in a
    public/internal project: always false). `irreversible` = this change
    is hard to undo — migration, deletion, external side effect —
    with `[triage].reversibility` setting the posture. Unsure on either →
@@ -86,19 +93,14 @@ writing code on request; start by sizing. Pick a short demand id first
 
    **RULE, checked mechanically, not estimated.** Categorically distinct
    from XS/S/M/L below, never a smaller XS: XS still runs full judgment
-   in reduced form; RULE runs none (*Noise*'s rule-vs-standard
-   distinction — a high-volume, low-stakes decision becomes a
-   deterministic rule with zero judgment; deliberate, multi-perspective
-   judgment stays reserved for what is genuinely risky or novel). A
+   in reduced form; RULE runs none (rationale: ADR-0015). A
    commit is RULE-eligible only when, checked post-hoc against what was
    actually committed — never claimed a priori: `[triage].data_class` is
    `public` or `internal`; `[triage].reversibility` is `reversible`; the
    commit's own added+deleted is under the declared `[triage].
    rule_lane_max_loc` (default `10`); no `[gate].eval_paths` file was
    deleted or shrunk. A merge commit, a commit touching a binary file, or
-   any git failure while checking either is categorically ineligible too
-   — none of those can be mechanically known as "zero," so RULE defaults
-   to never rather than guess.
+   any git failure while checking either is categorically ineligible too.
    I1's `eval-coverage` gate is completely unchanged
    and fully applies — RULE recognizes when it already covers everything
    there is to verify (`spec/dimensions/quality-attributes.toml`'s
@@ -110,25 +112,31 @@ writing code on request; start by sizing. Pick a short demand id first
    score ≤ 1 → **XS**: implementation, adversarial, 1 round ·
    2–3 → **S**: + spec · 4–6 → **M**: + promotion, 2 rounds, ADR ·
    ≥ 7 → **L**: all six roles, 3 rounds, ADR.
-   Announce the sizing in ONE line (e.g. `FORWARD: M — spec + impl +
-   adversarial(2r) + promotion`), commit the cycle file (`## Cycle`
-   below), then start.
+   Size sets the planner's depth and the cycle review rounds. Announce
+   it in ONE line (e.g. `FORWARD: M — spec + impl + adversarial(2r) +
+   promotion`), commit `plan.md` (`## Cycle` below), and stop at the
+   sign-off.
    **Budgets, not minimums.** Rounds after the first are delta rounds
    (the fixes, not the whole artifact again) and are never extended.
-   Timebox: XS 30 min · S 1 h · M 3 h · L 1 day. Re-size on the real
-   diff before review: over twice the estimate or ~800 changed lines →
-   split, don't review. A new rule ships as instruction first; it becomes
-   a gate only when usage-data shows the instruction failed.
-2. **Spec** (unless XS): `specs/<demand-id>/spec.md`,
-   `failure-modes.toml`, and `acceptance.md` with a `date:` line —
-   declared before any code exists (I4). One page each; `spec.md`
-   carries a `## Threat model` (who the change contains, what is out of
-   scope) — it bounds what the review may block on.
-3. **Architecture** (L only): `docs/adr/`, `specs/<demand-id>/architecture.md`.
-   *Inherited an undocumented system?* Before the first demand, survey it
-   (`fde-survey` → `discovery/survey.md`): how it runs, its real
-   boundaries, what the history shows, the seams, the decisions no ADR
-   records, the risk, and what stays unknown — every claim labeled
+   Timebox: XS 30 min · S 1 h · M 3 h · L 1 day. Re-size a demand on its
+   real diff before review: over twice the estimate or ~800 changed
+   lines → split, don't review. A new rule ships as instruction first;
+   it becomes a gate only when usage-data shows the instruction failed.
+2. **Plan** the cycle (`## Cycle`): `plan.md` carries a `## Threat model`
+   (who the change contains, what is out of scope — it bounds what the
+   review may block on), criteria and failure modes with ids, dated
+   before the first demand commit (I4), and the demand list; `deploy.md`
+   carries the deploy plan; decisions go to `docs/adr/` (M/L).
+   An ADR is the only home of a decision. The plan and the demand specs
+   cite it by id; a demand conforms to its ADRs and never amends them.
+   A demand is at most about 300 production lines and has exactly one
+   layer: `front`, `back` or `infra`. `front` is screens, flows and
+   user-facing text; `back` is the API, domain logic and data access;
+   `infra` is IaC, roles, pipelines and runtime configuration. A change
+   that spans layers is always split, however small. Splitting happens
+   at planning, not at review.
+   *Inherited an undocumented system?* Before the first cycle, survey it
+   (`fde-survey` → `discovery/survey.md`), every claim labeled
    `[observed]`/`[inferred]`/`[to confirm]`. A greenfield project owes
    nothing.
    *UI surface touched?* The design chain (`fde-design` skill) applies,
@@ -144,13 +152,22 @@ writing code on request; start by sizing. Pick a short demand id first
    each discard traded, and the choice. The `divergence` gate enforces
    it. Patterns are chosen from the curated base in
    `.fde/spec/references/ui-patterns.toml`; novelty is a declared cost.
-4. **Implementation**: code and its eval entries in the same change (I1).
-   If the touched root has no suite at all, the demand includes
-   bootstrapping the minimal one (runner + first smoke eval). Never
-   `--no-verify` — it only moves the same red to CI, later and public.
-   When how to run or operate the system changes, README and runbook
-   update in the same change — docs drift is drift (MNT-10).
-5. **Review**: isolated, weight-ordered, findings in
+3. **Sign-off**: the owner signs off `plan.md`. Approval happens once, at
+   plan sign-off, and is inherited by everything after it: every demand
+   and its merge, promotion, and every step of `deploy.md`, the
+   irreversible ones included. Only a replan asks the owner again.
+4. **Build**: Demands run in parallel by default, coordinated on
+   `cycles/C-<n>/board.md`. Every demand whose dependencies are merged
+   runs at once, in its own worktree. Code and its eval entries land in
+   the same change (I1). If the touched root has no suite at all, the
+   demand includes bootstrapping the minimal one (runner + first smoke
+   eval). Never `--no-verify` — it only moves the same red to CI, later
+   and public. When how to run or operate the system changes, README and
+   runbook update in the same change — docs drift is drift (MNT-10).
+5. **Review the demand**: one round, isolated, weight-ordered: unit
+   tests, code review, ADR conformance, and the layer's check — `infra`
+   a plan diff and policy check, `back` unit + contract tests, `front`
+   design QA against the approved wireframe. Findings go in
    `reviews/<demand-id>/findings.toml`, fixed by implementation, never by
    the reviewer (I3). Two passes by the same isolated role: adversarial
    (probe until it breaks — finding cites the probe) and heuristic (judge
@@ -158,68 +175,83 @@ writing code on request; start by sizing. Pick a short demand id first
    `.fde/spec/` — finding cites the principle, I8). Blocking = critical/
    high, reachable inside the threat model, breaks a declared criterion —
    never weight alone. At most five findings per round. Budget spent with
-   a blocker open → the user narrows, declares the limit, or pauses
-   (`## Cycle`); never one more round (`fde-review`).
-6. **Promotion** (M/L): `promotions/<demand-id>/decision.md` against the
-   declared acceptance criteria.
-7. **Gate**: `python3 bin/fde/verify.py --all` — the same one CI runs.
+   a blocker open → replan (`## Cycle`): the user narrows, declares the
+   limit, or pauses; never one more round (`fde-review`).
+6. **Merge**: Merge happens per demand; promotion and deploy happen per
+   cycle. A demand merges when it is rebased onto main, `python3
+   bin/fde/verify.py --all` (the same gate CI runs) is green, and no
+   blocking finding is open.
+7. **Review the cycle**: The cycle review judges the objective —
+   functioning and readiness against `plan.md` — and never re-reviews a
+   demand. Functioning: every criterion shown end to end on the
+   integrated result, with the checks of the layers the cycle touches —
+   integration for `back`, usability (walkthrough) for `front`, live
+   checks for `infra`. Readiness: the deploy plan is complete, each
+   step's verification and rollback exercised where the project allows;
+   the signals the criteria declare exist (I5); runbook and README match
+   how the system now runs. Budget: 1 round at XS/S, full + delta at M/L.
+8. **Promote and deploy**: promotion (M/L) is the promotion role's
+   decision against the plan's criteria, not a question to the user. The
+   deploy plan runs infra-expand → back → front → infra-contract, and
+   every step has its own verification and rollback. An irreversible
+   step is marked and never bundled with a reversible one. A step whose
+   verification fails is rolled back and the cycle stops; the user is
+   told the outcome, not asked beforehand.
 
 Handoff between steps is by the artifacts named above, never by
 continuing the same conversation thread (I7).
 
-## Cycle — one request, run to the end
+## Cycle — plan once, derive down
 
-A cycle is one request from the user: one or more demands run together.
-Before the first behavior change of a request, write and commit
-`cycles/C-<n>.md` (next free `n`) with an `objective:` line, a `demands:`
-line (id and size each), and two sections: `## Tasks` (what this cycle
-does, nothing else) and `## Done when`.
+A cycle is a directory `cycles/C-<n>/` (next free `n`), started from the
+kernel's `templates/cycle/`:
 
-`## Done when` carries one line per demand, marked when that demand is
-done, and the cycle's own items: always declared-before (this file
-precedes the code) and backlog-captured (the backlog lines this cycle
-added, shown at close); regression-proven (tests red before, green after)
-when the cycle changes behavior; review-rounds (the size's budget spent,
-no blocking finding open) for every sized demand; add promotion only for
-M/L, and deploy or publish only when the project deploys or publishes. A
-RULE commit (`fde-triage`) needs no cycle.
+- `plan.md` — header lines (`cycle:`, `state:`, `date:`, `size:`,
+  `objective:`, `signed-off:`), `## Threat model`, criteria and failure
+  modes with ids, and the demand list: id, layer, dependencies, criteria
+  met, ADRs followed.
+- `deploy.md` — the ordered steps, each with its verification and
+  rollback, irreversible ones marked.
+- `board.md` — one line per event: claim, proposes (a contract change),
+  blocked-on, decided.
+- `review.md` — the cycle review: functioning and readiness.
+- `promotion.md` — the decision, and `## What changes` (three lines at
+  most, each also entered in the backlog).
 
-One cycle is open at a time, and it runs to the end: no other cycle opens
-while any done item is `[ ]`. Each item ends `[x]` (met) or `[-]`
-(declined by the user, with the date and reason). A new request that
-arrives mid-cycle goes to `backlog.md`, not to a new cycle — "fix it NOW"
-included: it starts when the open cycle closes, or at once if the user
-abandons the open cycle. The only way out before the end is the user
-abandoning the cycle in so many words: add `abandoned:` to its header
-lines with the date and the user's reason and mark unmet items `[-]`.
-The agent never proposes it to start other work; it names it only as one
-of the user's options when a review budget is spent with a blocker open
-(step 5).
+A demand is `specs/<id>/spec.md` plus `reviews/<id>/findings.toml`. The
+spec is one page citing the plan's criteria and ADRs by id; a demand has
+no acceptance, failure modes, architecture or promotion of its own.
 
-What belongs to the cycle's request is concluded in the cycle: a review
-finding on its changes, a residual of its demands, a defect its objective
-owns. Concluded means fixed, or declined by the user — a declared limit, a
-narrowed cut, or a paused demand (step 5, `fde-review`), its done line
-marked `[-]` — never deferred by the agent to a later cycle; a cut or a
-paused demand enters `backlog.md` as a new idea. Anything else found during the cycle
-goes to `backlog.md` as one line carrying `(C-<n>)` and its evidence, and
-is never fixed in-band (MNT-9) — the one exception is a defect that
-blocks a declared task, fixed and noted as such. The backlog holds ideas
-and discoveries, not commitments; create it on the first capture with a
-`goal:` line (the user's product goal, or `goal: not set`) and a `date:`
-line, so `[scrum]` adopts it unchanged; evidence follows `opinion <
-usage-data < user-test < production`.
+A cycle moves `draft → planned (signed off) → running → closed`. Several
+drafts may exist; one cycle runs at a time.
 
-The declaration is frozen after the first behavior commit except for
-marking done items. Ask the user before widening `## Tasks`; the answer
-is a backlog line, not an edit. Under `[scrum]`, a sprint holds several
-cycles, one after another.
+A new fact always goes to the backlog — never a fix, an amendment or a
+question. The one exception is a fact that invalidates the demand's own
+ADR or criteria: the demand stops and the cycle replans. The cycle owns
+its declared criteria and its blocking findings; everything else goes
+to the backlog. A non-blocking finding is a backlog line; nothing is
+fixed in-band (MNT-9) except a defect that blocks a declared task, fixed
+and noted as such. A backlog line carries a `B-<n>` id, `(C-<n>)` and its
+evidence (`opinion < usage-data < user-test < production`). Create
+`backlog.md` on the first capture with a `goal:` line (or `goal: not
+set`) and a `date:` line.
 
-At close no done item is `[ ]`: add `closed:` to the header lines and
-show the user the backlog lines this cycle added — the user chooses the
-next request from the backlog. `python3 bin/fde/status.py` shows the open cycle and the backlog
-(`fde-status`). This is an instruction, not a gate (ADR-0018): it assumes
-a cooperative agent.
+The board is the record (I7), not the conversation. Agents may message
+each other to settle a question; the outcome goes on the board. A
+decision inside the plan is taken by the agents and recorded; one that
+changes an ADR or a criterion is a replan. When two demands need the
+same file, the later one posts `blocked-on` and waits; it never merges
+blind.
+
+Gates follow the owning level: the cycle carries I4, promotion, I5 and
+traceability; the demand carries I1, I2 and I3; the commit carries RULE.
+
+The plan is frozen at sign-off. A cycle closes when its criteria are met
+with integration evidence and it is deployed (or published, when the
+project does): set `state: closed` and show the user the backlog lines
+it added. `python3 bin/fde/status.py` shows the cycles and the backlog
+(`fde-status`). A cycle opened before ADR-0019 (`cycles/C-<n>.md`)
+finishes under the rules it opened with.
 
 ## Scrum mode — when `[scrum]` is enabled
 

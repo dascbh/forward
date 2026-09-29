@@ -1,31 +1,40 @@
 ---
 name: fde-triage
-description: Sizes a demand and decides which roles and how many adversarial rounds activate. Use ALWAYS before starting any implementation work in a project under the kernel — a one-line change or a whole feature. Use when the user says the process feels too heavy for the size of the task, or asks to "skip steps". It is the legitimate path to reduce ceremony without relaxing criteria.
+description: Sizes a cycle (XS/S/M/L), bounds its demands, and recognizes the RULE commit lane. Use ALWAYS before planning work under the kernel, when the process feels too heavy, or when asked to "skip steps".
 ---
 
 # fde-triage
 
-If the full flow runs on a three-line change, the framework gets turned off
-in week two. That is why sizing is a rule table, not common sense. Apply the
-table; do not negotiate it, and do not interview the user about the formula
-— estimate the inputs from the demand yourself and, if torn between two
-sizes, take the larger.
+Sizing is a rule table, not common sense. Apply the table; do not
+negotiate it, and do not interview the user about the formula — estimate
+the inputs yourself and, if torn between two sizes, take the larger.
+Rationale: ADR-0019 rule 3.
 
-## Inputs — all four judged for THIS demand
+## What gets sized
+
+Size is set on the cycle, never on a demand. The size sets the depth of
+the planner and the number of cycle review rounds.
+
+A demand is at most about 300 production lines and has exactly one
+layer: `front`, `back` or `infra`. A change that spans layers is always
+split, however small. Splitting happens at planning, in `plan.md`'s
+demand list, not at review.
+
+## Inputs — all four judged for THIS cycle
 
 - `surfaces` — how many of the four surface kinds (UI/frontend, API,
-  data/schema, infra) **this demand** touches — never the project's
+  data/schema, infra) **this cycle** touches — never the project's
   fixed count from install
-- `loc` — estimated lines changed by this demand
-- `sensitive` — **this demand** touches data of the class declared in
+- `loc` — estimated lines changed by this cycle
+- `sensitive` — **this cycle** touches data of the class declared in
   `[triage].data_class`. The declaration is a ceiling: in a
   public/internal project, sensitive is always false; in a
-  personal/financial/health project, judge whether the demand's paths
+  personal/financial/health project, judge whether the cycle's paths
   read or write that data. Unsure → true.
 - `irreversible` — **this change** is hard to undo once shipped: schema
   migration, deletion, external side effect, published artifact.
   `[triage].reversibility` sets the posture (a reversible project's
-  demand is false unless the demand itself creates irreversibility).
+  cycle is false unless the cycle itself creates irreversibility).
   Unsure → true.
 
 ## RULE — a lane below the table, not a row in it
@@ -94,23 +103,22 @@ score = min(3, surfaces)
 | 4–6 | M | spec, implementation, adversarial, promotion | 1 full + 1 delta | yes | 3 h |
 | ≥ 7 | L | all five | 1 full + 2 delta | yes | 1 day |
 
-Announce the result in one line — size, roles, rounds — and start: the
-cycle file comes first (AGENTS.md `## Cycle`), before any behavior change. The
-table is deterministic; the reasoning behind the score does not belong in
-chat. The rounds are a budget, not a minimum to extend: `fde-review`
-says what happens when it is spent.
+Announce the result in one line — size, roles, rounds — and plan:
+`plan.md` comes first (AGENTS.md `## Cycle`), and the planner stops at the
+sign-off. The table is deterministic; the reasoning behind the score does
+not belong in chat. The rounds are the cycle review's budget, not a
+minimum to extend: `fde-review` says what happens when it is spent.
 
 ## Re-size on the real diff — the estimate is not a contract
 
-`loc` is an estimate made before code exists; the diff is the fact.
-Before the first review round, count the behavior + eval lines actually
+A demand's `loc` is an estimate made before code exists; the diff is the
+fact. Before its review round, count the behavior + eval lines actually
 changed (specs, reviews and ADRs excluded). If the count is more than
 twice the estimate, or above ~800 lines, stop: the demand is split, not
-reviewed. Cut it into slices that each fit ~300 lines and ship value on
-their own — the first slice is the smallest one that solves the reported
-problem — and triage each slice. The same holds when the timebox runs
-out: a demand at its timebox is re-sized, never granted more time in
-place.
+reviewed. Cut it into demands that each fit ~300 lines and one layer,
+enter them in the demand list, and post the split on the board. The same
+holds when the timebox runs out: work at its timebox is re-sized, never
+granted more time in place.
 
 ## Smallest mechanism first
 
@@ -122,10 +130,10 @@ review will attack it as one, and every bypass it finds is a round.
 
 ## Spec budget
 
-`spec.md` fits one page (~800 words) and carries a `## Threat model`
-(who the change must contain, what is out of scope — three to five
-lines). `failure-modes.toml` lists at most ten modes; `acceptance.md`
-fits one page. A spec that needs more is a demand that needs splitting.
+The cycle's `plan.md` carries the `## Threat model` (who the change must
+contain, what is out of scope — three to five lines) and at most ten
+failure modes. A demand's `spec.md` fits one page (~800 words) and cites
+the plan's ids. A plan that needs more is a cycle that needs splitting.
 
 ## What never scales
 
