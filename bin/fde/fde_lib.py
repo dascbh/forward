@@ -11,6 +11,7 @@ Format: TOML. `tomllib` is stdlib since Python 3.11.
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tomllib
 from dataclasses import dataclass, field
@@ -326,3 +327,157 @@ def project_root(start: Path | None = None) -> Path:
 
 def is_ci() -> bool:
     return any(os.environ.get(k) for k in ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "BUILDKITE"))
+
+
+# ---------------------------------------------------------------------------
+# cycle layout (ADR-0019 rules 10 and 14) — read by verify.py and graph.py
+# ---------------------------------------------------------------------------
+# A cycle is cycles/C-<n>/ with plan.md (dated criteria + ## Demands table)
+# and, once decided, promotion.md. A demand is specs/<id>/ whose spec.md
+# says `cycle: C-<n>` in its header. The old per-demand layout
+# (specs/<id>/acceptance.md, promotions/<id>/decision.md) stays readable:
+# repositories that used it must stay green (C-5 FM1).
+DEMAND_RE = re.compile(r"\b((?:FWD|DEM)-\d+)")
+CANON_RE = re.compile(r"^((?:FWD|DEM)-\d+)", re.IGNORECASE)
+CYCLE_ID_RE = re.compile(r"C-\d+")
+_CYCLE_LINE_RE = re.compile(r"^cycle\s*:\s*(C-\d+)\b", re.IGNORECASE)
+_HEADER_LINES = 30
+
+
+def canon_demand(raw: str) -> str:
+    """Join key: the bare FWD-<n>/DEM-<n> prefix, so a slugged directory
+    (specs/FWD-001-self-install) and a bare one (reviews/FWD-001) resolve
+    to the same demand."""
+    m = CANON_RE.match(raw)
+    return m.group(1).upper() if m else raw
+
+
+def read_text(p: Path) -> str:
+    try:
+        return p.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return ""
+
+
+def header_lines(text: str) -> list[str]:
+    """The header region: the first 30 lines, stopping at the first `## `
+    section. Prose below the header never counts as a declaration."""
+    out = []
+    for line in text.splitlines()[:_HEADER_LINES]:
+        if line.startswith("## "):
+            break
+        out.append(line.strip())
+    return out
+
+
+def section(text: str, keyword: str) -> list[str]:
+    """Lines under the first `## ` heading whose title contains `keyword`
+    (case-insensitive), up to the next `## ` heading."""
+    out, inside = [], False
+    for line in text.splitlines():
+        if line.startswith("## "):
+            if inside:
+                break
+            inside = keyword.lower() in line.lower()
+            continue
+        if inside:
+            out.append(line)
+    return out
+
+
+def cycle_dirs(project: Path) -> dict[str, Path]:
+    """cycles/C-<n>/ directories. The old single-file cycles/C-<n>.md
+    carry no criteria and are not cycle directories."""
+    d = project / "cycles"
+    if not d.is_dir():
+        return {}
+    return {p.name: p for p in d.iterdir()
+            if p.is_dir() and CYCLE_ID_RE.fullmatch(p.name)}
+
+
+def plan_demands(plan_text: str) -> list[str]:
+    """Demand ids of a plan: the FIRST cell of each `## Demands` table
+    row. Other cells (depends on, what) name demands without planning
+    them."""
+    ids: list[str] = []
+    for line in section(plan_text, "demands"):
+        s = line.strip()
+        if not s.startswith("|"):
+            continue
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        m = DEMAND_RE.match(cells[0]) if cells else None
+        if m and canon_demand(m.group(1)) not in ids:
+            ids.append(canon_demand(m.group(1)))
+    return ids
+
+
+def spec_cycle(spec_text: str) -> str | None:
+    """The `cycle: C-<n>` header line of a demand spec, if any."""
+    for line in header_lines(spec_text):
+        m = _CYCLE_LINE_RE.match(line)
+        if m:
+            return m.group(1).upper()
+    return None
+
+
+def plan_problem(plan: Path) -> str | None:
+    """Why a cycle plan does not carry dated criteria, or None when it
+    does: the file exists, has a non-empty `date:` header line, and a
+    `## …criteria…` section with content."""
+    if not plan.is_file():
+        return "no plan.md"
+    text = read_text(plan)
+    if not any(re.match(r"date\s*:\s*\S", line, re.IGNORECASE)
+               for line in header_lines(text)):
+        return "plan.md has no 'date:' header line"
+    if not any(line.strip() for line in section(text, "criteria")):
+        return "plan.md has no '## … criteria' section with content"
+    return None
+
+
+def demand_cycles(project: Path) -> dict[str, set[str]]:
+    """Canonical demand id -> the cycles it belongs to, from both links:
+    a plan's ## Demands table and the spec's `cycle:` line."""
+    links: dict[str, set[str]] = {}
+    for cid, cdir in cycle_dirs(project).items():
+        for did in plan_demands(read_text(cdir / "plan.md")):
+            links.setdefault(did, set()).add(cid)
+    specs = project / "specs"
+    if specs.is_dir():
+        for sdir in specs.iterdir():
+            if sdir.is_dir():
+                cid = spec_cycle(read_text(sdir / "spec.md"))
+                if cid:
+                    links.setdefault(canon_demand(sdir.name), set()).add(cid)
+    return links
+
+
+def promoted_demands(project: Path) -> dict[str, str]:
+    """Canonical demand id -> where its promotion is recorded. Per demand
+    (old layout: promotions/<id>/decision.md) or per cycle
+    (cycles/C-<n>/promotion.md, covering each of the cycle's demands that
+    was specified — a planned demand never specified was never built)."""
+    out: dict[str, str] = {}
+    proms = project / "promotions"
+    if proms.is_dir():
+        for dec in sorted(proms.rglob("decision.md")):
+            out.setdefault(canon_demand(dec.parent.name),
+                           str(dec.relative_to(project)))
+    specs = project / "specs"
+    specified = {canon_demand(p.name) for p in specs.iterdir() if p.is_dir()} \
+        if specs.is_dir() else set()
+    cycles = cycle_dirs(project)
+    for did, cids in demand_cycles(project).items():
+        for cid in sorted(cids):
+            if cid in cycles and (cycles[cid] / "promotion.md").is_file() \
+                    and did in specified:
+                out.setdefault(did, f"cycles/{cid}/promotion.md")
+    return out
+
+
+def reviewed_demands(project: Path) -> set[str]:
+    """Canonical ids of demands with a recorded review."""
+    reviews = project / "reviews"
+    return {canon_demand(p.name) for p in reviews.iterdir()
+            if p.is_dir() and (p / "findings.toml").exists()} \
+        if reviews.is_dir() else set()

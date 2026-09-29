@@ -1286,5 +1286,250 @@ class TestGitSpawnPermissionErrorEndToEndDoesNotCrashTheWholeRun(unittest.TestCa
         self.assertIn("gate(s) failed", r.stdout)
 
 
+# -- FWD-029 (ADR-0019 rule 14): gates read the level that owns the thing --
+CYCLE_PLAN = """\
+cycle: C-{n}
+objective: something worth shipping
+date: 2026-09-29
+
+## Acceptance criteria
+
+- **A1 — works.** It works.
+
+## Demands
+
+| id | layer | depends on | what | meets |
+|---|---|---|---|---|
+{rows}
+"""
+
+FINDINGS = '[meta]\ncontext_policy = "artifact_only"\n'
+
+
+def cycle_plan(p, n, rows, date=True, criteria=True):
+    d = Path(p) / "cycles" / f"C-{n}"
+    d.mkdir(parents=True, exist_ok=True)
+    text = CYCLE_PLAN.format(n=n, rows="\n".join(rows))
+    if not date:
+        text = text.replace("date: 2026-09-29\n", "")
+    if not criteria:
+        text = text.replace(
+            "## Acceptance criteria\n\n- **A1 — works.** It works.\n\n", "")
+    (d / "plan.md").write_text(text)
+    return d
+
+
+def cycle_spec(p, did, cycle=None):
+    d = Path(p) / "specs" / did
+    d.mkdir(parents=True, exist_ok=True)
+    head = f"cycle: {cycle} · layer: back · meets: A1\n\n" if cycle else ""
+    (d / "spec.md").write_text(f"# {did} — a demand\n\n{head}What it does.\n")
+    return d
+
+
+def review_of(p, did):
+    r = Path(p) / "reviews" / did
+    r.mkdir(parents=True, exist_ok=True)
+    (r / "findings.toml").write_text(FINDINGS)
+
+
+def old_demand(p, did, promoted=True):
+    d = Path(p) / "specs" / did
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "spec.md").write_text(f"# {did}\nTriage: → **M**\n")
+    (d / "acceptance.md").write_text("---\ndate: 2026-08-09\n---\n# ok\n")
+    review_of(p, did)
+    if promoted:
+        pr = Path(p) / "promotions" / did
+        pr.mkdir(parents=True, exist_ok=True)
+        (pr / "decision.md").write_text("promoted\n")
+
+
+class TestI4CycleCriteria(unittest.TestCase):
+    """I4 accepts dated criteria in cycles/C-<n>/plan.md, inherited by the
+    cycle's demands; the per-demand acceptance.md still counts."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def gate(self):
+        return verify(self.p, "--gate", "promotion-criteria")
+
+    def test_spec_cycle_line_inherits_the_plans_dated_criteria(self):
+        cycle_plan(self.p, 1, [])
+        cycle_spec(self.p, "FWD-101-slug", cycle="C-1")
+        r = self.gate()
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_plan_demands_table_links_a_spec_without_a_cycle_line(self):
+        cycle_plan(self.p, 1, ["| FWD-102 | back | — | x | A1 |"])
+        cycle_spec(self.p, "FWD-102-slug")
+        r = self.gate()
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_depends_on_column_is_not_a_link(self):
+        cycle_plan(self.p, 1, ["| FWD-103 | back | FWD-104 | x | A1 |"])
+        cycle_spec(self.p, "FWD-103")
+        cycle_spec(self.p, "FWD-104")  # only named as a dependency
+        r = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("FWD-104", r.stdout)
+        self.assertNotIn("FWD-103", r.stdout)
+
+    def test_undated_plan_does_not_carry_criteria(self):
+        cycle_plan(self.p, 1, [], date=False)
+        cycle_spec(self.p, "FWD-105", cycle="C-1")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("C-1", r.stdout)
+        self.assertIn("date", r.stdout)
+
+    def test_plan_without_criteria_does_not_carry_criteria(self):
+        cycle_plan(self.p, 1, [], criteria=False)
+        cycle_spec(self.p, "FWD-106", cycle="C-1")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("criteria", r.stdout)
+
+    def test_cycle_named_by_the_spec_must_have_a_plan(self):
+        cycle_spec(self.p, "FWD-107", cycle="C-9")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("C-9", r.stdout)
+
+    def test_cycle_line_below_the_header_does_not_link(self):
+        cycle_plan(self.p, 1, [])
+        d = Path(self.p) / "specs" / "FWD-108"
+        d.mkdir(parents=True)
+        (d / "spec.md").write_text("# FWD-108\n\n## Notes\ncycle: C-1\n")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("FWD-108", r.stdout)
+
+    def test_dated_plan_alone_declares_criteria_before_any_demand(self):
+        cycle_plan(self.p, 1, [])
+        r = self.gate()
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_old_single_file_cycles_are_not_plans(self):
+        (Path(self.p) / "cycles").mkdir()
+        (Path(self.p) / "cycles" / "C-1.md").write_text(
+            "objective: x\ndate: 2026-09-01\n## Acceptance criteria\n- a\n")
+        cycle_spec(self.p, "FWD-109", cycle="C-1")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+
+
+class TestCyclePromotionNeedsReviews(unittest.TestCase):
+    """Promotion is found per cycle (cycles/C-<n>/promotion.md) or per
+    demand (promotions/<id>/decision.md); either way a promoted demand
+    without a recorded review is a bypass (I2 and TRACE)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+        d = cycle_plan(self.p, 1, ["| FWD-111 | back | — | x | A1 |",
+                                   "| FWD-113 | back | — | x | A1 |"])
+        (d / "promotion.md").write_text("decision: promote\n")
+        cycle_spec(self.p, "FWD-111", cycle="C-1")
+        cycle_spec(self.p, "FWD-112", cycle="C-1")
+        review_of(self.p, "FWD-111")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_promoted_cycle_with_an_unreviewed_demand_fails_i2_and_trace(self):
+        r = verify(self.p, "--gate", "adversarial-isolation")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("promoted without a recorded review", r.stdout)
+        self.assertIn("FWD-112", r.stdout)
+        r = verify(self.p, "--gate", "traceability")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("FWD-112", r.stdout)
+
+    def test_every_specified_demand_reviewed_passes(self):
+        # FWD-113 is planned but never specified: not built, not required
+        review_of(self.p, "FWD-112")
+        for gate in ("adversarial-isolation", "traceability"):
+            r = verify(self.p, "--gate", gate)
+            self.assertEqual(r.returncode, 0, gate + r.stdout)
+
+    def test_unpromoted_cycle_does_not_require_reviews(self):
+        (Path(self.p) / "cycles" / "C-1" / "promotion.md").unlink()
+        for gate in ("adversarial-isolation", "traceability"):
+            r = verify(self.p, "--gate", gate)
+            self.assertEqual(r.returncode, 0, gate + r.stdout)
+
+
+class TestBothLayoutsStayGreen(unittest.TestCase):
+    """FM1 (C-5): the gate change must not turn an old-layout repository
+    red. One fixture per layout, one mixed, and this repository itself."""
+
+    GATES = ("promotion-criteria", "adversarial-isolation", "traceability",
+             "finding-discipline", "scrum")
+
+    def assert_green(self, p):
+        for gate in self.GATES:
+            r = verify(p, "--gate", gate)
+            self.assertEqual(r.returncode, 0, f"{gate}: {r.stdout}{r.stderr}")
+            self.assertNotIn("SCRUM-GOAL", r.stdout)
+            self.assertNotIn("SCRUM-RETRO", r.stdout)
+
+    def old_layout(self, p):
+        old_demand(p, "DEM-001")
+        old_demand(p, "DEM-002", promoted=False)
+        # an XS review with no spec and no sprint selecting it
+        review_of(p, "DEM-003")
+        (Path(p) / "backlog.md").write_text(
+            "---\ngoal: a goal\ndate: 2026-08-09\n---\n# Backlog\n")
+        # sprints from before ADR-0019 stay as history, never required:
+        # an undated goal, a missing retro and a stray directory pass
+        for name in ("S-1", "S-2", "S-archive"):
+            (Path(p) / "sprints" / name).mkdir(parents=True)
+        (Path(p) / "sprints" / "S-1" / "goal.md").write_text("| DEM-001 |\n")
+
+    def new_layout(self, p):
+        d = cycle_plan(p, 7, ["| DEM-010 | back | — | x | A1 |",
+                              "| DEM-011 | front | DEM-010 | y | A1 |"])
+        (d / "promotion.md").write_text("decision: promote\n")
+        cycle_spec(p, "DEM-010", cycle="C-7")
+        cycle_spec(p, "DEM-011")
+        review_of(p, "DEM-010")
+        review_of(p, "DEM-011")
+
+    def test_old_per_demand_layout_is_green(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = make_project(tmp, scrum=True)
+            self.old_layout(p)
+            self.assert_green(p)
+
+    def test_new_cycle_layout_is_green(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = make_project(tmp, scrum=True)
+            (Path(p) / "backlog.md").write_text(
+                "---\ngoal: a goal\ndate: 2026-09-29\n---\n# Backlog\n")
+            self.new_layout(p)
+            self.assert_green(p)
+
+    def test_both_layouts_in_one_repository_are_green(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = make_project(tmp, scrum=True)
+            self.old_layout(p)
+            self.new_layout(p)
+            self.assert_green(p)
+
+    def test_this_repository_passes_the_cycle_level_gates(self):
+        for gate in ("promotion-criteria", "adversarial-isolation",
+                     "traceability", "scrum"):
+            r = subprocess.run(
+                [sys.executable, str(ROOT / "bin" / "fde" / "verify.py"),
+                 "--gate", gate], cwd=ROOT, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, f"{gate}: {r.stdout}{r.stderr}")
+
+
 if __name__ == "__main__":
     unittest.main()

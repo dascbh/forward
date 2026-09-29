@@ -206,6 +206,105 @@ class TestForbiddenOrphans(unittest.TestCase):
         self.assertEqual(self.gate().returncode, 0)
 
 
+class TestCycleLevel(unittest.TestCase):
+    """FWD-029 (ADR-0019 rule 14): the cycle links to its demands through
+    plan.md's ## Demands table or the spec's `cycle:` line; sprint
+    planning is no longer required, and old sprint links stay readable."""
+
+    PLAN = ("cycle: C-{n}\ndate: 2026-09-29\n\n## Acceptance criteria\n\n"
+            "- A1\n\n## Demands\n\n| id | layer | depends on | what |\n"
+            "|---|---|---|---|\n{rows}\n")
+
+    def setUp(self):
+        self._t = tempfile.TemporaryDirectory()
+        self.p = Path(make_project(self._t.name))
+
+    def tearDown(self):
+        self._t.cleanup()
+
+    def plan(self, n, rows, promoted=False):
+        d = self.p / "cycles" / f"C-{n}"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "plan.md").write_text(self.PLAN.format(n=n, rows="\n".join(rows)))
+        if promoted:
+            (d / "promotion.md").write_text("decision: promote\n")
+
+    def spec(self, did, head=""):
+        d = self.p / "specs" / did
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "spec.md").write_text(f"# {did}\n\n{head}\nbody\n")
+
+    def edges(self, etype):
+        g = graph.build_graph(self.p)
+        return {(s, d) for s, e, d, _w in g.edges if e == etype}
+
+    def test_plan_table_links_cycle_to_its_demands_not_dependencies(self):
+        self.plan(1, ["| FWD-301 | back | FWD-302 | x |"])
+        plans = self.edges("plans")
+        self.assertIn((graph._node("cycle", "C-1"),
+                       graph._node("demand", "FWD-301")), plans)
+        self.assertNotIn((graph._node("cycle", "C-1"),
+                          graph._node("demand", "FWD-302")), plans)
+
+    def test_spec_cycle_line_links_cycle_to_demand(self):
+        self.plan(2, [])
+        self.spec("FWD-303-slug", "cycle: C-2 · layer: back · meets: A1\n")
+        self.assertIn((graph._node("cycle", "C-2"),
+                       graph._node("demand", "FWD-303")), self.edges("plans"))
+
+    def test_spec_follows_line_links_demand_to_adrs(self):
+        adr = self.p / "docs" / "adr"
+        adr.mkdir(parents=True)
+        (adr / "0019-x.md").write_text("# ADR-0019\n\ndate: 2026-09-29\n")
+        self.spec("FWD-304",
+                  "cycle: C-2 · layer: back · follows: ADR-0019 rule 14, ADR-18\n")
+        follows = self.edges("follows")
+        self.assertIn((graph._node("demand", "FWD-304"),
+                       graph._node("adr", "0019")), follows)
+        self.assertIn((graph._node("demand", "FWD-304"),
+                       graph._node("adr", "0018")), follows)
+
+    def test_cycle_plan_and_promotion_are_nodes(self):
+        self.plan(3, ["| FWD-305 | back | — | x |"], promoted=True)
+        g = graph.build_graph(self.p)
+        cnode = graph._node("cycle", "C-3")
+        out = {(e, d) for s, e, d, _w in g.edges if s == cnode}
+        self.assertIn(("accepted_by", graph._node("plan", "C-3")), out)
+        self.assertIn(("promoted_by", graph._node("promotion", "C-3")), out)
+
+    def test_promoted_cycle_with_an_unreviewed_specified_demand_is_forbidden(self):
+        self.plan(4, ["| FWD-306 | back | — | x |",
+                      "| FWD-307 | back | — | x |"], promoted=True)
+        self.spec("FWD-306")  # FWD-307 never specified: not built
+        orphans = graph.forbidden_orphans(self.p)
+        self.assertEqual(len(orphans), 1, orphans)
+        self.assertIn("FWD-306", orphans[0])
+        review(self.p, "FWD-306", [("maintainability", "low", "MNT-1")])
+        self.assertEqual(graph.forbidden_orphans(self.p), [])
+
+    def test_ego_of_a_demand_does_not_bridge_through_its_cycle(self):
+        self.plan(5, ["| FWD-308 | back | — | x |", "| FWD-309 | back | — | x |"])
+        g = graph.build_graph(self.p)
+        ego = g.ego(graph._node("demand", "FWD-308"))
+        ids = {n["id"] for n in ego.nodes.values() if n["kind"] == "demand"}
+        self.assertEqual(ids, {"FWD-308"})
+        self.assertIn(graph._node("cycle", "C-5"), ego.nodes)
+
+    def test_unplanned_review_with_scrum_on_is_no_longer_forbidden(self):
+        p = Path(make_project(tempfile.mkdtemp(dir=self._t.name), scrum=True))
+        review(p, "FWD-310", [("maintainability", "low", "MNT-1")])
+        self.assertEqual(graph.forbidden_orphans(p), [])
+        r = verify(p, "--gate", "traceability")
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_old_sprint_links_stay_readable(self):
+        s = self.p / "sprints" / "S-1"
+        s.mkdir(parents=True)
+        (s / "goal.md").write_text("goal: g\ndate: 2026-08-09\n\n| FWD-311 |\n")
+        self.assertIn((graph._node("sprint", "S-1"),
+                       graph._node("demand", "FWD-311")), self.edges("selects"))
+
+
 class TestWalkthroughGraph(unittest.TestCase):
     """ADR-0014 section 8 / FWD-018: intended-model, perceived-model, and
     divergence as pure analytics, plus the three impossible states

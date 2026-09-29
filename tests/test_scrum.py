@@ -1,4 +1,5 @@
-"""FWD-002 R1: the cadence gates — active only when [scrum] is enabled."""
+"""FWD-002 R1, FWD-029: the backlog's dated goal — checked only when [scrum] is
+enabled. The sprint gates (SCRUM-GOAL, SCRUM-RETRO) are retired (ADR-0019)."""
 from __future__ import annotations
 
 import tempfile
@@ -50,66 +51,6 @@ class TestScrumOn(unittest.TestCase):
         r = self.gate()
         self.assertEqual(r.returncode, 0, r.stdout)
 
-    def test_sprint_needs_a_dated_goal(self):
-        (self.p / "backlog.md").write_text(DATED_GOAL)
-        s1 = self.p / "sprints" / "S-001"
-        s1.mkdir(parents=True)
-        r = self.gate()
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("S-001", r.stdout)
-
-        (s1 / "goal.md").write_text("goal without a stamp\n")
-        r = self.gate()
-        self.assertEqual(r.returncode, 1)
-
-        (s1 / "goal.md").write_text(DATED_GOAL)
-        r = self.gate()
-        self.assertEqual(r.returncode, 0, r.stdout)
-
-    def test_no_retro_no_next_sprint(self):
-        (self.p / "backlog.md").write_text(DATED_GOAL)
-        for name in ("S-001", "S-002"):
-            d = self.p / "sprints" / name
-            d.mkdir(parents=True)
-            (d / "goal.md").write_text(DATED_GOAL)
-        r = self.gate()
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("no retro, no next sprint", r.stdout)
-
-        (self.p / "sprints" / "S-001" / "retro.md").write_text("")  # empty
-        r = self.gate()
-        self.assertEqual(r.returncode, 1)  # an empty retro is not a retro
-
-        (self.p / "sprints" / "S-001" / "retro.md").write_text("# Retro\nfindings\n")
-        r = self.gate()
-        self.assertEqual(r.returncode, 0, r.stdout)  # latest may stay open
-
-    def test_sprint_ordering_is_numeric_not_lexicographic(self):
-        (self.p / "backlog.md").write_text(DATED_GOAL)
-        for n in range(1, 11):  # S-1..S-10, unpadded
-            d = self.p / "sprints" / f"S-{n}"
-            d.mkdir(parents=True)
-            (d / "goal.md").write_text(DATED_GOAL)
-            if n < 10:
-                (d / "retro.md").write_text("# Retro\nok\n")
-        r = self.gate()  # S-10 is latest and open — must be exempt
-        self.assertEqual(r.returncode, 0, r.stdout)
-
-        (self.p / "sprints" / "S-9" / "retro.md").unlink()
-        r = self.gate()
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("S-9", r.stdout)
-
-    def test_stray_directories_under_sprints_are_rejected(self):
-        (self.p / "backlog.md").write_text(DATED_GOAL)
-        d = self.p / "sprints" / "S-001"
-        d.mkdir(parents=True)
-        (d / "goal.md").write_text(DATED_GOAL)
-        (self.p / "sprints" / "S-archive").mkdir()
-        r = self.gate()
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("unrecognized", r.stdout)
-
     def test_incidental_substrings_are_not_commitments(self):
         # 'created date:' and 'sprint goal:' lines must not satisfy the gate
         (self.p / "backlog.md").write_text(
@@ -117,21 +58,22 @@ class TestScrumOn(unittest.TestCase):
         r = self.gate()
         self.assertEqual(r.returncode, 1, r.stdout)
 
-    def test_sprint_goal_needs_goal_line_not_only_date(self):
+    def test_sprints_are_history_never_a_gate(self):
+        # ADR-0019 rule 13: sprints are retired. A sprint with no goal,
+        # an undated goal, a missing retro and a stray directory all pass;
+        # SCRUM-GOAL and SCRUM-RETRO are gone.
         (self.p / "backlog.md").write_text(DATED_GOAL)
-        d = self.p / "sprints" / "S-001"
-        d.mkdir(parents=True)
-        (d / "goal.md").write_text("date: 2026-08-09\n")  # no goal
+        for name in ("S-1", "S-2", "S-3", "S-archive"):
+            (self.p / "sprints" / name).mkdir(parents=True)
+        (self.p / "sprints" / "S-2" / "goal.md").write_text("goal without a stamp\n")
         r = self.gate()
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("'goal:'", r.stdout)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertNotIn("SCRUM-GOAL", r.stdout)
+        self.assertNotIn("SCRUM-RETRO", r.stdout)
 
     def test_header_window_is_lines_not_characters(self):
-        (self.p / "backlog.md").write_text(DATED_GOAL)
-        d = self.p / "sprints" / "S-001"
-        d.mkdir(parents=True)
         long_first_line = "# " + ("context " * 80)  # ~640 chars, one line
-        (d / "goal.md").write_text(
+        (self.p / "backlog.md").write_text(
             long_first_line + "\ngoal: ship it\ndate: 2026-08-09\n")
         r = self.gate()
         self.assertEqual(r.returncode, 0, r.stdout)

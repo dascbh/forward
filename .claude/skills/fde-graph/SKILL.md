@@ -1,6 +1,6 @@
 ---
 name: fde-graph
-description: Query and mine FORWARD's artifact provenance graph — the demand loop's own output seen as a directed, weighted graph (goal → sprint → demand → spec → review → finding → promotion, joined by demand-id). Use to answer "what connects to demand X", "what does this sprint cover", "which principles do our reviews keep citing", "is the artifact chain intact"; when onboarding to a repo under the kernel; or when asked about graph-based context, knowledge graphs, or traceability.
+description: Query and mine FORWARD's artifact provenance graph — the demand loop's own output seen as a directed, weighted graph (goal → cycle → demand → spec → review → finding → promotion, joined by demand-id). Use to answer "what connects to demand X", "what does this cycle cover", "which principles do our reviews keep citing", "is the artifact chain intact"; when onboarding to a repo under the kernel; or when asked about graph-based context, knowledge graphs, or traceability.
 ---
 
 # fde-graph
@@ -22,10 +22,16 @@ python3 bin/fde/graph.py --format json       # the whole graph, one flat object
 
 ## The model
 
-Nodes: product-goal, sprint, demand, spec, acceptance, adr, review,
-finding, promotion, attribute, principle/probe, transcript. Directed
-edges (parents, selects, specified_by, accepted_by, reviewed_by, contains,
-against, cites, promoted_by, supersedes, links). Weights come from data
+Nodes: product-goal, cycle, plan, demand, spec, acceptance, adr, review,
+finding, promotion, attribute, principle/probe, transcript (and sprint,
+read as history). Directed edges (parents, plans, follows, selects,
+specified_by, accepted_by, reviewed_by, contains, against, cites,
+promoted_by, supersedes, links). A cycle `plans` a demand when the
+demand is a row of `cycles/C-<n>/plan.md`'s `## Demands` table (first
+cell only — the depends-on column is not a link) or its spec's header
+says `cycle: C-<n>`; a demand `follows` the ADRs its spec's `follows:`
+header names. Sprints are retired (ADR-0019): `sprints/` still reads as
+`selects` edges, never required. Weights come from data
 the kernel already holds: attribute nodes = vector-A weight, finding edges
 = severity (critical 4 … low 1), demand nodes = triage size (XS 1 … L 4).
 
@@ -46,14 +52,16 @@ artifacts.
   demand or ADR with high weighted in-degree is load-bearing.
 - **`--demand X`** is the "give me everything about X" query — its spec,
   acceptance, review, findings, the attributes/principles they cite, the
-  transcript, and the sprint that selected it — without pulling siblings.
+  transcript, the cycle that planned it and the ADRs it follows — without
+  pulling siblings.
 
 ## The gate
 
 `--orphans` and `python3 bin/fde/verify.py --gate traceability` share the
 same check: forbidden **impossible** states only — acceptance without a
-spec, a promotion without a review, (scrum on) a review for a demand no
-sprint planned, a `supersedes:` that dangles or cycles. It never flags an
+spec, a promotion without a review (per demand, or a cycle's
+`promotion.md` over its specified demands), a `supersedes:` that
+dangles or cycles. It never flags an
 **incomplete** state (a demand mid-loop with a spec but no review yet) —
 that is normal, not an orphan.
 

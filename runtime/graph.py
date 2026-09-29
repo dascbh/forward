@@ -29,22 +29,25 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from fde_lib import project_root  # noqa: E402
+from fde_lib import (  # noqa: E402
+    CANON_RE,  # noqa: F401 — re-exported: callers read graph.CANON_RE
+    DEMAND_RE,
+    canon_demand,
+    cycle_dirs,
+    demand_cycles,
+    header_lines,
+    plan_problem,
+    project_root,
+    promoted_demands,
+    reviewed_demands,
+)
 
 SEVERITY_WEIGHT = {"critical": 4, "high": 3, "medium": 2, "low": 1}
 SIZE_WEIGHT = {"xs": 1, "s": 2, "m": 3, "l": 4}
-DEMAND_RE = re.compile(r"\b((?:FWD|DEM)-\d+)")
-CANON_RE = re.compile(r"^((?:FWD|DEM)-\d+)", re.IGNORECASE)
 PRINCIPLE_RE = re.compile(r"^([A-Z]{2,}-\d+)")
 SIZE_RE = re.compile(r"\*\*(XS|S|M|L)\*\*")
-
-
-def canon_demand(raw: str) -> str:
-    """Join key: the bare FWD-<n>/DEM-<n> prefix, so a slugged directory
-    (specs/FWD-001-self-install) and a bare one (reviews/FWD-001) resolve
-    to the same demand."""
-    m = CANON_RE.match(raw)
-    return m.group(1).upper() if m else raw
+FOLLOWS_RE = re.compile(r"follows\s*:(.*)$", re.IGNORECASE)
+ADR_REF_RE = re.compile(r"ADR-(\d+)", re.IGNORECASE)
 
 
 def canon_principle(raw: str) -> str:
@@ -87,7 +90,7 @@ class Graph:
     # shared hubs are reachable leaves, not bridges: an ego-graph includes
     # them but does not traverse THROUGH them into sibling demands
     TERMINAL = {"attribute", "principle", "probe", "transcript",
-                "product-goal", "sprint"}
+                "product-goal", "sprint", "cycle", "adr"}
 
     def ego(self, nid: str, hops: int = 4) -> "Graph":
         seen, frontier = {nid}, {nid}
@@ -234,6 +237,24 @@ def build_graph(project: Path) -> Graph:
         fm = _header_fields(_read(backlog))
         if fm.get("goal"):
             goal_node = g.add_node("product-goal", "root", label=fm["goal"])
+    # cycles (ADR-0019): backlog > cycle > demand. A cycle links to its
+    # demands through plan.md's ## Demands table or the demand spec's
+    # `cycle: C-<n>` header line.
+    cycles = cycle_dirs(project)
+    for cid, cdir in sorted(cycles.items()):
+        cnode = g.add_node("cycle", cid)
+        if goal_node:
+            g.add_edge(goal_node, "parents", cnode)
+        if (cdir / "plan.md").is_file() and plan_problem(cdir / "plan.md") is None:
+            g.add_edge(cnode, "accepted_by", g.add_node("plan", cid))
+        if (cdir / "promotion.md").is_file():
+            g.add_edge(cnode, "promoted_by", g.add_node("promotion", cid))
+    for did, cids in sorted(demand_cycles(project).items()):
+        for cid in sorted(cids):
+            g.add_edge(g.add_node("cycle", cid), "plans", g.add_node("demand", did))
+
+    # sprints: retired (ADR-0019 rule 13), still read as history so old
+    # repositories keep their goal -> sprint -> demand links
     sprints_dir = project / "sprints"
     if sprints_dir.is_dir():
         for sd in sorted(sprints_dir.iterdir()):
@@ -276,6 +297,13 @@ def build_graph(project: Path) -> Graph:
                         g.nodes[dnode]["weight"] = float(SIZE_WEIGHT[m.group(1).lower()])
                     break
             g.add_edge(dnode, "specified_by", g.add_node("spec", did))
+            # the ADRs a demand follows, from its spec's `follows:` header
+            for line in header_lines(_read(sdir / "spec.md")):
+                m = FOLLOWS_RE.search(line)
+                if m:
+                    for num in dict.fromkeys(ADR_REF_RE.findall(m.group(1))):
+                        g.add_edge(dnode, "follows",
+                                   g.add_node("adr", f"{int(num):04d}"))
         if sdir and (sdir / "acceptance.md").exists():
             g.add_edge(dnode, "accepted_by", g.add_node("acceptance", did))
         if sdir and (sdir / "architecture.md").exists():
@@ -394,25 +422,22 @@ def forbidden_orphans(project: Path, g: Graph | None = None) -> list:
     g = g or build_graph(project)
     out = []
     specs = _dir_index(project, "specs")
-    reviews = _dir_index(project, "reviews")
-    proms = _dir_index(project, "promotions")
 
     # 1. acceptance for an unspecified demand (impossible)
     for did, sdir in sorted(specs.items()):
         if (sdir / "acceptance.md").exists() and not (sdir / "spec.md").exists():
             out.append(f"{did}: acceptance.md without spec.md")
 
-    # 2. promotion without a recorded review (the I2 rule, generalized)
-    for did, pdir in sorted(proms.items()):
-        if (pdir / "decision.md").exists() and did not in reviews:
-            out.append(f"{did}: promoted without a review")
+    # 2. promotion without a recorded review (the I2 rule, generalized):
+    # per demand (promotions/<id>/decision.md) or per cycle
+    # (cycles/C-<n>/promotion.md over the cycle's specified demands)
+    reviewed = reviewed_demands(project)
+    for did, src in sorted(promoted_demands(project).items()):
+        if did not in reviewed:
+            out.append(f"{did}: promoted without a review ({src})")
 
-    # 3. (scrum on) a review whose demand is neither specced nor planned
-    if _scrum_on(project):
-        selected = {d for _s, e, d, _w in g.edges if e == "selects"}
-        for did in sorted(reviews):
-            if did not in specs and _node("demand", did) not in selected:
-                out.append(f"{did}: review for a demand no sprint planned")
+    # (the former rule 3, "a review for a demand no sprint planned", is
+    # gone with the sprints — ADR-0019 rule 13)
 
     # 4. supersedes: dangling target or cycle
     for _nid, n in g.nodes.items():
@@ -472,16 +497,6 @@ def _dir_index(project: Path, sub: str) -> dict:
     d = project / sub
     return {canon_demand(p.name): p for p in d.iterdir() if p.is_dir()} \
         if d.is_dir() else {}
-
-
-def _scrum_on(project: Path) -> bool:
-    cfg = project / "fde.config.toml"
-    if not cfg.exists():
-        return False
-    try:
-        return (tomllib.loads(_read(cfg)).get("scrum") or {}).get("enabled") is True
-    except tomllib.TOMLDecodeError:
-        return False
 
 
 # ---------------------------------------------------------------------------

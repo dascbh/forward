@@ -27,10 +27,16 @@ from fde_lib import (  # noqa: E402
     DEFAULT_EVAL_PATHS,
     Config,
     Spec,
+    canon_demand,
+    cycle_dirs,
+    demand_cycles,
     escalated_security_floor,
     gate_paths,
     path_matches,
+    plan_problem,
     project_root,
+    promoted_demands,
+    reviewed_demands,
     validate,
 )
 
@@ -517,11 +523,13 @@ class Gate:
             text = r.read_text(encoding="utf-8", errors="ignore")
             if "context_policy" not in text or "artifact_only" not in text:
                 bad.append(str(r.relative_to(self.project)))
-        # a promoted demand without a recorded review is a bypass, not a gap
-        unreviewed = [d.parent.name for d in
-                      (self.project / "promotions").rglob("decision.md")
-                      if not (self.project / "reviews" / d.parent.name /
-                              "findings.toml").exists()]
+        # a promoted demand without a recorded review is a bypass, not a
+        # gap — promoted per demand (promotions/<id>/decision.md, the old
+        # layout) or per cycle (cycles/C-<n>/promotion.md, ADR-0019)
+        reviewed = reviewed_demands(self.project)
+        unreviewed = [f"{did} ({src})" for did, src
+                      in sorted(promoted_demands(self.project).items())
+                      if did not in reviewed]
         if bad:
             self.add("I2", False, f"report without isolation declaration: {', '.join(bad[:3])}")
         elif unreviewed:
@@ -609,24 +617,66 @@ class Gate:
     # -- I4: criteria declared before -------------------------------------
     def gate_promotion_criteria(self) -> None:
         # per demand, not once per repository: every demand directory under
-        # specs/ carries its own dated acceptance
+        # specs/ has dated criteria — its own acceptance.md (the old
+        # layout), or the plan of the cycle it belongs to (ADR-0019 rule
+        # 14: cycles/C-<n>/plan.md, linked by the plan's ## Demands table
+        # or the spec's `cycle: C-<n>` header line)
         demand_dirs = [d for d in sorted((self.project / "specs").glob("*"))
                        if d.is_dir()]
+        cycles = cycle_dirs(self.project)
+
+        def problem(cid: str) -> str | None:
+            if cid not in cycles:
+                return f"no cycles/{cid}/plan.md"
+            return plan_problem(cycles[cid] / "plan.md")
+
         if not demand_dirs:
-            self.add("I4", False, "no specs/<demand>/ — acceptance criteria "
-                                  "were not declared")
+            dated = [cid for cid in cycles if problem(cid) is None]
+            if dated:
+                self.add("I4", True, f"{len(dated)} cycle plan(s) with dated "
+                                     f"criteria, no demand specified yet")
+            else:
+                self.add("I4", False, "no specs/<demand>/ and no dated "
+                                      "cycles/C-<n>/plan.md — acceptance "
+                                      "criteria were not declared")
             return
-        missing = [d.name for d in demand_dirs if not (d / "acceptance.md").exists()]
-        undated = [d.name for d in demand_dirs
-                   if (d / "acceptance.md").exists()
-                   and "date:" not in (d / "acceptance.md")
-                   .read_text(encoding="utf-8", errors="ignore").lower()[:400]]
+
+        links = demand_cycles(self.project)
+        missing, undated, bad_plan = [], [], []
+        inherited = 0
+        for d in demand_dirs:
+            acc = d / "acceptance.md"
+            if acc.exists():
+                if "date:" not in acc.read_text(
+                        encoding="utf-8", errors="ignore").lower()[:400]:
+                    undated.append(d.name)
+                continue
+            cids = sorted(links.get(canon_demand(d.name), ()))
+            if not cids:
+                missing.append(d.name)
+                continue
+            probs = [f"{d.name} → {cid}: {problem(cid)}"
+                     for cid in cids if problem(cid)]
+            if probs:
+                bad_plan.extend(probs)
+            else:
+                inherited += 1
         if missing:
-            self.add("I4", False, f"demand(s) without acceptance.md: {', '.join(missing[:3])}")
+            self.add("I4", False,
+                     f"demand(s) without dated criteria — neither "
+                     f"specs/<id>/acceptance.md nor a cycle plan (a "
+                     f"`cycle: C-<n>` spec line or a row in the plan's "
+                     f"## Demands table): {', '.join(missing[:3])}")
         elif undated:
             self.add("I4", False, f"criteria without a date: {', '.join(undated[:3])}")
+        elif bad_plan:
+            self.add("I4", False, f"cycle criteria not dated or not declared: "
+                                  f"{'; '.join(bad_plan[:3])}")
         else:
-            self.add("I4", True, f"{len(demand_dirs)} demand(s) with dated criteria")
+            self.add("I4", True,
+                     f"{len(demand_dirs)} demand(s) with dated criteria"
+                     + (f" ({inherited} from their cycle's plan.md)"
+                        if inherited else ""))
 
     # -- I5: observability floor ------------------------------------------
     def gate_observability(self, cfg: Config, spec: Spec) -> None:
@@ -687,13 +737,13 @@ class Gate:
                  "handoff structure present" if len(missing) <= 1
                  else f"handoff directories missing: {', '.join(missing)}")
 
-    # -- scrum mode: cadence gates, active only when [scrum] is enabled ----
+    # -- scrum mode: the backlog's dated goal, only when [scrum] is enabled --
     def gate_scrum(self, cfg: Config, explicit: bool = False) -> None:
         # strict boolean: enabled = "false" (a string) must not read as on;
         # validate() flags the type, this gate simply does not arm
         if (cfg.raw.get("scrum", {}) or {}).get("enabled") is not True:
             if explicit:
-                self.add("SCRUM", True, "scrum mode off — cadence gates not in force")
+                self.add("SCRUM", True, "scrum mode off — the backlog goal check is not in force")
             return
 
         def commits(p: Path) -> bool:
@@ -714,37 +764,9 @@ class Gate:
                  if commits(self.project / "backlog.md") else
                  "backlog.md must declare non-empty 'goal:' and 'date:' header "
                  "lines (first 30 lines) — items without a ruler cannot be ordered")
-
-        sprints_dir = self.project / "sprints"
-        entries = [d for d in sprints_dir.iterdir()
-                   if d.is_dir()] if sprints_dir.is_dir() else []
-        numbered, stray = [], []
-        for d in entries:
-            m = re.fullmatch(r"S-(\d+)", d.name)
-            (numbered.append((int(m.group(1)), d)) if m else stray.append(d.name))
-        if stray:
-            self.add("SCRUM-GOAL", False,
-                     f"unrecognized directory under sprints/ (names are S-<number>; "
-                     f"ordering is numeric): {', '.join(sorted(stray)[:3])}")
-            return
-        sprints = [d for _, d in sorted(numbered)]
-        if not sprints:
-            self.add("SCRUM-GOAL", True, "no sprint open yet")
-            return
-        bad_goal = [d.name for d in sprints if not commits(d / "goal.md")]
-        self.add("SCRUM-GOAL", not bad_goal,
-                 f"{len(sprints)} sprint(s), every goal committed and dated"
-                 if not bad_goal else
-                 f"goal.md must declare non-empty 'goal:' and 'date:' header lines "
-                 f"(first 30 lines): {', '.join(bad_goal[:3])}")
-        unclosed = [d.name for d in sprints[:-1]
-                    if not (d / "retro.md").is_file()
-                    or not (d / "retro.md").read_text(
-                        encoding="utf-8", errors="ignore").strip()]
-        self.add("SCRUM-RETRO", not unclosed,
-                 "every previous sprint has its retro" if not unclosed
-                 else f"no retro, no next sprint — missing or empty: "
-                      f"{', '.join(unclosed[:3])}")
+        # sprints are retired (ADR-0019 rule 13): sprints/ stays readable
+        # as history (graph.py) and gates nothing — the former SCRUM-GOAL
+        # and SCRUM-RETRO checks are gone.
 
     # -- divergence: M/L design surfaces converged only after diverging ---
     def gate_divergence(self) -> None:
