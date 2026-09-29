@@ -1,9 +1,9 @@
 cycle: C-14
-state: planned
+state: running
 date: 2026-09-29
 size: M
 objective: clear the backlog — every item still needed after 0.21.0, starting with AGENTS.md as a skeleton and the detailed rules in skills
-signed-off:
+signed-off: 2026-09-29 (owner: "aprovado")
 
 <!-- Triage: surfaces 3 (instruction layer, runtime/gate, client install)
 · public · reversible · ~900 production lines across eight demands →
