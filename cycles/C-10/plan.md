@@ -1,9 +1,10 @@
 # C-10
 
-state: draft
+state: abandoned
+abandoned: 2026-09-29 — owner: backlog cleanup, items merged into C-14
 objective: kernel ideas to validate: cycle sizing in sensitive projects, prose-only I1, role identity in hooks, verification discipline, resync before proposing
 
-## Items
+## Moved to C-14
 
 - B-1 Per-demand `sensitive`/`irreversible` in triage
 - B-2 I1 bluntness on prose-only edits

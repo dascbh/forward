@@ -1,9 +1,10 @@
 # C-7
 
-state: draft
+state: abandoned
+abandoned: 2026-09-29 — owner: backlog cleanup, items merged into C-14
 objective: clients sync without surprises: kernel ADRs reachable, open sprints and old comments migrated, auto mode handled
 
-## Items
+## Moved to C-14
 
 - B-32 (C-5) usage-data — clients read "kernel ADR-00NN" but never receive the kernel ADRs; ship them read-only or link them (reviews/C-5 F3 partial)
 - B-35 (C-5) usage-data — a client syncing with a sprint still open loses it from every view; fde-sync's migration should carry an open sprint's demands into backlog.md (reviews/FWD-031 F2)

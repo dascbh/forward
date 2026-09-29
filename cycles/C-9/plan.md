@@ -1,9 +1,10 @@
 # C-9
 
-state: draft
+state: abandoned
+abandoned: 2026-09-29 — owner: backlog cleanup, items merged into C-14
 objective: gates and runtime hardening: robust path handling, validation, CI range and the cycle-layout journey check
 
-## Items
+## Moved to C-14
 
 - B-12 C-1#2 usage-data — I1's changed() lists files with git diff-tree --name-only without -z, so git-quoted paths (non-ASCII, tab) may miss behavior_paths
 - B-14 C-1#6 usage-data — erosion.py:242 emits a DeprecationWarning (re.split maxsplit positional) during the suite

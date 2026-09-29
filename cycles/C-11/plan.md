@@ -1,9 +1,10 @@
 # C-11
 
-state: draft
+state: abandoned
+abandoned: 2026-09-29 — owner: backlog cleanup, items merged into C-14
 objective: instruction text and documentation gaps left by the 0.19 model
 
-## Items
+## Moved to C-14
 
 - B-21 C-2#3 usage-data — the ## Cycle section cites MNT-9 by bare id; a client reading AGENTS.md alone cannot resolve it (review note)
 - B-25 (C-5) usage-data — at XS/S the walkthrough's intended model is compiled by the architecture role, which those sizes do not otherwise plan in (RECON-TEXT note)
