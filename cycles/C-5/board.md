@@ -24,3 +24,5 @@ another posts `blocked-on` and waits for its merge.
 - 2026-09-29 FWD-031 claim skills/fde-scrum/**, AGENTS.md ## Scrum mode (+ template), tests/test_scrum.py (handed off by FWD-029)
 - 2026-09-29 FWD-032 claim SETUP.md, spec/invariants.toml, templates/findings.template.toml, agents/fde-promotion.md, runtime/guard.py, docs/adr/0017*, README.md, AGENTS.md ## Roles (+ template)
 - 2026-09-29 C-5 decided residuals routed: templates/cycle/ install destination → FWD-032; I1-REQS reading R# from plan.md → FWD-032; guard promotions/ + acceptance.md paths → FWD-032
+- 2026-09-29 FWD-031 decided merged fc11fd3; ## Scrum mode → ## Backlog; [scrum] survives only as the backlog dated-goal switch; touched tests/test_mirror.py D12 row (unclaimed)
+- 2026-09-29 FWD-031 proposes FWD-032: sprint wording left in SETUP.md:132, README.md:301, templates/fde.config.template.toml:74
