@@ -19,6 +19,18 @@ has_agent_loop = {{HAS_AGENT_LOOP}}
 # above already clearing the project-level ceiling.
 rule_lane_max_loc = {{RULE_LANE_MAX_LOC}}
 
+# Process knobs (fde_lib.PROCESS_DEFAULTS). The skills cite these keys; tune
+# them here, never in skill text. An unknown key or an out-of-range value
+# fails the CFG gate.
+[lanes]
+demand_max_loc = 300      # a demand is split at planning to fit this
+direct_max_loc = 300      # the direct lane's ceiling, never above demand_max_loc
+
+[review]
+cycle_rounds_small = 1    # cycle review rounds at XS/S
+cycle_rounds_large = 2    # cycle review rounds at M/L (full + delta)
+max_findings = 5          # [[finding]] entries per round
+
 [stack]
 languages = {{LANGUAGES}}
 test_runners = {{TEST_RUNNERS}}

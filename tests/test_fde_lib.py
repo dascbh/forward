@@ -232,3 +232,52 @@ class TestUsedBacklogIds(unittest.TestCase):
             [sys.executable, str(ROOT / "runtime" / "status.py"), "--root",
              str(self.repo), "--format", "json"], capture_output=True, text=True)
         self.assertIn('"backlog_id": "B-21"', out.stdout, out.stderr)
+
+
+class TestProcessKnobs(unittest.TestCase):
+    """[lanes] and [review]: the numbers the skills cite are tuned in
+    fde.config.toml, validated, never edited in skill text."""
+
+    def test_defaults_fill_what_the_project_leaves_out(self):
+        from fde_lib import process_settings
+        s = process_settings({})
+        self.assertEqual(s["lanes"], {"demand_max_loc": 300, "direct_max_loc": 300})
+        self.assertEqual(s["review"], {"cycle_rounds_small": 1,
+                                       "cycle_rounds_large": 2, "max_findings": 5})
+
+    def test_an_unset_direct_lane_follows_a_lowered_demand_ceiling(self):
+        from fde_lib import process_settings, process_violations
+        raw = {"lanes": {"demand_max_loc": 200}}
+        self.assertEqual(process_settings(raw)["lanes"]["direct_max_loc"], 200)
+        self.assertEqual(process_violations(raw), [])
+
+    def test_a_misspelled_key_is_a_violation_not_a_default(self):
+        from fde_lib import process_violations
+        v = process_violations({"review": {"max_finding": 3}})
+        self.assertEqual([x.code for x in v], ["CFG-PROCESS"])
+        self.assertIn("max_finding is not a known key", v[0].message)
+
+    def test_ranges_and_orderings_hold(self):
+        from fde_lib import process_violations
+        for raw in ({"lanes": {"demand_max_loc": 10}},
+                    {"review": {"max_findings": True}},
+                    {"review": {"cycle_rounds_small": "1"}},
+                    {"lanes": {"direct_max_loc": 400}},
+                    {"review": {"cycle_rounds_small": 2, "cycle_rounds_large": 1}},
+                    {"lanes": "300"}):
+            self.assertTrue(process_violations(raw), raw)
+
+    def test_validate_reports_it_through_the_config_gate(self):
+        c = cfg(lanes={"demand_max_loc": 5})
+        self.assertIn("CFG-PROCESS", codes(validate(c, Spec.load())))
+
+    def test_the_template_and_this_repo_carry_valid_tables(self):
+        import tomllib
+        from fde_lib import process_violations
+        raw = tomllib.loads((ROOT / "fde.config.toml").read_text())
+        self.assertEqual(process_violations(raw), [])
+        tpl = (ROOT / "templates" / "fde.config.template.toml").read_text()
+        for line in ("[lanes]", "demand_max_loc = 300", "[review]", "max_findings = 5"):
+            self.assertIn(line, tpl)
+        self.assertIn("`[lanes]\ndemand_max_loc`",
+                      (ROOT / "skills" / "fde-triage" / "SKILL.md").read_text())

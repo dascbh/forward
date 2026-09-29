@@ -23,6 +23,16 @@ has_agent_loop = false
 # runtime default alone.
 rule_lane_max_loc = 10
 
+# Process knobs (fde_lib.PROCESS_DEFAULTS); the skills cite these keys.
+[lanes]
+demand_max_loc = 300
+direct_max_loc = 300
+
+[review]
+cycle_rounds_small = 1
+cycle_rounds_large = 2
+max_findings = 5
+
 [stack]
 languages = ["python"]
 test_runners = ["unittest"]

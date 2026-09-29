@@ -313,6 +313,88 @@ def validate(cfg: Config, spec: Spec) -> list[Violation]:
                 )
             )
 
+    v += process_violations(cfg.raw)
+    return v
+
+
+# -- process knobs: numbers the skills cite, tuned per project -----------------
+# The ceilings and budgets the skills state are defaults, not prose to edit:
+# a project tunes them in [lanes] and [review] of fde.config.toml. A key the
+# kernel does not declare, or a value outside its range, is a violation — a
+# misspelled key must never silently fall back to the default.
+
+PROCESS_DEFAULTS = {
+    "lanes": {
+        "demand_max_loc": 300,   # a demand is split at planning to fit this
+        "direct_max_loc": 300,   # the direct lane's ceiling (fde-triage)
+    },
+    "review": {
+        "cycle_rounds_small": 1,  # cycle review rounds at XS/S
+        "cycle_rounds_large": 2,  # cycle review rounds at M/L (full + delta)
+        "max_findings": 5,        # [[finding]] entries per round
+    },
+}
+PROCESS_RANGES = {
+    "demand_max_loc": (50, 2000), "direct_max_loc": (10, 2000),
+    "cycle_rounds_small": (1, 3), "cycle_rounds_large": (1, 3),
+    "max_findings": (1, 20),
+}
+
+
+def process_settings(raw: dict) -> dict[str, dict]:
+    """[lanes] and [review] with the kernel defaults filled in. Values are
+    taken as written; validate() reports the ones it cannot accept."""
+    out = {}
+    for table, defaults in PROCESS_DEFAULTS.items():
+        given = raw.get(table)
+        given = given if isinstance(given, dict) else {}
+        out[table] = {k: given.get(k, d) for k, d in defaults.items()}
+    # an unset direct lane follows a lowered demand ceiling, never above it
+    lanes = out["lanes"]
+    given = raw.get("lanes") if isinstance(raw.get("lanes"), dict) else {}
+    if "direct_max_loc" not in given and _is_int(lanes["demand_max_loc"]):
+        lanes["direct_max_loc"] = min(lanes["direct_max_loc"], lanes["demand_max_loc"])
+    return out
+
+
+def _is_int(x) -> bool:
+    return isinstance(x, int) and not isinstance(x, bool)
+
+
+def process_violations(raw: dict) -> list[Violation]:
+    v: list[Violation] = []
+    for table, defaults in PROCESS_DEFAULTS.items():
+        if table not in raw:
+            continue
+        given = raw[table]
+        if not isinstance(given, dict):
+            v.append(Violation("CFG-PROCESS", f"[{table}] must be a table, got {given!r}."))
+            continue
+        for key, val in given.items():
+            if key not in defaults:
+                v.append(Violation(
+                    "CFG-PROCESS",
+                    f"[{table}] {key} is not a known key (known: "
+                    f"{', '.join(sorted(defaults))}). A misspelled key would "
+                    f"silently keep the default."))
+                continue
+            lo, hi = PROCESS_RANGES[key]
+            if not _is_int(val) or not lo <= val <= hi:
+                v.append(Violation(
+                    "CFG-PROCESS", f"[{table}] {key} = {val!r}: an integer from {lo} to {hi}."))
+    s = process_settings(raw)
+    lanes, review = s["lanes"], s["review"]
+    if all(_is_int(x) for x in lanes.values()) and lanes["direct_max_loc"] > lanes["demand_max_loc"]:
+        v.append(Violation(
+            "CFG-PROCESS",
+            f"[lanes] direct_max_loc ({lanes['direct_max_loc']}) exceeds demand_max_loc "
+            f"({lanes['demand_max_loc']}): the direct lane is never looser than a demand."))
+    if (all(_is_int(x) for x in review.values())
+            and review["cycle_rounds_large"] < review["cycle_rounds_small"]):
+        v.append(Violation(
+            "CFG-PROCESS",
+            "[review] cycle_rounds_large is below cycle_rounds_small: a larger cycle never "
+            "gets fewer review rounds."))
     return v
 
 

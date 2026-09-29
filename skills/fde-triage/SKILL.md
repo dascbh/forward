@@ -14,7 +14,8 @@ take the larger. Rationale: kernel ADR-0019 rule 3.
 Size is set on the cycle, never on a demand. The size sets the depth of
 the planner and the number of cycle review rounds.
 
-A demand is at most about 300 production lines and has exactly one
+A demand is at most about 300 production lines (`[lanes]
+demand_max_loc` in `fde.config.toml`, default 300) and has exactly one
 layer: `front`, `back` or `infra`. `front` is screens, flows and
 user-facing text; `back` is the API, domain logic and data access;
 `infra` is IaC, roles, pipelines and runtime configuration. A change
@@ -67,7 +68,8 @@ only sends the change through the table below.
 ## Direct lane — no cycle
 
 A change goes straight to code, with no cycle, plan or sign-off, when
-ALL hold: exactly one layer; about 300 production lines at most; not
+ALL hold: exactly one layer; about 300 production lines at most
+(`[lanes] direct_max_loc`, default 300); not
 `sensitive`; not `irreversible`; it adds no acceptance criterion to a
 plan and needs no ADR. Unsure on any → a cycle.
 
@@ -99,6 +101,11 @@ score = min(3, surfaces)
 | 2–3 | S | plan | 1 full | no | 1 h |
 | 4–6 | M | plan + ADRs | 1 full + 1 delta | yes | 3 h |
 | ≥ 7 | L | full plan + ADRs | 1 full + 1 delta | yes | 1 day |
+
+The round counts are the defaults of `[review] cycle_rounds_small` (XS/S)
+and `cycle_rounds_large` (M/L); a project that tunes them uses its values.
+The line ceilings above are the defaults of `[lanes]`. Tune numbers in
+`fde.config.toml`, never in this text.
 
 Every size: `fde-spec` writes `plan.md`, a demand review is 1 round, and
 the cycle closes with a promotion by `fde-promotion`. M adds
