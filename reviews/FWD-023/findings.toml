@@ -1,0 +1,103 @@
+# Adversarial review report
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-023"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+rounds_planned = 1
+round = 1
+commit = "b498d91"
+agent_transcript = "agent-a0550f031ee7ac270"
+probed = [
+  "git log -1 = b498d91; git show b498d91 read in full against cycles/C-3.md (## Tasks FWD-023 line, ## Done when)",
+  "diff AGENTS.md templates/AGENTS.md.template: only placeholder lines differ; ## Cycle identical in both",
+  "grep for 'Next cycle' / 'closes as it stands' / 'residuals (this' outside cycles/, reviews/, specs/, docs/adr: only the tests' own negative assertions remain",
+  "cross-read against AGENTS.md step 5, skills/fde-review/SKILL.md ## Budget, skills/fde-scrum/SKILL.md (Setup, Execute), skills/fde-status/SKILL.md, runtime/verify.py gate_scrum, SETUP.md",
+  "python3 -m unittest tests.test_instructions: 21 tests OK at b498d91",
+  "mutation probe on a scratch copy (git archive HEAD): reintroduce cycle switching with new words in ## Cycle of both surfaces; tests.test_instructions stays OK",
+  "stuck scenarios: budget spent with a blocker open, user never answers, a done item the project cannot meet, 'fix it NOW' mid-cycle, [scrum] off with no backlog.md",
+]
+notes = [
+  "tests/test_instructions.py section() ends the Cycle section at the first line starting with '## ', so assertNotIn('## Next cycle') can never see a heading, only an inline backticked mention; the negative test only guards prose.",
+  "C-3's own Done when names ~/Documents/headlabs-platform, a path that exists on one machine; under the new all-[x] close, a cycle that declares such an item cannot close anywhere else (instance of F2).",
+  "The 'close' rule tells the agent to show the user the backlog lines, which is domain content, so it fits Voice; Voice still does not name it as an exception (carried over from reviews/FWD-022).",
+  "'the next request is chosen from the backlog' does not say who chooses; with [scrum] off, it reads as if the agent picks the next request.",
+  "## Cycle references fde-status, but test_skills_point_to_the_section does not check that fde-status points back to AGENTS.md ## Cycle.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "high"
+probe = "partial failure in a multi-step operation: budget spent with a blocking finding open, following AGENTS.md step 5 and fde-review literally"
+principle = "MNT-1"
+evidence = """
+Three kernel texts now disagree about the same event.
+- AGENTS.md:160-161 (step 5) and templates/AGENTS.md.template:144-145 say: 'Budget spent with a blocker open -> narrow, declare the limit, or pause'.
+- skills/fde-review/SKILL.md:35-42 defines the options. Narrow sends the cut 'to the backlog as its own demand'. Pause is 'revert, nothing ships, the backlog keeps the record'. Declare is 'a limit, not a pass'.
+- The new ## Cycle says a review finding on the cycle's changes 'is concluded in the cycle ... Concluded means fixed, or declined by the user as a declared limit -- never deferred to a later cycle'. It also says 'no other cycle opens until every done item is [x]', and the review-rounds done item requires 'no blocking finding open'.
+Consequences for a cooperative agent:
+- Narrow and pause are exactly 'deferred to a later cycle', which ## Cycle forbids.
+- After a pause, the review-rounds item cannot become [x], so the cycle cannot close.
+- The only exit is abandonment, and 'the agent never proposes it'. Every new request then goes to backlog.md, so the project stalls silently.
+The FWD-023 task promises 'one open cycle, no new cycle until it closes (only exit: the user abandons it, recorded)'. The kernel's own review procedure routes a cooperative agent into a cycle that can neither close nor be exited without the user volunteering the word.
+No eval checks step 5 against ## Cycle; the suite is green (21 OK).
+"""
+blocking = true   # high; reachable by a cooperative agent on any review with a blocker left after the budget; breaks the task's 'runs to the end / only exit is abandonment' contract
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "valid input at domain boundaries: a done item that is legitimately not met (user-declared limit, unreachable environment, user who never answers)"
+principle = "USE-1"
+evidence = """
+The old close rule 'mark each done item [x] (met) or [-] (not met, with why)' was removed. The new rule is 'At close every done item is [x]'. [-] now appears only under abandonment.
+## Cycle still allows 'declined by the user as a declared limit', but it never says how the matching done item is marked. That leaves the agent two choices:
+- tick an unmet item [x], which falsifies the record. fde-review calls a declared limit 'a limit, not a pass'.
+- leave it open, which blocks every later cycle.
+The same applies to:
+- a done item the project cannot meet in this environment (see C-3's own headlabs-platform item);
+- a decision only the user can make, when the user never answers. 'Concluded means fixed, or declined by the user' has no timeout and no recorded-pending state.
+The cycle file stops stating its true status, or it never closes.
+"""
+blocking = false   # medium; the user-initiated abandonment exit exists, so the task's letter holds
+
+[[finding]]
+id = "F3"
+attribute = "usability_accessibility"
+severity = "medium"
+probe = "error path with no clear way out: user asks for unrelated work 'now' while a cycle is open"
+principle = "USE-4"
+evidence = """
+skills/fde-scrum/SKILL.md:70-72 still states the exception route: '"fix it NOW" bypasses the backlog, runs immediately, and is recorded in goal.md under ## Unplanned'. The new ## Cycle says: 'A new request that arrives mid-cycle goes to backlog.md, not to a new cycle', and no cycle may open until the current one closes.
+The FWD-023 edit touched the very next sentence of that paragraph (skills/fde-scrum/SKILL.md:73-75), so the scrum pointer now sits beside a rule it contradicts.
+With [scrum] off, the situation is worse. The old 'unless the user wants it now' escape was deleted, and the agent is told it 'never proposes' abandonment. So a user who explicitly wants a different change now gets a backlog line and no named way to get the work done. The way out, abandoning the cycle 'in so many words', exists only if the user already knows the phrase.
+"""
+blocking = false   # medium; the user can still abandon; the conflict is between instruction surfaces
+
+[[finding]]
+id = "F4"
+attribute = "maintainability"
+severity = "medium"
+probe = "mutation on a scratch copy (git archive HEAD | tar -x): append 'If the user wants it now, the open cycle is marked done and the new request opens its own cycle.' after 'goes to `backlog.md`, not to a new cycle.' in AGENTS.md and the template; python3 -m unittest tests.test_instructions -> OK"
+evidence = """
+TestDeclaredCycle checks that each rule sentence is present verbatim. It rejects only two literal phrases, '## Next cycle' and 'closes as it stands'. It does not check that nothing contradicting a rule is added.
+The mutation above brings back cycle-switching, which is the exact behavior FWD-023 removes, in new words, and the suite stays green.
+No eval ties ## Cycle to the texts it must agree with: AGENTS.md step 5, the fde-review ## Budget options, and the fde-scrum 'fix it NOW' route. So the contradictions in F1 and F3 ship with the gate green.
+"""
+blocking = false   # medium; eval weakness, not a behavior break
+
+[[finding]]
+id = "F5"
+attribute = "functional_correctness"
+severity = "low"
+probe = "case the spec does not cover and the code silently accepts: [scrum] off, first capture creates backlog.md; [scrum] enabled later"
+evidence = """
+## Cycle says 'create it on the first capture' and 'one line carrying (C-<n>) and its evidence'. It gives no header and no shape.
+With [scrum] on, fde-scrum (lines 34-36) requires 'goal:' and 'date:' in the first 30 lines, and its items are table rows with hypothesis, evidence and size. runtime/verify.py:712-716 then fails SCRUM when backlog.md exists without those header lines.
+A client that captured under [scrum] off and later enables scrum finds that fde-scrum's setup says 'Create backlog.md' when the file already exists in a different shape. The client has to reshape the file by hand before the gate goes green.
+The evidence ladder (opinion < usage-data < ...) is defined only in fde-scrum, so with [scrum] off, 'its evidence' has no named vocabulary.
+"""
+blocking = false   # low

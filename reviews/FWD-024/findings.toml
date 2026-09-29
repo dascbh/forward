@@ -1,0 +1,112 @@
+# Adversarial review report
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-024"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+rounds_planned = 1
+round = 1
+commit = "04ad5e2"
+agent_transcript = "agent-a0e04767ee9945357"
+probed = [
+  "git log -1 = b498d91 (FWD-023, a descendant of 04ad5e2); git diff 04ad5e2 HEAD leaves runtime/status.py and bin/fde/status.py unchanged, so the artifact under review is intact at HEAD",
+  "spec.md (with ## Threat model), failure-modes.toml, acceptance.md read; runtime/status.py read in full; cmp runtime/status.py bin/fde/status.py identical; diff -r skills/fde-status .claude/skills/fde-status identical",
+  "python3 -m unittest tests.test_status: OK; verify.py has no reference to status",
+  "live: python3 bin/fde/status.py on this repository (exit 0, OPEN CYCLE C-3 0/6, C-2 and C-1 one line each, BACKLOG 24 items) and --root ~/Documents/headlabs-platform (exit 0, WARNING no backlog.md, OPEN CYCLE C-2 0/7, C-1 closed 4/6)",
+  "scratch fixtures under the session scratchpad, run as a subprocess: closed: placement, header syntax variants, done-item mark variants, C-1 vs C-10 and token edges, table rows with the cycle in a later cell, file-name variants, --root nonexistent or a file, --cycle unknown, non-UTF-8 bytes with a non-UTF-8 stdout, unreadable cycles/",
+]
+notes = [
+  "--cycle C-9 (no such file) exits 2. R2 allows exit 2 only for a bad argument; a well-formed id with no file is arguably content. The test calls it a bad argument, but the spec does not say so.",
+  "--root /nonexistent and --root pointing at a file both exit 0 with 'no open cycle' plus the no-backlog warning. A typo in --root reads as a project with nothing open, and nothing says that cycles/ was not found.",
+  "A cycles/ directory with mode 000 gives PermissionError from iterdir(), a traceback (load_cycles, status.py:101). This is outside the threat model's hostile content, but it is the same 'never a traceback' surface as R4.",
+  "Fenced code blocks are not skipped. A '- [x]' or '- C-1' inside ``` in a cycle or backlog file counts as a done item or an owned backlog line.",
+  "A table cell with an escaped pipe (\\|) is split there, so the displayed item is truncated ('#2 pipe \\').",
+  "'Objective : x' and 'Closed : date' (a space before the colon) are not parsed. The cycle then shows as open with a 'no objective: line' warning, and nothing mentions the near-miss.",
+  "'##Done when' (no space) is not a section, so its items vanish silently (0/0 done).",
+  "An empty 'closed:' value counts as open. That is defensible, but nothing says the key was present and empty.",
+  "The tool recognizes 'abandoned:', which the ## Cycle section in AGENTS.md never mentions. It is a convention known only to status.py and its skill.",
+  "The spec's own problem statement cites headlabs-platform's '## Next cycle list grew into nine mixed blocks'. The view shows no cycle's ## Next cycle, and headlabs has no backlog.md, so on the motivating repository that list is invisible. R1 does not require it, so this is a requirement gap, not an implementation defect.",
+  "In this repository, backlog.md says C-1 (FWD-021) was abandoned, but cycles/C-1.md says 'closed:'. This is a data inconsistency; the tool faithfully prints 'closed'.",
+  "The backlog's top-of-file items render under the label '(top)', and items 6-8 render under 'Status' because that is their ## heading. This is faithful to the file but reads oddly.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "high"
+probe = "valid input at domain boundaries: a closed cycle whose closed: line was added after the sections, as AGENTS.md's 'add `closed:`' permits"
+evidence = """
+Fixture p3/cycles/C-1.md: 'objective:' and 'demands:' in the header, '## Done when' with '- [x] one' and '- [x] two', '## Next cycle', and then a final line 'closed: 2026-09-29' at column 0.
+python3 bin/fde/status.py --root p3 prints:
+  WARNING 3 cycles open: C-1, C-2, C-3 — one runs to the end before another opens
+  WARNING C-1 has every done item met but no closed: line
+  OPEN CYCLE C-1 ... done when: 2/2 done
+A closed cycle is shown as OPEN, counted into the 'more than one open cycle' warning, and the second warning states something false: the file has a closed: line.
+Cycle.ended (status.py:83-88) reads self.header, which is built only from sections[0], the lines before the first '## '. The header-only rule is documented in skills/fde-status/SKILL.md, but the instruction the writing agent follows does not state it. AGENTS.md:208 and templates/AGENTS.md.template:192 say only 'At close every done item is `[x]`: add `closed:`', with no location. An agent or a person told to 'add' a line to a finished file naturally appends it.
+FM-1 (high) is declared as 'an open cycle is shown as closed or vice versa'. This is the 'vice versa', reproduced with input written by a cooperative agent, which is inside the threat model. The tests cover only the other direction (test_body_mention_of_closed_does_not_close). Nothing detects a closed: line outside the header, and nothing warns about it.
+"""
+blocking = true   # high, inside the threat model (cooperative writer following AGENTS.md), breaks FM-1 as declared
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "case the spec does not cover and the code silently accepts: a backlog table row that names the cycle in a column past the second"
+evidence = """
+Fixture p6: cycles/C-3.md is open, and backlog.md has a '## Unplanned intake' table with the row
+  | 12 | Encoding-safe stdout | status crashes on a cp1252 pipe | usage-data (C-3 review) | XS |
+The output shows OPEN CYCLE C-3 with no 'backlog lines from C-3' block at all. The row appears only under BACKLOG as '#12 Encoding-safe stdout'.
+load_backlog (status.py:129-130) reduces a table row to '#cells[0] cells[1]' before owned_lines (status.py:156-159) searches it, so any cycle token in the hypothesis, evidence, or later columns is discarded before matching.
+R1 asks for 'the backlog lines that name that cycle'. The row line names C-3, and it is not listed. This repository's backlog is mostly tables with an evidence column ('usage-data (FWD-021 retro)'), which is where a cycle origin naturally goes. C-3's own done item 'backlog-captured ... with origin C-3' would be invisible unless the writer used a bullet or a section heading.
+"""
+blocking = false   # medium; FM-3 (ownership matching) is declared medium
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "case the spec does not cover and the code silently accepts: done items in shapes other than '- [ ]' / '- [x]' / '- [-]'"
+evidence = """
+Fixture p3/cycles/C-2.md, '## DONE WHEN' section:
+  1. [x] numbered
+  * [X] star
+  - [~] partial
+  - [ x ] spaced
+     - [x] nested
+The output says 'done when: 3/3 done' and warns 'C-2 has every done item met but no closed: line'. Three of the six items (the numbered one, the '[~]' one, and the '[ x ]' one) were dropped without a trace.
+The DONE regex (status.py:26) requires a '-' or '*' bullet and a single-character mark from ' xX-', and a non-matching line is ignored. The dropped items shrink the denominator, so the progress figure overstates completion and the view prompts the user to close a cycle that has unmet items.
+The threat model contains hand-written files 'with typos'. The m in R1's 'n/m done' is the count of declared done items, not the count of items that happened to match the regex. FM-1's consequence ('the owner believes a cycle is finished when it is not') is reached through the ready-to-close warning.
+"""
+blocking = false   # medium; the input shapes are hand-written variants, not the documented form
+
+[[finding]]
+id = "F4"
+attribute = "reliability_resilience"
+severity = "medium"
+probe = "external dependency: stdout encoding not UTF-8 (a cp1252 pipe, the Windows default when an agent captures output)"
+evidence = """
+Fixture p1/cycles/C-1.md contains raw bytes 0xE9 and 0xFF, which R4 explicitly lists ('non-UTF-8 bytes').
+  PYTHONIOENCODING=cp1252 python3 bin/fde/status.py --root p1
+  -> Traceback ... status.py line 231 sys.stdout.write(...)
+     UnicodeEncodeError: 'charmap' codec can't encode character '\\ufffd'   (exit 1)
+_read decodes with errors='replace' (status.py:34), which turns bad bytes into U+FFFD, and cp1252 cannot encode that character.
+It fails with no bad bytes too. Fixture p5 has the valid UTF-8 objective 'triage → review ✓' and gives UnicodeEncodeError on '\\u2192' under cp1252. '→' is common in this kernel's own prose.
+PYTHONIOENCODING=ascii fails the same way. R4 and FM-4 say 'never a traceback', and the skill's usage (an agent runs the script and captures its output) is exactly a pipe. The fix is local: reconfigure stdout with errors='replace', or write through an encoding-safe wrapper.
+"""
+blocking = false   # medium (FM-4 declared medium); a non-UTF-8 stdout is an environment the spec does not declare
+
+[[finding]]
+id = "F5"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "case the spec does not cover and the code silently accepts: cycle file names that are not exactly C-<n>.md"
+evidence = """
+Fixture p2/cycles has C-3-status.md, c-4.md, C-01.md, and C-1.md, each with an objective: line.
+The output is:
+  WARNING 2 cycles open: C-1, C-1 — one runs to the end before another opens
+  OPEN CYCLE C-1 (objective z) ... OPEN CYCLE C-1 (objective w)
+C-3-status.md and c-4.md are skipped silently: they are not listed, not counted as open, and not warned about. CYCLE_FILE (status.py:28) is '^C-(\\d+)\\.md$', and anything else in cycles/ is ignored. C-01.md is parsed as int 1 and renamed 'C-1', which produces a warning that names the same id twice and an ambiguous '--cycle C-1'.
+The effect: an open cycle in a slightly misnamed file is invisible, so the one-open-cycle warning (R2, FM-2 'a second open cycle goes unreported') can stay silent while two cycles are open. The threat model's hand-written files with typos include file names. A one-line warning for any *.md in cycles/ that does not match would close it.
+"""
+blocking = false   # medium; the documented naming is C-<n>.md, and FM-2's declared trigger (only the newest file inspected) is not what fails here
