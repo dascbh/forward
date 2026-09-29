@@ -78,9 +78,13 @@ class TestFindingsTemplateReachesClients(unittest.TestCase):
     def test_cycle_template_is_installed_and_named_there(self):
         sec6 = section(read("SETUP.md"), "6.")
         self.assertIn("`templates/cycle/` → `.fde/templates/cycle/`", sec6)
-        for rel in AGENTS_SURFACES:
-            self.assertIn("`.fde/templates/cycle/`", read(rel), rel)
+        # FWD-037: the cycle layout moved, verbatim, to fde-spec
+        # (cycles/C-14/inventory.md #47)
+        for rel in AGENTS_SURFACES + ("agents/fde-spec.md",
+                                      ".claude/agents/fde-spec.md"):
             self.assertNotIn("kernel's `templates/cycle/`", flat(rel), rel)
+        for rel in ("agents/fde-spec.md", ".claude/agents/fde-spec.md"):
+            self.assertIn("`.fde/templates/cycle/`", read(rel), rel)
 
 
 class TestPromotionReadsWhatExists(unittest.TestCase):
@@ -119,10 +123,13 @@ class TestSizesAgree(unittest.TestCase):
     def test_triage_and_agents_agree(self):
         rule = ("M adds architecture: `fde-architecture` writes the ADRs, so "
                 "M and L run all five roles.")
+        # FWD-037: AGENTS.md's copy was a duplicate of fde-triage's
+        # (cycles/C-14/inventory.md #12); the skill keeps the rule
+        for rel in ("skills/fde-triage/SKILL.md",
+                    ".claude/skills/fde-triage/SKILL.md"):
+            self.assertIn(rule, flat(rel), rel)
         for rel in AGENTS_SURFACES + ("skills/fde-triage/SKILL.md",):
-            text = flat(rel)
-            self.assertIn(rule, text, rel)
-            self.assertNotIn("all six roles", text, rel)
+            self.assertNotIn("all six roles", flat(rel), rel)
 
 
 class TestRolesMatchTheSpec(unittest.TestCase):
@@ -192,12 +199,15 @@ class TestReviewBudgetIsAReplan(unittest.TestCase):
             self.assertNotIn(gone, budget, gone)
         for rel in AGENTS_SURFACES:
             cycle = " ".join(section(read(rel), "Cycle").split())
-            # reviews/C-5 F1: the frozen plan is stated once, at sign-off
             for needle in ("narrow, declare the limit, or pause",
                            "recorded on `board.md`",
-                           "marked in `promotion.md` at close",
-                           "The plan is frozen at sign-off"):
+                           "marked in `promotion.md` at close"):
                 self.assertIn(needle, cycle, f"{rel}: {needle}")
+        # reviews/C-5 F1: the frozen plan is stated once, at sign-off;
+        # FWD-037 moved it with the state writers to fde-backlog
+        for rel in ("skills/fde-backlog/SKILL.md",
+                    ".claude/skills/fde-backlog/SKILL.md"):
+            self.assertIn("The plan is frozen at sign-off", flat(rel), rel)
         for rel in ("agents/fde-promotion.md", ".claude/agents/fde-promotion.md"):
             self.assertIn("recorded on `board.md`) is marked here",
                           flat(rel), rel)

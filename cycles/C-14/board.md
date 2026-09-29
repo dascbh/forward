@@ -10,3 +10,4 @@
 - 2026-09-29 FWD-041 claim widened: runtime/triage.py (+ bin/fde) for B-28 message wording (ADR-0015 cited in two messages); tests/test_coherence.py one line, the guard LEGACY_NOTE pin (B-28), shared with FWD-037
 - 2026-09-29 FWD-041 claim widened: skills/fde-erosion/SKILL.md (+ .claude copy), one sentence — whole-repo erosion now excludes cycles/ (B-20)
 - 2026-09-29 FWD-041 claim widened: runtime/walkthrough.py (+ bin/fde), two message strings (B-28)
+- 2026-09-29 FWD-037 claim widened: tests/test_scrum.py (TestBacklogInstructions pins the AGENTS.md ## Backlog sentences this demand moves; FWD-039 edits it after this merges)

@@ -32,6 +32,15 @@ Invariants upheld: I1, I4
 
 ## Cycle plan — `cycles/C-<n>/plan.md`
 
+A cycle is `cycles/C-<n>/` (next free `n`), from
+`.fde/templates/cycle/`: `plan.md`, `deploy.md`, `board.md`, `review.md`
+and `promotion.md` (its `## What changes`: three lines at most, each
+also a backlog line). `plan.md` carries a `## Threat model`, criteria
+and failure modes with ids dated before the first demand commit (I4),
+and the demand list; `deploy.md` the deploy plan; `docs/adr/` the
+decisions. An ADR is the only home of a decision; plan and specs cite
+it by id; a demand never amends it.
+
 - A `date:` line; criteria (`A1`, `A2`…) and failure modes (`FM1`…),
   each with an id. A requirement is measurable — "fast" becomes a number
   with a baseline; an unmeasurable one is a finding, not a vibe.
@@ -43,7 +52,9 @@ Invariants upheld: I1, I4
   ~300 production lines is split here, not at review.
 - `deploy.md`: steps ordered infra (expand) → back → front → infra
   (contract), each with its verification and rollback; an irreversible
-  step is marked and never bundled with a reversible one.
+  step is marked and never bundled with a reversible one. A failed step
+  rolls back and the cycle stops; the user is told the outcome, not
+  asked beforehand.
 
 Specifying a draft keeps its `## Items`. When the plan is specified,
 write `state: planned` in `plan.md` (specified, awaiting sign-off). At

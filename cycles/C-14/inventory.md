@@ -113,7 +113,7 @@ now holds them: step 2 names `fde-spec`, step 6 names `fde-review` for
 when a demand may merge, step 7 becomes `(fde-review, cycle mode)`, step
 8 names `fde-spec` for the deploy plan, `## Cycle` names `fde-spec` for
 the layout, `fde-backlog` for the states' writers and the close, and
-`fde-review` for a finding's path, and the gate line names `fde-triage`
+`fde-review` for a finding's path, and a line after the gate line names `fde-triage`
 for RULE. One new sentence states the three levels (kernel ADR-0019),
 which no sentence above named.
 

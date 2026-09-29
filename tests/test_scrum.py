@@ -143,7 +143,8 @@ class TestBacklogInstructions(unittest.TestCase):
                             "< production`", "`(C-<n>)`", "## Capture",
                             "becomes a backlog item, not a demand",
                             "`promotion.md` `## What changes`: three lines "
-                            "at most", "Sprints are retired"):
+                            "at most", "Sprints are retired",
+                            "`goal: not set`", "`--gate scrum` requires both"):
                 self.assertIn(element, flat, f"{rel}: {element}")
 
     def test_skill_carries_no_sprint_ceremony(self):
@@ -167,10 +168,10 @@ class TestBacklogInstructions(unittest.TestCase):
             self.assertIn("\n## Backlog\n", text, rel)
             self.assertNotIn("## Scrum mode", text, rel)
             section = self.section(rel)
+            # FWD-037: the header rule and "Sprints are retired" were
+            # duplicates of fde-scrum's (cycles/C-14/inventory.md #68,
+            # #71); the skill keeps them, AGENTS.md points to it
             for needle in ("becomes a backlog item, not a demand",
-                           "Sprints are retired; `sprints/` is history.", "`backlog.md` starts with `goal:` (or "
-                           "`goal: not set`) and `date:`; with `[scrum] "
-                           "enabled = true`, `--gate scrum` requires them.",
                            "`fde-scrum` skill"):
                 self.assertIn(needle, section, f"{rel}: {needle}")
             for gone in self.SPRINT_CEREMONY + ("retro", "sprint;"):

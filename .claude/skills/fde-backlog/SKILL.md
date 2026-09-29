@@ -84,6 +84,14 @@ first token of a bullet. Do it in one commit, before grouping.
 - A cycle moves `draft` (grouped) → `planned` (specified, awaiting
   sign-off) → `running` (signed off) → `closed` or `abandoned`. This
   panel writes only `state: draft`.
+- `fde-backlog` groups items (backlog → draft); `fde-spec` writes
+  `state: planned`; the orchestrating agent writes `running` with
+  `signed-off:` at sign-off, then `closed` or `abandoned`. The plan is
+  frozen at sign-off; these header lines are the only edits it takes.
+- A cycle closes when its criteria are met with integration evidence
+  and it is deployed or published; show the user its backlog lines
+  (`fde-status`). A cycle opened before kernel ADR-0019 finishes under
+  its own rules.
 - Grouping never writes a spec and never commits to anything.
 - Only one cycle may be running; drafts may be many.
 - A draft is organization only: no demand ids, no criteria, no specs
