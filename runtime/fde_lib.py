@@ -691,3 +691,65 @@ def reviewed_demands(project: Path) -> set[str]:
     return {canon_demand(p.name) for p in reviews.iterdir()
             if p.is_dir() and (p / "findings.toml").exists()} \
         if reviews.is_dir() else set()
+
+
+# -- backlog ids across parallel work -----------------------------------------
+# One definition of "an id is taken", shared by status.py (next free id) and
+# verify.py (duplicate check). A worktree's backlog.md and cycles/ are read
+# from disk, uncommitted lines included, because a parallel demand's line is
+# not on main yet when the next id is chosen.
+
+B_ID = re.compile(r"(?<![\w-])B-(\d+)(?!\d)")
+ID_REFS = ("main", "origin/main")
+
+
+def _git(root: Path, *args: str) -> str | None:
+    import subprocess
+    try:
+        r = subprocess.run(["git", "-C", str(root), *args], capture_output=True,
+                           text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout if r.returncode == 0 else None
+
+
+def _backlog_texts(tree: Path) -> list[str]:
+    files = [tree / "backlog.md"]
+    cycles = tree / "cycles"
+    if cycles.is_dir():
+        files += sorted(cycles.glob("*.md")) + sorted(cycles.glob("*/*.md"))
+    return [read_text(f) for f in files if f.is_file()]
+
+
+def used_backlog_ids(root: Path) -> dict[str, list[str]]:
+    """Every `B-<n>` taken, mapped to where it was seen: `tree` (this
+    checkout), `worktree:<path>` (every other worktree of the repository)
+    and `ref:<name>` (backlog.md on main and origin/main). Without git, only
+    `tree` is read."""
+    seen: dict[str, set[str]] = {}
+
+    def add(texts, where):
+        for t in texts:
+            for n in B_ID.findall(t):
+                seen.setdefault(f"B-{int(n)}", set()).add(where)
+
+    root = Path(root).resolve()
+    add(_backlog_texts(root), "tree")
+    listing = _git(root, "worktree", "list", "--porcelain") or ""
+    for line in listing.splitlines():
+        if line.startswith("worktree "):
+            wt = Path(line[len("worktree "):]).resolve()
+            if wt != root and wt.is_dir():
+                add(_backlog_texts(wt), f"worktree:{wt}")
+    for ref in ID_REFS:
+        text = _git(root, "show", f"{ref}:backlog.md")
+        if text is not None:
+            add([text], f"ref:{ref}")
+    return {k: sorted(v) for k, v in
+            sorted(seen.items(), key=lambda kv: int(kv[0][2:]))}
+
+
+def next_backlog_id(root: Path) -> str:
+    """One more than the highest id taken anywhere `used_backlog_ids` reads."""
+    used = used_backlog_ids(root)
+    return f"B-{max((int(k[2:]) for k in used), default=0) + 1}"

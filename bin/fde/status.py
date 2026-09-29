@@ -55,6 +55,9 @@ import sys
 import tomllib
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import fde_lib  # noqa: E402
+
 HEADER = re.compile(r"^([A-Za-z_]+)\s*:\s*(.*)$")
 DONE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\[([^\]]{0,3})\]\s*(.*)$")
 BULLET = re.compile(r"^\s*[-*+]\s+(.*)$")
@@ -517,6 +520,9 @@ def next_ids(root: Path, cycles: list[Cycle]) -> dict:
     or old single file. Ids are never reused."""
     texts = [_read(root / "backlog.md")] + [c.text for c in cycles]
     b = max((int(n) for t in texts for n in ANY_B_ID.findall(t)), default=0)
+    # Parallel worktrees and main count too: a demand's new line is not on
+    # this checkout yet when the next id is chosen (fde_lib.used_backlog_ids).
+    b = max([b] + [int(k[2:]) for k in fde_lib.used_backlog_ids(root)])
     n = max((c.n for c in cycles), default=0)
     return {"backlog_id": f"B-{b + 1}", "cycle_id": f"C-{n + 1}"}
 

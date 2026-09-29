@@ -73,7 +73,8 @@ to each item that has none, as the first cell of a table row or as the
 first token of a bullet. Do it in one commit, before grouping.
 
 - Next free = `next.backlog_id`: one more than the highest `B-<n>`
-  anywhere in backlog.md or in any cycle; never reuse an id, even one
+  anywhere in backlog.md or in any cycle, in every worktree and on
+  main (`fde_lib.used_backlog_ids`); never reuse an id, even one
   whose item is gone.
 - A table whose first column is a row number (`#`): that cell becomes
   the id and the header cell becomes `id`. Any other table: add a

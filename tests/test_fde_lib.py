@@ -172,3 +172,63 @@ class TestGatePathsMustBeLists(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestUsedBacklogIds(unittest.TestCase):
+    """Backlog ids are taken across parallel worktrees and main, not only in
+    this checkout — the collision that cost C-14 two renumberings."""
+
+    def setUp(self):
+        import subprocess
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.repo = Path(self.tmp.name) / "repo"
+        self.repo.mkdir()
+
+        def git(*a, cwd=self.repo):
+            subprocess.run(["git", "-C", str(cwd), *a], check=True,
+                           capture_output=True)
+        self.git = git
+        git("init", "-q", "-b", "main")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "t")
+        (self.repo / "backlog.md").write_text(
+            "goal: x\ndate: 2026-09-29\n\n- B-1 one\n- B-3 three\n")
+        git("add", "-A")
+        git("commit", "-q", "-m", "init")
+
+    def test_an_uncommitted_line_in_another_worktree_is_taken(self):
+        from fde_lib import next_backlog_id, used_backlog_ids
+        wt = Path(self.tmp.name) / "wt"
+        self.git("worktree", "add", "-q", "-b", "demand", str(wt))
+        with open(wt / "backlog.md", "a") as f:
+            f.write("- B-7 found by a parallel demand\n")
+        used = used_backlog_ids(self.repo)
+        self.assertEqual(used["B-7"], [f"worktree:{wt.resolve()}"])
+        self.assertIn("ref:main", used["B-3"])
+        self.assertEqual(next_backlog_id(self.repo), "B-8")
+
+    def test_a_cycle_file_counts(self):
+        from fde_lib import next_backlog_id
+        (self.repo / "cycles" / "C-1").mkdir(parents=True)
+        (self.repo / "cycles" / "C-1" / "plan.md").write_text("- B-12 item\n")
+        self.assertEqual(next_backlog_id(self.repo), "B-13")
+
+    def test_without_git_only_the_tree_is_read(self):
+        from fde_lib import used_backlog_ids
+        plain = Path(self.tmp.name) / "plain"
+        plain.mkdir()
+        (plain / "backlog.md").write_text("- B-2 x\n")
+        self.assertEqual(used_backlog_ids(plain), {"B-2": ["tree"]})
+
+    def test_status_next_id_sees_the_worktree(self):
+        import subprocess
+        wt = Path(self.tmp.name) / "wt2"
+        self.git("worktree", "add", "-q", "-b", "d2", str(wt))
+        with open(wt / "backlog.md", "a") as f:
+            f.write("- B-20 parallel\n")
+        out = subprocess.run(
+            [sys.executable, str(ROOT / "runtime" / "status.py"), "--root",
+             str(self.repo), "--format", "json"], capture_output=True, text=True)
+        self.assertIn('"backlog_id": "B-21"', out.stdout, out.stderr)
