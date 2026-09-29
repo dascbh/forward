@@ -1,7 +1,7 @@
 # ADR-0021 — Review by weight
 
 date: 2026-09-29
-status: accepted with C-13's sign-off
+status: accepted (C-13 signed off 2026-09-29)
 realized by: FWD-036
 
 ## Context

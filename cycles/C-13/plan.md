@@ -1,9 +1,9 @@
 cycle: C-13
-state: planned
+state: running
 date: 2026-09-29
 size: S
 objective: review by weight — a coding demand gets a code review; adversarial review is for M/L plans before sign-off and for sensitive, irreversible or oversized demands
-signed-off:
+signed-off: 2026-09-29 (owner: "aprovado")
 
 <!-- Triage: surfaces 1 (instruction layer) · public · reversible ·
 ~150 lines → 1 + 0 + 0 + 1 = 2 → S. Planner with kernel ADR-0021; one
