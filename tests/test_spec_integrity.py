@@ -262,3 +262,12 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertTrue((ROOT / "skills/fde-backlog-format/SKILL.md").exists())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 22, 0))
+
+    def test_kernel_version_ships_the_spec_kit_tracks(self):
+        # tracks A-C (owner decision, direct, 2026-09-29): recorded runs,
+        # waves and prose-tolerant pins reach clients only through a moved
+        # version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "tests/prose.py").exists())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 23, 0))
