@@ -1,0 +1,68 @@
+# Code review report (light pass)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-036"
+kind = "code"
+context_policy = "artifact_only"
+isolation_mode = "artifact_and_spec"
+rounds_planned = 1
+round = 1
+commit = "9368d1d"
+agent_transcript = "agent-aabf2023e0e9d7a1e"
+probed = [
+  "spec.md and ADR-0021 read against git show 9368d1d",
+  "sentence-by-sentence comparison of the AGENTS.md diff",
+  "python3 -m unittest test_instructions.py: 58 tests OK; test_verify.py: 103 tests OK",
+  "diff agents/fde-adversarial.md against .claude/agents/fde-adversarial.md (differ only by the generated header and attack order, as expected); wc -w AGENTS.md = 1599",
+]
+notes = [
+  "Diff does what the spec says: rule pinned in AGENTS.md step 5, template, fde-review, fde-adversarial; template carries kind; word count 1599 (limit 1600); ADR-0021 table is reproduced faithfully.",
+  "AGENTS.md trims: no rule dropped except the ones in F2 and F3; step 3 shortened to 'everything after it' (covers demands, merges, promotion), the '## Cycle' pointers and the 'everything else goes to the backlog' repeat are covered by the preceding sentence, Voice moved under Detail unchanged in substance.",
+  "Step 5 no longer says 'weight-ordered'; fde-review still carries the attack order, so the behavior survives, but the AGENTS.md summary is silent on it.",
+  "Plan review path reviews/C-<n>/findings-plan.toml is named in the skill only; no gate reads it (declared limit of the demand, not a defect).",
+]
+
+[[finding]]
+id = "F1"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-10"
+evidence = """
+AGENTS.md step 1 still says 'Size sets only the planner's depth and the cycle review rounds'. Under the new rule step 5 makes review kind depend on size too: an M/L plan gets an adversarial plan review before sign-off (kind = "plan"). Two sentences in the same file give a different answer to what size controls; a reader following step 1 would skip the plan review at M/L. The trim edited this paragraph but left the sentence.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "low"
+principle = "MNT-10"
+evidence = """
+Step 4 lost 'Code lands with its eval entries (I1)'; only 'A root with no suite gets a minimal one (I1)' remains. I1 is still stated in the invariants list and the eval-coverage gate is unchanged, so no rule is broken, but the build step no longer tells the implementer that code and eval entries ship together.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F3"
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-10"
+evidence = """
+Step 1 lost 'and the cycle closes with a promotion'. Step 8 still says promotion, at every size, is fde-promotion's decision, so the rule survives; the removed clause was the only place step 1 linked size to the five-role count for XS/S. Low: covered elsewhere.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F4"
+attribute = "usability_accessibility"
+severity = "low"
+principle = "MNT-10"
+evidence = """
+Step 5 says a sensitive or irreversible demand gets adversarial review but does not say who judges it or where. The old triage inputs per demand (sensitive, irreversible) live in the plan; the rule is ambiguous about whether the plan's demand list must mark them. An agent unsure will pick the cheaper code review.
+"""
+blocking = false
+backlog = true
