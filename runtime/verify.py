@@ -43,6 +43,7 @@ from fde_lib import (  # noqa: E402
     promoted_demands,
     read_text,
     reviewed_demands,
+    used_backlog_ids,
     validate,
 )
 
@@ -61,6 +62,39 @@ KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
 VENDOR_PATHS = ("node_modules/", ".venv/", "venv/", "vendor/", "dist/", "build/", "__pycache__/")
+
+
+# A backlog item line opens with its id: `- B-<n> …` or `| B-<n> | … |`.
+_ITEM_LINE = re.compile(r"^\s*(?:[-*+]\s+|\|\s*)(?:\*\*|`)?B-(\d+)(?:\*\*|`)?(?!\d)\s*(.*)$")
+# What may legitimately differ between two copies of one item: the ` → C-<n>`
+# grouping mark, a `— discarded…`/`— declined…` suffix, and the evidence
+# label, which is re-labelled as evidence lands (fde-backlog-format).
+_ITEM_MARK = re.compile(r"\s*→\s*C-\d+\b")
+_ITEM_END = re.compile(r"\s+[—–-]{1,2}\s*(?:discarded|declined)\b.*$", re.I)
+_ITEM_EVIDENCE = re.compile(r"(?<![\w-])(?:opinion|usage-data|user-test|production)(?![\w-])")
+
+
+def backlog_items(text: str) -> list[tuple[str, str]]:
+    """(`B-<n>`, normalized text) for each line of backlog.md that opens an
+    item; the id is normalized as fde_lib.used_backlog_ids normalizes it."""
+    out = []
+    for line in text.splitlines():
+        m = _ITEM_LINE.match(line)
+        if not m:
+            continue
+        body = _ITEM_END.sub("", _ITEM_MARK.sub("", m.group(2)))
+        body = _ITEM_EVIDENCE.sub("", body.replace("|", " "))
+        body = re.sub(r"\s+", " ", body).strip(" —–-")
+        out.append((f"B-{int(m.group(1))}", body))
+    return out
+
+
+def same_item(a: str, b: str) -> bool:
+    """One item, two copies: equal texts, or one the other's opening words
+    (an item moved to a closing list keeps its title and drops the rest)."""
+    a, b = (t.casefold().rstrip(" .…(") for t in (a, b))
+    short, long_ = sorted((a, b), key=len)
+    return bool(short) and long_.startswith(short)
 
 
 def _cycle_closed(plan: Path) -> bool:
@@ -823,6 +857,65 @@ class Gate:
         # sprints are retired (kernel ADR-0019 rule 13): sprints/ stays
         # readable as history (graph.py) and gates nothing.
 
+    # -- backlog ids: one id, one item, across parallel checkouts ---------
+    def _backlog_md(self, place: str) -> str | None:
+        if place == "tree":
+            p = self.project / "backlog.md"
+        elif place.startswith("worktree:"):
+            p = Path(place[len("worktree:"):]) / "backlog.md"
+        elif place.startswith("ref:"):
+            out = self._run_git("show", f"{place[4:]}:backlog.md")
+            return out.stdout if out.returncode == 0 else None
+        else:
+            return None
+        return read_text(p) if p.is_file() else None
+
+    def gate_backlog_ids(self, explicit: bool = False) -> None:
+        """Where an id is seen (fde_lib.used_backlog_ids) is not where it is
+        defined: a plan's `## Items` names an item, backlog.md opens it. A
+        duplicate is one id opening two item lines with different texts —
+        inside this tree's backlog.md, or between it and another worktree's
+        or main's backlog.md."""
+        try:
+            used = used_backlog_ids(self.project)
+        except OSError as e:
+            self.add("BL-IDS", False, f"backlog ids could not be read: {e}")
+            return
+        places = sorted({w for ws in used.values() for w in ws},
+                        key=lambda w: (w != "tree", w))
+        defs: dict[str, dict[str, list[str]]] = {}
+        for place in places:
+            text = self._backlog_md(place)
+            for bid, item in backlog_items(text or ""):
+                defs.setdefault(bid, {}).setdefault(place, []).append(item)
+        here = defs and any("tree" in d for d in defs.values())
+        problems = []
+        for bid, by_place in sorted(defs.items(), key=lambda kv: int(kv[0][2:])):
+            mine = by_place.get("tree")
+            if not mine:
+                continue
+            clash = [(a, b) for i, a in enumerate(mine) for b in mine[i + 1:]
+                     if not same_item(a, b)]
+            if clash:
+                a, b = clash[0]
+                problems.append(f"{bid} opens two items in backlog.md: "
+                                f"'{a}' and '{b}'")
+            for place, items in by_place.items():
+                other = [t for t in items
+                         if not any(same_item(t, m) for m in mine)]
+                if place != "tree" and other:
+                    problems.append(f"{bid} is '{mine[0]}' in backlog.md but "
+                                    f"'{other[0]}' in {place}")
+        if problems:
+            self.add("BL-IDS", False,
+                     "duplicate backlog id — " + "; ".join(problems[:5]) +
+                     (f" (+{len(problems) - 5} more)" if len(problems) > 5 else "") +
+                     " — give the later item the next free id "
+                     "(`fde-backlog`)")
+        elif here or explicit:
+            self.add("BL-IDS", True,
+                     f"backlog ids unique across {len(places) or 1} place(s)")
+
     # -- divergence: M/L design surfaces converged only after diverging ---
     def gate_divergence(self) -> None:
         try:
@@ -1282,6 +1375,7 @@ def main() -> int:
             g.gate_artifact_handoff()
         if want("backlog"):
             g.gate_backlog(cfg, explicit=(only == "backlog"))
+            g.gate_backlog_ids(explicit=(only == "backlog"))
         if want("traceability"):
             g.gate_traceability()
         if want("erosion"):

@@ -2013,5 +2013,93 @@ class TestRunRecordPerTree(unittest.TestCase):
         self.assertEqual(json.loads(path.read_text())["gate"], {"passed": True})
 
 
+class TestDuplicateBacklogIds(unittest.TestCase):
+    """A true duplicate is one `B-<n>` opening two item lines with different
+    texts — in this tree's backlog.md, or between it and another worktree's
+    or main's. An id merely seen in several places passes."""
+
+    HEAD = "---\ngoal: g\ndate: 2026-09-29\n---\n# Backlog\n\n"
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def backlog(self, root, *lines):
+        (Path(root) / "backlog.md").write_text(self.HEAD + "\n".join(lines) + "\n")
+
+    def gate(self, root=None):
+        r = verify(root or self.p, "--gate", "backlog")
+        rows = [l for l in r.stdout.splitlines() if "BL-IDS" in l]
+        return r, "\n".join(rows)
+
+    def test_a_duplicate_within_one_file_is_red(self):
+        self.backlog(self.p, "- B-3 (C-1) opinion — the first thing",
+                     "- B-3 (C-2) opinion — something else")
+        r, row = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("B-3", row)
+        self.assertIn("the first thing", row)
+        self.assertIn("something else", row)
+
+    def test_a_duplicate_across_two_worktrees_is_red(self):
+        self.backlog(self.p, "- B-4 opinion — shared item")
+        commit_all(self.p, "init")
+        wt = Path(self._tmp.name).parent / (Path(self._tmp.name).name + "-wt")
+        run_git(self.p, "worktree", "add", "-q", "--detach", str(wt))
+        self.addCleanup(shutil.rmtree, wt, ignore_errors=True)
+        self.backlog(wt, "- B-4 opinion — shared item",
+                     "- B-5 opinion — assigned in the worktree")
+        self.backlog(self.p, "- B-4 opinion — shared item",
+                     "- B-5 opinion — assigned here too, differently")
+        r, row = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("B-5", row)
+        self.assertIn(f"worktree:{wt.resolve()}", row)
+        self.assertIn("backlog.md", row)
+        self.assertNotIn("B-4", row)
+
+    def test_the_same_text_in_several_places_passes(self):
+        self.backlog(self.p, "- B-6 (C-1) opinion — one item")
+        commit_all(self.p, "init")
+        wt = Path(self._tmp.name).parent / (Path(self._tmp.name).name + "-wt")
+        run_git(self.p, "worktree", "add", "-q", "--detach", str(wt))
+        self.addCleanup(shutil.rmtree, wt, ignore_errors=True)
+        # grouped here, discarded there: the mark and the suffix are not text
+        self.backlog(self.p, "- B-6 (C-1) opinion — one item → C-2")
+        self.backlog(wt, "- B-6 (C-1) opinion — one item — discarded: done")
+        r, row = self.gate()
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("✓", row)
+
+    def test_a_condensed_title_is_the_same_item(self):
+        # an item moved to a closing list keeps its opening words
+        self.backlog(self.p, "- B-7 (C-1) opinion — split the parser so the "
+                             "gate reads one file (…",
+                     "- B-007 (C-1) opinion — split the parser so the gate "
+                     "reads one file (non-ASCII paths) and reports it")
+        r, row = self.gate()
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_a_plan_items_mention_passes(self):
+        self.backlog(self.p, "- B-8 (C-1) opinion — the item")
+        d = Path(self.p) / "cycles" / "C-2"
+        d.mkdir(parents=True)
+        (d / "plan.md").write_text("state: draft\n\n## Items\n\n"
+                                   "- B-8 the item, as the plan names it\n")
+        r, row = self.gate()
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertNotIn("✗", row)
+
+    def test_a_table_row_is_an_item_line(self):
+        self.backlog(self.p, "| B-9 | first | h | opinion | S |",
+                     "| B-9 | second | h | opinion | S |")
+        r, row = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("B-9", row)
+
+
 if __name__ == "__main__":
     unittest.main()
