@@ -182,45 +182,59 @@ class TestBoundedReview(unittest.TestCase):
 
 
 class TestDeclaredCycle(unittest.TestCase):
-    """FWD-022: the declared-cycle practice ships as instruction, not as a
-    gate (ADR-0018). Each requirement is pinned as the sentence that states
-    it (whitespace-normalized), so rewording a rule away goes red — a
-    keyword check survives meaning-changing edits (reviews/FWD-022 F1)."""
+    """FWD-022, hardened by FWD-023: one cycle runs to the end before another
+    opens; what belongs to its request is concluded in it; everything else is
+    backlog. Instruction, not a gate (ADR-0018). Each requirement is pinned
+    as the sentence that states it (whitespace-normalized), so rewording a
+    rule away goes red (reviews/FWD-022 F1)."""
 
     SURFACES = ("AGENTS.md", "templates/AGENTS.md.template")
 
     RULES = {
-        "R1": ("Before the first behavior change of a request, write and "
-               "commit `cycles/C-<n>.md` (next free `n`) with an "
-               "`objective:` line, a `demands:` line (id and size each), and "
-               "three sections: `## Tasks` (what this cycle does, nothing "
-               "else), `## Done when`, `## Next cycle` (empty at opening)."),
-        "R2": ("always declared-before (this file precedes the code) and "
-               "residuals (this list, shown at close); regression-proven "
-               "(tests red before, green after) when the cycle changes "
-               "behavior; review-rounds (the size's budget spent, no "
-               "blocking finding open) for every sized demand; add promotion "
-               "only for M/L, and deploy or publish only when the project "
-               "deploys or publishes. A RULE commit (`fde-triage`) needs no "
-               "cycle."),
-        "R3": ("anything found outside `## Tasks` goes to `## Next cycle`, "
-               "never fixed in-band (MNT-9) — the one exception is a defect "
-               "that blocks a declared task, fixed and noted as such."),
-        "R5": ("The declaration is frozen after the first behavior commit "
-               "except for appending to `## Next cycle` and marking done "
-               "items. A changed scope is a new cycle."),
-        "R5-one-open": ("One cycle is open at a time: a new request that "
-                        "arrives mid-cycle goes to `## Next cycle`, unless "
-                        "the user wants it now — then the open cycle closes "
-                        "as it stands (unmet items `[-]`) and the new "
-                        "request opens its own cycle. Ask the user before "
-                        "widening `## Tasks`; the answer is a new cycle, not "
-                        "an edit."),
-        "R4": ("At close, mark each done item `[x]` (met) or `[-]` (not met, "
-               "with why), add `closed:`, and show the user the `## Next "
-               "cycle` list verbatim — it is the next cycle's input. With "
-               "`[scrum]` on, each item also enters `backlog.md` with "
-               "evidence `usage-data`."),
+        "declare": ("Before the first behavior change of a request, write and "
+                    "commit `cycles/C-<n>.md` (next free `n`) with an "
+                    "`objective:` line, a `demands:` line (id and size each), "
+                    "and two sections: `## Tasks` (what this cycle does, "
+                    "nothing else) and `## Done when`."),
+        "done-when": ("`## Done when` carries one line per demand, marked when "
+                      "that demand is done, and the cycle's own items: always "
+                      "declared-before (this file precedes the code) and "
+                      "backlog-captured (the backlog lines this cycle added, "
+                      "shown at close); regression-proven (tests red before, "
+                      "green after) when the cycle changes behavior; "
+                      "review-rounds (the size's budget spent, no blocking "
+                      "finding open) for every sized demand; add promotion "
+                      "only for M/L, and deploy or publish only when the "
+                      "project deploys or publishes. A RULE commit "
+                      "(`fde-triage`) needs no cycle."),
+        "one-open": ("One cycle is open at a time, and it runs to the end: no "
+                     "other cycle opens until every done item is `[x]`. A new "
+                     "request that arrives mid-cycle goes to `backlog.md`, not "
+                     "to a new cycle."),
+        "abandon": ("The only way out before the end is the user abandoning "
+                    "the cycle in so many words: add `abandoned:` with the "
+                    "date and the user's reason and mark unmet items `[-]`. "
+                    "The agent never proposes it to start other work."),
+        "conclude": ("What belongs to the cycle's request is concluded in the "
+                     "cycle: a review finding on its changes, a residual of "
+                     "its demands, a defect its objective owns. Concluded "
+                     "means fixed, or declined by the user as a declared "
+                     "limit — never deferred to a later cycle."),
+        "backlog": ("Anything else found during the cycle goes to `backlog.md` "
+                    "as one line carrying `(C-<n>)` and its evidence, and is "
+                    "never fixed in-band (MNT-9) — the one exception is a "
+                    "defect that blocks a declared task, fixed and noted as "
+                    "such. The backlog holds ideas and discoveries, not "
+                    "commitments; create it on the first capture."),
+        "frozen": ("The declaration is frozen after the first behavior commit "
+                   "except for marking done items. Ask the user before "
+                   "widening `## Tasks`; the answer is a backlog line, not an "
+                   "edit."),
+        "close": ("At close every done item is `[x]`: add `closed:` and show "
+                  "the user the backlog lines this cycle added — the next "
+                  "request is chosen from the backlog."),
+        "view": ("`python3 bin/fde/status.py` shows the open cycle and the "
+                 "backlog (`fde-status`)."),
     }
 
     def cycle(self, rel):
@@ -232,8 +246,16 @@ class TestDeclaredCycle(unittest.TestCase):
             for rid, rule in self.RULES.items():
                 self.assertIn(rule, text, f"{rel}: {rid}")
 
+    def test_no_next_cycle_list_and_no_switching(self):
+        # FWD-023: the list that grew into a second backlog is gone, and so
+        # is "the open cycle closes as it stands" to start a new request
+        for rel in self.SURFACES:
+            text = self.cycle(rel)
+            self.assertNotIn("## Next cycle", text, rel)
+            self.assertNotIn("closes as it stands", text, rel)
+
     def test_no_in_band_loophole(self):
-        # FM-3's own trigger: a "small adjacent fix" allowance
+        # FWD-022 FM-3's own trigger: a "small adjacent fix" allowance
         for rel in self.SURFACES:
             self.assertNotIn("small", self.cycle(rel), rel)
 
@@ -249,6 +271,12 @@ class TestDeclaredCycle(unittest.TestCase):
                     ".claude/skills/fde-triage/SKILL.md",
                     ".claude/skills/fde-scrum/SKILL.md"):
             self.assertIn("AGENTS.md `## Cycle`", read(rel), rel)
+
+    def test_scrum_captures_discoveries_as_found(self):
+        for rel in ("skills/fde-scrum/SKILL.md", ".claude/skills/fde-scrum/SKILL.md"):
+            text = " ".join(read(rel).split())
+            self.assertNotIn("`## Next cycle`", text, rel)
+            self.assertIn("enter `backlog.md` as they are found", text, rel)
 
 
 class TestGuardAuditDocs(unittest.TestCase):

@@ -151,38 +151,49 @@ writing code on request; start by sizing. Pick a short demand id first
 Handoff between steps is by the artifacts named above, never by
 continuing the same conversation thread (I7).
 
-## Cycle — declared before, discovered after
+## Cycle — one request, run to the end
 
 A cycle is one request from the user: one or more demands run together.
 Before the first behavior change of a request, write and commit
 `cycles/C-<n>.md` (next free `n`) with an `objective:` line, a `demands:`
-line (id and size each), and three sections: `## Tasks` (what this cycle
-does, nothing else), `## Done when`, `## Next cycle` (empty at opening).
+line (id and size each), and two sections: `## Tasks` (what this cycle
+does, nothing else) and `## Done when`.
 
-`## Done when` fits the project and the change, never a fixed list:
-always declared-before (this file precedes the code) and residuals (this
-list, shown at close); regression-proven (tests red before, green after)
+`## Done when` carries one line per demand, marked when that demand is
+done, and the cycle's own items: always declared-before (this file
+precedes the code) and backlog-captured (the backlog lines this cycle
+added, shown at close); regression-proven (tests red before, green after)
 when the cycle changes behavior; review-rounds (the size's budget spent,
 no blocking finding open) for every sized demand; add promotion only for
 M/L, and deploy or publish only when the project deploys or publishes. A
 RULE commit (`fde-triage`) needs no cycle.
 
-During the cycle, anything found outside `## Tasks` goes to `## Next
-cycle`, never fixed in-band (MNT-9) — the one exception is a defect that
-blocks a declared task, fixed and noted as such. The declaration is frozen
-after the first behavior commit except for appending to `## Next cycle`
-and marking done items. A changed scope is a new cycle. One cycle is
-open at a time: a new request that arrives mid-cycle goes to `## Next
-cycle`, unless the user wants it now — then the open cycle closes as it
-stands (unmet items `[-]`) and the new request opens its own cycle. Ask
-the user before widening `## Tasks`; the answer is a new cycle, not an
-edit. Under `[scrum]`, a sprint holds several cycles, one per request.
+One cycle is open at a time, and it runs to the end: no other cycle opens
+until every done item is `[x]`. A new request that arrives mid-cycle goes
+to `backlog.md`, not to a new cycle. The only way out before the end is
+the user abandoning the cycle in so many words: add `abandoned:` with the
+date and the user's reason and mark unmet items `[-]`. The agent never
+proposes it to start other work.
 
-At close, mark each done item `[x]` (met) or `[-]` (not met, with why),
-add `closed:`, and show the user the `## Next cycle` list verbatim — it is
-the next cycle's input. With `[scrum]` on, each item also enters
-`backlog.md` with evidence `usage-data`. This is an instruction, not a
-gate (ADR-0018): it assumes a cooperative agent.
+What belongs to the cycle's request is concluded in the cycle: a review
+finding on its changes, a residual of its demands, a defect its objective
+owns. Concluded means fixed, or declined by the user as a declared limit
+— never deferred to a later cycle. Anything else found during the cycle
+goes to `backlog.md` as one line carrying `(C-<n>)` and its evidence, and
+is never fixed in-band (MNT-9) — the one exception is a defect that
+blocks a declared task, fixed and noted as such. The backlog holds ideas
+and discoveries, not commitments; create it on the first capture.
+
+The declaration is frozen after the first behavior commit except for
+marking done items. Ask the user before widening `## Tasks`; the answer
+is a backlog line, not an edit. Under `[scrum]`, a sprint holds several
+cycles, one after another.
+
+At close every done item is `[x]`: add `closed:` and show the user the
+backlog lines this cycle added — the next request is chosen from the
+backlog. `python3 bin/fde/status.py` shows the open cycle and the backlog
+(`fde-status`). This is an instruction, not a gate (ADR-0018): it assumes
+a cooperative agent.
 
 ## Scrum mode — when `[scrum]` is enabled
 
