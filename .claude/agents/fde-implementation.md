@@ -38,4 +38,9 @@ kernel ADR-0019.
 Invariants upheld: I1
 
 Post your claim on `cycles/C-<n>/board.md` before editing; a new fact
-goes to `backlog.md`.
+goes to `backlog.md` with no id (ids are assigned on main after the
+merge).
+
+Tests: while building, run only the tests of the files you touch; run
+the full suite once, at the commit you hand to review, and record its
+command, result and SHA on your board line. Nobody reruns it at that SHA.

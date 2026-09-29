@@ -66,13 +66,16 @@ adversarial review. An M/L plan, before sign-off: adversarial plan
 review (`kind = "plan"`). The cycle review is unchanged.
 
 - **code**: the diff against the demand spec, conformance to the cycle
-  ADRs the spec cites, the tests passing, and its layer's check
+  ADRs the spec cites, the tests passing (read from the builder's
+  recorded run at this SHA — never rerun the suite), and its layer's check
   (`back`: unit + contract tests; `front`: design QA against the
   approved wireframe; `infra`: plan diff, policy check). The heuristic
   pass still runs. Findings in `reviews/<demand-id>/findings.toml`,
   `kind = "code"`. Budget: about 10 minutes, 1 round.
 - **adversarial**: everything code mode checks, then probe until it
   breaks, in the attack order below; scratch repositories allowed.
+  Probes are targeted executions, never a full-suite rerun; mutation
+  testing only where `plan.md` declares it.
   Same file, `kind = "adversarial"`. Budget: 1 round.
 - **plan**: before sign-off, attack `plan.md`'s criteria, threat model
   and demand split, and the ADRs the cycle proposes; a finding cites
@@ -97,7 +100,9 @@ review (`kind = "plan"`). The cycle review is unchanged.
   - Budget from the cycle's size: 1 round at XS/S, full + delta at M/L.
 
 ## Round kind — the prompt names it
-- **full** (round 1): the whole artifact against the whole spec.
+- **full** (round 1): the whole artifact against the whole spec. No
+  blocking finding ends the review; a delta runs only to check a
+  blocker's fix.
 - **delta** (every later round): the prior round's findings plus the diff
   that answered them. Verify each prior finding (fixed / not fixed), then
   attack only the lines that changed. A new defect in code the delta did

@@ -10,6 +10,14 @@ re-emit the project from it.** Updating without re-emitting leaves the
 project on the old artifacts; re-emitting without updating just rewrites
 what it already had.
 
+## 0. When — between cycles
+
+Before anything, read the cycle states (`python3 bin/fde/status.py`).
+When a cycle is `running`, do not sync: tell the owner which cycle is
+running and that the sync runs once it closes or is abandoned. A sync
+never changes the rules under a running cycle; demands and reviews
+finish under the rules they were planned with.
+
 **Say this to the user before starting:** the sync writes tool
 permissions into `.claude/settings.json` (SETUP §8.4), besides the
 generated files. Claude Code's auto mode may block that write. If it

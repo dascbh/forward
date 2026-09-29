@@ -64,6 +64,26 @@ line is `FORWARD: RULE — <one-line reason>`. The `rule-lane` gate
 re-verifies the claim against the real diff, every time; a wrong guess
 only sends the change through the table below.
 
+## Direct lane — no cycle
+
+A change goes straight to code, with no cycle, plan or sign-off, when
+ALL hold: exactly one layer; about 300 production lines at most; not
+`sensitive`; not `irreversible`; it adds no acceptance criterion to a
+plan and needs no ADR. Unsure on any → a cycle.
+
+1. The request is the spec: the owner's words, one paragraph, in the
+   first commit's message body.
+2. The test comes first and is the declared criterion (I1, I4).
+3. Build on a branch; the gate runs green (`verify.py --all`).
+4. One isolated code review (I2, I3): the diff against the request,
+   `reviews/<branch>/findings.toml`, `kind = "code"`, 1 round. Only a
+   blocking finding stops the merge.
+5. Merge rebased onto main. It ships with the project's next deploy.
+
+Announce it in one line: `FORWARD: direct — <layer>, ~<loc> lines`. A
+direct change that turns out to span layers, overrun ~300 lines or
+need a criterion stops and becomes a cycle.
+
 ## Score and size
 
 ```
@@ -128,7 +148,7 @@ the plan's ids. A plan that needs more is a cycle that needs splitting.
 The invariants. At XS and at L, all eight apply equally. What varies is the
 **boundary covered**, not the **criteria applied**.
 
-When the user complains about process weight: apply the table and show the
-reduced plan. When they ask to turn off the gate: explain that no key
+When the user complains about process weight: check the direct lane
+first; otherwise apply the table and show the reduced plan. When they ask to turn off the gate: explain that no key
 exists, and that the path is shrinking the delivery scope until it fits the
 standard — not the other way around.

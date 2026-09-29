@@ -76,7 +76,9 @@ onto main, with `python3 bin/fde/verify.py --all` green and no blocking
 finding open. A demand merges only with its review record
 (`reviews/<id>/findings.toml`), and its merge line on `board.md` names it.
 
-- **Full** (round 1): the whole artifact against the whole spec.
+- **Full** (round 1): the whole artifact against the whole spec. A full
+  round with no blocking finding ends the review: the delta round runs
+  only to check a blocker's fix.
 - **Delta** (every later round): the prior findings plus the diff that
   answered them. The reviewer verifies each prior finding, then attacks
   only the changed lines. A new defect in untouched code goes to the
@@ -93,6 +95,27 @@ finding open. A demand merges only with its review record
      not a pass);
   3. *pause* — revert, nothing ships, the backlog keeps the record.
   "One more round" is not an option (kernel ADR-0018).
+
+## Test runs — once per SHA
+
+A suite green at a SHA is a fact on disk; no role runs it again at that
+SHA.
+
+- **Builder**: while building, only the tests of the files touched; the
+  full suite once, at the commit handed to review. Its command, result
+  and SHA go on the demand's board line.
+- **Code review**: reads that record and the tests in the diff; never
+  reruns the suite. One targeted test only to prove a suspected finding.
+- **Adversarial review**: probes are targeted executions, never a
+  full-suite rerun.
+- **Promotion**: `verify.py --all` once at the promoted commit; the
+  evidence per criterion is the review record and the builder's run,
+  not a red→green reproduction per criterion.
+- **Mutation testing** runs only where `plan.md` declares it for a
+  criterion.
+
+CI runs the full suite on every push; locally, a suite already green at
+the same SHA is not run again.
 
 ## Before the cycle review
 

@@ -267,7 +267,7 @@ class TestDeclaredCycle(unittest.TestCase):
                      "`cycles/C-<n>/board.md`."),
         "board-record": ("The board is the record (I7), not the "
                          "conversation."),
-        "rationale": "code starts only inside a signed-off cycle (kernel ADR-0019)",
+        "rationale": "Code starts only inside a signed-off cycle (kernel ADR-0019) or in the direct lane",
     }
 
     # FWD-037: rules that left AGENTS.md, each pinned in the file that now
@@ -353,9 +353,8 @@ class TestDeclaredCycle(unittest.TestCase):
             # FWD-031: sprints are retired, so there is no retro to surface at
             # FWD-036 (C-13): the pointer to ## Cycle was trimmed for the
             # word budget; the rule is unchanged
-            self.assertIn("\"Fix it NOW\" skips the backlog order, never the "
-                          "open cycle: it becomes the next cycle's first "
-                          "demand.", flat, rel)
+            self.assertIn("\"Fix it NOW\": the direct lane when it fits, "
+                          "else the next cycle's first demand.", flat, rel)
             self.assertNotIn("surfaces at the retro", flat, rel)
             self.assertNotIn("bypasses the backlog", flat, rel)
         # reviews/FWD-028 F4: the budget's way out is ADR-0019's replan

@@ -22,6 +22,9 @@ usage-data < user-test < production`).
 
 - `B-<n>` is the next free id, never reused (`fde-backlog` assigns ids to
   a backlog that has none).
+- Ids are assigned on main only. A line written in a demand's worktree
+  has no id; after the merge, main gives it the next free `B-<n>`
+  (`fde-backlog` §3), so parallel demands never collide.
 - The text states the item and its hypothesis: what value, for whom.
 
 The owner orders it. The label makes a bet visible; it never blocks one.

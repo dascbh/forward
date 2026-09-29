@@ -141,6 +141,11 @@ Create `specs/`, `docs/adr/`, `evals/`, `reviews/`, `cycles/` — plus
 `design/` when the project has a frontend (write `design/product.md` from
 the step-2 answers) — each directory with a `.gitkeep`.
 
+Add to `.gitattributes` (create it if absent; keep existing lines) the
+lines `backlog.md merge=union` and `cycles/*/board.md merge=union`:
+parallel demands append to both, and a union merge keeps every line
+instead of conflicting on rebase.
+
 ## 6. Install the gate runtime (I6)
 
 The gate must run in the project's CI and pre-commit with no agent and no

@@ -67,9 +67,9 @@ isolated: artifact + spec only, never the builder's thread.
 
 ## Demand loop
 
-Never start code on request: code starts only inside a signed-off cycle
-(kernel ADR-0019). Three levels: backlog → cycle → demand, each derived
-from the one above. A demand (e.g. `FWD-002`) is one page derived from
+Code starts only inside a signed-off cycle (kernel ADR-0019) or in the
+direct lane (`fde-triage`). Three levels: backlog → cycle → demand,
+each derived from the one above. A demand (e.g. `FWD-002`) is one page derived from
 the plan; it decides nothing new.
 
 1. **Triage** the cycle (`fde-triage`). Size is set on the cycle, never
@@ -84,6 +84,7 @@ the plan; it decides nothing new.
 4. **Build**: Demands run in parallel by default, coordinated on
    `cycles/C-<n>/board.md`. Each runs in its own worktree once its
    dependencies merge. A root with no suite gets a minimal one (I1).
+   Tests run once per SHA (`fde-review`).
    Never `--no-verify`. README and runbook change with how the system
    runs (MNT-10).
 5. **Review the demand** (`fde-review`, kernel ADR-0021). A coding
@@ -129,8 +130,9 @@ demand: I1, I2, I3; commit: RULE. The RULE lane: `fde-triage`.
 ## Backlog
 
 An idea, pain or request becomes a backlog item, not a demand: one-line
-acknowledgment, nothing more. "Fix it NOW" skips the backlog order,
-never the open cycle: it becomes the next cycle's first demand. Detail:
+acknowledgment, nothing more. "Fix it NOW": the direct lane when it
+fits, else the next cycle's first demand. Only main assigns backlog
+ids. Detail:
 `fde-backlog-format` skill.
 
 ## Detail

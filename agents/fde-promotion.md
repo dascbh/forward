@@ -40,9 +40,11 @@ Invariants upheld: I4, I5, I6
 - One line per criterion of `plan.md` (`A1`…), ending in one of
   `— met`, `— declined` (by the owner), `— limit` (a declared limit) or
   `— not met` — the endings `status.py` reads — with its evidence (the cycle's `review.md`, the integration checks, and the
-  output of `python3 bin/fde/verify.py --all`, run at the promoted
+  output of `python3 bin/fde/verify.py --all`, run once at the promoted
   commit). Checks the declared criteria only — never a hidden review
-  round.
+  round. The builder's recorded run and the review record are the
+  evidence per criterion: no red→green reproduction per criterion, no
+  mutation testing unless `plan.md` declares it.
 - A new defect is not a condition of promotion: one line in
   `backlog.md` with `(C-<n>)` and its evidence.
 - An item narrowed or declared when a review budget ran out (recorded
