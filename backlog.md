@@ -69,7 +69,7 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 - B-40 (C-5) usage-data — the cycle plan template should give a range revert from the last pushed SHA as the rollback of a multi-commit release (reviews/C-5 F4) → C-11
 - B-42 usage-data — under Claude Code auto mode, the classifier blocks the sync's permission merge (SETUP §8.4) and the sync stops half way (kernel_version and permissions left undone); fde-sync should say up front that it writes permissions and tell the user to leave auto mode if blocked (owner report, 2026-09-29) → C-7
 
-- B-43 owner request — `/fde-backlog` opens a visual panel with sections/tabs showing everything: overview, backlog, cycles expandable to their demands, specs, reviews, ADRs, board, deploy and promotion, loose demands outside any cycle, and discarded items; actions stay in the conversation (owner, 2026-09-29) → C-12
+- B-43 owner request — `/fde-backlog` shows everything in the terminal, in sections: overview, backlog, cycles with their demands and artifacts, loose demands, discarded; drill down on request; no browser, no question box (owner, 2026-09-29) → C-12
 
 ## Discarded (2026-09-29)
 
