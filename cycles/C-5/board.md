@@ -35,3 +35,4 @@ another posts `blocked-on` and waits for its merge.
 - 2026-09-29 RECON-GATE decided merged b327188: any <PREFIX>-<n> demand id; I4 needs a real ISO date and a non-placeholder criterion; tolerant plan table; draft items, → C-n marks, double-grouping warning and next ids in status JSON; headlabs byte-identical
 - 2026-09-29 FWD-032 decided merged 940119f (rebased twice; main's ADR-0019 semantics won every conflict); guard SHARED backlog.md + cycles/*/board.md; templates installed to .fde/templates/
 - 2026-09-29 FWD-033 claim every instruction text: AGENTS.md (+ template), skills/**, agents/** (+ .claude copies), their pins in tests; includes discovery item 14 (backlog line format AGENTS ## Cycle vs fde-scrum)
+- 2026-09-29 C-5 decided FWD-032 review F1 (blocking) and F2–F5 fixed in FWD-033, which owns every instruction text; claim widened to templates/findings.template.toml (+ .fde copy) and SETUP.md marker lines
