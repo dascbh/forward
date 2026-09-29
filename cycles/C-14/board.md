@@ -11,3 +11,7 @@
 - 2026-09-29 FWD-041 claim widened: skills/fde-erosion/SKILL.md (+ .claude copy), one sentence — whole-repo erosion now excludes cycles/ (B-20)
 - 2026-09-29 FWD-041 claim widened: runtime/walkthrough.py (+ bin/fde), two message strings (B-28)
 - 2026-09-29 FWD-037 claim widened: tests/test_scrum.py (TestBacklogInstructions pins the AGENTS.md ## Backlog sentences this demand moves; FWD-039 edits it after this merges)
+- 2026-09-29 FWD-041 decided merged dbc2fe7; code review 3 low, none blocking (F1 moot — a demand has one layer; F2, F3 → B-58, B-59). FWD-037 merged; wave 2 starts: FWD-043, FWD-038, FWD-039
+- 2026-09-29 FWD-043 claim skills/fde-review (budget/replan sentence only), skills/fde-triage, skills/fde-backlog, templates/cycle/plan.md, templates/cycle/deploy.md, AGENTS.md (MNT-9 and budget lines only) (+ copies), cycles/C-14/inventory.md must-stay table if an anchor changes
+- 2026-09-29 FWD-038 claim agents/fde-promotion.md, templates/cycle/promotion.md, templates/findings.template.toml (+ .fde), skills/fde-review (merge-line and fixed_in sentences), runtime/verify.py gate_adversarial, runtime/status.py (fixed_in read) (+ bin/fde), tests/test_verify.py, tests/test_status.py
+- 2026-09-29 FWD-039 claim fde.config.toml, templates/fde.config.template.toml, runtime/fde_lib.py validate, runtime/verify.py gate_scrum, skills/fde-scrum (rename), AGENTS.md ## Backlog lines (+ copies), tests/test_scrum.py

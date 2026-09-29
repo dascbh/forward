@@ -1,0 +1,57 @@
+# Code review report (light pass)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-041"
+kind = "code"
+context_policy = "artifact_only"
+isolation_mode = "artifact_and_spec"
+rounds_planned = 1
+round = 1
+commit = "dbc2fe7"
+agent_transcript = "agent-a011a26cdc33858b7"
+probed = [
+  "spec.md and cycles/C-14/plan.md (A7, FM4) read against git show dbc2fe7",
+  "python3 -m unittest test_verify.py (113), test_fde_lib.py (21), test_erosion.py (36), test_guard.py (21): all OK",
+  "diff -rq runtime bin/fde: identical",
+  "verify.py --all run read-only from /Users/dascbh/Documents/headlabs-platform: all gates passed",
+  "CRITERION_ID_RE probe over 'A1, A3 · FM4 · R2 A10-x' returns A1, A3, FM4, R2",
+]
+notes = [
+  "B-12, B-14, B-16, B-20, B-27, B-28 each implemented as the spec says and each has a test; old-layout R# path preserved (tokens are a union, acceptance R# still read when a design surface exists).",
+  "Reading only non-ended cycles for B-27 is sound: it matches ADR-0019 rule 9 and cycle_end is now the single definition _cycle_closed delegates to.",
+  "_git_paths splits on NUL and drops blank names; strict on failure like _git, the lenient variant threads paths=True, so no swallowed-failure path was added.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "low"
+principle = "probe"
+evidence = """
+front_demand_criteria compares the whole layer cell to "front": a plan row or spec header saying `layer: front, back` (or `front+back`) yields layers {"front, back"} and the demand is not treated as front, so I1-REQS silently skips its plan criteria. Probe: read fde_lib.front_demand_criteria; layers is a set of raw cell strings tested with `"front" not in layers`.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "low"
+principle = "probe"
+evidence = """
+CRITERION_ID_RE takes any [A-Z]+\\d+ from the meets text, so a meets cell that cites a failure mode (FM4) becomes a required journey id under evals/journeys/<id>/; the covered-set regex was widened from R\\d+ to [A-Z]+\\d+ to match. A front demand listing FM# in meets would go red with no journey possible for a failure mode. Probe: regex over 'A1, A3 · FM4 · R2' returns FM4.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "low"
+principle = "probe"
+evidence = """
+erosion RECORD_PREFIXES = ("cycles/",) excludes any tracked path starting with cycles/ when no [gate] roots are declared, including a project whose real code lives in a top-level cycles/ directory; its churn and duplication silently read as zero. The churn_scope label says 'everything tracked except cycles/', so it is visible, but there is no opt-back-in short of declaring [gate] roots.
+"""
+blocking = false
+backlog = true
