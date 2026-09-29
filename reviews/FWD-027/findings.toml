@@ -1,0 +1,97 @@
+# Adversarial review report
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-027"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+rounds_planned = 1
+round = 1
+commit = "180548d"
+agent_transcript = "agent-a777adf4354bd8263"
+probed = [
+  "git log -1 = cf6b004 (C-5 board, a descendant of 180548d); git diff 180548d HEAD leaves runtime/status.py and bin/fde/status.py unchanged; cmp runtime/status.py bin/fde/status.py identical; diff -r skills/fde-status .claude/skills/fde-status identical",
+  "spec specs/FWD-027-status-cycle-states/spec.md, cycles/C-5/plan.md (threat model, A1-A3, FM4), ADR-0019 rules 9-10, specs/FWD-030 spec (draft = plan.md with state: draft) read; runtime/status.py read in full",
+  "python3 -m unittest tests.test_status: 37 tests OK",
+  "live, this repository: exit 0, OPEN CYCLE C-5 (running) directory with 8 demands and depends-on, C-1..C-4 closed one line each, BACKLOG 24 items, none with a B-<n> id",
+  "live, read-only --root ~/Documents/headlabs-platform (old layout, no state: lines): exit 0, no warnings, C-2 running file 0/7, C-1 closed 4/6, backlog 10 items in 3 sections, JSON parses; old layout stays readable (plan's FM1-style containment holds for the view)",
+  "scratch fixtures under the session scratchpad (probe.py, probe2.py): directory without plan.md, misplaced state:, parenthetical state:, state: running plus closed:, backlog id variants (checkbox, backticks, nested bullet, table code cell, ### heading, numbered list), long item text, c-5 vs C-05 directory names",
+]
+notes = [
+  "A cycle directory without plan.md is read as running and adds to the 'N cycles open' warning; FWD-030 stores drafts in plan.md with state: draft, so this only bites a half-written directory, and it is warned.",
+  "A state: line below the first ## (e.g. under '## Header') is silently ignored: the cycle reads as running with no misplaced-key warning, unlike closed:/abandoned: (misplaced_end covers END_KEYS only).",
+  "cycles/c-5/ and cycles/C-05/ both read as C-5; warned ('2 files in cycles/ read as C-5'), but the JSON then carries two cycles with the same id, which a panel keying by id collapses.",
+  "'### B-7 heading' and '1. B-8 numbered' backlog lines are not items at all; nothing warns that a B-id was seen and dropped.",
+  "The demands table keeps 'FWD-026, 028, 031, 032' as ['FWD-026','028','031','032']; faithful to the file, but a panel resolving dependencies by id cannot match '028'.",
+  "JSON 'backlog_lines' and backlog 'text' for a non-id table row are the display string '#<cell0> <cell1>' (hash prefix, other columns dropped), not data fields.",
+  "This repository's own backlog has no B-<n> ids (24 items, all id null) and headlabs' neither; ADR-0019 rule 9 wants stable ids, so FWD-030's first grouping has nothing to select until a migration assigns them — no demand in the C-5 plan owns that migration.",
+  "A draft's grouped items (FWD-030 writes them into plan.md) are not shown or exported; the draft is one line with its objective.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "valid input at domain boundaries: close this repository's C-5 exactly as AGENTS.md:218 instructs ('add `closed:` to the header lines'), then open C-6"
+evidence = """
+Fixture r27/f: cycles/C-5/plan.md is this repository's live plan with 'closed: 2026-10-02' appended to its header (state: running left untouched, as the instruction does not mention it); cycles/C-6/plan.md a copy with state: running.
+python3 bin/fde/status.py --root r27/f --cycles prints:
+  WARNING 2 cycles open: C-5, C-6 — one runs to the end before another opens
+  WARNING C-5 has state: running and a closed: line — state: wins
+  OPEN CYCLE C-5 (running)
+The cycle closed by the standing instruction stays OPEN and counts as a second running cycle. Every directory cycle carries 'state: running' (C-5's plan does), so every close done by AGENTS.md:218 lands here.
+Same family: 'state: planned (signed off 2026-09-29)' — ADR-0019 rule 9 literally writes 'planned (signed off)' — is read as running and counted as open (fixture r27/b: 'WARNING 3 cycles open: C-5, C-6, C-7').
+status.py:177-183 follows the spec's 'state: header line wins' literally; the spec and the close instruction contradict each other, and the code resolves toward the wrong state. It is warned by name, so it is not silent; that keeps it below high. Inside the threat model (cooperative agent following the instructions); it bends A3's 'closed' and 'planned' states.
+"""
+blocking = false   # medium: the warning names the conflict; the precedence rule is the spec's own
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "case the spec does not cover and the code silently accepts: a backlog item longer than 110 characters, read through --format json, the panel's contract (FWD-030 depends on FWD-027)"
+evidence = """
+Fixture r27/c, item '- B-4 — a very long item text that goes well past one hundred and ten characters so the panel reading json gets a clipped text back ok'.
+python3 bin/fde/status.py --root r27/c --backlog --format json gives
+  {"id": "B-4", "text": "a very long item text ... gets a cli…"}
+Live on headlabs-platform every backlog item in the JSON ends in '…'. as_json (status.py:431) exports it[3], which _item (status.py:268) already passed through _clip (110 chars, whitespace collapsed); table rows lose every column after the second. The JSON has no unclipped field.
+The panel (A1, FWD-030) groups items into a draft plan.md 'with the items' and must leave backlog.md readable (FM4). Fed only clipped display strings, it either copies truncated text into the draft or re-parses backlog.md itself, which is the second parser FM4 warns about. A display concern (clipping) leaked into the data contract. MNT-1: the item's text now has two versions and the contract carries the lossy one.
+"""
+blocking = false   # medium: spec says 'same content as the text view', which the code meets; the gap is the contract's fitness for A1/FM4
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "valid input at domain boundaries: B-<n> ids written the ways a markdown author or agent commonly writes them"
+evidence = """
+Fixture r27/c backlog.md, section '## Ideas'; python3 bin/fde/status.py --root r27/c --backlog --format json gives:
+  '- [ ] B-1 checkbox item'   -> {"id": null, "text": "[ ] B-1 checkbox item"}
+  '- `B-2` code id'           -> {"id": null, "text": "`B-2` code id"}
+  '| `B-5` | code cell |'     -> {"id": null, "text": "#`B-5` code cell"}
+  '  - sub detail of B-3'     -> {"id": null, "text": "sub detail of B-3"}   (a nested bullet becomes its own top-level item)
+No warning in any case: warnings = [].
+BACKLOG_ID (status.py:41) accepts only bare or bold ids at the very start; the demands-table reader in the same file strips backticks (status.py:120) but the backlog reader does not (status.py:297). Backticked ids are the house style in this repository's plans and specs. An item whose id is dropped silently cannot be selected by B-<n> from the panel (A1) and is invisible to the duplicate-id warning. The backlog id format is written down nowhere a writer reads (MNT-4); status.py is its only definition.
+"""
+blocking = false   # medium: no declared B-id format is violated, because none is declared
+
+[[finding]]
+id = "F4"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "regression in previously accepted behavior: the running-cycle progress and the 'ready to close' warning (FWD-024) on the new directory layout"
+evidence = """
+Live on this repository: 'OPEN CYCLE C-5 (running) ... done when: 0/0 met'. Fixture r27/d (plan.md with ## Acceptance criteria, plus review.md and promotion.md present): 'done when: 0/0 met', no warning.
+A directory cycle's plan (ADR-0019 rule 10; C-5's own plan) has '## Acceptance criteria' and no '## Done when', so Cycle.done is empty for every new-layout cycle. The view prints '0/0 met', which reads as 'nothing left', and the 'has no pending done item but no closed: line' warning (status.py:335) can never fire, because c.done is empty. The presence of review.md or promotion.md, the new layout's closing evidence, feeds nothing. The skill description still promises 'done items with progress' and 'a cycle ready to close' (skills/fde-status/SKILL.md:3). OBS-1: the view declares a progress signal that, for the layout this demand exists to support, can neither confirm nor deny progress.
+"""
+blocking = false   # medium: A3 does not name progress for directory cycles; the regression is against FWD-024's accepted behavior
+
+[[finding]]
+id = "F5"
+attribute = "maintainability"
+severity = "low"
+probe = "heuristic: the test that claims FM4's detection"
+evidence = """
+FM4 (cycles/C-5/plan.md:70): 'the panel mutates the backlog in a way status.py cannot read. Detected by a round-trip test.' tests/test_status.py:435 test_round_trip only reads a fixture and asserts the JSON. Nothing is written back, so nothing round-trips. The panel does not exist yet (FWD-030), so the real round-trip belongs there. But a reader of this suite will take FM4 as covered by name. MNT-3: the name does not match what the test does, and no FWD-030 obligation is recorded against it.
+"""
+blocking = false
