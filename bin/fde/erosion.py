@@ -628,6 +628,9 @@ def main() -> int:
     ap.add_argument("--gate", action="store_true")
     ap.add_argument("--window", type=int, default=None)
     ap.add_argument("--format", choices=["text", "json"], default="text")
+    ap.add_argument("--ratchet", action="store_true",
+                    help="print an [erosion] budget at today's measured values "
+                         "(install and sync write it when none is declared)")
     args = ap.parse_args()
 
     project = project_root()
@@ -643,6 +646,10 @@ def main() -> int:
         return 1 if breaches else 0
 
     m = measure(project, window)
+    if args.ratchet:
+        import fde_lib
+        print(fde_lib.erosion_ratchet_toml(m), end="")
+        return 0
     if args.format == "json":
         print(json.dumps(m, indent=2))
         return 0

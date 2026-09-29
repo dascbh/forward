@@ -505,3 +505,14 @@ class TestCopiesAndStructuralErosion(unittest.TestCase):
         breaches, unmeasured = erosion.check_budget(
             {"structural_erosion": None}, {"max_structural_erosion": 0.6})
         self.assertEqual((breaches, unmeasured), ([], ["structural erosion"]))
+
+
+class TestRatchetFlag(unittest.TestCase):
+    def test_ratchet_prints_a_budget_table_from_this_measurement(self):
+        import subprocess
+        out = subprocess.run([sys.executable, str(ROOT / "runtime" / "erosion.py"),
+                              "--ratchet"], cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertTrue(out.stdout.startswith("[erosion]\n"))
+        self.assertIn("max_structural_erosion = ", out.stdout)
+        self.assertIn("max_duplication_pct = ", out.stdout)
