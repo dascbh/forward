@@ -26,3 +26,4 @@ another posts `blocked-on` and waits for its merge.
 - 2026-09-29 C-5 decided residuals routed: templates/cycle/ install destination → FWD-032; I1-REQS reading R# from plan.md → FWD-032; guard promotions/ + acceptance.md paths → FWD-032
 - 2026-09-29 FWD-031 decided merged fc11fd3; ## Scrum mode → ## Backlog; [scrum] survives only as the backlog dated-goal switch; touched tests/test_mirror.py D12 row (unclaimed)
 - 2026-09-29 FWD-031 proposes FWD-032: sprint wording left in SETUP.md:132, README.md:301, templates/fde.config.template.toml:74
+- 2026-09-29 FWD-027 decided reconcile 5429d1d merged: closed:/abandoned: end a cycle over state:, JSON unclipped with cells, one B-id format with warnings, directory-cycle progress from plan criteria vs promotion.md (`- A1 — <evidence> — met`)
