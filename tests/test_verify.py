@@ -2191,3 +2191,61 @@ class TestDuplicateBacklogIds(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRunRecordCarriesItsInstructions(unittest.TestCase):
+    """A run is judged under the instructions it ran with: the record keeps
+    the kernel version and one hash over the instruction files in reach,
+    plugin included; --status says when they changed since."""
+
+    setUp = TestRunRecordPerTree.setUp
+    tearDown = TestRunRecordPerTree.tearDown
+    tree = TestRunRecordPerTree.tree
+    record = TestRunRecordPerTree.record
+
+    def _fp(self, env=None):
+        import importlib
+        import os
+        sys.path.insert(0, str(ROOT / "runtime"))
+        import verify as v
+        importlib.reload(v)
+        old = os.environ.get("CLAUDE_PLUGIN_ROOT")
+        try:
+            if env is None:
+                os.environ.pop("CLAUDE_PLUGIN_ROOT", None)
+            else:
+                os.environ["CLAUDE_PLUGIN_ROOT"] = env
+            return v.instructions_fingerprint(self.p)
+        finally:
+            if old is None:
+                os.environ.pop("CLAUDE_PLUGIN_ROOT", None)
+            else:
+                os.environ["CLAUDE_PLUGIN_ROOT"] = old
+
+    def test_the_record_names_kernel_version_and_hash(self):
+        verify(self.p, "--all")
+        ins = self.record()["instructions"]
+        self.assertEqual(ins["kernel_version"], self._fp()["kernel_version"])
+        self.assertRegex(ins["sha256"], r"^[0-9a-f]{64}$")
+        self.assertGreater(ins["files"], 0)
+
+    def test_an_edited_instruction_changes_the_hash_and_status_says_so(self):
+        verify(self.p, "--all")
+        before = self._fp()["sha256"]
+        skill = self.p / ".claude" / "skills" / "fde-x" / "SKILL.md"
+        skill.parent.mkdir(parents=True, exist_ok=True)
+        skill.write_text("One more rule.\n")
+        self.assertNotEqual(self._fp()["sha256"], before)
+        r = verify(self.p, "--status")
+        self.assertIn("instructions: kernel", r.stdout)
+        self.assertIn("CHANGED since this run", r.stdout)
+
+    def test_a_plugin_root_is_part_of_the_hash(self):
+        with tempfile.TemporaryDirectory() as plugin:
+            (Path(plugin) / "skills" / "fde-x").mkdir(parents=True)
+            (Path(plugin) / "skills" / "fde-x" / "SKILL.md").write_text("a\n")
+            with_plugin = self._fp(plugin)
+            self.assertEqual(with_plugin["plugin_root"], plugin)
+            self.assertNotEqual(with_plugin["sha256"], self._fp()["sha256"])
+            (Path(plugin) / "skills" / "fde-x" / "SKILL.md").write_text("b\n")
+            self.assertNotEqual(self._fp(plugin)["sha256"], with_plugin["sha256"])

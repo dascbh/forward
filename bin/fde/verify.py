@@ -1252,6 +1252,56 @@ def find_run(project: Path, tree: str) -> dict | None:
     return None
 
 
+# The instructions the run was made under. The tree hash already covers
+# instructions committed to the project; a plugin install loads skills from
+# outside it (CLAUDE_PLUGIN_ROOT), so the record also carries the kernel
+# version and one hash over every instruction file actually in reach.
+INSTRUCTION_PATHS = ("AGENTS.md", "CLAUDE.md", ".claude/skills", ".claude/agents",
+                     ".fde/spec")
+PLUGIN_PATHS = ("skills", "agents", "spec")
+
+
+def _instruction_files(base: Path, rels) -> list[Path]:
+    files = []
+    for rel in rels:
+        p = base / rel
+        if p.is_file():
+            files.append(p)
+        elif p.is_dir():
+            files += sorted(f for f in p.rglob("*")
+                            if f.is_file() and "__pycache__" not in f.parts)
+    return files
+
+
+def instructions_fingerprint(project: Path) -> dict:
+    """{kernel_version, sha256, files, plugin_root}: sha256 over the path
+    and bytes of each instruction file, project first, then the plugin's."""
+    import hashlib
+    import os
+    h, n = hashlib.sha256(), 0
+    sources = [(project, INSTRUCTION_PATHS)]
+    plugin = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin and Path(plugin).is_dir():
+        sources.append((Path(plugin), PLUGIN_PATHS))
+    for base, rels in sources:
+        for f in _instruction_files(base, rels):
+            try:
+                data = f.read_bytes()
+            except OSError:
+                continue
+            h.update(str(f.relative_to(base)).encode() + b"\0" + data + b"\0")
+            n += 1
+    version = None
+    try:
+        meta = tomllib.loads((project / ".fde" / "spec" / "invariants.toml")
+                             .read_text(encoding="utf-8")).get("meta", {})
+        version = meta.get("kernel_version")
+    except (OSError, ValueError):
+        pass
+    return {"kernel_version": version, "sha256": h.hexdigest(), "files": n,
+            "plugin_root": plugin if plugin and Path(plugin).is_dir() else None}
+
+
 def record_run(project: Path, tree: str, **parts) -> Path:
     """Write `parts` (gate=…, suite=…, dirty=…) as the tree's record. One
     record is one run: an earlier run's blocks are dropped, never merged,
@@ -1261,6 +1311,7 @@ def record_run(project: Path, tree: str, **parts) -> Path:
     runs.mkdir(parents=True, exist_ok=True)
     rec = {"tree": tree, **parts}
     rec["worktree_matches_index"] = _worktree_matches_index(project)
+    rec["instructions"] = instructions_fingerprint(project)
     path = runs / f"{tree}.json"
     tmp = runs / f".{tree}.json.tmp"
     tmp.write_text(json.dumps(rec, indent=2, ensure_ascii=False) + "\n",
@@ -1313,6 +1364,15 @@ def print_status(project: Path, fmt: str) -> int:
               f"{suite.get('recorded_at')} · {suite.get('command')}")
     else:
         print("  suite: not recorded (verify.py --all --record-suite)")
+    ins = rec.get("instructions")
+    if isinstance(ins, dict):
+        now = instructions_fingerprint(project)
+        same = "same as now" if now["sha256"] == ins.get("sha256") else \
+            "CHANGED since this run — judge it under the instructions it ran with"
+        print(f"  instructions: kernel {ins.get('kernel_version')} · "
+              f"{ins.get('files')} files · {str(ins.get('sha256'))[:12]} · {same}")
+    else:
+        print("  instructions: not recorded (an older record)")
     if rec.get("dirty") is not False:
         paths = rec.get("dirty_paths") or []
         what = (", ".join(paths[:5]) + (" …" if len(paths) > 5 else "")
