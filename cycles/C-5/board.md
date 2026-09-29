@@ -27,3 +27,7 @@ another posts `blocked-on` and waits for its merge.
 - 2026-09-29 FWD-031 decided merged fc11fd3; ## Scrum mode → ## Backlog; [scrum] survives only as the backlog dated-goal switch; touched tests/test_mirror.py D12 row (unclaimed)
 - 2026-09-29 FWD-031 proposes FWD-032: sprint wording left in SETUP.md:132, README.md:301, templates/fde.config.template.toml:74
 - 2026-09-29 FWD-027 decided reconcile 5429d1d merged: closed:/abandoned: end a cycle over state:, JSON unclipped with cells, one B-id format with warnings, directory-cycle progress from plan criteria vs promotion.md (`- A1 — <evidence> — met`)
+- 2026-09-29 C-5 decided review of 026/028/029/030: 15 findings break A1/A5/A7/A8 and are fixed in-cycle; FWD-029 F4 (I5 read at the cycle's promotion.md ## Signals) → backlog as a declared limit: I5 stays repository-wide (observability.toml)
+- 2026-09-29 RECON-TEXT claim AGENTS.md demand loop + ## Cycle (+ template), skills/fde-triage, skills/fde-review, skills/fde-walkthrough, templates/cycle/** — fixes 026 F1–F4, 028 F1/F3/F4
+- 2026-09-29 RECON-GATE claim runtime/verify.py, runtime/graph.py, runtime/fde_lib.py, runtime/status.py (+ bin/fde), skills/fde-backlog, tests for them — fixes 029 F1–F3, 030 F1–F4
+- 2026-09-29 FWD-032 takes 028 F2 (guard: adversarial and spec write backlog.md, every role writes board.md) — guard.py is in its claim
