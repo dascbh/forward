@@ -25,7 +25,6 @@ FWD-013.
 
 | id | item | hypothesis | evidence | size (est.) |
 |---|---|---|---|---|
-| B-11 | Resync before proposing → C-14 | a session negotiating FWD-021's finish proposed a plan already obsoleted by ADR-0018/FWD-022, landed on main from a parallel session; before proposing a plan for a paused or long-running demand, fetch and read the log since the last known commit | usage-data (FWD-021 retro) | XS |
 
 ## Captured from cycle C-1 (FWD-021, abandoned 2026-09-28)
 
@@ -34,45 +33,17 @@ described the cycle gate itself (C-1#1, #4, #5, #7–#13, #17, #19–#21)
 went with it. What remains is pre-existing and independent of that gate.
 Evidence for every line: usage-data (FWD-021 implementation and five isolated review rounds).
 
-- B-12 C-1#2 usage-data — I1's changed() lists files with git diff-tree --name-only without -z, so git-quoted paths (non-ASCII, tab) may miss behavior_paths → C-14
-- B-13 C-1#3 usage-data — gate_scrum crashes when [scrum] is not a table → C-14
-- B-14 C-1#6 usage-data — erosion.py:242 emits a DeprecationWarning (re.split maxsplit positional) during the suite → C-14
-- B-15 C-1#14 usage-data — a workflow merge-base for new-branch pushes, so one red commit already on main does not keep full-history runs red (touches ADR-0016's pinned run line) → C-14
-- B-16 C-1#15 usage-data — validate() rejecting non-list [gate] paths for every client → C-14
 
 ## Captured from cycle C-2 (FWD-022, closed 2026-09-28)
 
 Evidence for every line: usage-data (FWD-022 implementation and its isolated review).
 
-- B-20 C-2#2 usage-data — erosion counts cycles/ churn in clients that declare no [gate] roots (review note) → C-14
-- B-21 C-2#3 usage-data — the ## Cycle section cites MNT-9 by bare id; a client reading AGENTS.md alone cannot resolve it (review note) → C-14
-- B-25 (C-5) usage-data — at XS/S the walkthrough's intended model is compiled by the architecture role, which those sizes do not otherwise plan in (RECON-TEXT note) → C-14
-- B-27 (C-5) usage-data — I1-REQS reads journey R# tokens only from per-demand acceptance.md; a front demand in the cycle layout (A# criteria in plan.md) is not traced to evals/journeys/ — needs a follow-up in verify.py (FWD-032 note) → C-14
-- B-28 (C-5) usage-data — runtime messages still cite bare kernel ADR ids a client cannot resolve: guard.py LEGACY_NOTE "only for a cycle opened before ADR-0019" (pinned by tests/test_coherence.py); instruction texts now say "kernel ADR-00NN" (RECON-C5-TEXT, reviews/C-5 F3) → C-14
-- B-29 (C-5) usage-data — a cycle review's blocker at budget spent goes to the owner (AGENTS.md, fde-review) while kernel ADR-0019 rules 1/7 say only a replan reaches the user; state that this IS a replan (reviews/C-5 delta F1) → C-14
-- B-30 (C-5) usage-data — the promotion template and fde-promotion say met / not met; status.py also settles `declined` and `limit` — align the template and the agent (reviews/C-5 delta F2) → C-14
-- B-31 (C-5) usage-data — a blocker fixed inside its demand has no closing record: findings.toml keeps `blocking = true`; add a `fixed_in` / status field so "no blocking finding open" has evidence (reviews/C-5 delta F3) → C-14
-- B-32 (C-5) usage-data — clients read "kernel ADR-00NN" but never receive the kernel ADRs; ship them read-only or link them (reviews/C-5 F3 partial) → C-14
-- B-34 (C-5) usage-data — `--gate scrum` accepts `goal: not set` and Goal/Date lines under a `##` section; read the header only, as fde_lib.header_lines does (reviews/FWD-031 F1) → C-14
-- B-36 (C-5) usage-data — no test stops sprint instructions from returning in agents/ or other skills; widen the retirement pin to every instruction file (reviews/FWD-031 F3) → C-14
-- B-37 (C-5) opinion — the `[scrum]` key, the fde-scrum skill and the gate ids no longer match what they do (backlog goal); rename to backlog (reviews/FWD-031 F4) → C-14
-- B-38 (C-5) usage-data — clients keep the old config comment "backlog + sprints" across syncs (headlabs fde.config.toml:196) (reviews/FWD-031 F5) → C-14
-- B-39 (C-5) usage-data — a demand can merge without its review; the board's merge line should require the review record (FWD-031 merged unreviewed, caught at promotion) → C-14
-- B-40 (C-5) usage-data — the cycle plan template should give a range revert from the last pushed SHA as the rollback of a multi-commit release (reviews/C-5 F4) → C-14
-- B-42 usage-data — under Claude Code auto mode, the classifier blocks the sync's permission merge (SETUP §8.4) and the sync stops half way (kernel_version and permissions left undone); fde-sync should say up front that it writes permissions and tell the user to leave auto mode if blocked (owner report, 2026-09-29) → C-14
 
 
 
-- B-45 (C-12) usage-data — `--demand` parses findings.toml twice (code review FWD-034 F3) → C-14
-- B-46 (C-12) usage-data — nested `d and d[...]` expressions in status.py's panel helpers are hard to read (code review FWD-035 F2) → C-14
-- B-47 (C-12) usage-data — the panel's promotion cell shows a bold decision as `\**promovido**` (the leading `*` escaped as a list marker) and cuts it at 40 characters mid-word (`--panel --root headlabs-platform`, DEM-002, DEM-013) → C-14
 
-- B-48 (C-12) usage-data — prove a reader against a real client (headlabs) before the cycle review, not only against this repo's layout (C-12 F1 was invisible here) → C-14
-- B-49 (C-12) usage-data — commit the demand reviews before the cycle review starts, so the cycle reviewer sees them (C-12 F2 was stale) → C-14
 
-- B-50 (C-13) usage-data — the I2 gate reads only files named `findings.toml` (`gate_adversarial`, `rglob("findings.toml")`), so a plan review recorded in `reviews/C-<n>/findings-plan.toml` (kernel ADR-0021) is never checked for `context_policy = "artifact_only"` (FWD-036) → C-14
 
-- B-53 owner decision — AGENTS.md keeps only the loop's skeleton and a pointer per step; detailed rules (sizing table, RULE lane, review modes, cycle states, blocker path, deploy order, backlog format) move into their skills (fde-triage, fde-review, fde-backlog, fde-scrum), with their verbatim pins moving with them; target: AGENTS.md well under the cap so a new rule never forces trims (resolves B-51; owner, 2026-09-29) → C-14
 
 - B-54 (C-14) usage-data — the CI Range step writes the resolved base only to GITHUB_OUTPUT; echo it so a red run shows the range it diffed (code review FWD-044 F1)
 
@@ -83,7 +54,6 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 - B-58 (C-14) usage-data — I1-REQS criterion regex accepts FM# ids in a `meets` cell, which would demand a journey for a failure mode (code review FWD-041 F2)
 - B-59 (C-14) opinion — erosion excludes a top-level cycles/ even when it holds real code and no [gate] roots are declared; no opt-back-in (code review FWD-041 F3)
 
-- B-60 (C-14) usage-data — AGENTS.md no longer names fde-survey ("undocumented system: survey first") or fde-design; the survey-first rule is only loosely in the skill's description (code review FWD-037 F1)
 
 - B-61 (C-14) opinion — AGENTS.md cites MNT-10 by bare id ("README and runbook change with how the system runs (MNT-10)"), the same unresolvable reference B-21 fixed for MNT-9 (FWD-043 build)
 
@@ -124,3 +94,33 @@ Reviewed against 0.19.0 with the owner; ids stay retired.
 - B-51 (C-13) usage-data — AGENTS.md is at 1,599 of 1,600 words after FWD-036; almost every sentence is pinned verbat… — discarded (2026-09-29, review against 0.21.0): merged into B-53
 - B-52 (C-13) opinion — AGENTS.md step 1 says "Size sets only the planner's depth and the cycle review rounds", while… — discarded (2026-09-29, review against 0.21.0): fixed in the C-13 reconcile (fb453df)
 - B-1 Per-demand `sensitive`/`irreversible` in triage — declined in C-14 (plan review F2): the risk rule (kernel ADR-0021) carries sensitivity per demand; the cycle score keeps it so a sensitive cycle keeps its plan review
+- B-11 Resync before proposing — discarded: done in C-14 (0.22.0)
+- B-12 C-1#2 usage-data — I1's changed() lists files with git diff-tree --name-only without -z, so git-quoted paths (… — discarded: done in C-14 (0.22.0)
+- B-13 C-1#3 usage-data — gate_scrum crashes when [scrum] is not a table — discarded: done in C-14 (0.22.0)
+- B-14 C-1#6 usage-data — erosion.py:242 emits a DeprecationWarning (re.split maxsplit positional) during the suite — discarded: done in C-14 (0.22.0)
+- B-15 C-1#14 usage-data — a workflow merge-base for new-branch pushes, so one red commit already on main does not ke… — discarded: done in C-14 (0.22.0)
+- B-16 C-1#15 usage-data — validate() rejecting non-list [gate] paths for every client — discarded: done in C-14 (0.22.0)
+- B-20 C-2#2 usage-data — erosion counts cycles/ churn in clients that declare no [gate] roots (review note) — discarded: done in C-14 (0.22.0)
+- B-21 C-2#3 usage-data — the ## Cycle section cites MNT-9 by bare id; a client reading AGENTS.md alone cannot resolv… — discarded: done in C-14 (0.22.0)
+- B-25 (C-5) usage-data — at XS/S the walkthrough's intended model is compiled by the architecture role, which those … — discarded: done in C-14 (0.22.0)
+- B-27 (C-5) usage-data — I1-REQS reads journey R# tokens only from per-demand acceptance.md; a front demand in the c… — discarded: done in C-14 (0.22.0)
+- B-28 (C-5) usage-data — runtime messages still cite bare kernel ADR ids a client cannot resolve: guard.py LEGACY_NO… — discarded: done in C-14 (0.22.0)
+- B-29 (C-5) usage-data — a cycle review's blocker at budget spent goes to the owner (AGENTS.md, fde-review) while ke… — discarded: done in C-14 (0.22.0)
+- B-30 (C-5) usage-data — the promotion template and fde-promotion say met / not met; status.py also settles `decline… — discarded: done in C-14 (0.22.0)
+- B-31 (C-5) usage-data — a blocker fixed inside its demand has no closing record: findings.toml keeps `blocking = tr… — discarded: done in C-14 (0.22.0)
+- B-32 (C-5) usage-data — clients read "kernel ADR-00NN" but never receive the kernel ADRs; ship them read-only or li… — discarded: done in C-14 (0.22.0)
+- B-34 (C-5) usage-data — `--gate scrum` accepts `goal: not set` and Goal/Date lines under a `##` section; read the h… — discarded: done in C-14 (0.22.0)
+- B-36 (C-5) usage-data — no test stops sprint instructions from returning in agents/ or other skills; widen the reti… — discarded: done in C-14 (0.22.0)
+- B-37 (C-5) opinion — the `[scrum]` key, the fde-scrum skill and the gate ids no longer match what they do (backlog … — discarded: done in C-14 (0.22.0)
+- B-38 (C-5) usage-data — clients keep the old config comment "backlog + sprints" across syncs (headlabs fde.config.t… — discarded: done in C-14 (0.22.0)
+- B-39 (C-5) usage-data — a demand can merge without its review; the board's merge line should require the review rec… — discarded: done in C-14 (0.22.0)
+- B-40 (C-5) usage-data — the cycle plan template should give a range revert from the last pushed SHA as the rollback… — discarded: done in C-14 (0.22.0)
+- B-42 usage-data — under Claude Code auto mode, the classifier blocks the sync's permission merge (SETUP §8.4) and t… — discarded: done in C-14 (0.22.0)
+- B-45 (C-12) usage-data — `--demand` parses findings.toml twice (code review FWD-034 F3) — discarded: done in C-14 (0.22.0)
+- B-46 (C-12) usage-data — nested `d and d[...]` expressions in status.py's panel helpers are hard to read (code revi… — discarded: done in C-14 (0.22.0)
+- B-47 (C-12) usage-data — the panel's promotion cell shows a bold decision as `\**promovido**` (the leading `*` esca… — discarded: done in C-14 (0.22.0)
+- B-48 (C-12) usage-data — prove a reader against a real client (headlabs) before the cycle review, not only against … — discarded: done in C-14 (0.22.0)
+- B-49 (C-12) usage-data — commit the demand reviews before the cycle review starts, so the cycle reviewer sees them … — discarded: done in C-14 (0.22.0)
+- B-50 (C-13) usage-data — the I2 gate reads only files named `findings.toml` (`gate_adversarial`, `rglob("findings.t… — discarded: done in C-14 (0.22.0)
+- B-53 owner decision — AGENTS.md keeps only the loop's skeleton and a pointer per step; detailed rules (sizing table… — discarded: done in C-14 (0.22.0)
+- B-60 (C-14) usage-data — AGENTS.md no longer names fde-survey ("undocumented system: survey first") or fde-design; … — discarded: done in C-14 (cycle review F4, efb1839)
