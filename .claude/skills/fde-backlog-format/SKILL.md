@@ -1,9 +1,9 @@
 ---
-name: fde-scrum
+name: fde-backlog-format
 description: The backlog format — B-<n> ids, evidence ladder, origin (C-<n>) — and capturing an idea as a backlog item instead of a demand. Use when an idea or request should be captured rather than built, or when writing backlog.md.
 ---
 
-# fde-scrum
+# fde-backlog-format
 
 The backlog feeds cycles (AGENTS.md `## Cycle`). Sprints are retired
 (kernel ADR-0019 rule 13); a `sprints/` directory is history, never extended.
@@ -11,8 +11,10 @@ The backlog feeds cycles (AGENTS.md `## Cycle`). Sprints are retired
 ## backlog.md
 
 Header lines: `goal:` (the product goal, or `goal: not set`) and
-`date:`. Create it on the first capture. With `[scrum] enabled = true`
-in fde.config.toml, `--gate scrum` requires both (first 30 lines).
+`date:`. Create it on the first capture. With `[backlog] enabled = true`
+in fde.config.toml, `--gate backlog` requires both in the header (the
+lines before the first `## `) and rejects `goal: not set`. `[scrum]` is
+the switch's old name, still read.
 
 One item per line, a table row or a bullet. A backlog line is `B-<n>`,
 the text, `(C-<n>)` when a cycle found it, and its evidence (`opinion <

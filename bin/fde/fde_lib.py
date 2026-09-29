@@ -124,6 +124,27 @@ class Config:
 # ---------------------------------------------------------------------------
 # validation: this is where weight stops being able to turn off an invariant
 # ---------------------------------------------------------------------------
+# the backlog-goal switch: [backlog], and [scrum], its name before kernel
+# 0.22 (FWD-039), still read so an old client's config keeps its meaning
+BACKLOG_SWITCH_KEYS = ("backlog", "scrum")
+
+
+def backlog_switch(raw: dict) -> tuple[str, object]:
+    """The switch's section name and value: [backlog] wins, else [scrum].
+    The value may be a non-table; validate() names that, callers use
+    backlog_enabled()."""
+    for name in BACKLOG_SWITCH_KEYS:
+        if name in raw:
+            return name, raw[name]
+    return "backlog", {}
+
+
+def backlog_enabled(raw: dict) -> bool:
+    """On only for a table whose enabled is the boolean true."""
+    _, table = backlog_switch(raw)
+    return isinstance(table, dict) and table.get("enabled") is True
+
+
 @dataclass
 class Violation:
     code: str
@@ -207,15 +228,36 @@ def validate(cfg: Config, spec: Spec) -> list[Violation]:
             )
         )
 
-    # 6. [scrum].enabled is a real boolean or absent — a string "false"
-    #    reading as on would fire cadence gates against the operator's intent
-    scrum = cfg.raw.get("scrum", {}) or {}
-    if "enabled" in scrum and not isinstance(scrum["enabled"], bool):
+    # 6. the backlog switch: [backlog] (or its old name [scrum]) is a table
+    #    whose enabled is a real boolean or absent — a string "false"
+    #    reading as on would fire the goal check against the operator's
+    #    intent, and a non-table must be a named violation, never a crash
+    for name in BACKLOG_SWITCH_KEYS:
+        if name not in cfg.raw:
+            continue
+        table = cfg.raw[name]
+        if not isinstance(table, dict):
+            v.append(
+                Violation(
+                    "BACKLOG-TABLE",
+                    f"[{name}] must be a table (a [{name}] section with "
+                    f"enabled = true/false), got {type(table).__name__}.",
+                )
+            )
+        elif "enabled" in table and not isinstance(table["enabled"], bool):
+            v.append(
+                Violation(
+                    "BACKLOG-ENABLED",
+                    f"[{name}] enabled must be a TOML boolean (true/false), got "
+                    f"{type(table['enabled']).__name__}.",
+                )
+            )
+    if all(name in cfg.raw for name in BACKLOG_SWITCH_KEYS):
         v.append(
             Violation(
-                "SCRUM-ENABLED",
-                f"[scrum] enabled must be a TOML boolean (true/false), got "
-                f"{type(scrum['enabled']).__name__}.",
+                "BACKLOG-ALIAS",
+                "declare [backlog] only: [scrum] is its old name, and with "
+                "both present [backlog] wins.",
             )
         )
 

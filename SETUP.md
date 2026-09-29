@@ -130,9 +130,10 @@ Validation you must enforce before writing: the eight weights **sum to
 exactly 100**; no weight below its floor; security_privacy not below its
 escalated floor for the chosen data_class. The gate re-checks all of this.
 
-`[scrum] enabled = true` makes the backlog's dated goal a gate: `--gate
-scrum` then requires `backlog.md`'s `goal:` and `date:` lines (the
-`fde-scrum` skill defines the backlog format). Do not enable it unasked.
+`[backlog] enabled = true` makes the backlog's dated goal a gate:
+`--gate backlog` then requires `backlog.md`'s `goal:` and `date:` header
+lines (the `fde-backlog-format` skill defines the backlog format). Do
+not enable it unasked. `[scrum]` is its old name, still read.
 
 ## 5. Create the handoff structure (I7)
 

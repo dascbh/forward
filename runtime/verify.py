@@ -23,6 +23,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from fde_lib import (  # noqa: E402
+    backlog_enabled,
+    backlog_switch,
     DEFAULT_BEHAVIOR_PATHS,
     DEFAULT_EVAL_PATHS,
     Config,
@@ -47,9 +49,13 @@ from fde_lib import (  # noqa: E402
 # git's well-known empty tree: diffing against it means "everything in HEAD"
 EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
+# `scrum` is the backlog gate's name before kernel 0.22 (FWD-039), kept as
+# an alias so an old client's `--gate scrum` still runs it
+GATE_ALIASES = {"scrum": "backlog"}
+
 KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "finding-discipline", "promotion-criteria", "observability",
-               "portability", "artifact-handoff", "scrum", "traceability",
+               "portability", "artifact-handoff", "backlog", "scrum", "traceability",
                "erosion", "divergence", "survey", "walkthrough", "rule-lane")
 
 # vendor trees never count as an observability signal (I5) — a match inside
@@ -780,36 +786,42 @@ class Gate:
                  "handoff structure present" if len(missing) <= 1
                  else f"handoff directories missing: {', '.join(missing)}")
 
-    # -- scrum mode: the backlog's dated goal, only when [scrum] is enabled --
-    def gate_scrum(self, cfg: Config, explicit: bool = False) -> None:
-        # strict boolean: enabled = "false" (a string) must not read as on;
-        # validate() flags the type, this gate simply does not arm
-        if (cfg.raw.get("scrum", {}) or {}).get("enabled") is not True:
+    # -- the backlog switch: the backlog's dated goal, only when on --------
+    def gate_backlog(self, cfg: Config, explicit: bool = False) -> None:
+        # strict boolean and a real table ([backlog], or its old name
+        # [scrum]): anything else does not arm; validate() names it
+        if not backlog_enabled(cfg.raw):
             if explicit:
-                self.add("SCRUM", True, "scrum mode off — the backlog goal check is not in force")
+                self.add("BACKLOG", True,
+                         "backlog switch off — the backlog goal check is not in force")
             return
-
-        def commits(p: Path) -> bool:
-            """Non-empty 'goal:' and 'date:' HEADER LINES (first 30 lines)."""
-            if not p.is_file():
-                return False
-            got = {"goal": False, "date": False}
-            text = p.read_text(encoding="utf-8", errors="ignore")
-            for line in text.splitlines()[:30]:
-                s = line.strip().lower()
-                for k in got:
-                    if s.startswith(k + ":") and s[len(k) + 1:].strip():
-                        got[k] = True
-            return all(got.values())
-
-        self.add("SCRUM", commits(self.project / "backlog.md"),
-                 "backlog carries a dated product goal"
-                 if commits(self.project / "backlog.md") else
+        name, _ = backlog_switch(cfg.raw)
+        p = self.project / "backlog.md"
+        # the header only: the lines before the first `## `, as every
+        # other header is read (fde_lib.header_lines) — prose below it
+        # never counts as a declaration
+        got: dict[str, str] = {}
+        if p.is_file():
+            for line in header_lines(read_text(p)):
+                low = line.lower()
+                for k in ("goal", "date"):
+                    if k not in got and low.startswith(k + ":"):
+                        got[k] = line[len(k) + 1:].strip()
+        goal, date = got.get("goal", ""), got.get("date", "")
+        if goal.lower() == "not set":
+            self.add("BACKLOG", False,
+                     f"backlog.md says 'goal: not set' but [{name}] enabled = "
+                     f"true requires a product goal — set one, or turn the "
+                     f"switch off")
+            return
+        ok = bool(goal and date)
+        self.add("BACKLOG", ok,
+                 "backlog carries a dated product goal" if ok else
                  "backlog.md must declare non-empty 'goal:' and 'date:' header "
-                 "lines (first 30 lines) — items without a ruler cannot be ordered")
-        # sprints are retired (ADR-0019 rule 13): sprints/ stays readable
-        # as history (graph.py) and gates nothing — the former SCRUM-GOAL
-        # and SCRUM-RETRO checks are gone.
+                 "lines (before the first '## ') — items without a ruler "
+                 "cannot be ordered")
+        # sprints are retired (kernel ADR-0019 rule 13): sprints/ stays
+        # readable as history (graph.py) and gates nothing.
 
     # -- divergence: M/L design surfaces converged only after diverging ---
     def gate_divergence(self) -> None:
@@ -1051,7 +1063,7 @@ def main() -> int:
 
     behavior_paths, eval_paths = gate_paths(cfg.raw)
     g = Gate(project, behavior_paths, eval_paths)
-    only = args.gate
+    only = GATE_ALIASES.get(args.gate, args.gate)
 
     def want(name: str) -> bool:
         return only is None or only == name
@@ -1120,8 +1132,8 @@ def main() -> int:
             g.gate_portability()
         if want("artifact-handoff"):
             g.gate_artifact_handoff()
-        if want("scrum"):
-            g.gate_scrum(cfg, explicit=(only == "scrum"))
+        if want("backlog"):
+            g.gate_backlog(cfg, explicit=(only == "backlog"))
         if want("traceability"):
             g.gate_traceability()
         if want("erosion"):

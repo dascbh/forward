@@ -372,7 +372,7 @@ class TestDeclaredCycle(unittest.TestCase):
                          "the cycle replans and the owner picks one",
                          "`fde-promotion` records the choice"):
                 self.assertNotIn(gone, flat, f"{rel}: {gone}")
-        for rel in ("skills/fde-scrum/SKILL.md", ".claude/skills/fde-scrum/SKILL.md"):
+        for rel in ("skills/fde-backlog-format/SKILL.md", ".claude/skills/fde-backlog-format/SKILL.md"):
             flat = " ".join(read(rel).split())
             self.assertIn("\"fix it NOW\" skips the backlog order, never the "
                           "open cycle: it becomes the next cycle's first "
@@ -393,15 +393,15 @@ class TestDeclaredCycle(unittest.TestCase):
                       " ".join(read("skills/fde-triage/SKILL.md").split()))
 
     def test_skills_point_to_the_section(self):
-        for rel in ("skills/fde-triage/SKILL.md", "skills/fde-scrum/SKILL.md",
+        for rel in ("skills/fde-triage/SKILL.md", "skills/fde-backlog-format/SKILL.md",
                     ".claude/skills/fde-triage/SKILL.md",
-                    ".claude/skills/fde-scrum/SKILL.md",
+                    ".claude/skills/fde-backlog-format/SKILL.md",
                     "skills/fde-status/SKILL.md",
                     ".claude/skills/fde-status/SKILL.md"):
             self.assertIn("AGENTS.md `## Cycle`", read(rel), rel)
 
     def test_scrum_captures_discoveries_as_found(self):
-        for rel in ("skills/fde-scrum/SKILL.md", ".claude/skills/fde-scrum/SKILL.md"):
+        for rel in ("skills/fde-backlog-format/SKILL.md", ".claude/skills/fde-backlog-format/SKILL.md"):
             text = " ".join(read(rel).split())
             self.assertNotIn("`## Next cycle`", text, rel)
             self.assertIn("enter `backlog.md` as they are found", text, rel)
@@ -690,8 +690,8 @@ class TestBacklogLineIsOneFormat(unittest.TestCase):
     def test_same_sentence_everywhere(self):
         # FWD-037: AGENTS.md's copy was a duplicate; fde-scrum keeps the
         # one statement (cycles/C-14/inventory.md #67)
-        for rel in ("skills/fde-scrum/SKILL.md",
-                    ".claude/skills/fde-scrum/SKILL.md"):
+        for rel in ("skills/fde-backlog-format/SKILL.md",
+                    ".claude/skills/fde-backlog-format/SKILL.md"):
             self.assertIn(self.LINE, " ".join(read(rel).split()), rel)
         for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
             self.assertNotIn("A backlog line carries", read(rel), rel)
@@ -772,7 +772,7 @@ class TestReconcileC5(unittest.TestCase):
         10: "`deploy.md`",
         11: "`cycles/C-<n>/board.md`",
         12: ("never re-reviews a demand", "skills/fde-review/SKILL.md"),
-        13: ("Sprints are retired", "skills/fde-scrum/SKILL.md"),
+        13: ("Sprints are retired", "skills/fde-backlog-format/SKILL.md"),
         14: "Gates follow the owning level",
         15: ("opened before kernel ADR-0019 finishes under its own rules",
              "skills/fde-backlog/SKILL.md"),
@@ -1063,6 +1063,9 @@ class TestInventory(unittest.TestCase):
     INVENTORY = "cycles/C-14/inventory.md"
     SURFACES = ("AGENTS.md", "templates/AGENTS.md.template")
     ROW = re.compile(r"^\| (\d+) \| ([^|]+?) \| ([^|]+?) \| (.+) \|$")
+    # files renamed after the inventory was frozen (FWD-039, B-37): the
+    # inventory is the record, the test follows the file to its new name
+    RENAMED = {"skills/fde-scrum/SKILL.md": "skills/fde-backlog-format/SKILL.md"}
 
     @staticmethod
     def flat(text):
@@ -1099,7 +1102,8 @@ class TestInventory(unittest.TestCase):
                              tag)
             self.assertIsNotNone(m, f"#{n}: {tag}")
             kinds.add(tag.split()[0])
-            target = m.group(2) or m.group(3)
+            target = self.RENAMED.get(m.group(2) or m.group(3),
+                                      m.group(2) or m.group(3))
             if target:
                 self.assertTrue((ROOT / target).is_file(), f"#{n}: {target}")
         self.assertEqual(kinds, {"stays", "moves", "duplicate"})

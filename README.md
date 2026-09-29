@@ -302,8 +302,8 @@ tools; installed into the project for Claude Code):
   irreversible or oversized), plan (M/L, before sign-off) and cycle
 - `fde-debug` — stop-the-line, six-step triage to root cause, and the
   guard eval that turns the fix into an I1 entry
-- `fde-scrum` — the backlog format (B-<n> ids, evidence ladder, origin);
-  `[scrum]` switches on the gate for the backlog's dated goal
+- `fde-backlog-format` — the backlog format (B-<n> ids, evidence ladder,
+  origin); `[backlog]` switches on the gate for the backlog's dated goal
 - `fde-graph` — the artifacts as a directed weighted provenance graph:
   query a demand's context, mine recurring findings, enforce traceability
 - `fde-erosion` — measure and gate long-term decay: clone ratio,

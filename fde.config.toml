@@ -78,7 +78,7 @@ ai_agents = 0
 tools = ["claude-code"]
 open_permissions = true
 
-[scrum]
+[backlog]
 enabled = true
 
 # Exhibit A (ADR-0011): the kernel gates its own decay. Current signals

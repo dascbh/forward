@@ -44,7 +44,7 @@ qa_test_strategy = 1
 
 def make_project(dir, data_class="internal", behavior='["src/"]',
                  evals='["evals/", "tests/"]', security=14, cost=7,
-                 scrum=False, reversibility="reversible",
+                 scrum=False, backlog=False, reversibility="reversible",
                  rule_lane_max_loc=None) -> Path:
     p = Path(dir)
     import tomllib
@@ -59,8 +59,10 @@ def make_project(dir, data_class="internal", behavior='["src/"]',
         data_class=data_class, behavior=behavior, evals=evals,
         security=security, cost=cost, kernel_version=kv,
         reversibility=reversibility, rule_lane_max_loc_line=rlm_line)
-    if scrum:
+    if scrum:  # the switch's old name: an old client (FWD-039 FM2)
         body += "\n[scrum]\nenabled = true\n"
+    if backlog:
+        body += "\n[backlog]\nenabled = true\n"
     (p / "fde.config.toml").write_text(body, encoding="utf-8")
     dest = p / "bin" / "fde"
     dest.mkdir(parents=True, exist_ok=True)

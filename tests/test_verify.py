@@ -1514,7 +1514,7 @@ class TestBothLayoutsStayGreen(unittest.TestCase):
     red. One fixture per layout, one mixed, and this repository itself."""
 
     GATES = ("promotion-criteria", "adversarial-isolation", "traceability",
-             "finding-discipline", "scrum")
+             "finding-discipline", "scrum", "backlog")
 
     def assert_green(self, p):
         for gate in self.GATES:
@@ -1568,7 +1568,7 @@ class TestBothLayoutsStayGreen(unittest.TestCase):
 
     def test_this_repository_passes_the_cycle_level_gates(self):
         for gate in ("promotion-criteria", "adversarial-isolation",
-                     "traceability", "scrum"):
+                     "traceability", "scrum", "backlog"):
             r = subprocess.run(
                 [sys.executable, str(ROOT / "bin" / "fde" / "verify.py"),
                  "--gate", gate], cwd=ROOT, capture_output=True, text=True)

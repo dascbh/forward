@@ -130,7 +130,7 @@ demand: I1, I2, I3; commit: RULE. The RULE lane: `fde-triage`.
 An idea, pain or request becomes a backlog item, not a demand: one-line
 acknowledgment, nothing more. "Fix it NOW" skips the backlog order,
 never the open cycle: it becomes the next cycle's first demand. Detail:
-`fde-scrum` skill.
+`fde-backlog-format` skill.
 
 ## Detail
 
