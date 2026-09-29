@@ -1,0 +1,46 @@
+# Code review report (light pass)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-037"
+kind = "code"
+context_policy = "artifact_only"
+isolation_mode = "artifact_and_spec"
+rounds_planned = 1
+round = 1
+commit = "109caff"
+agent_transcript = "agent-a153959306322ce84"
+probed = [
+  "git show 7b274ad^:AGENTS.md read against cycles/C-14/inventory.md by script: all 75 inventory sentences occur verbatim in the old text; after removing them the old loop/cycle/backlog/detail body holds only step labels and headings",
+  "script check: every 'stays' sentence is present in AGENTS.md; every 'moves' sentence is present verbatim (whitespace-normalized) in its skill or agent and in the .claude/ copy, and absent from AGENTS.md",
+  "spot-check of 14 duplicates (#5-#10, #11, #12, #14-#17, #36-#38, #44-#46, #67-#71) against fde-triage, fde-review, fde-scrum, agents/fde-spec.md: all stated; #22 only loosely",
+  "wc -w AGENTS.md = 1083 (limit 1100); diff AGENTS.md templates/AGENTS.md.template differs only in placeholders and the demand id example",
+  "unittest test_instructions.py 67 OK, test_coherence.py 23 OK, test_scrum.py 14 OK",
+]
+notes = [
+  "No rule lost: FM1 not triggered. Inventory complete (75 sentences, 39 stay / 9 move / 27 duplicate); must-stay list present in AGENTS.md.",
+  "Duplicates whose skill wording is a paraphrase rather than the sentence (e.g. #16 overrun, #17 instruction first, #10 rounds) are accepted: the inventory declares that tag as 'the file already states the rule', and the tests pin only moves.",
+  "Headroom is 17 words against the 1,100 cap; the next AGENTS.md sentence needs a matching cut.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-10"
+evidence = """
+Inventory #22 ('Undocumented system: fde-survey first.') is tagged 'duplicate of skills/fde-survey/SKILL.md description'. The description says 'Use when joining or inheriting a codebase' but does not say the survey comes before the first demand; and no sentence in AGENTS.md now names fde-survey or fde-design (#23) at all. The ordering rule survives only as a skill trigger an agent may not load. Not a lost gate rule, but the one 'duplicate' whose claim is weaker than the tag.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F2"
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-10"
+evidence = """
+The skeleton commit ed6eb8f edits cycles/C-14/inventory.md (the 'pointer lines' paragraph: 'the gate line' became 'a line after the gate line') although the plan says the inventory is committed before any sentence moves and is then the measure. The edit is a description of the result, not a re-tag, so no rule is affected, but the measure was touched in the same commit as the behavior it measures.
+"""
+blocking = false
+backlog = true

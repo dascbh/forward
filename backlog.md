@@ -84,6 +84,8 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 - B-58 (C-14) usage-data — I1-REQS criterion regex accepts FM# ids in a `meets` cell, which would demand a journey for a failure mode (code review FWD-041 F2)
 - B-59 (C-14) opinion — erosion excludes a top-level cycles/ even when it holds real code and no [gate] roots are declared; no opt-back-in (code review FWD-041 F3)
 
+- B-60 (C-14) usage-data — AGENTS.md no longer names fde-survey ("undocumented system: survey first") or fde-design; the survey-first rule is only loosely in the skill's description (code review FWD-037 F1)
+
 ## Discarded (2026-09-29)
 
 Reviewed against 0.19.0 with the owner; ids stay retired.
