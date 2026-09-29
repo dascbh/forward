@@ -71,3 +71,11 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 - (C-5) usage-data — a blocker fixed inside its demand has no closing record: findings.toml keeps `blocking = true`; add a `fixed_in` / status field so "no blocking finding open" has evidence (reviews/C-5 delta F3)
 - (C-5) usage-data — clients read "kernel ADR-00NN" but never receive the kernel ADRs; ship them read-only or link them (reviews/C-5 F3 partial)
 - (C-5) usage-data — sentences removed from AGENTS.md by the terse pass have no trace of where their rule went, beyond the ADR-0019 key-term test (reviews/FWD-033 F4 partial)
+- (C-5) usage-data — `--gate scrum` accepts `goal: not set` and Goal/Date lines under a `##` section; read the header only, as fde_lib.header_lines does (reviews/FWD-031 F1)
+- (C-5) usage-data — a client syncing with a sprint still open loses it from every view; fde-sync's migration should carry an open sprint's demands into backlog.md (reviews/FWD-031 F2)
+- (C-5) usage-data — no test stops sprint instructions from returning in agents/ or other skills; widen the retirement pin to every instruction file (reviews/FWD-031 F3)
+- (C-5) opinion — the `[scrum]` key, the fde-scrum skill and the gate ids no longer match what they do (backlog goal); rename to backlog (reviews/FWD-031 F4)
+- (C-5) usage-data — clients keep the old config comment "backlog + sprints" across syncs (headlabs fde.config.toml:196) (reviews/FWD-031 F5)
+- (C-5) usage-data — a demand can merge without its review; the board's merge line should require the review record (FWD-031 merged unreviewed, caught at promotion)
+- (C-5) usage-data — the cycle plan template should give a range revert from the last pushed SHA as the rollback of a multi-commit release (reviews/C-5 F4)
+- (C-5) usage-data — AGENTS.md sits at 1600/1600 words; the next cycle that adds a rule must remove text

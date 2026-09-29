@@ -1,0 +1,104 @@
+# Adversarial review report
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-031"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+rounds_planned = 1
+round = 1
+commit = "fc11fd3"
+reviewed_at = "50694ac"
+agent_transcript = "agent-a1afa93f894c9d4cc"
+probed = [
+  "git log -1 = 50694ac (main). git show fc11fd3 read, and git diff fc11fd3 HEAD over skills/fde-scrum, AGENTS.md, the AGENTS template and tests/test_scrum.py (FWD-033 later rewrote AGENTS.md and trimmed the skill). The review judges the text as it stands at 50694ac",
+  "spec specs/FWD-031-retire-sprints/spec.md, cycles/C-5/plan.md (threat model, A7, FM1) and docs/adr/0019-backlog-cycle-demand.md rule 13 read",
+  "grep -rni sprint over AGENTS.md, CLAUDE.md, templates/, SETUP.md, README.md, skills/, agents/, .claude/agents, .claude/skills, .fde/, spec/, runtime/, bin/fde. Every hit is a retirement note or history reader: AGENTS ## Backlog, fde-scrum, fde-graph, graph.py/fde_lib.py/verify.py comments. No instruction still tells an agent to run a sprint",
+  "the backlog format was compared across fde-scrum, AGENTS.md ## Backlog (repo and template, identical), fde-backlog §3, fde-status and templates/cycle/promotion.md. B-<n>, the evidence ladder, (C-<n>) origin and the three-line ## What changes agree",
+  "status.py fixture: a line carrying origin '(C-3)' and grouping '→ C-5' is attributed to C-3 as found and to C-5 as an item. It is not double-counted as a line C-5 added",
+  "scratch client (tests/support.make_project, [scrum] enabled = true): sprints/S-1 with a goal and a retro, S-2 with an undated goal.md, S-3 empty (an open sprint), a stray sprints/archive, old-layout specs/reviews/promotions for ACME-1 and FWD-2. verify --gate scrum 0, --gate traceability 0; --all red only on I5/I6, which is fixture incompleteness and unrelated to sprints",
+  "headlabs-platform, read-only (cwd there, kernel runtime from this worktree, -B): --gate scrum 'scrum mode off' 0, --gate traceability 0, --gate config 0",
+  "tests: discover -p test_scrum.py (14 OK), test_instructions.py (53 OK), test_mirror.py (50 OK)",
+  "mutation probe on a scratch copy of the repo: sprint-ceremony text appended to agents/fde-spec.md and skills/fde-backlog/SKILL.md, identically to their installed copies. The full suite then shows only the 4 failures a copy without .git always shows",
+  "--gate scrum on backlog.md variants: 'goal: not set', and 'Goal:'/'Date:' prose under a '## Notes' section",
+]
+notes = [
+  "AGENTS '## Backlog' says 'Fix it NOW ... becomes the next cycle's first demand', but ## Cycle allows several drafts, and demands come from fde-spec's plan, not from backlog items. Which draft counts as 'the next cycle', and whether the item enters as an item or a demand, is left to the agent (MNT-3).",
+  "fde_lib.LEGACY_DEMAND_RE reads sprint tables only for FWD-/DEM- ids. A client whose sprints selected ACME-1 loses the sprint -> demand history edge in the graph. TRACE stays green (rule 3 is gone), so only the history view is poorer (FWD-029 code, not this demand's).",
+  "The fde-scrum skill says 'Header lines: goal: ... and date:'. AGENTS says 'backlog.md starts with goal:'. This repository's own backlog.md starts with YAML front matter '---'. The gate accepts it; the texts do not mention front matter.",
+  "This repository's backlog.md still uses '#' row numbers rather than B-<n> ids, and its ## Status prose names S-002/S-005/S-006. That is history, allowed by rule 13, but it is the first example a reader sees of 'the backlog format'.",
+  "test_scrum.TestBacklogInstructions pins AGENTS ## Backlog with long verbatim needles. Any rewording of the section (as FWD-033 did) forces a test edit, which weakens the test as a guard for the rule versus the wording (MNT-7).",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "case the spec does not cover and the code silently accepts: --gate scrum with [scrum] enabled on a backlog whose goal is 'not set', and on one whose goal/date are prose under a ## section"
+evidence = """
+Scratch client fx1 ([scrum] enabled = true), runtime at 50694ac:
+  backlog.md = '# Backlog\\n\\ngoal: not set\\ndate: 2026-01-01\\n'
+    -> '✓ SCRUM backlog carries a dated product goal'
+  backlog.md = '# Backlog\\n\\n## Items\\n\\n- B-1 thing (C-1) opinion\\n\\n## Notes\\n\\nGoal: whatever\\nDate: someday\\n'
+    -> '✓ SCRUM backlog carries a dated product goal'
+The texts say the switch 'gates the backlog's dated goal' (templates/fde.config.template.toml:74, SETUP.md:133). AGENTS.md:176 says 'backlog.md starts with goal: ... and date:', and fde-scrum says 'Header lines'. The gate (runtime/verify.py:777-788) accepts any line in the first 30 lines, including lines under a '## ' section. That region is not the header as the kernel itself defines it: fde_lib.header_lines stops at the first '## '. The gate also accepts 'goal: not set' and then reports it as a carried goal. So the gate's pass message claims something the input does not show, and the gate's notion of 'header' disagrees with the library's.
+This is the only behavior FWD-031 leaves under [scrum], so it is the whole content of the switch. It is not blocking: A7 concerns the sprint gates being removed and old artifacts passing, both of which hold.
+"""
+blocking = false   # medium; A7 and rule 13 hold
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "valid input at domain boundaries: an old-layout client that syncs while a sprint is open (sprints/S-3 with a goal and demands selected, no retro)"
+evidence = """
+Scratch client fx1: sprints/S-1 (goal + retro), S-2 (goal.md, no retro), S-3 (empty, the open sprint), with demands ACME-1 and FWD-2 selected in S-1's table.
+python3 runtime/status.py --root fx1 prints only:
+  no open cycle / next cycle id: C-1 / BACKLOG (0 items, next id B-1)
+Nothing names the unfinished sprint or its selected demands. AGENTS.md:180 declares 'sprints/ is history', and fde-scrum says 'a sprints/ directory is history, never extended'. fde-sync §3 ('Migrate the project's records') migrates a '## Next cycle' list into backlog.md but has no step for an open sprint's goal or its selected-but-unfinished demands (grep -i sprint skills/fde-sync/SKILL.md SETUP.md: no hits).
+The plan's threat model explicitly contains 'repositories with the old per-demand layout'. For such a client, work in flight disappears from every view after sync, with no instruction to carry it into backlog.md or a draft cycle. The gate stays green (A7 is met), so this does not block. It is an unmigrated record, not history.
+"""
+blocking = false   # medium; the gates stay green, so A7 holds
+
+[[finding]]
+id = "F3"
+attribute = "maintainability"
+severity = "medium"
+probe = "regression in previously accepted behavior: reintroduce sprint ceremony into two client-loaded instruction files and run the full suite"
+principle = "MNT-1"
+evidence = """
+In a scratch copy of the repo (no .git), this line was appended to agents/fde-spec.md and .claude/agents/fde-spec.md:
+  'At planning, write the sprint goal in sprints/S-N/goal.md; a sprint closes with retro.md.'
+and this one to skills/fde-backlog/SKILL.md and .claude/skills/fde-backlog/SKILL.md:
+  'Open sprints/S-N/goal.md before the first cycle; no retro, no next sprint.'
+Result of python3 -m unittest discover -s tests: 587 ran, with only the 4 failures a copy without .git always has (test_install_sync pre-commit, test_mirror ignore, test_survey commit, test_verify self-repo). Nothing flagged the sprint text.
+The 'no sprint' rule is pinned in three places: test_scrum (fde-scrum and the AGENTS ## Backlog section), test_coherence.TestScrumIsTheBacklogGoalSwitch (SETUP.md, README.md and the config template), and the mirror pairs, which only check copy identity. The five role prompts and the fourteen other skills, which are what a client agent actually loads, are unpinned. The demand's own claim, that sprints are gone from every instruction a client loads, holds today only because it was verified by grep, and FM3 ('the terse rewrite drops a rule that an eval pins') cannot detect a reintroduction there.
+"""
+blocking = false   # medium; the texts are clean at 50694ac
+
+[[finding]]
+id = "F4"
+attribute = "maintainability"
+severity = "low"
+probe = "heuristic: vocabulary of the surviving switch versus what it now does"
+principle = "MNT-3"
+evidence = """
+After rule 13, what remains is the backlog format plus one check that backlog.md has goal:/date: lines. It is still named 'scrum' in every place: the skill fde-scrum, the config table [scrum], the gate id 'scrum', the check id SCRUM, and the pass message 'scrum mode off — the backlog goal check is not in force' (runtime/verify.py:774). 'Scrum mode' is a term that no instruction defines any longer: AGENTS.md has no Scrum section, and the 'cadence' vocabulary is gone.
+A reader who meets '[scrum] enabled = true' or 'fde-scrum' without the glossary expects sprints, which rule 13 retires. The name contradicts the retirement it carries. The skill has to open with 'Sprints are retired' to correct its own name.
+"""
+blocking = false   # low; naming only, behavior is correct
+
+[[finding]]
+id = "F5"
+attribute = "maintainability"
+severity = "low"
+probe = "plausible requirement change: an installed client runs fde-sync after FWD-031"
+principle = "MNT-10"
+evidence = """
+~/Documents/headlabs-platform/fde.config.toml:195-196 (read-only) still reads:
+  # [scrum]
+  # enabled = true   # optional cadence layer: backlog + sprints (fde-scrum skill)
+The kernel template now says 'gates the backlog's dated goal ...' (templates/fde.config.template.toml:74). fde-sync step 2 says: set kernel_version, 'change nothing else in the config', and its §3 migration has no sprint step. So every client installed before FWD-031 keeps, in the one file it treats as its source, an instruction advertising sprints. That survives sync indefinitely, which contradicts 'sprints are gone from every instruction a client loads'.
+It is a comment and gates nothing, and headlabs has [scrum] commented out, so this is low severity.
+"""
+blocking = false   # low; a comment only
