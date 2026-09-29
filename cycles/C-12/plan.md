@@ -1,6 +1,7 @@
 cycle: C-12
-state: running
+state: closed
 date: 2026-09-29
+closed: 2026-09-29
 size: S
 objective: /fde-backlog prints everything in the terminal, in sections — overview, backlog, cycles with their demands and artifacts, loose demands, discarded — and drills down on request
 signed-off: 2026-09-29 (owner: "sim")

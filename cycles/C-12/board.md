@@ -8,3 +8,4 @@
 - 2026-09-29 C-12 decided cycle review: F1 blocking (slugged reviews/ and promotions/ dirs not found — headlabs shows 33 demands unreviewed) fixed inside the cycle; F2 stale (reviews/FWD-034, 035 committed after the reviewer's base); F3–F5 fixed in-cycle (drill-down detail, vocabulary, warning folding, a next-action line)
 - 2026-09-29 RECON-C12 claim runtime/status.py (+ bin/fde), tests/test_status.py, skills/fde-status, skills/fde-backlog (+ .claude copies)
 - 2026-09-29 RECON-C12 fixed C-12 F1 (slugged reviews/ and promotions/ dirs), F3 (--cycle shows review and promotion per demand), F4 (vocabulary, next: line), F5 (warnings fold after 10), FWD-034 F1, FWD-035 F1; headlabs-platform reviewed/promoted demands 0/0 -> 28/20; new fact B-47
+- 2026-09-29 C-12 decided released 0.20.0 (243b035), A7 met; cycle closed

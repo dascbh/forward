@@ -1,6 +1,6 @@
 cycle: C-12
 date: 2026-09-29
-decision: promote, conditional on deploy step 2 (0.20.0 bumped and pushed); A1–A6 met, A7 pending deploy
+decision: promote — deploy done (243b035); rollback `git revert --no-commit 180a132..243b035`
 commit: 14f42cc
 
 <!-- kernel ADR-0019 rule 7. Promotion role, isolated worktree
@@ -16,7 +16,7 @@ suite, the gate and status.py run here (headlabs-platform read-only). -->
 - A4 — review.md: 14 loose specs here, old layout in fixture (FM2). FWD-035 F1 (dangling cycle link unlisted) fixed. headlabs-platform `--format json`: 33 demands, 28 reviewed, 20 promoted (was 0/0 at the cycle review); its 23 loose DEM lines carry review and promotion status — met
 - A5 — review.md: backlog by section with B-id and `→ C-n`; discarded with reason. At 14f42cc: Backlog (35) and Discarded (12) print as described — met
 - A6 — review.md: `--demand FWD-029` prints spec, findings, promotion, ADRs; unknown id exits 2; skill maps "abre C-n"/"mostra <id>". FWD-034 F1 (empty id) fixed. At 14f42cc on headlabs, `--demand DEM-035` prints `reviews/DEM-035-kb-erase-source/findings.toml` with 5 findings and the promotion decision — met
-- A7 — status.py exits 0 here and on headlabs-platform (empty stderr, read-only); 620 tests OK; `verify.py --all` all 15 gates green at 14f42cc; version still 0.19.0 and 13 commits unpushed (origin/main = 180a132) — pending deploy
+- A7 — released as 0.20.0 in 243b035 (7 version files), pushed 180a132..243b035; suite and `verify.py --all` green before the push; CI not verified (gh 401) — met
 
 Demand reviews: reviews/FWD-034 (3 low) and reviews/FWD-035 (1 medium, 2 low), 0 blocking; the two that broke A4/A6 fixed in-cycle, the rest in backlog.md (board.md). C-12 F2 (no demand review record) is stale: 9792715 recorded both before 14f42cc. C-12 F3–F5 fixed in 14f42cc.
 
