@@ -77,6 +77,12 @@ Rules:
    A backend-only cycle runs no walkthrough. A cycle that changes the
    interface always runs one.
 
+   A change that spans layers is always split at planning, however small
+   it is. For example, an API field and its screen label become one
+   `back` demand and one `front` demand. There is no size exception:
+   small demands are cheap, and a rule without exceptions is easier to
+   follow (owner, 2026-09-29).
+
    Each deploy step has:
    - its own verification;
    - its own rollback;
@@ -93,9 +99,6 @@ Rules:
 - **Q1 — artifact layout.** Does `cycles/C-<n>/` become a directory
   (`plan.md`, `deploy.md`, `review/`, `promotion.md`)? Or does the cycle
   file stay flat and point at `specs/C-<n>/`?
-- **Q2 — one layer per demand.** Rule 5 assumes planning always splits a
-  change that spans layers. Is that too strict for a small change that
-  needs one API field and its screen label at once?
 - **Q3 — demand order and parallelism.** The plan gives the order.
   Can independent demands run in parallel worktrees?
 - **Q4 — cycle review budget.** How many rounds per size? What does the
