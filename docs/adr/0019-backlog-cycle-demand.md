@@ -94,11 +94,50 @@ Rules:
    demand specs cite it by id. `specs/<demand>/architecture.md` is
    removed.
 
+7. **Approval belongs to the cycle.** The user signs off `plan.md` once.
+   That sign-off is inherited by:
+   - every demand, and its merge;
+   - `deploy.md`, including the irreversible steps it lists and marks.
+
+   Promotion is the promotion role's decision against the plan's
+   criteria, not a question to the user. The deploy runs the plan step by
+   step. When a step's verification fails, that step is rolled back and
+   the cycle stops; the user is told the outcome, not asked beforehand.
+   The only thing that returns to the user is a replan, triggered by a
+   fact that invalidates the plan.
+8. **Tool permissions follow the plan.** Harness prompts are outside the
+   kernel's control. The kernel scopes them instead: the project's
+   `.claude/settings.json` allowlists:
+   - the gate and test commands, always;
+   - the deploy commands named in the signed-off `deploy.md`.
+
+   Nothing else is allowlisted. A destructive command outside the plan
+   still prompts; that prompt is what catches an agent that left the
+   plan. Neither auto mode nor per-deploy approval is required.
+9. **The panel (`fde-backlog`).** The user operates the backlog and the
+   cycles from one skill:
+   - see the backlog with stable ids (`B-<n>`);
+   - group items into a draft cycle, new or existing;
+   - open a cycle to see its demands, specs, ADRs, deploy plan, reviews
+     and promotion;
+   - **specify** a draft, which runs the planner and stops at the
+     sign-off.
+
+   Grouping is organization only: no spec and no commitment. A cycle's
+   states are `draft → planned (signed off) → running → closed`. Several
+   drafts may exist, but only one cycle runs. The panel is
+   conversational, because specifying needs the agent anyway;
+   `status.py --format json` feeds it.
+10. **Layout.** A cycle is `cycles/C-<n>/` with `plan.md` (criteria and
+    failure modes, both with ids, plus the demand list: id, layer, order,
+    criteria met, ADRs followed), `deploy.md`, `review.md` and
+    `promotion.md`. A demand is `specs/<id>/spec.md` (one page, citing
+    ids) plus `reviews/<id>/findings.toml`. Per-demand `acceptance.md`,
+    `failure-modes.toml`, `architecture.md` and `promotions/<id>/` are
+    removed.
+
 ## Open questions — to deepen before acceptance
 
-- **Q1 — artifact layout.** Does `cycles/C-<n>/` become a directory
-  (`plan.md`, `deploy.md`, `review/`, `promotion.md`)? Or does the cycle
-  file stay flat and point at `specs/C-<n>/`?
 - **Q3 — demand order and parallelism.** The plan gives the order.
   Can independent demands run in parallel worktrees?
 - **Q4 — cycle review budget.** How many rounds per size? What does the
@@ -113,9 +152,9 @@ Rules:
 
 ## Consequences
 
-- The user's attention is spent twice per cycle: sign-off of the plan,
-  and acceptance of the promotion. Replanning happens only when a fact
-  invalidates the plan.
+- The user's attention is spent once per cycle, at the sign-off of the
+  plan, and again only if a fact forces a replan. Demands, merge,
+  promotion and deploy run without asking.
 - Demands get faster: no ADR, no promotion, no acceptance of their own.
 - Walkthrough and integration testing get a defined place: at the cycle, and
   only for the layers the cycle touches.
