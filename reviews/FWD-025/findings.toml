@@ -1,0 +1,86 @@
+# Adversarial review report
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-025"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+rounds_planned = 1
+round = 1
+commit = "c59fc0b"
+agent_transcript = "agent-a00308fcab12fdbed"
+probed = [
+  "git log -1 = c59fc0b; git show c59fc0b read in full against cycles/C-4.md (FWD-025 task line) and docs/adr/0019-backlog-cycle-demand.md rule 8",
+  "every text that describes .claude/settings.json: SETUP.md 8.4, step 9, 'fde sync' section; skills/fde-sync (+ .claude copy); skills/fde-doctor step 2; skills/fde-init and README (no settings text)",
+  "guard reach: .claude/settings.json PreToolUse matcher and bin/fde/guard.py main() (reads tool_input.file_path only)",
+  "mutation probe on SETUP.md (restored afterwards): removed 'Keep any entries already there.' and 'The guard hook still runs on every write.' -> tests.test_install_sync 16/16 GREEN",
+  "Claude Code rule precedence (deny > ask > allow) applied to a pre-existing permissions.ask / permissions.deny in a client settings.json",
+]
+notes = [
+  "No threat model exists for FWD-025 (XS, no spec by design); blocking was judged against the C-4 task line and ADR-0019 rule 8 only.",
+  "fde-doctor step 2 checks only the guard hook in .claude/settings.json; it neither checks nor reports the permissions.allow block, so a doctor run cannot tell the user whether prompts are open.",
+  "'every built-in tool' omits MCP tools (mcp__*), which still prompt; the objective 'a signed-off cycle never waits on a prompt' is therefore met only for the nine listed tools. Edits outside the project root (no additionalDirectories) also still prompt.",
+  "Bare 'WebFetch' allows every domain; together with open Bash this is an exfiltration path for content read from the repo. The owner decision covers it; recorded only for the record.",
+  "test_settings_open_every_tool pins only this repository's own settings.json, not the shape a client install produces (there is no template for settings.json, see FWD-020 G8), so the client path is pinned only by string presence in SETUP.md.",
+  "The eval does not assert that the guard hook sits in the same file after the merge (the older test_settings asserts it separately, so this is covered today, just not tied to FWD-025).",
+]
+
+[[finding]]
+id = "F1"
+attribute = "maintainability"
+severity = "high"
+principle = "MNT-4"
+probe = "consistency check: ADR-0019 rule 8 text vs SETUP.md 8.4 as committed in c59fc0b"
+evidence = """
+SETUP.md 8.4 now cites ADR-0019 as its authority ('The cycle sign-off is the permission (ADR-0019)'), but ADR-0019 rule 8, unchanged at c59fc0b, says the opposite on two points:
+- 'There is no allowlist' -> the change installs exactly a permissions.allow allowlist.
+- 'The owner sets the harness permission mode for the project. The kernel assumes that setting and never changes it by itself (owner, 2026-09-29)' -> install and sync now write the permission setting on the kernel's initiative.
+The owner's 2026-09-29 decision to open tools at install exists only in the review prompt, not in any artifact the next reader will look at. A future reader (or the promotion role) sees SETUP contradicting the ADR it cites and cannot tell which one is current. The decision itself is not contested here; its record is missing or contradicted.
+"""
+blocking = false   # high, but the C-4 task line (SETUP text + repo settings + eval) is delivered; the defect is in the decision record, which the task does not cover
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "sequence: install -> user follows step 9 and removes 'Bash' from permissions.allow -> fde sync"
+evidence = """
+Step 9 tells the user 'removing entries from permissions.allow brings the prompts back'. The 'fde sync' section of SETUP.md and skills/fde-sync step 2 re-run SETUP steps 6-8 on every sync, and 8.4 says unconditionally 'add to permissions.allow every built-in tool'. 'Keep any entries already there' protects the user's own entries, not the user's removals. So the next sync silently re-adds the removed tool and the prompts disappear again.
+The opt-out that step 9 promises holds only until the next kernel update. This also contradicts ADR-0019 rule 8's 'the kernel ... never changes it by itself'. Nothing in 8.4 distinguishes 'never had it' from 'user removed it', so no merge rule can respect the removal as written.
+"""
+blocking = false   # medium; the task line does not declare opt-out persistence
+
+[[finding]]
+id = "F3"
+attribute = "usability_accessibility"
+severity = "medium"
+principle = "USE-1"
+probe = "sequence: existing FORWARD project (installed before c59fc0b) runs fde sync"
+evidence = """
+The C-4 objective is 'installing OR syncing FORWARD opens the project's tool permissions'. Sync re-runs only steps 6-8. The user notice lives in step 9 ('tell the user that tool permissions are open'), and skills/fde-sync has no equivalent instruction. So every existing client that updates the kernel gets its permissions opened with no message. The only user who is told is the one doing a fresh install. For the upgrade population, which is every current user, a security-relevant state change happens with no visible feedback.
+"""
+blocking = false   # medium; the task line says 'step 9 tells the user', which is literally delivered
+
+[[finding]]
+id = "F4"
+attribute = "security_privacy"
+severity = "medium"
+probe = "guard reach: matcher 'Write|Edit' in .claude/settings.json; bin/fde/guard.py main() reads only tool_input.file_path"
+evidence = """
+SETUP.md 8.4 now tells the installer 'The guard hook still runs on every write.' That is false for two of the tools this change opens:
+- Bash: 'echo x > src/a.py', 'sed -i', 'git commit' all write without matching 'Write|Edit'.
+- NotebookEdit: not in the matcher, and its payload uses notebook_path, not file_path, so guard.py returns 0 even if the matcher were widened.
+Before c59fc0b a Bash or NotebookEdit write outside a role's scope at least hit a harness prompt. Now it runs with no prompt and no guard, and the text tells the user it is guarded. ADR-0019 rule 8 names the guard as the first containment layer that replaces the prompt. The claim should be scoped to Write/Edit, and the gate (after the fact) is what contains Bash. The remaining containment (the gate on commit and in CI) still exists, which keeps this below high.
+"""
+blocking = false   # medium; no FWD-025 threat model declares the guard's reach, and the gate still catches the write at commit
+
+[[finding]]
+id = "F5"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "mutation of SETUP.md: removed 'Keep any entries already there.' and 'The guard hook still runs on every write.' -> tests.test_install_sync 16/16 GREEN"
+evidence = """
+The eval pins the nine tool names and the phrase 'tell the user that tool permissions are open'. It does not pin the merge rule. With the preserve-existing-entries sentence deleted, 8.4 reads as 'add to permissions.allow ...', which an installer can satisfy by replacing the array. The tests stay green, so the clobber regression that fde-sync's 'merge, never clobber' forbids is unguarded.
+8.4 is also silent on permissions.ask and permissions.deny. In Claude Code, ask and deny take precedence over allow. A client with a pre-existing 'ask': ['Bash'] keeps prompting after install, and the instruction neither says to keep those rules (and tell the user) nor forbids touching them. An installer chasing 'no call waits on a prompt' may delete them. Neither reading is pinned.
+"""
+blocking = false   # medium; the task's eval exists and is red-before/green-after for what it asserts
