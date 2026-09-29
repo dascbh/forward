@@ -48,3 +48,4 @@ another posts `blocked-on` and waits for its merge.
 - 2026-09-29 RECON-C5-TEXT decided: AGENTS.md at 1,600 words; demand blocker fixed in-demand everywhere, cycle-review budget alone goes to the owner; states draft/planned/running with writers; kernel ADR ids in client texts; guard.py message left to backlog
 - 2026-09-29 C-5 decided delta cycle review done: L budget spent, no blocking finding open; A1–A9 met; delta F1–F3 (medium) and the partial C-5 F3 / FWD-033 F4 go to backlog.md; promotion starts
 - 2026-09-29 C-5 decided FWD-031 reviewed late (0 blocking, 5 to backlog); promotion: promote, conditional on deploy step 1
+- 2026-09-29 C-5 decided released 0.19.0 (d3d0db8), A10 met; cycle closed

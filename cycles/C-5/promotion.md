@@ -1,6 +1,6 @@
 cycle: C-5
 date: 2026-09-29
-decision: promote — conditional on deploy step 1 (A10); FWD-031 reviewed (reviews/FWD-031, 0 blocking)
+decision: promote — deploy step 1 done (d3d0db8); FWD-031 reviewed (reviews/FWD-031, 0 blocking)
 commit: 50694ac
 
 <!-- kernel ADR-0019 rule 7. Promotion role, isolated worktree
@@ -37,7 +37,7 @@ deploy step 1 being verified (A10).
 - A7 — review.md full + delta: I4, promotion, I5, TRACE at the cycle; SCRUM-GOAL/RETRO removed; live headlabs-platform 12/12 green under the new runtime; old-layout fixture tests/test_verify.py:1469 (FM1); closed-without-promotion is I4 red. demand-level I2 and TRACE fire on FWD-031 once this file exists, as designed; that outcome is the hold (see Decision), not a failure of A7 — met
 - A8 — review.md delta: the two contradictions the full round found (F1 demand blocker path, F2 draft → planned owner) are fixed and pinned (TestReconcileC5); residual delta F1/F2 are medium and in backlog.md. caveat: the 15 discovery items were not re-audited one by one in either round — met
 - A9 — review.md delta: `wc -w AGENTS.md` = 1600 (≤ 1600, no headroom); longest description 40 words (fde-walkthrough, fde-verify); FM3 pins green (587 tests). Residual FWD-033 F4 partial (untraced removed sentences) in backlog.md — met
-- A10 — suite 587 tests OK and `verify.py --all` green at 50694ac without this file; version still 0.18.0 (spec/invariants.toml, fde.config.toml, .claude-plugin/plugin.json, templates and .fde copies); not pushed — pending deploy
+- A10 — released as 0.19.0 in d3d0db8 (all 7 version files), pushed 321e045..d3d0db8; suite 587+ OK and `verify.py --all` green before the push; CI not verified: `gh` returned 401 Bad credentials — met
 
 Budget-spent items (board.md, 2026-09-29): no criterion was narrowed or
 declined. Declared limit carried by the cycle: I5 stays repository-wide
@@ -105,3 +105,8 @@ What shows in use that the change works (I5):
 - A demand merged without its review is caught only when promotion.md is written; the board's merge line should require the review record (FWD-031 merged unreviewed).
 - A deploy rollback for a multi-commit release is a range revert from the last pushed SHA; the plan template should say so.
 - A criterion at the word limit (AGENTS.md 1600/1600) has no headroom for the next rule; the next cycle that adds text must remove text.
+
+## Deploy result
+
+- step 1: 0.19.0 pushed (321e045..d3d0db8). Rollback: `git revert --no-commit 321e045..d3d0db8`. CI result unverified (gh 401) — the owner can check the Actions tab.
+- step 2: clients take it with the fde-sync skill; headlabs-platform verified green read-only under the new runtime before release.
