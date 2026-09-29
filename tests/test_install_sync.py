@@ -423,7 +423,8 @@ class TestSyncRewritesTheOldConfigComment(unittest.TestCase):
         return lines[i], lines[i + 1]
 
     def test_sync_names_each_old_form_and_the_current_one(self):
-        skill = _skill()
+        # the rewrite is a migration manifest the sync follows (spec/migrations/)
+        skill = read(ROOT / "spec" / "migrations" / "0.21-0.22-backlog-comment.toml")
         for old in OLD_BACKLOG_COMMENTS:
             self.assertIn(old, skill)
         header, enabled = self._current()
@@ -437,6 +438,7 @@ class TestSyncRewritesTheOldConfigComment(unittest.TestCase):
         self.assertIn("Change nothing else in the config", skill)
         # a live [scrum] header is the FWD-039 alias: left as it is
         self.assertIn("`[scrum]` header stays", skill)
+        self.assertIn("follow its `guide`", skill)
 
 
 class TestSyncWarnsAboutPermissionsUpFront(unittest.TestCase):
@@ -580,3 +582,54 @@ class TestDowngradeIgnoresTheNewShapes(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRetiredAndMigrations(unittest.TestCase):
+    """Retired names and migrations are data the sync reads (learned from
+    BMAD's bmod.toml and v6-v7-migration.toml), so their shape is checked
+    here rather than trusted."""
+
+    @staticmethod
+    def _ver(v: str) -> tuple:
+        return tuple(int(x) for x in v.split("."))
+
+    def test_a_retired_skill_is_gone_and_its_new_name_ships(self):
+        import tomllib
+        retired = tomllib.loads(read(ROOT / "spec" / "retired.toml"))
+        skills = {p.name for p in (ROOT / "skills").iterdir() if p.is_dir()}
+        froms = set()
+        for entry in retired.get("renamed", []) + retired.get("removed", []):
+            self.assertIn(entry["kind"], ("skill", "config"), entry)
+            self.assertNotIn(entry["from"], froms, "a retired name is listed twice")
+            froms.add(entry["from"])
+            if entry["kind"] == "skill":
+                self.assertNotIn(entry["from"], skills,
+                                 f"{entry['from']} is retired but still ships")
+                if "to" in entry:
+                    self.assertIn(entry["to"], skills, entry)
+        tos = {e.get("to") for e in retired.get("renamed", [])}
+        self.assertFalse(froms & tos, "a retired name was reused")
+
+    def test_every_migration_carries_its_whole_contract(self):
+        import tomllib
+        kernel = tomllib.loads(read(ROOT / "spec" / "invariants.toml"))["meta"]["kernel_version"]
+        files = sorted((ROOT / "spec" / "migrations").glob("*.toml"))
+        self.assertGreaterEqual(len(files), 2)
+        ids = set()
+        for f in files:
+            m = tomllib.loads(read(f))["migration"]
+            for key in ("id", "from", "to", "title", "summary", "detect", "guide"):
+                self.assertTrue(str(m.get(key, "")).strip(), f"{f.name}: {key}")
+            self.assertTrue(m.get("checklist"), f"{f.name}: checklist")
+            self.assertLess(self._ver(m["from"]), self._ver(m["to"]), f.name)
+            self.assertLessEqual(self._ver(m["to"]), self._ver(kernel), f.name)
+            self.assertNotIn(m["id"], ids, f.name)
+            ids.add(m["id"])
+
+    def test_install_copies_both_and_the_sync_reads_both(self):
+        setup = " ".join(read(ROOT / "SETUP.md").split())
+        self.assertIn("`spec/retired.toml`, `spec/migrations/*.toml` → `.fde/spec/`", setup)
+        skill = " ".join(_skill().split())
+        self.assertIn("## 3. Retired names and migrations", skill)
+        self.assertIn("A retired name is never reused.", skill)
+        self.assertIn("check its `detect` signals (read only)", skill)

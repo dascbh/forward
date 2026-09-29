@@ -154,7 +154,8 @@ kernel checkout present. Copy from the kernel into the project:
 1. EVERY `runtime/*.py` → `bin/fde/` (copy the directory; do not
    enumerate — a listed set silently omits the next module)
 2. `spec/invariants.toml`, `spec/roles.toml`, `spec/dimensions/*.toml`,
-   `spec/references/*.toml` → `.fde/spec/` (same layout)
+   `spec/references/*.toml`, `spec/retired.toml`, `spec/migrations/*.toml`
+   → `.fde/spec/` (same layout)
 3. `templates/pre-commit` → `.githooks/pre-commit`, then `chmod +x` it
 4. `templates/fde-gate.yml` → `.github/workflows/fde-gate.yml`, filling
    `{{TEST_COMMAND}}` from `[stack]` — CI runs the tests AND the gate

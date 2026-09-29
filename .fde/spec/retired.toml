@@ -1,0 +1,22 @@
+# Kernel names that no longer ship (learned from BMAD's bmod.toml renamed/
+# removed). fde-sync reads this file: a renamed skill's installed copy is
+# removed and the user is told its new name; a removed one is deleted and
+# reported. A retired name is never reused (tests/test_install_sync.py).
+# `kind` is `skill` (a directory under skills/) or `config` (a table or key
+# of fde.config.toml, still read as an alias where `alias = true`).
+
+[meta]
+schema = 1
+
+[[renamed]]
+kind = "skill"
+from = "fde-scrum"
+to = "fde-backlog-format"
+since = "0.22.0"
+
+[[renamed]]
+kind = "config"
+from = "[scrum]"
+to = "[backlog]"
+since = "0.22.0"
+alias = true

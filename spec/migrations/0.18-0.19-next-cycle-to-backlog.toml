@@ -1,0 +1,19 @@
+[migration]
+id = "next-cycle-to-backlog"
+from = "0.18.0"
+to = "0.19.0"
+title = "A cycle's ## Next cycle list moves to backlog.md"
+summary = "kernel ADR-0019 rule 15: discoveries live in the backlog, not in a cycle file."
+detect = """
+- A cycle file (`cycles/C-<n>.md` or `cycles/C-<n>/*.md`) has a `## Next cycle` section.
+"""
+guide = """
+Each line becomes a backlog line with the next free `B-<n>` id and the
+`(C-<n>)` of the cycle it came from, and the section leaves the cycle file.
+A cycle opened before kernel ADR-0019 otherwise finishes under its own
+rules. Commit the move on its own: `backlog: migrate ## Next cycle`.
+"""
+checklist = [
+  "No cycle file has a ## Next cycle section.",
+  "Every moved line has a B-<n> id and its (C-<n>) origin.",
+]

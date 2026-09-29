@@ -66,38 +66,25 @@ in the kernel. Idempotent: same sources, same output.
   directory whose name does not start with `fde-` is the user's and
   stays.
 
-Then make two edits in `fde.config.toml`:
+Then set `kernel_version` in `fde.config.toml` to the kernel's version
+(`.fde/spec/invariants.toml` → `[meta] kernel_version`).
+Change nothing else in the config except what a migration below names.
 
-1. Set `kernel_version` in `fde.config.toml` to the kernel's version
-   (`.fde/spec/invariants.toml` → `[meta] kernel_version`).
-2. Rewrite the old `[scrum]` comment. The switch is now `[backlog]`. A
-   line that ends in one of these old comments:
-   - `# optional cadence layer: backlog + sprints (fde-scrum skill)`
-   - `# gates the backlog's dated goal: backlog.md needs goal: and date: (fde-scrum skill)`
+## 3. Retired names and migrations
 
-   gets the current comment instead,
-   `# gates the backlog's dated goal: backlog.md needs goal: and date: (fde-backlog-format skill)`,
-   and keeps everything before it, its `enabled` value included. When
-   the old block is commented out, the result is the template's two
-   lines, `# [scrum]` right above becoming `# [backlog]`:
-   ```toml
-   # [backlog]
-   # enabled = true   # gates the backlog's dated goal: backlog.md needs goal: and date: (fde-backlog-format skill)
-   ```
-   A live `[scrum]` header stays as it is: it is an alias of
-   `[backlog]` (FWD-039).
+Both are data in the kernel, copied to `.fde/spec/`:
 
-Change nothing else in the config: no other key, value, comment or
-section.
-
-## 3. Migrate the project's records
-
-A `## Next cycle` list in a cycle file (`cycles/C-<n>.md` or
-`cycles/C-<n>/*.md`) moves to `backlog.md` (kernel ADR-0019 rule 15):
-each line becomes a backlog line with the next free `B-<n>` id and the
-`(C-<n>)` of the cycle it came from, and the section leaves the cycle
-file. A cycle opened before kernel ADR-0019 otherwise finishes under its
-own rules. Commit the move on its own: `backlog: migrate ## Next cycle`.
+- `retired.toml` — each `[[renamed]]` or `[[removed]]` skill still under
+  `.claude/skills/` is removed (a renamed one's new name was installed
+  above); tell the user which, and the new name. A `kind = "config"`
+  entry with `alias = true` is still read: a live `[scrum]` header stays
+  as it is. A retired name is never reused.
+- `migrations/*.toml` — for each file whose `[migration]` `to` is above
+  the version you moved from, check its `detect` signals (read only). For each that is present: follow its `guide`, tick its
+  `checklist`, commit it on its own (`fde-sync: <id>`), and report its
+  `title`. A migration whose signals are absent is skipped silently. The
+  sync request is the approval; a failed checklist item stops the sync
+  and is reported.
 
 Close by running `python3 bin/fde/verify.py --all`. A red `CFG-VER` means
 the update landed half way: the config and the installed spec disagree on

@@ -1,0 +1,30 @@
+# fde-sync finds every file here with a [migration] table, offers the ones
+# whose `detect` signal is present in the project, follows `guide` and
+# ticks `checklist` (learned from BMAD's v6-v7-migration.toml).
+
+[migration]
+id = "backlog-comment"
+from = "0.21.0"
+to = "0.22.0"
+title = "The [scrum] comment in fde.config.toml names the backlog-format skill"
+summary = "The backlog switch is [backlog]; the old [scrum] comment still names sprints or fde-scrum."
+detect = """
+- A line of `fde.config.toml` ends in `# optional cadence layer: backlog + sprints (fde-scrum skill)`.
+- A line of `fde.config.toml` ends in `# gates the backlog's dated goal: backlog.md needs goal: and date: (fde-scrum skill)`.
+"""
+guide = """
+Replace only the comment: the line gets
+`# gates the backlog's dated goal: backlog.md needs goal: and date: (fde-backlog-format skill)`
+and keeps everything before it, its `enabled` value included. When the old
+block is commented out, the result is the template's two lines:
+
+# [backlog]
+# enabled = true   # gates the backlog's dated goal: backlog.md needs goal: and date: (fde-backlog-format skill)
+
+A live `[scrum]` header stays: it is an alias of `[backlog]` (spec/retired.toml).
+Change no other key, value, comment or section.
+"""
+checklist = [
+  "No line of fde.config.toml names fde-scrum.",
+  "Every enabled value is unchanged.",
+]

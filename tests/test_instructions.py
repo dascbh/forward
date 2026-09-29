@@ -882,9 +882,13 @@ class TestReconcileC5(ProseTestCase):
         for rel in ("skills/fde-sync/SKILL.md",
                     ".claude/skills/fde-sync/SKILL.md"):
             text = self.flat(rel)
+            self.assertIn("`kernel_version` in `fde.config.toml`", text, rel)
+            self.assertIn("`migrations/*.toml`", text, rel)
+        for rel in ("spec/migrations/0.18-0.19-next-cycle-to-backlog.toml",
+                    ".fde/spec/migrations/0.18-0.19-next-cycle-to-backlog.toml"):
+            text = self.flat(rel)
             for needle in ("`## Next cycle`", "`B-<n>`", "`(C-<n>)`",
-                           "kernel ADR-0019 rule 15",
-                           "`kernel_version` in `fde.config.toml`"):
+                           "kernel ADR-0019 rule 15"):
                 self.assertIn(needle, text, f"{rel}: {needle}")
         setup = self.flat("SETUP.md")
         self.assertIn("`## Next cycle`", section(read("SETUP.md"),
