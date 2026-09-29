@@ -115,25 +115,66 @@ class TestScrumConfigShape(unittest.TestCase):
             self.assertIn("drop --staged", r.stderr)
 
 
-class TestScrumR2R3Artifacts(unittest.TestCase):
-    """R2/R3 (finding DOM-5): the skill is verified here; that the scrum
-    section cannot drift between template and repo is the agents-md pair
-    in tests/mirror.toml (FWD-020)."""
+class TestBacklogInstructions(unittest.TestCase):
+    """FWD-031, ADR-0019 rule 13: fde-scrum shrinks to the backlog format and
+    AGENTS.md's Scrum section becomes ## Backlog. That the section cannot
+    drift between template and repo is the agents-md pair in
+    tests/mirror.toml (FWD-020)."""
 
     ROOT = Path(__file__).resolve().parent.parent
+    SKILLS = ("skills/fde-scrum/SKILL.md", ".claude/skills/fde-scrum/SKILL.md")
+    AGENTS = ("templates/AGENTS.md.template", "AGENTS.md")
+    SPRINT_CEREMONY = ("sprints/S-N", "sprint goal", "Plan — the user",
+                       "## Retro", "## Review", "retro.md", "review.md",
+                       "## Unplanned", "mid-sprint", "two sittings")
 
-    def test_skill_defines_the_eight_elements_r2_names(self):
-        skill = (self.ROOT / "skills" / "fde-scrum" / "SKILL.md").read_text()
-        for element in ("Capture", "Discover", "Plan", "Execute", "Close",
-                        "Review", "Retro", "Unplanned"):
-            self.assertIn(element, skill, element)
+    def flat(self, rel):
+        return " ".join((self.ROOT / rel).read_text(encoding="utf-8").split())
 
-    def test_both_agents_surfaces_carry_a_scrum_section(self):
-        # content only (each file on its own); the old byte-equality of the
-        # two sections also implied both exist, so that half stays here
-        for rel in ("templates/AGENTS.md.template", "AGENTS.md"):
+    def section(self, rel):
+        text = (self.ROOT / rel).read_text(encoding="utf-8")
+        start = text.index("\n## Backlog\n")
+        return " ".join(text[start:text.index("\n## ", start + 1)].split())
+
+    def test_skill_is_the_backlog_format(self):
+        for rel in self.SKILLS:
+            flat = self.flat(rel)
+            for element in ("`B-<n>`", "`opinion < usage-data < user-test "
+                            "< production`", "`(C-<n>)`", "## Capture",
+                            "becomes a backlog item, not a demand",
+                            "`promotion.md` `## What changes`: three lines "
+                            "at most", "Sprints are retired"):
+                self.assertIn(element, flat, f"{rel}: {element}")
+
+    def test_skill_carries_no_sprint_ceremony(self):
+        for rel in self.SKILLS:
+            flat = self.flat(rel)
+            for gone in self.SPRINT_CEREMONY:
+                self.assertNotIn(gone, flat, f"{rel}: {gone}")
+
+    def test_skill_description_is_terse_and_sprint_free(self):
+        for rel in self.SKILLS:
             text = (self.ROOT / rel).read_text(encoding="utf-8")
-            self.assertIn("\n## Scrum mode", text, rel)
+            desc = next(l for l in text.splitlines()
+                        if l.startswith("description:"))
+            self.assertLessEqual(len(desc.split()) - 1, 40, rel)
+            self.assertNotIn("sprint", desc.lower(), rel)
+            self.assertNotIn("retro", desc.lower(), rel)
+
+    def test_both_agents_surfaces_carry_a_backlog_section(self):
+        for rel in self.AGENTS:
+            text = (self.ROOT / rel).read_text(encoding="utf-8")
+            self.assertIn("\n## Backlog\n", text, rel)
+            self.assertNotIn("## Scrum mode", text, rel)
+            section = self.section(rel)
+            for needle in ("becomes a backlog item, not a demand",
+                           "Sprints are retired (ADR-0019); `sprints/` is "
+                           "history.", "`--gate scrum` requires the "
+                           "backlog's `goal:` and `date:`",
+                           "`fde-scrum` skill"):
+                self.assertIn(needle, section, f"{rel}: {needle}")
+            for gone in self.SPRINT_CEREMONY + ("retro", "sprint;"):
+                self.assertNotIn(gone, section, f"{rel}: {gone}")
 
 
 if __name__ == "__main__":

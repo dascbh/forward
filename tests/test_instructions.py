@@ -285,9 +285,11 @@ class TestDeclaredCycle(unittest.TestCase):
                           "(`## Cycle`): the user narrows, declares the "
                           "limit, or pauses; never one more round "
                           "(`fde-review`).", flat, rel)
+            # FWD-031: sprints are retired, so there is no retro to surface at
             self.assertIn("\"Fix it NOW\" skips the backlog order, never the "
-                          "open cycle (`## Cycle`), and is recorded as "
-                          "unplanned; it surfaces at the retro.", flat, rel)
+                          "open cycle (`## Cycle`): it becomes the next "
+                          "cycle's first demand.", flat, rel)
+            self.assertNotIn("surfaces at the retro", flat, rel)
             self.assertNotIn("bypasses the backlog", flat, rel)
         for rel in ("skills/fde-review/SKILL.md", ".claude/skills/fde-review/SKILL.md"):
             flat = " ".join(read(rel).split())
@@ -297,7 +299,8 @@ class TestDeclaredCycle(unittest.TestCase):
         for rel in ("skills/fde-scrum/SKILL.md", ".claude/skills/fde-scrum/SKILL.md"):
             flat = " ".join(read(rel).split())
             self.assertIn("\"fix it NOW\" skips the backlog order, never the "
-                          "open cycle", flat, rel)
+                          "open cycle: it becomes the next cycle's first "
+                          "demand", flat, rel)
             self.assertNotIn("runs immediately", flat, rel)
 
     def test_no_in_band_loophole(self):

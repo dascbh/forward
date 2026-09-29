@@ -253,18 +253,16 @@ it added. `python3 bin/fde/status.py` shows the cycles and the backlog
 (`fde-status`). A cycle opened before ADR-0019 (`cycles/C-<n>.md`)
 finishes under the rules it opened with.
 
-## Scrum mode — when `[scrum]` is enabled
+## Backlog
 
-The cadence layer above the demand loop. Defaults shift: an idea or pain
-mentioned in conversation becomes an evidence-labeled backlog item
-(`opinion < usage-data < user-test < production`), not an immediate
-demand. The user's attention is spent in two sittings — planning (dated
-sprint goal + selection in `sprints/S-N/goal.md`) and review + retro
-(increment inspected, backlog reordered, process findings recorded).
-Between them, demands run the loop without interruptions. "Fix it NOW"
-skips the backlog order, never the open cycle (`## Cycle`), and is
-recorded as unplanned; it surfaces at the retro. No dated goal, no sprint; no retro, no next sprint (`--gate
-scrum`). Detail: `fde-scrum` skill.
+An idea, pain or request mentioned in conversation becomes a backlog
+item, not a demand: one-line acknowledgment, nothing more. The owner
+orders the backlog; the evidence label makes a bet visible, never
+blocks it. "Fix it NOW" skips the backlog order, never the open cycle
+(`## Cycle`): it becomes the next cycle's first demand. Sprints are
+retired (ADR-0019); `sprints/` is history. With `[scrum] enabled =
+true`, `--gate scrum` requires the backlog's `goal:` and `date:`.
+Detail: `fde-scrum` skill.
 
 ## Voice — the kernel is infrastructure
 

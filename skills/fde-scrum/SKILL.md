@@ -1,106 +1,40 @@
 ---
 name: fde-scrum
-description: The cadence layer above the demand loop — backlog with a product goal, sprints with a goal, review and retro as the user's two sittings, continuous discovery feeding evidence-labeled items. Use when [scrum] is enabled in fde.config.toml, when the user mentions sprint, backlog, planning, discovery, review, retro, or product goal, when they ask to "turn on scrum mode", or when an idea arrives that should be captured rather than built immediately.
+description: The backlog format — B-<n> ids, evidence ladder, origin (C-<n>) — and capturing an idea as a backlog item instead of a demand. Use when an idea or request should be captured rather than built, or when writing backlog.md.
 ---
 
 # fde-scrum
 
-The mode changes defaults; it does not add ceremony per demand. Underneath
-every backlog item, the demand loop runs exactly as always — triage, spec,
-implementation, review, gate. Scrum mode decides WHAT enters and WHEN the
-user is consulted.
+The backlog feeds cycles (AGENTS.md `## Cycle`). Sprints are retired
+(ADR-0019 rule 13); a `sprints/` directory is history, never extended.
 
-## Artifacts and their commitments (I4's pattern, three altitudes)
+## backlog.md
 
-| artifact | commitment | rule |
-|---|---|---|
-| `backlog.md` | product goal, dated | one goal at a time; reached or abandoned → declare the next |
-| `sprints/S-N/goal.md` | sprint goal, dated | declared BEFORE the sprint's first demand starts; sprints are named `S-<number>` (S-1, S-2, … — ordering is numeric) |
-| increment | the DoD that already exists | invariants + acceptance + `verify --all` — an exit code, not a wiki page |
+Header lines: `goal:` (the product goal, or `goal: not set`) and
+`date:`. Create it on the first capture. With `[scrum] enabled = true`
+in fde.config.toml, `--gate scrum` requires both (first 30 lines).
 
-Traceability chain: product goal → sprint goal → demand → acceptance →
-eval. Any link without the one above it is orphan work.
+One item per line — a table row or a bullet — carrying:
 
-## Turning the mode on (once)
+- `B-<n>` — the next free id; never reused (`fde-backlog` assigns ids
+  to a backlog that has none);
+- the item and its hypothesis: what value, for whom;
+- evidence: `opinion < usage-data < user-test < production`;
+- origin `(C-<n>)` when a cycle found it.
 
-Add to fde.config.toml:
+The owner orders it. The label makes a bet visible; it never blocks one.
 
-```toml
-[scrum]
-enabled = true
-```
+## Capture
 
-Ask ONE question: "what is the product goal right now?" (one sentence).
-Create `backlog.md` with non-empty `goal:` and `date:` header lines (the
-gate reads the first 30 lines). From then on the gate enforces the
-cadence (`--gate scrum` — a CI-tier gate; it does not run under
-`--staged`).
+An idea, pain or "it would be nice to have X" becomes a backlog item,
+not a demand: one-line acknowledgment, nothing more. Discoveries during
+a cycle enter `backlog.md` as they are found, with origin `(C-<n>)` and
+evidence `usage-data`. Re-label when new evidence lands.
 
-## Capture — the default shift
+"fix it NOW" skips the backlog order, never the open cycle: it becomes
+the next cycle's first demand (AGENTS.md `## Cycle`).
 
-An idea, pain, or "it would be nice to have X" mentioned in conversation
-becomes a backlog item, not an immediate demand. One-line acknowledgment, nothing
-more. Each item carries: hypothesis (what value, for whom), **evidence
-label** — `opinion < usage-data < user-test < production` — and a rough
-size. Refinement is continuous: re-order and re-label whenever new
-evidence lands; never a meeting.
+## Lessons
 
-## Discover — a push, not a phase
-
-`/fde-scrum discover <topic>` (or "look into X"): research the code,
-usage data, or a user-validation plan (fde-design's validation doctrine).
-Raw material goes to `discovery/`; the distilled result updates the
-item's evidence label in the backlog. Discovery never blocks delivery —
-it upgrades the label the user sees at planning.
-
-## Plan — the user's first sitting
-
-Present the backlog ordered, with hypothesis, evidence, and size visible
-— selecting an `opinion` item is a declared bet, not an accident. Propose
-a sprint goal (one sentence). The user adjusts and approves. Write
-`sprints/S-N/goal.md` — non-empty `goal:` and `date:` header lines — with
-the selected demands, each with one line: "serves the goal because…". The kernel labels evidence; it never
-blocks a value choice — the product owner is the user, and that is not
-delegable.
-
-## Execute — no interruptions
-
-Run each demand through the demand loop without consulting the user,
-except for decisions that are genuinely theirs. A demand added mid-sprint
-must justify itself against the goal or wait. **Exception route**: "fix
-it NOW" skips the backlog order, never the open cycle: it starts when the
-open cycle closes, or at once if the user abandons it (AGENTS.md
-`## Cycle`), and is recorded in goal.md under `## Unplanned` — it
-surfaces at the retro, uncommented.
-Each request runs as a declared cycle (AGENTS.md `## Cycle`), one after
-another; discoveries outside it enter `backlog.md` as they are found,
-with origin `(C-<n>)` and evidence `usage-data`.
-
-## Close — goal or batch, never the calendar
-
-The sprint closes when the goal is reached or the batch is exhausted,
-whichever first. Then call the user for the review — proactively.
-
-## Review — the user's second sitting
-
-Present the increment in the domain's terms with its evidence (voice
-rule: the work, not the process). The user inspects and reorders the
-backlog — that reordering is the review's real output. Write
-`sprints/S-N/review.md`: what shipped, evidence, backlog changes.
-
-## Retro — without it, the next sprint does not open
-
-Three questions, answered with the sprint's artifacts as evidence:
-1. What cost more than it returned? (ceremony friction, rework)
-2. What did the gate catch — and what did it let through?
-3. What changes? — each answer becomes a config change, a backlog item,
-   or a kernel demand (`FWD-*`). Process friction gets a destination,
-   not a chat complaint.
-
-Write `sprints/S-N/retro.md`. The gate blocks a new sprint while the
-previous one lacks it.
-
-## Voice
-
-Everything here is plumbing. Status is one line:
-`FORWARD: S-003 · 2/3 demands · gate ✓`. The artifacts carry the rest.
+A cycle's lessons are its `promotion.md` `## What changes`: three lines
+at most, each also a backlog item with origin `(C-<n>)`.

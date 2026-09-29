@@ -1336,8 +1336,8 @@ INVENTORY = {
              "test_rule_paragraph_says_what_r5_requires"],
             "whole file; content needles kept, now in both surfaces"),
     "D12": (["agents-md"],
-            ["test_scrum.TestScrumR2R3Artifacts."
-             "test_both_agents_surfaces_carry_a_scrum_section"],
+            ["test_scrum.TestBacklogInstructions."
+             "test_both_agents_surfaces_carry_a_backlog_section"],
             "whole file; section-exists half kept"),
     "D13": (["spec"], [], "redundant with D2, retired"),
     "G1": (["agents"], [], "fde-walkthrough-evaluator.md discovered"),
