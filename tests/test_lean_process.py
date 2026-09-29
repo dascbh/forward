@@ -26,7 +26,7 @@ class TestDirectLane(ProseTestCase):
     def test_triage_states_every_condition_and_the_exit(self):
         text = read("skills/fde-triage/SKILL.md")
         self.assertIn("## Direct lane — no cycle", text)
-        for cond in ("exactly one layer", "about 300 production lines at "
+        for cond in ("exactly one goal", "about 300 production lines at "
                      "most", "not `sensitive`", "not `irreversible`",
                      "needs no ADR", "Unsure on any → a cycle."):
             self.assertIn(cond, text)

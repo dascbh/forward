@@ -54,11 +54,10 @@ class TestPerCycleTriage(ProseTestCase):
                     ".claude/skills/fde-triage/SKILL.md"):
             flat = " ".join(read(rel).split())
             for needle in ("Size is set on the cycle, never on a demand.",
-                           "A demand is at most about 300 production lines "
-                           "and has exactly one layer: `front`, `back` or "
-                           "`infra`.",
-                           "A change that spans layers is always split, "
-                           "however small.",
+                           "A demand is one goal (kernel ADR-0022), at most "
+                           "about 300 production lines",
+                           "a goal over the ceiling splits into smaller "
+                           "goals, never into layers.",
                            "## RULE"):
                 self.assertIn(needle, flat, f"{rel}: {needle}")
 

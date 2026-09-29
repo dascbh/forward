@@ -14,13 +14,14 @@ take the larger. Rationale: kernel ADR-0019 rule 3.
 Size is set on the cycle, never on a demand. The size sets the depth of
 the planner and the number of cycle review rounds.
 
-A demand is at most about 300 production lines (`[lanes]
-demand_max_loc` in `fde.config.toml`, default 300) and has exactly one
-layer: `front`, `back` or `infra`. `front` is screens, flows and
+A demand is one goal (kernel ADR-0022), at most about 300 production
+lines (`[lanes] demand_max_loc` in `fde.config.toml`, default 300). Its
+layer cell lists every layer it touches: `front` is screens, flows and
 user-facing text; `back` is the API, domain logic and data access;
-`infra` is IaC, roles, pipelines and runtime configuration. A change
-that spans layers is always split, however small. Splitting happens at planning, in `plan.md`'s
-demand list, not at review.
+`infra` is IaC, roles, pipelines and runtime configuration. Two goals
+that could each merge alone are two demands; a goal over the ceiling
+splits into smaller goals, never into layers. Splitting happens at
+planning, in `plan.md`'s demand list, not at review.
 
 ## Inputs — all four judged for THIS cycle
 
@@ -68,7 +69,7 @@ only sends the change through the table below.
 ## Direct lane — no cycle
 
 A change goes straight to code, with no cycle, plan or sign-off, when
-ALL hold: exactly one layer; about 300 production lines at most
+ALL hold: exactly one goal; about 300 production lines at most
 (`[lanes] direct_max_loc`, default 300); not
 `sensitive`; not `irreversible`; it adds no acceptance criterion to a
 plan and needs no ADR. Unsure on any → a cycle.
@@ -82,8 +83,8 @@ plan and needs no ADR. Unsure on any → a cycle.
    blocking finding stops the merge.
 5. Merge rebased onto main. It ships with the project's next deploy.
 
-Announce it in one line: `FORWARD: direct — <layer>, ~<loc> lines`. A
-direct change that turns out to span layers, overrun ~300 lines or
+Announce it in one line: `FORWARD: direct — <layers>, ~<loc> lines`. A
+direct change that turns out to be two goals, overrun ~300 lines or
 need a criterion stops and becomes a cycle.
 
 ## Score and size

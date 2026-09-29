@@ -279,5 +279,36 @@ class TestProcessKnobs(unittest.TestCase):
         tpl = (ROOT / "templates" / "fde.config.template.toml").read_text()
         for line in ("[lanes]", "demand_max_loc = 300", "[review]", "max_findings = 5"):
             self.assertIn(line, tpl)
-        self.assertIn("`[lanes]\ndemand_max_loc`",
-                      (ROOT / "skills" / "fde-triage" / "SKILL.md").read_text())
+        self.assertIn("`[lanes] demand_max_loc`", " ".join(
+            (ROOT / "skills" / "fde-triage" / "SKILL.md").read_text().split()))
+
+
+class TestLayerIsAList(unittest.TestCase):
+    """kernel ADR-0022: a demand is one goal; its layer cell lists every
+    layer it touches, and a `front` in the list makes it a front demand."""
+
+    def test_layer_cells_read_as_lists(self):
+        from fde_lib import _layer_list
+        self.assertEqual(_layer_list("back, front"), ["back", "front"])
+        self.assertEqual(_layer_list("front"), ["front"])
+        self.assertEqual(_layer_list("infra / back"), ["infra", "back"])
+        self.assertEqual(_layer_list(""), [])
+
+    def test_a_multi_layer_demand_with_front_is_a_front_demand(self):
+        import tempfile
+        from fde_lib import front_demand_criteria
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "cycles" / "C-1").mkdir(parents=True)
+            (root / "cycles" / "C-1" / "plan.md").write_text(
+                "cycle: C-1\nstate: running\n\n## Demands\n\n"
+                "| id | layer | depends on | files | what | meets | follows |\n"
+                "|---|---|---|---|---|---|---|\n"
+                "| DEM-1 | back, front | — | api/, web/ | x | A1, A2 | — |\n"
+                "| DEM-2 | back | — | api/ | y | A3 | — |\n")
+            for did in ("DEM-1", "DEM-2"):
+                (root / "specs" / did).mkdir(parents=True)
+                (root / "specs" / did / "spec.md").write_text(f"cycle: C-1\n")
+            self.assertEqual(front_demand_criteria(root, root / "specs" / "DEM-1"),
+                             ["A1", "A2"])
+            self.assertIsNone(front_demand_criteria(root, root / "specs" / "DEM-2"))

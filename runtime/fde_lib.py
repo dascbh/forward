@@ -617,6 +617,13 @@ def cycle_end(plan_text: str) -> str | None:
     return words[0] if words and words[0] in ("closed", "abandoned") else None
 
 
+def _layer_list(cell: str) -> list[str]:
+    """A layer cell as a list: `back, front` → ["back", "front"]. Since
+    kernel ADR-0022 a demand is one goal and its cell lists every layer
+    it touches; a single value still reads as a list of one."""
+    return [t for t in re.split(r"[\s,;/+]+", cell.lower()) if t]
+
+
 def front_demand_criteria(project: Path, spec_dir: Path) -> list[str] | None:
     """The plan criteria a `front` demand of the cycle layout meets, or
     None when the demand is not one: no cycle links it (neither its
@@ -634,7 +641,7 @@ def front_demand_criteria(project: Path, spec_dir: Path) -> list[str] | None:
     fields = spec_fields(text)
     cycles = cycle_dirs(project)
     own = spec_cycle(text)
-    layers = {fields.get("layer", "").lower()}
+    layers = set(_layer_list(fields.get("layer", "")))
     meets = fields.get("meets", "")
     linked = False
     for cid, cdir in sorted(cycles.items()):
@@ -646,7 +653,7 @@ def front_demand_criteria(project: Path, spec_dir: Path) -> list[str] | None:
             continue
         linked = True
         row = row or {}
-        layers.add(row.get("layer", "").lower())
+        layers.update(_layer_list(row.get("layer", "")))
         meets += f" {row.get('meets', '')}"
     if not linked or "front" not in layers:
         return None
