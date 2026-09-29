@@ -13,6 +13,8 @@ from pathlib import Path
 
 from support import make_project, verify
 
+from prose import ProseTestCase  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -28,7 +30,7 @@ def _status():
 ENDINGS = ("met", "declined", "limit", "not met")
 
 
-class TestPromotionEndings(unittest.TestCase):
+class TestPromotionEndings(ProseTestCase):
     """B-30: the template and the promotion agent name the four endings
     status.py reads, and status.py reads every one but `not met` as
     settled."""
@@ -79,7 +81,7 @@ blocking = true
 """
 
 
-class TestFixedIn(unittest.TestCase):
+class TestFixedIn(ProseTestCase):
     """B-31: a blocking finding with `fixed_in` is closed."""
 
     def test_template_documents_fixed_in(self):
@@ -136,7 +138,7 @@ class TestFixedIn(unittest.TestCase):
                 self.assertEqual(r.returncode, 0, r.stdout)
 
 
-class TestMergeNamesReview(unittest.TestCase):
+class TestMergeNamesReview(ProseTestCase):
     """B-39: the merge line names the review record; a demand merges only
     with it."""
 
@@ -156,7 +158,7 @@ class TestMergeNamesReview(unittest.TestCase):
             self.assertIn("its merge line on `board.md` names it", text, rel)
 
 
-class TestI2ReadsEveryRecord(unittest.TestCase):
+class TestI2ReadsEveryRecord(ProseTestCase):
     """B-50: findings-plan.toml, findings-delta.toml — every findings*.toml
     under reviews/ gets the isolation check."""
 

@@ -8,6 +8,8 @@ their sources by tests/test_mirror.py.
 import unittest
 from pathlib import Path
 
+from prose import ProseTestCase  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -15,7 +17,7 @@ def read(rel: str) -> str:
     return " ".join((ROOT / rel).read_text(encoding="utf-8").split())
 
 
-class TestDirectLane(unittest.TestCase):
+class TestDirectLane(ProseTestCase):
     def test_agents_md_names_the_direct_lane(self):
         for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
             text = read(rel)
@@ -39,7 +41,7 @@ class TestDirectLane(unittest.TestCase):
                           "cycle's first demand.", read(rel), rel)
 
 
-class TestTestsRunOncePerSha(unittest.TestCase):
+class TestTestsRunOncePerSha(ProseTestCase):
     def test_review_skill_names_each_role(self):
         text = read("skills/fde-review/SKILL.md")
         self.assertIn("## Test runs — once per SHA", text)
@@ -61,7 +63,7 @@ class TestTestsRunOncePerSha(unittest.TestCase):
             self.assertIn("Tests run once per SHA", read(rel), rel)
 
 
-class TestDeltaOnlyForABlocker(unittest.TestCase):
+class TestDeltaOnlyForABlocker(ProseTestCase):
     def test_a_clean_full_round_ends_the_review(self):
         self.assertIn("A full round with no blocking finding ends the "
                       "review: the delta round runs only to check a "
@@ -71,7 +73,7 @@ class TestDeltaOnlyForABlocker(unittest.TestCase):
                       read("agents/fde-adversarial.md"))
 
 
-class TestBacklogIdsOnMain(unittest.TestCase):
+class TestBacklogIdsOnMain(ProseTestCase):
     def test_worktree_lines_carry_no_id(self):
         for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
             self.assertIn("Only main assigns backlog ids.", read(rel), rel)
@@ -79,6 +81,8 @@ class TestBacklogIdsOnMain(unittest.TestCase):
                       "merge)", read("agents/fde-implementation.md"))
         self.assertIn("Ids are assigned on main only.",
                       read("skills/fde-backlog-format/SKILL.md"))
+        self.assertIn("The `BL-IDS` gate fails when one `B-<n>` opens two "
+                      "different items", read("skills/fde-backlog-format/SKILL.md"))
 
     def test_appends_merge_as_a_union(self):
         attrs = (ROOT / ".gitattributes").read_text(encoding="utf-8")
@@ -89,7 +93,7 @@ class TestBacklogIdsOnMain(unittest.TestCase):
         self.assertIn("`cycles/*/board.md merge=union`", setup)
 
 
-class TestNoSyncUnderARunningCycle(unittest.TestCase):
+class TestNoSyncUnderARunningCycle(ProseTestCase):
     def test_sync_waits_for_the_cycle_to_end(self):
         text = read("skills/fde-sync/SKILL.md")
         self.assertIn("## 0. When — between cycles", text)
@@ -101,7 +105,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class TestWavesFromThePlan(unittest.TestCase):
+class TestWavesFromThePlan(ProseTestCase):
     def test_the_plan_declares_files_and_the_runtime_computes_waves(self):
         self.assertIn("| id | layer | depends on | files | what | meets | "
                       "follows |", read("templates/cycle/plan.md"))

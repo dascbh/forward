@@ -7,6 +7,8 @@ import re
 import unittest
 from pathlib import Path
 
+from prose import ProseTestCase  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -20,7 +22,7 @@ def section(text: str, heading: str) -> str:
     return parts[1].split("\n## ", 1)[0]
 
 
-class TestPerCycleTriage(unittest.TestCase):
+class TestPerCycleTriage(ProseTestCase):
     """FWD-003 R3, moved to the cycle by ADR-0019 rule 3 (FWD-026)."""
 
     def test_skill_defines_per_cycle_inputs_with_tiebreaks(self):
@@ -61,7 +63,7 @@ class TestPerCycleTriage(unittest.TestCase):
                 self.assertIn(needle, flat, f"{rel}: {needle}")
 
 
-class TestI1BluntnessDecision(unittest.TestCase):
+class TestI1BluntnessDecision(ProseTestCase):
     """FWD-004: the decision is on record where I1 gets explained."""
 
     def test_verify_skill_records_the_kept_bluntness(self):
@@ -70,7 +72,7 @@ class TestI1BluntnessDecision(unittest.TestCase):
         self.assertIn("instructions ARE behavior", skill)
 
 
-class TestExecutionProvenance(unittest.TestCase):
+class TestExecutionProvenance(ProseTestCase):
     """FWD-007: the transcript link is asked for wherever findings are made."""
 
     def test_all_provenance_surfaces_name_agent_transcript(self):
@@ -81,7 +83,7 @@ class TestExecutionProvenance(unittest.TestCase):
             self.assertIn("agent_transcript", read(rel), rel)
 
 
-class TestRuleLaneIsAParagraphNotATableRow(unittest.TestCase):
+class TestRuleLaneIsAParagraphNotATableRow(ProseTestCase):
     """FWD-019/ADR-0015, R5/R6/FM-6: RULE is introduced in its own
     paragraph, positioned immediately before the existing table/sentence
     it precedes — never a row inside it, never altering a byte of it.
@@ -157,7 +159,7 @@ class TestRuleLaneIsAParagraphNotATableRow(unittest.TestCase):
                 self.assertIn(needle, rule, f"{rel}: {needle}")
 
 
-class TestBoundedReview(unittest.TestCase):
+class TestBoundedReview(ProseTestCase):
     """ADR-0018: review rounds are a budget that ends, blocking is bounded
     by a declared threat model, and weight only orders the attack."""
 
@@ -233,7 +235,7 @@ class TestBoundedReview(unittest.TestCase):
         self.assertIn("same commit", rev)
 
 
-class TestDeclaredCycle(unittest.TestCase):
+class TestDeclaredCycle(ProseTestCase):
     """FWD-026, ADR-0019: backlog > cycle > demand. The cycle plans once and
     owns approval, review, promotion and deploy; demands derive and run in
     parallel. Instruction, not a gate (ADR-0018). Each rule is pinned as the
@@ -408,7 +410,7 @@ class TestDeclaredCycle(unittest.TestCase):
             self.assertIn("enter `backlog.md` as they are found", text, rel)
 
 
-class TestCycleTemplates(unittest.TestCase):
+class TestCycleTemplates(ProseTestCase):
     """FWD-026, ADR-0019 rules 10-12: one skeleton per cycle file, carrying
     the header lines and sections the ADR names."""
 
@@ -443,7 +445,7 @@ class TestCycleTemplates(unittest.TestCase):
         self.assertEqual(names, sorted(self.FILES))
 
 
-class TestGuardAuditDocs(unittest.TestCase):
+class TestGuardAuditDocs(ProseTestCase):
     """FWD-006 R3: SETUP names the trail and the opt-in telemetry block."""
 
     def test_setup_documents_audit_file_and_otel_opt_in(self):
@@ -456,7 +458,7 @@ class TestGuardAuditDocs(unittest.TestCase):
         self.assertIn(".fde/guard-audit.jsonl", read(".gitignore"))
 
 
-class TestRolesAtTheRightLevel(unittest.TestCase):
+class TestRolesAtTheRightLevel(ProseTestCase):
     """FWD-028 (ADR-0019 rules 5, 6, 10, 12; C-5 A4, A6): each role works
     at the level that owns its artifact."""
 
@@ -522,7 +524,7 @@ class TestRolesAtTheRightLevel(unittest.TestCase):
                 self.assertNotIn(gone, text, f"{rel}: {gone}")
 
 
-class TestReconcileText(unittest.TestCase):
+class TestReconcileText(ProseTestCase):
     """C-5 reconcile of reviews/FWD-026 F1-F4 and FWD-028 F3 against
     ADR-0019: one answer per fact, in every place that states it."""
 
@@ -624,7 +626,7 @@ def description(rel: str) -> str:
     return lines[0][len("description:"):].strip()
 
 
-class TestTerse(unittest.TestCase):
+class TestTerse(ProseTestCase):
     """FWD-033 (C-5 A9): the text loaded in every session stays small.
     AGENTS.md at most 1,100 words (FWD-037, C-14 A1); every skill and agent description at
     most 40 words, trigger phrases only. Rationale lives in ADRs."""
@@ -680,7 +682,7 @@ class TestTerse(unittest.TestCase):
                                  p.name)
 
 
-class TestBacklogLineIsOneFormat(unittest.TestCase):
+class TestBacklogLineIsOneFormat(ProseTestCase):
     """FWD-033, discovery item 14: AGENTS.md and fde-scrum state the backlog
     line in the same words."""
 
@@ -698,7 +700,7 @@ class TestBacklogLineIsOneFormat(unittest.TestCase):
             self.assertNotIn("A backlog line carries", read(rel), rel)
 
 
-class TestReconcileC5(unittest.TestCase):
+class TestReconcileC5(ProseTestCase):
     """C-5 reconcile of reviews/FWD-033 F1-F5 and reviews/C-5 F1-F3: every
     operative sentence the terse pass dropped is restored and pinned, and
     the demand blocker path, the cycle states and kernel ADR citations say
@@ -909,7 +911,7 @@ class TestReconcileC5(unittest.TestCase):
         self.assertNotIn("sizes the demand", readme)
 
 
-class TestReviewByWeight(unittest.TestCase):
+class TestReviewByWeight(ProseTestCase):
     """FWD-036 (C-13, kernel ADR-0021): review is sized by what is at risk.
     FM1: one rule, pinned verbatim, in AGENTS.md step 5 (+ template),
     fde-review and fde-adversarial (+ installed copies), so the texts
@@ -1052,7 +1054,7 @@ class TestReviewByWeight(unittest.TestCase):
 
 
 
-class TestInventory(unittest.TestCase):
+class TestInventory(ProseTestCase):
     """FWD-037 (C-14 A1, FM1): AGENTS.md became a skeleton. The inventory,
     cycles/C-14/inventory.md, committed before any sentence moved, maps
     each sentence of the old loop, cycle, backlog and detail sections to
@@ -1142,7 +1144,7 @@ class TestInventory(unittest.TestCase):
         self.assertEqual(anchor, TestReviewByWeight.RULE)
 
 
-class TestOpenWording(unittest.TestCase):
+class TestOpenWording(ProseTestCase):
     """FWD-043 (C-14 A2): each open wording has one pinned sentence in the
     skill or template that owns its topic, source and installed copy."""
 
@@ -1213,7 +1215,7 @@ class TestOpenWording(unittest.TestCase):
         self.assertNotIn(model, roles["architecture"]["outputs"])
 
 
-class TestSkeletonPointsToDesignAndSurvey(unittest.TestCase):
+class TestSkeletonPointsToDesignAndSurvey(ProseTestCase):
     """reviews/C-14 F4: a front or inherited-system cycle still finds its
     skill from the loop in AGENTS.md."""
 

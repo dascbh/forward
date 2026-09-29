@@ -10,6 +10,8 @@ from pathlib import Path
 
 from support import guard, make_project
 
+from prose import ProseTestCase  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -31,7 +33,7 @@ ROLES = tomllib.loads(read("spec/roles.toml"))["role"]
 AGENTS_SURFACES = ("AGENTS.md", "templates/AGENTS.md.template")
 
 
-class TestWeightNeverBlocks(unittest.TestCase):
+class TestWeightNeverBlocks(ProseTestCase):
     """#4: weight orders the attack and sizes the suite (ADR-0018)."""
 
     def test_no_surface_says_weight_decides_blocking_or_rounds(self):
@@ -44,7 +46,7 @@ class TestWeightNeverBlocks(unittest.TestCase):
                 self.assertNotIn(gone, text, f"{rel}: {gone}")
 
 
-class TestInvariantCommandsExist(unittest.TestCase):
+class TestInvariantCommandsExist(ProseTestCase):
     """#12: every verifiable_by is a real command naming a real gate."""
 
     def test_verifiable_by_names_a_known_gate(self):
@@ -60,7 +62,7 @@ class TestInvariantCommandsExist(unittest.TestCase):
                 self.assertIn(m.group(1), mod.KNOWN_GATES, f"{rel} {inv['id']}")
 
 
-class TestFindingsTemplateReachesClients(unittest.TestCase):
+class TestFindingsTemplateReachesClients(ProseTestCase):
     """#9: the template carries `backlog` and is installed under .fde/."""
 
     def test_template_declares_the_backlog_key(self):
@@ -87,7 +89,7 @@ class TestFindingsTemplateReachesClients(unittest.TestCase):
             self.assertIn("`.fde/templates/cycle/`", read(rel), rel)
 
 
-class TestPromotionReadsWhatExists(unittest.TestCase):
+class TestPromotionReadsWhatExists(ProseTestCase):
     """#8: nothing produces artifacts/gate-report.json; promotion runs the gate."""
 
     def test_no_role_input_is_the_phantom_report(self):
@@ -100,7 +102,7 @@ class TestPromotionReadsWhatExists(unittest.TestCase):
             self.assertIn("python3 bin/fde/verify.py --all", text, rel)
 
 
-class TestOneDiffCeiling(unittest.TestCase):
+class TestOneDiffCeiling(ProseTestCase):
     """#11: one ceiling, ~300 production lines per demand (ADR-0019 rule 3)."""
 
     SURFACES = AGENTS_SURFACES + ("skills/fde-triage/SKILL.md",
@@ -116,7 +118,7 @@ class TestOneDiffCeiling(unittest.TestCase):
                 self.assertNotIn(gone, text, f"{rel}: {gone}")
 
 
-class TestSizesAgree(unittest.TestCase):
+class TestSizesAgree(ProseTestCase):
     """#3, #5: the role that writes ADRs is active wherever an ADR is due,
     and L names the same role count everywhere."""
 
@@ -132,7 +134,7 @@ class TestSizesAgree(unittest.TestCase):
             self.assertNotIn("all six roles", flat(rel), rel)
 
 
-class TestRolesMatchTheSpec(unittest.TestCase):
+class TestRolesMatchTheSpec(ProseTestCase):
     """#7: AGENTS.md ## Roles and agents/*.md say what spec/roles.toml says."""
 
     def test_agents_md_roles_section_lists_each_write_scope(self):
@@ -181,7 +183,7 @@ class TestRolesMatchTheSpec(unittest.TestCase):
                                      f"{base}/fde-{r['id']}.md {heading}")
 
 
-class TestReviewBudgetIsAReplan(unittest.TestCase):
+class TestReviewBudgetIsAReplan(ProseTestCase):
     """#6: budget spent with a blocker open is a replan, the owner's call,
     recorded in promotion.md; plan.md stays frozen."""
 
@@ -213,7 +215,7 @@ class TestReviewBudgetIsAReplan(unittest.TestCase):
                           flat(rel), rel)
 
 
-class TestRoleCountIsOneSentence(unittest.TestCase):
+class TestRoleCountIsOneSentence(ProseTestCase):
     """reviews/FWD-032 F2: "all five" is the five working roles; the
     example beside the size table names architecture at M and the two
     review kinds with their real budgets."""
@@ -238,7 +240,7 @@ class TestRoleCountIsOneSentence(unittest.TestCase):
             self.assertNotIn("spec + impl + adversarial(2r)", flat(rel), rel)
 
 
-class TestFindingsTemplateRounds(unittest.TestCase):
+class TestFindingsTemplateRounds(ProseTestCase):
     """reviews/FWD-032 F3: the installed template states ADR-0019's rounds."""
 
     def test_rounds_comment(self):
@@ -250,7 +252,7 @@ class TestFindingsTemplateRounds(unittest.TestCase):
             self.assertNotIn("L 3", line, rel)
 
 
-class TestNoFdeCli(unittest.TestCase):
+class TestNoFdeCli(ProseTestCase):
     """reviews/FWD-032 F5: there is no `fde` executable; regeneration is
     the fde-sync skill."""
 
@@ -278,7 +280,7 @@ class TestNoFdeCli(unittest.TestCase):
             self.assertIn("run the fde-init skill first", read(rel), rel)
 
 
-class TestWalkthroughSizeIsOneRule(unittest.TestCase):
+class TestWalkthroughSizeIsOneRule(ProseTestCase):
     """#13: one rule — whenever the cycle has a `front` demand, any size
     (ADR-0019 rule 5)."""
 
@@ -289,7 +291,7 @@ class TestWalkthroughSizeIsOneRule(unittest.TestCase):
             self.assertNotIn(gone, text, gone)
 
 
-class TestAdr0017StatusIsCurrent(unittest.TestCase):
+class TestAdr0017StatusIsCurrent(ProseTestCase):
     """#10: ADR-0017's status names what now holds its ground."""
 
     def test_status_points_at_adr_0019(self):
@@ -300,7 +302,7 @@ class TestAdr0017StatusIsCurrent(unittest.TestCase):
         self.assertIn("backlog.md", head)
 
 
-class TestSetupInstallsTheCycleLayout(unittest.TestCase):
+class TestSetupInstallsTheCycleLayout(ProseTestCase):
     """Guard residual, SETUP side: an install creates the ADR-0019 layout."""
 
     def test_setup_creates_cycles_and_points_criteria_there(self):
@@ -310,7 +312,7 @@ class TestSetupInstallsTheCycleLayout(unittest.TestCase):
         self.assertNotIn("criteria live in `specs/<demand-id>/acceptance.md`", text)
 
 
-class TestScrumIsTheBacklogGoalSwitch(unittest.TestCase):
+class TestScrumIsTheBacklogGoalSwitch(ProseTestCase):
     """FWD-031 board note: sprints are retired (ADR-0019); `[scrum]` only
     arms the backlog's dated goal."""
 
@@ -321,7 +323,7 @@ class TestScrumIsTheBacklogGoalSwitch(unittest.TestCase):
             self.assertIn("dated goal", text, rel)
 
 
-class TestGuardNamesTheCycleLayoutFirst(unittest.TestCase):
+class TestGuardNamesTheCycleLayoutFirst(ProseTestCase):
     """Board residual: cycles/ is the primary layout; promotions/ and
     specs/**/acceptance.md are kept for cycles opened before ADR-0019."""
 

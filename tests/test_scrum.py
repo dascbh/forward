@@ -10,10 +10,12 @@ from pathlib import Path
 
 from support import make_project, verify
 
+from prose import ProseTestCase  # noqa: E402
+
 DATED_GOAL = "---\ngoal: something worth building\ndate: 2026-08-09\n---\n"
 
 
-class TestScrumOff(unittest.TestCase):
+class TestScrumOff(ProseTestCase):
     def test_mode_off_reports_off_and_never_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = make_project(tmp)  # no [backlog]
@@ -29,7 +31,7 @@ class TestScrumOff(unittest.TestCase):
             self.assertNotIn("BACKLOG", r.stdout)
 
 
-class TestScrumOn(unittest.TestCase):
+class TestScrumOn(ProseTestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.p = make_project(self._tmp.name, backlog=True)
@@ -88,7 +90,7 @@ class TestScrumOn(unittest.TestCase):
         self.assertNotIn("Traceback", r.stderr)
 
 
-class TestScrumConfigShape(unittest.TestCase):
+class TestScrumConfigShape(ProseTestCase):
     def test_enabled_as_string_is_a_config_violation_and_stays_off(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = make_project(tmp)
@@ -118,7 +120,7 @@ class TestScrumConfigShape(unittest.TestCase):
             self.assertIn("drop --staged", r.stderr)
 
 
-class TestBacklogInstructions(unittest.TestCase):
+class TestBacklogInstructions(ProseTestCase):
     """FWD-031, ADR-0019 rule 13: fde-scrum shrinks to the backlog format and
     AGENTS.md's Scrum section becomes ## Backlog. That the section cannot
     drift between template and repo is the agents-md pair in
@@ -182,7 +184,7 @@ class TestBacklogInstructions(unittest.TestCase):
 
 
 
-class TestScrumIsAnAlias(unittest.TestCase):
+class TestScrumIsAnAlias(ProseTestCase):
     """FWD-039 FM2 (B-37): an old client with `[scrum] enabled = true` and
     `--gate scrum` in its scripts keeps its meaning and stays green."""
 
@@ -233,7 +235,7 @@ class TestScrumIsAnAlias(unittest.TestCase):
         self.assertNotIn("[scrum]", tmpl)
 
 
-class TestGoalIsHeaderOnlyAndStrict(unittest.TestCase):
+class TestGoalIsHeaderOnlyAndStrict(ProseTestCase):
     """FWD-039 B-34: the goal is read from the header (the lines before the
     first `## `, as fde_lib.header_lines reads it); with the switch on,
     `goal: not set` is not a goal."""
@@ -272,7 +274,7 @@ class TestGoalIsHeaderOnlyAndStrict(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stdout)
 
 
-class TestSwitchNotATable(unittest.TestCase):
+class TestSwitchNotATable(ProseTestCase):
     """FWD-039 B-13: `scrum = true` or `backlog = "on"` is a CFG violation,
     never a traceback."""
 
@@ -298,7 +300,7 @@ class TestSwitchNotATable(unittest.TestCase):
                 self.assertIn("off", r.stdout, case)
 
 
-class TestNoSprintWording(unittest.TestCase):
+class TestNoSprintWording(ProseTestCase):
     """FWD-039 B-36: sprints are retired (kernel ADR-0019 rule 13). No
     instruction file speaks of them, except a retirement note carrying an
     allowlisted phrase."""

@@ -25,6 +25,9 @@ usage-data < user-test < production`).
 - Ids are assigned on main only. A line written in a demand's worktree
   has no id; after the merge, main gives it the next free `B-<n>`
   (`fde-backlog` §3), so parallel demands never collide.
+- The `BL-IDS` gate fails when one `B-<n>` opens two different items —
+  in backlog.md, or between this checkout and another worktree or main.
+  Fix: give the later item the next free id.
 - The text states the item and its hypothesis: what value, for whom.
 
 The owner orders it. The label makes a bet visible; it never blocks one.
