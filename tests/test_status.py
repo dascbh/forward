@@ -259,6 +259,14 @@ class TestRoundOneFindings(StatusCase):
         self.assertIn("C-1 keeps a ## Next cycle list (1 lines)", out)
         self.assertIn("old idea", run(self.root, "--cycle", "C-1").stdout)
 
+    def test_notes_escaped_pipe_empty_closed_and_top_label(self):
+        self.write("cycles/C-1.md", "objective: o\nclosed:\n")
+        self.write("backlog.md", "- first\n\n| # | item |\n|---|---|\n| 2 | a \\| b |\n")
+        out = run(self.root).stdout
+        self.assertIn("C-1 has an empty closed: line and still counts as open", out)
+        self.assertIn("#2 a | b", out)
+        self.assertIn("(before any section)", out)
+
 
 if __name__ == "__main__":
     unittest.main()

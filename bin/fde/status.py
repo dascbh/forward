@@ -172,7 +172,8 @@ def load_backlog(root: Path) -> list[tuple[str, list[str]]] | None:
         for i, line in enumerate(lines):
             s = line.strip()
             if s.startswith("|"):
-                cells = [c.strip() for c in s.strip("|").split("|")]
+                cells = [c.strip().replace("\\|", "|")
+                         for c in re.split(r"(?<!\\)\|", s.strip().strip("|"))]
                 if all(set(c) <= set("-: ") for c in cells):
                     continue  # separator
                 nxt = lines[i + 1].strip() if i + 1 < len(lines) else ""
@@ -185,7 +186,7 @@ def load_backlog(root: Path) -> list[tuple[str, list[str]]] | None:
             if m:
                 items.append((_clip(m.group(1)), m.group(1)))
         if items:
-            out.append((heading or "(top)", items))
+            out.append((heading or "(before any section)", items))
     return out
 
 
@@ -198,12 +199,15 @@ def warnings(cycles: list[Cycle], backlog, problems: list[str]) -> list[str]:
     for c in cycles:
         if not c.objective:
             out.append(f"{c.id} has no objective: line")
+        for key in END_KEYS:
+            if key in c.header and not c.header[key]:
+                out.append(f"{c.id} has an empty {key}: line and still counts as open")
         if c.misplaced_end and not c.ended:
             out.append(f"{c.id} has a {c.misplaced_end[0]}: line below its header — "
                        "it counts only among the lines before the first ##")
         elif not c.ended and c.done and not c.pending:
             out.append(f"{c.id} has no pending done item but no closed: line")
-        if c.legacy_next:
+        if c.legacy_next and not c.ended:
             out.append(f"{c.id} keeps a ## Next cycle list ({len(c.legacy_next)} "
                        "lines) — under AGENTS.md ## Cycle those lines belong in backlog.md")
     if backlog is None:
