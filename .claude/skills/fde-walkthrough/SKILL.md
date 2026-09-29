@@ -1,6 +1,6 @@
 ---
 name: fde-walkthrough
-description: First-contact experience review — two independent, blind agent runs explore a running target cold and report what the interface communicated; confronted against an architecture-compiled intended model, divergence between the two runs is evidence about the artifact, never about users. Use for an M/L demand with a UI surface and a running target, after the wireframe is built and before promotion. Use when the user asks whether the interface explains itself to a stranger, wants a cold read / first-contact review / blind usability check, or asks whether two people would understand the product the same way on first sight.
+description: First-contact experience review — two independent, blind agent runs explore a running target cold and report what the interface communicated; confronted against an architecture-compiled intended model, divergence between the two runs is evidence about the artifact, never about users. Runs at the cycle review, only when the cycle has a `front` demand, before promotion. Use when the user asks whether the interface explains itself to a stranger, wants a cold read / first-contact review / blind usability check, or asks whether two people would understand the product the same way on first sight.
 ---
 
 # fde-walkthrough
@@ -22,11 +22,16 @@ twice, in isolation, is `walkthrough-evaluator` (`spec/roles.toml`).
 
 ## When this applies
 
-| size | applies | when |
+At the cycle, never inside a demand (ADR-0019 rules 5 and 12): it runs in
+the cycle review's functioning check, on the integrated result, only when
+the cycle has a `front` demand. A cycle with no `front` demand runs no
+walkthrough. Artifacts stay keyed by the front demand's id.
+
+| cycle size | applies | when |
 |---|---|---|
 | XS / S | never | no UI design phase exists at this size to have an intended model for (`fde-design`'s own table) |
-| M | opt-in, via `[walkthrough]` in `fde.config.toml` | after the wireframe is approved and the build exists, before promotion |
-| L | opt-in, via `[walkthrough]` | after the wireframe is approved and the build exists, before promotion |
+| M | opt-in, via `[walkthrough]` in `fde.config.toml` | the front demands merged, before promotion |
+| L | opt-in, via `[walkthrough]` | the front demands merged, before promotion |
 
 Opt-in at every size, deliberately — no "every M/L UI demand runs this
 before promotion" mandate exists yet. `fde-design`'s own precedent for
@@ -98,7 +103,8 @@ which tier this project itself runs on.
 Before either run is issued, the `architecture` role compiles
 `specs/<demand-id>/design/intended-model.md`, synthesized from that
 demand's existing `spec.md`, `flow.md`, `ia.md`, wireframe(s), glossary,
-and `acceptance.md` — what the team actually intended to communicate. A
+and the cycle's `plan.md` criteria — what the team actually intended to
+communicate. A
 demand missing the design artifacts needed to synthesize one owes that
 groundwork first, the same uncovered-root discipline
 `design/foundation.md` already applies.

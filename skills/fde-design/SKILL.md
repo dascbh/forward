@@ -11,7 +11,16 @@ empirical checks live in the eval suite (I1). Phases scale with triage
 size; artifact-quality violations reopen the phase — never patch the
 symptom in code.
 
-## What each size demands (UI surface touched)
+## Where each check runs (ADR-0019 rule 5)
+
+- A `front` demand: build within the foundation, design QA against the
+  approved wireframe.
+- At the cycle, only when the cycle has a `front` demand: flow, IA, wireframe and
+  alternatives are planned before the sign-off; user validation and
+  `fde-walkthrough` run at the cycle review. A backend-only cycle runs
+  neither.
+
+## What each size demands (UI surface touched; the cycle's size)
 
 | size | design phases | alternatives required |
 |---|---|---|

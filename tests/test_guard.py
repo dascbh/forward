@@ -191,5 +191,43 @@ class TestGuardAudit(unittest.TestCase):
         self.assertNotIn("Traceback", r.stderr)
 
 
+class TestGuardCycleFiles(unittest.TestCase):
+    """FWD-028: inside cycles/<C-n>/ each role writes only its own file;
+    board.md is shared; implementation never writes a judging file."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def code(self, rel, agent):
+        return guard(self.p, {"tool_input": {"file_path": str(Path(self.p) / rel)},
+                              "agent_name": agent}).returncode
+
+    def test_each_role_writes_its_own_cycle_file(self):
+        own = {"fde-spec": ("plan.md", "deploy.md"),
+               "fde-adversarial": ("review.md",),
+               "fde-promotion": ("promotion.md",)}
+        every = ("plan.md", "deploy.md", "review.md", "promotion.md")
+        for agent, files in own.items():
+            for f in every:
+                want = 0 if f in files else 2
+                self.assertEqual(self.code(f"cycles/C-1/{f}", agent), want,
+                                 f"{agent} {f}")
+            self.assertEqual(self.code("cycles/C-1/board.md", agent), 0, agent)
+
+    def test_promotion_appends_to_the_backlog(self):
+        self.assertEqual(self.code("backlog.md", "fde-promotion"), 0)
+        self.assertEqual(self.code("backlog.md", "fde-adversarial"), 2)
+
+    def test_implementation_never_writes_what_judges_it(self):
+        for f in ("plan.md", "deploy.md", "review.md", "promotion.md"):
+            self.assertEqual(self.code(f"cycles/C-1/{f}", "fde-implementation"),
+                             2, f)
+        self.assertEqual(self.code("cycles/C-1/board.md", "fde-implementation"), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

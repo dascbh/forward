@@ -26,13 +26,14 @@ spec_version = "0.1.0"
 id = "spec"
 label = "Specification"
 purpose = """
-Convert discovery into enumerated failure modes and declared acceptance
-criteria. This role produces the measure BEFORE any code exists — it is what
-solves the absence of a golden dataset on day one.
+Plan the cycle: dated criteria and failure modes with ids, threat model,
+demand list, deploy plan. Then derive one-page demand specs that cite the
+plan's ids and decide nothing new (ADR-0019). The measure exists BEFORE
+any code does.
 """
-inputs = ["discovery/**", "fde.config.toml"]
-outputs = ["specs/<demand-id>/spec.md", "specs/<demand-id>/failure-modes.toml", "specs/<demand-id>/acceptance.md"]
-write_scope = ["specs/**", "discovery/**"]
+inputs = ["discovery/**", "backlog.md", "docs/adr/**", "fde.config.toml"]
+outputs = ["cycles/C-<n>/plan.md", "cycles/C-<n>/deploy.md", "specs/<demand-id>/spec.md"]
+write_scope = ["specs/**", "discovery/**", "cycles/**"]
 denied_paths = ["src/**", "tests/**", "infra/**"]
 isolation = false
 satisfies = ["I1", "I4"]
@@ -42,15 +43,17 @@ satisfies = ["I1", "I4"]
 id = "architecture"
 label = "Architecture"
 purpose = """
-Decide boundaries, contracts, and trade-offs in light of the weight vector.
-Produces recorded decisions, not code — if it could edit the implementation,
-it becomes a dev with a different prompt and the decision never gets written.
+Decide boundaries, contracts, and trade-offs in light of the weight vector,
+at cycle planning. Each ADR names the demands that realize it; the ADR is
+the only home of a decision (ADR-0019). Produces recorded decisions, not
+code.
 """
-inputs = ["specs/**", "fde.config.toml", "src/**:read"]
-outputs = ["docs/adr/*.md", "specs/<demand-id>/architecture.md",
-           "walkthroughs/<demand-id>/perceived-model-a.toml",
-           "walkthroughs/<demand-id>/perceived-model-b.toml",
-           "walkthroughs/<demand-id>/divergence.toml"]
+inputs = ["cycles/**:read", "specs/**", "fde.config.toml", "src/**:read"]
+outputs = ["docs/adr/*.md",
+           "specs/<front-demand-id>/design/intended-model.md",
+           "walkthroughs/<front-demand-id>/perceived-model-a.toml",
+           "walkthroughs/<front-demand-id>/perceived-model-b.toml",
+           "walkthroughs/<front-demand-id>/divergence.toml"]
 write_scope = ["docs/adr/**", "specs/**", "walkthroughs/**"]
 denied_paths = ["src/**", "tests/**"]
 isolation = false
@@ -64,10 +67,11 @@ purpose = """
 Build the artifact and the corresponding suite. It is the only role with write
 access to production code. It does not judge its own delivery.
 """
-inputs = ["specs/**", "docs/adr/**"]
+inputs = ["specs/**", "docs/adr/**", "cycles/**:read"]
 outputs = ["src/**", "tests/**", "evals/**"]
 write_scope = ["src/**", "tests/**", "evals/**", "infra/**"]
-denied_paths = ["specs/**/acceptance.md", "reviews/**"]
+denied_paths = ["specs/**/acceptance.md", "reviews/**", "cycles/*/plan.md",
+                "cycles/*/deploy.md", "cycles/*/review.md", "cycles/*/promotion.md"]
 denied_reason = "cannot rewrite the criteria it will be judged by, nor the findings against it"
 isolation = false
 satisfies = ["I1"]
@@ -78,16 +82,20 @@ id = "adversarial"
 label = "Adversarial review"
 purpose = """
 Try to break it, then judge it. Receives artifact + spec, never the
-builder's context. Two passes with the same access: adversarial
+builder's context. Demand mode: the code against the demand spec and the
+cycle ADRs it cites. Cycle mode: functioning (every plan criterion end to
+end on the integrated result) and readiness (deploy plan, I5 signals,
+runbook); it never re-reviews a demand. Two passes with the same access: adversarial
 (demonstrate failure via probes) and heuristic (judge attributes whose
 verified_by includes heuristic against their principle catalog — every
 finding cites its principle, I8). Success is findings, not approval. It
 CANNOT fix what it found — a reviewer who silently fixes destroys the
 record of the finding.
 """
-inputs = ["src/**:read", "specs/**:read", "evals/**:read", "walkthroughs/**:read"]
-outputs = ["reviews/<demand-id>/findings.toml"]
-write_scope = ["reviews/**"]
+inputs = ["src/**:read", "specs/**:read", "cycles/**:read", "docs/adr/**:read",
+          "evals/**:read", "walkthroughs/**:read"]
+outputs = ["reviews/<demand-id>/findings.toml", "cycles/C-<n>/review.md"]
+write_scope = ["reviews/**", "cycles/**"]
 denied_paths = ["src/**", "tests/**", "evals/**", "specs/**", "infra/**"]
 isolation = true                            # mandatory — I2
 isolation_mode = "worktree"
@@ -101,13 +109,14 @@ satisfies = ["I2", "I3", "I8"]
 id = "promotion"
 label = "Promotion"
 purpose = """
-Evaluate the artifact against the declared criteria and decide promotion. Does
-not build, does not review: only confronts evidence with criteria and records
-the decision.
+Per cycle: confront plan.md's criteria with evidence and decide promotion.
+Checks declared criteria only; a new defect goes to backlog.md. Does not
+build, does not review. promotions/** only for a cycle opened before
+ADR-0019 (rule 15).
 """
-inputs = ["specs/**:read", "reviews/**:read", "evals/**:read", "artifacts/gate-report.json"]
-outputs = ["promotions/<demand-id>/decision.md"]
-write_scope = ["promotions/**"]
+inputs = ["cycles/**:read", "specs/**:read", "reviews/**:read", "evals/**:read", "artifacts/gate-report.json"]
+outputs = ["cycles/C-<n>/promotion.md", "backlog.md"]
+write_scope = ["cycles/**", "backlog.md", "promotions/**"]
 denied_paths = ["src/**", "tests/**", "evals/**", "specs/**", "reviews/**"]
 isolation = true
 isolation_mode = "worktree"

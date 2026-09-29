@@ -12,13 +12,27 @@ description: Runs the adversarial review in an isolated context, with attack ord
    does not make a finding blocking (ADR-0018).
 2. Probes per attribute come from
    `.fde/spec/dimensions/quality-attributes.toml` (`adversarial_probes`).
-3. Read the spec's `## Threat model`: who the change must contain, and
+3. Read `plan.md`'s `## Threat model`: who the cycle must contain, and
    what is declared out of scope. It bounds every probe.
-4. Create `reviews/<demand-id>/findings.toml` from the kernel's
-   `templates/findings.template.toml` (`rounds_planned` = the size's
-   budget below).
+4. Demand mode: create `reviews/<demand-id>/findings.toml` from the
+   kernel's `templates/findings.template.toml`. Cycle mode: write
+   `cycles/C-<n>/review.md`.
 
-## Budget — rounds come from the triage size, and they end
+## Mode — demand or cycle (ADR-0019 rule 12)
+
+- **Demand**: the code against the demand spec, plus conformance to the
+  cycle ADRs it cites, plus its layer's check (`back` unit + contract
+  tests, `front` design QA against the approved wireframe, `infra` plan
+  diff + policy check). 1 round.
+- **Cycle**: the objective on the integrated result; it never re-reviews
+  a demand. *Functioning*: every `plan.md` criterion shown end to end
+  (integration for back, usability for front, live checks for infra).
+  *Readiness*: `deploy.md` complete with each step's verification and
+  rollback exercised where the project allows, the signals the criteria
+  declare (I5), runbook and README current. `fde-walkthrough` runs here,
+  only when the cycle has a `front` demand. Rounds: the budget below.
+
+## Budget — cycle rounds come from the cycle's size, and they end
 
 | size | rounds | kinds |
 |---|---|---|
@@ -39,7 +53,7 @@ description: Runs the adversarial review in an isolated context, with attack ord
   1. *narrow* — cut the part the finding lives in, ship the rest, the cut
      goes to the backlog as its own demand;
   2. *declare* — the owner accepts it as a dated, named limit in
-     `acceptance.md` (a limit, not a pass);
+     `plan.md` (a limit, not a pass);
   3. *pause* — revert, nothing ships, the backlog keeps the record.
   "One more round" is not an option: a round on a moving target finds the
   surface the last fix created, and never converges.
@@ -47,11 +61,12 @@ description: Runs the adversarial review in an isolated context, with attack ord
 ## What blocks
 
 `blocking = true` only when all three hold: severity `critical`/`high`;
-the path is reachable inside the spec's threat model; it breaks a declared
-acceptance criterion or failure mode. Anything else records. A defect
+the path is reachable inside the plan's threat model; it breaks a declared
+acceptance criterion or failure mode of `plan.md`. Anything else records,
+and a non-blocking finding goes to the backlog. A defect
 reachable only by an actor or sequence the threat model excludes (an
 owner rewriting history to defeat their own gate, say) is a declared
-limit. No threat model in the spec → that is the first finding.
+limit. No threat model in the plan → that is the first finding.
 
 ## Cap
 
@@ -113,7 +128,7 @@ stalling; two consecutive rounds of substantive findings with zero
 classified actionable means the review turned into validation — stop.
 
 One commit per reconciliation: the fixes, their evals, and — only when a
-decision changed — the ADR or `architecture.md` edit. No separate
+decision changed — the ADR edit. No separate
 "architecture revision" commit per round; a finding that only needs a
 fix changes no document.
 

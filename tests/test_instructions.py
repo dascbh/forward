@@ -333,5 +333,68 @@ class TestGuardAuditDocs(unittest.TestCase):
         self.assertIn(".fde/guard-audit.jsonl", read(".gitignore"))
 
 
+class TestRolesAtTheRightLevel(unittest.TestCase):
+    """FWD-028 (ADR-0019 rules 5, 6, 10, 12; C-5 A4, A6): each role works
+    at the level that owns its artifact."""
+
+    def flat(self, rel):
+        return " ".join(read(rel).split())
+
+    def test_spec_plans_the_cycle_and_derives_one_page_demands(self):
+        text = self.flat("agents/fde-spec.md")
+        for needle in ("`cycles/C-<n>/plan.md`", "`cycles/C-<n>/deploy.md`",
+                       "layer (`front`/`back`/`infra`), dependencies",
+                       "It decides nothing new.",
+                       "No per-demand acceptance, failure modes or architecture."):
+            self.assertIn(needle, text, needle)
+        for gone in ("failure-modes.toml", "acceptance.md", "Always / Ask first / Never"):
+            self.assertNotIn(gone, text, gone)
+
+    def test_architecture_writes_adrs_at_the_cycle(self):
+        text = self.flat("agents/fde-architecture.md")
+        self.assertIn("Each ADR names the demands that realize it", text)
+        self.assertIn("No per-demand `architecture.md`.", text)
+        self.assertNotIn("specs/<demand-id>/architecture.md", text)
+
+    def test_promotion_works_per_cycle_on_declared_criteria(self):
+        text = self.flat("agents/fde-promotion.md")
+        for needle in ("`cycles/C-<n>/promotion.md`",
+                       "Checks the declared criteria only",
+                       "one line in `backlog.md` with `(C-<n>)`"):
+            self.assertIn(needle, text, needle)
+        self.assertNotIn("- `promotions/<demand-id>/decision.md`", text)
+
+    def test_adversarial_has_demand_and_cycle_modes(self):
+        for rel in ("agents/fde-adversarial.md",
+                    ".claude/agents/fde-adversarial.md",
+                    "skills/fde-review/SKILL.md"):
+            text = " ".join(read(rel).split())
+            for needle in ("conformance to the cycle ADRs",
+                           "never re-reviews a demand", "*Functioning*",
+                           "*Readiness*", "`cycles/C-<n>/review.md`",
+                           "rollback exercised", "(I5)"):
+                self.assertIn(needle, text, f"{rel}: {needle}")
+
+    def test_walkthrough_runs_at_the_cycle_only_with_a_front_demand(self):
+        for rel in ("skills/fde-walkthrough/SKILL.md",
+                    "skills/fde-design/SKILL.md", "skills/fde-review/SKILL.md"):
+            text = " ".join(read(rel).split())
+            self.assertIn("only when the cycle has a `front` demand", text, rel)
+        self.assertNotIn("Use for an M/L demand with a UI surface",
+                         read("skills/fde-walkthrough/SKILL.md"))
+
+    def test_role_scopes_include_cycles(self):
+        import tomllib
+        roles = {r["id"]: r for r in tomllib.loads(read("spec/roles.toml"))["role"]}
+        for rid, out in (("spec", "cycles/C-<n>/plan.md"),
+                         ("spec", "cycles/C-<n>/deploy.md"),
+                         ("promotion", "cycles/C-<n>/promotion.md"),
+                         ("adversarial", "cycles/C-<n>/review.md")):
+            self.assertIn("cycles/**", roles[rid]["write_scope"], rid)
+            self.assertIn(out, roles[rid]["outputs"], rid)
+        for out in roles["spec"]["outputs"] + roles["architecture"]["outputs"]:
+            self.assertNotRegex(out, r"acceptance\.md|failure-modes|architecture\.md")
+
+
 if __name__ == "__main__":
     unittest.main()

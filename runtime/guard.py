@@ -36,11 +36,27 @@ DEFAULT_EVAL = ("evals/", "tests/")
 # ALLOWLIST per judging role — mirrors write_scope in spec/roles.toml.
 # These roles write ONLY inside their scope; everything else is blocked.
 ALLOWED = {
-    "fde-spec": ("specs/", "discovery/"),
+    "fde-spec": ("specs/", "discovery/", "cycles/"),
     "fde-architecture": ("docs/adr/", "specs/", "walkthroughs/"),
-    "fde-adversarial": ("reviews/",),
-    "fde-promotion": ("promotions/",),
+    "fde-adversarial": ("reviews/", "cycles/"),
+    "fde-promotion": ("cycles/", "backlog.md", "promotions/"),
 }
+
+# Inside cycles/<C-n>/ each role writes only its own files (ADR-0019 rule
+# 10); board.md is shared by every role (rule 11). The criteria and the
+# verdicts are never written by the role they judge.
+CYCLE_FILES = {
+    "fde-spec": ("plan.md", "deploy.md"),
+    "fde-adversarial": ("review.md",),
+    "fde-promotion": ("promotion.md",),
+}
+JUDGED_BY = ("plan.md", "deploy.md", "review.md", "promotion.md")
+
+
+def _cycle_file(rel: str) -> str:
+    """Basename of a cycles/<C-n>/<file> path; '' for anything else."""
+    m = re.fullmatch(r"cycles/[^/]+/([^/]+)", rel)
+    return m.group(1) if m else ""
 
 
 def _matches(path: str, entries) -> bool:
@@ -154,10 +170,18 @@ def main() -> int:
                 f"This is design, not an obstacle: the role that judges cannot rewrite\n"
                 f"what will be judged. Record the finding or delegate to the right role.",
                 "role-scope")
+        if role in agent and rel.startswith("cycles/"):
+            name = _cycle_file(rel)
+            if name != "board.md" and name not in CYCLE_FILES.get(role, ()):
+                return block(
+                    f"[FDE] role {role} writes in cycles/ only "
+                    f"{', '.join(CYCLE_FILES.get(role, ()) + ('board.md',))} — not {rel}.",
+                    "cycle-scope")
 
     if "fde-implementation" in agent and (
         rel.startswith("reviews/")
         or (rel.startswith("specs/") and rel.endswith("acceptance.md"))
+        or _cycle_file(rel) in JUDGED_BY
     ):
         return block(
             f"[FDE] role fde-implementation does not write to {rel}: it cannot\n"
