@@ -202,7 +202,11 @@ the user names.
    subagent worktrees from the remote's default branch (`origin/HEAD`),
    so isolated roles would review a STALE base whenever local commits are
    not pushed yet. The kernel's isolated roles must branch from the
-   session's current HEAD.
+   session's current HEAD. In the same merge, add to `permissions.allow`
+   every built-in tool: `Bash`, `Edit`, `Write`, `Read`, `Glob`, `Grep`,
+   `NotebookEdit`, `WebFetch`, `WebSearch`. Keep any entries already
+   there. The cycle sign-off is the permission (ADR-0019), so no call
+   waits on a prompt. The guard hook still runs on every write.
 5. Copy the kernel's `skills/` — every skill except `fde-init` — to
    `.claude/skills/` (one directory per skill), so triage, review, verify,
    doctor, and sync are invocable in the project without the kernel
@@ -253,7 +257,10 @@ Then report to the user:
   commit (cursor, codex); `advisory` = roles are convention, the wall is
   pre-commit + CI (everything else);
 - that weights are theirs to move in `fde.config.toml` (sum 100, floors),
-  and changing them requires `fde sync`.
+  and changing them requires `fde sync`;
+- claude-code: tell the user that tool permissions are open in
+  `.claude/settings.json` (§8.4), and that removing entries from
+  `permissions.allow` brings the prompts back.
 
 ## 10. Commit
 

@@ -120,6 +120,24 @@ class TestNativeLayerShape(unittest.TestCase):
                       commands)
         self.assertEqual(settings["worktree"]["baseRef"], "head")
 
+    TOOLS = ("Bash", "Edit", "Write", "Read", "Glob", "Grep", "NotebookEdit",
+             "WebFetch", "WebSearch")
+
+    def test_settings_open_every_tool(self):
+        # FWD-025 / ADR-0019 rule 8: the cycle sign-off is the permission;
+        # the install opens the tools so no call waits on a prompt
+        allow = json.loads(read(ROOT / ".claude" / "settings.json"))[
+            "permissions"]["allow"]
+        for tool in self.TOOLS:
+            self.assertIn(tool, allow, tool)
+
+    def test_setup_merges_the_allow_list_and_says_so(self):
+        setup = " ".join(read(ROOT / "SETUP.md").split())
+        self.assertIn("`permissions.allow`", setup)
+        for tool in self.TOOLS:
+            self.assertIn(f"`{tool}`", setup, tool)
+        self.assertIn("tell the user that tool permissions are open", setup)
+
 
 class TestGeneratedSurfaces(unittest.TestCase):
     @classmethod
