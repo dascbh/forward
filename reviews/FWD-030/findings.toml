@@ -1,0 +1,79 @@
+# Adversarial review report
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-030"
+cycle = "C-5"
+mode = "demand"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+rounds_planned = 1
+round = 1
+commit = "e180cb8"
+artifact_commit = "e1a0f71"
+agent_transcript = "agent-a5804c3b09beb4bef"
+probed = [
+  "git log -1 = e180cb8 (main); FWD-030 = e1a0f71. Read skills/fde-backlog/SKILL.md in full and tests/test_backlog_panel.py for the reference id-assignment edit (lines 88-101)",
+  "status.py --format json (FWD-027, e180cb8) run on scratch fixtures (scratchpad/fx030, probe030.sh) that hold the edits the skill prescribes: a new draft C-1/ beside an old C-1.md; two tables whose converted ids collide; an id column left with bare numbers; two drafts sharing B-2 and citing a B-4 absent from backlog.md",
+  "python3 -m unittest discover -s tests: 503 tests OK (test_backlog_panel included)",
+]
+notes = [
+  "The '#'-to-id conversion in tests/test_backlog_panel.py:95-98 replaces the row number with the next free B-<n> rather than 'B-<#>'. Prose references by row number ('Items 1–5 selected into S-002', 'item 6 was selected into S-006' in this repository's backlog.md) keep pointing at the old numbers, which may no longer match. 'Change nothing else in the line' preserves the dangling prose.",
+  "The skill text 'that cell becomes the id and the header cell becomes `id`' can be read as renaming only the header. Fixture c (header 'id', cells '1', '2') reads as id null and '#1 alpha' in status.py, with no warning.",
+  "'Grouping never ... commits to anything' does not say whether the draft file itself is git-committed. §3 prescribes a commit for ids but none for grouping.",
+  "AskUserQuestion is named for Claude Code only. Other tools are told 'the tool's question UI', which is fine for a portable skill.",
+  "A new draft's plan.md ('# C-<n>' / state / objective / ## Items) differs from templates/cycle/plan.md (cycle:, date:, size:, signed-off:). 'specify' must reconcile the two, and the skill does not say which one wins.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "usability_accessibility"
+severity = "medium"
+probe = "state change with no visible feedback: group B-2 into a draft, then show the panel again as §2 prescribes"
+evidence = """
+Fixture fx030/d: cycles/C-6/plan.md and C-7/plan.md are drafts written in the skill's exact shape ('state: draft', 'objective:', '## Items', '- B-2 two').
+status.py --format json returns, for each draft: demands [], done.total 0, and no field that carries the ## Items. The text view prints only 'C-6  draft  a'.
+§1 tells the panel to show each cycle's 'objective and demand progress', and §5's round-trip check ('the new draft listed with state draft') passes.
+So after 'group', the owner sees the draft but not what was grouped into it, and FM4's round-trip proves only that the file parses, not that status.py reads what the panel wrote.
+A1 ('the owner selects backlog items and puts them in a new or open draft cycle') is met on disk and invisible in the view that feeds the panel.
+"""
+blocking = false   # medium; FM4 is declared as 'cannot read', and the file still parses
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "case the spec does not cover and the code silently accepts: one backlog item grouped into two drafts"
+evidence = """
+Fixture fx030/d: B-2 is listed under ## Items in both cycles/C-6/plan.md and cycles/C-7/plan.md.
+status.py --format json: warnings [].
+The skill never marks a grouped item in backlog.md (its 'Never' list forbids editing an item's text), never checks other drafts before grouping, and the JSON exposes no draft items that would let it check (F1).
+Both drafts can then be specified, and the same idea planned twice. ADR-0019 rule 9 promises 'stable ids' so that an item has one place, and nothing here keeps it in one draft.
+"""
+blocking = false
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "valid input at domain boundaries: next free B-id when the highest id lives only in a cycle"
+evidence = """
+§3 says: 'Next free = one more than the highest `B-<n>` in backlog.md; never reuse an id, even one whose item is gone.'
+Fixture fx030/d: backlog.md holds B-1..B-3, and cycles/C-6/plan.md cites 'B-4 four (taken out of backlog.md)'.
+Following the first rule gives B-4, which violates the second in the same sentence. The only other place an id is remembered, cycles/*/plan.md ## Items, is outside the scan the rule prescribes.
+status.py does not cross-check draft items against the backlog, so the reused B-4 names two different ideas with no warning. Stable ids (ADR-0019 rule 9) is what this rule exists for.
+"""
+blocking = false
+
+[[finding]]
+id = "F4"
+attribute = "functional_correctness"
+severity = "low"
+probe = "valid input at domain boundaries: the first draft in a repository with old single-file cycles (ADR-0019 rule 15, headlabs-platform)"
+evidence = """
+§2 says to create 'a new `cycles/C-<n>/plan.md` (next free `n`)', without saying that old cycles/C-<n>.md files occupy numbers.
+Fixture fx030/a: cycles/C-1.md is an old running cycle and cycles/C-1/plan.md is a new draft.
+status.py warns '2 files in cycles/ read as C-1' and lists two C-1 entries, one draft and one running.
+headlabs-platform (cycles/C-1.md, C-2.md) is exactly the migration case where the first draft is created, and a planner that scans only directories for the next free n lands on C-1.
+"""
+blocking = false

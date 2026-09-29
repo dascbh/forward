@@ -1,0 +1,93 @@
+# Adversarial review report
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-029"
+cycle = "C-5"
+mode = "demand"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+rounds_planned = 1
+round = 1
+commit = "e180cb8"
+artifact_commit = "78b4b79"
+agent_transcript = "agent-a5804c3b09beb4bef"
+probed = [
+  "git log -1 = e180cb8 (main); FWD-029 = 78b4b79. Read runtime/fde_lib.py (cycle-layout helpers), verify.py (I2, I4, SCRUM), and graph.py (forbidden_orphans, cycle nodes). cmp runtime/ and bin/fde/ copies: identical",
+  "python3 -m unittest discover -s tests: 503 tests OK",
+  "FM1 on a live old-layout repository: in /Users/dascbh/Documents/headlabs-platform, verify.py --all ran with the pre-FWD-029 runtime (git archive 78b4b79^ bin/fde) and with the e180cb8 runtime. Both exit 0 with byte-identical output (12 gates, I4 '33 demand(s) with dated criteria', TRACE connected). /Users/dascbh/Documents/forward/bin/fde/verify.py gives the same output. git status was clean before and after (read-only)",
+  "scratch fixtures (scratchpad/fx029, probe029.py) calling Gate.gate_promotion_criteria, Gate.gate_adversarial and graph.forbidden_orphans: non-FWD/DEM prefix, cycle promotion with bare review dir, unreviewed promoted demand, kernel-style spec header, bold/link/lowercase id in the plan table, draft plan next to old-layout demands, date only in the body, '## Acceptance' heading, old slugged promotions, lowercase cycle dir, and the unedited templates/cycle/plan.md",
+]
+notes = [
+  "FM1 holds: headlabs-platform (old layout: cycles/C-1.md, C-2.md, per-demand acceptance.md and promotions/) gives identical verify --all output before and after FWD-029, exit 0.",
+  "A draft plan.md written by fde-backlog (state: draft, ## Items, no criteria) next to old-layout demands does not turn I4 red (fixture p6_draft_plus_old).",
+  "Old-layout promotions under a slugged dir (promotions/DEM-1-x/decision.md with reviews/DEM-1-x/) pass. canon_demand also newly lets promotions/DEM-1-x match reviews/DEM-1. That is more lenient than before, not a regression.",
+  "A lowercase cycle directory (cycles/c-1/) is not a cycle, so a spec with 'cycle: C-1' fails I4 with 'no cycles/C-1/plan.md'. The message is clear. On a case-insensitive filesystem the dir exists, but the name check is case-sensitive.",
+  "promotions/**/decision.md is still found with rglob, so a nested promotions/DEM-1/round2/decision.md canonicalizes to 'round2' and reads as 'promoted without a review'. This is pre-existing, not introduced here.",
+  "The cycle review (cycles/C-<n>/review.md, ADR-0019 rule 12) is gated nowhere: a cycle with promotion.md and no review.md passes I2 and TRACE. The FWD-029 spec does not ask for it, so this is a spec gap.",
+  "AGENTS.md '## Scrum mode' still says 'no retro, no next sprint (--gate scrum)', but this demand removed SCRUM-GOAL and SCRUM-RETRO. The instruction promises a gate that no longer exists. This is FWD-031's text to retire.",
+  "The spec's I4 message tells the user to add 'a row in the plan's ## Demands table', but only the FIRST cell counts. A plan whose table starts with a 'layer' or '#' column links nothing, and the message does not say why.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "valid input at domain boundaries: a demand id outside the FWD-/DEM- prefixes under the new cycle layout"
+evidence = """
+fde_lib.py hard-codes the demand grammar: DEMAND_RE = r"\\b((?:FWD|DEM)-\\d+)" and CANON_RE = r"^((?:FWD|DEM)-\\d+)".
+AGENTS.md only gives 'e.g. `FWD-002`' as the id, so a client is free to pick its own prefix.
+
+Fixture p1_prefix: cycles/C-1/plan.md is dated, with '| ACME-1 | back | ... |' in ## Demands. specs/ACME-1-thing/spec.md has no cycle: line.
+  -> I4 FAIL: 'demand(s) without dated criteria ... (a `cycle: C-<n>` spec line or a row in the plan's ## Demands table): ACME-1-thing'.
+  The plan row the message asks for is present and is ignored.
+
+Fixture p2_prefix_promo: the same setup, plus the spec's 'cycle: C-1', cycles/C-1/promotion.md, and reviews/ACME-1/findings.toml.
+  -> I2 FAIL: 'promoted without a recorded review: ACME-1-thing (cycles/C-1/promotion.md)'.
+  -> TRACE orphan: the same line.
+  canon_demand('ACME-1-thing') returns the raw slug, so it never meets reviews/ACME-1. This is the same slugged-spec / bare-review pairing this repository uses (specs/FWD-029-gates-by-owning-level with reviews/FWD-029).
+
+The old layout is unaffected: it compares directory names as before. FWD-DEM ids work, so the kernel and headlabs are green. Every other client that adopts the cycle layout gets a false red on I4, I2 and TRACE.
+This fails closed (no bypass), which is why it is medium.
+"""
+blocking = false   # medium; fails closed, and neither this repo nor headlabs is reachable
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "case the spec does not cover and the code silently accepts: the cycle plan template copied without filling in the date or criteria"
+evidence = """
+Fixture fx029/t: cycles/C-1/plan.md is templates/cycle/plan.md verbatim ('date: YYYY-MM-DD', 'state: draft', the placeholder '**A1 — <name>.** <observable result ...>'). The only edit is the demand row set to DEM-1. specs/DEM-1/spec.md exists.
+  -> I4 PASS: "1 demand(s) with dated criteria (1 from their cycle's plan.md)".
+plan_problem (fde_lib.py) accepts any non-space after 'date:' (re r"date\\s*:\\s*\\S") and any non-blank line under a heading containing 'criteria'. A draft (state: draft, never signed off) is accepted the same way.
+ADR-0019 rule 14 and AGENTS.md step 2 define the cycle-level I4 as criteria 'dated before the first demand commit'. The gate checks neither that the value is a date nor its order against the demand's commits.
+The old acceptance.md check was just as weak ('date:' substring), so this is not a regression. But I4 has now moved wholesale onto plan.md, and the kernel's own template satisfies it before anyone declares anything.
+"""
+blocking = false   # medium; the threat model is cooperative agents, and the weakness is inherited from the old check
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "low"
+probe = "valid input at domain boundaries: ordinary markdown in the plan's ## Demands first cell and criteria heading"
+evidence = """
+Fixture p5_bold_cell: rows '| **FWD-1** | ...' and '| [FWD-2](specs/FWD-2) | ...' -> I4 FAIL for both. DEMAND_RE.match anchors at the cell start.
+Fixture p9_case: '| fwd-1 | ...' -> I4 FAIL. DEMAND_RE is case-sensitive, while CANON_RE is IGNORECASE.
+Fixture p8_acceptance_heading: a dated plan with '## Acceptance' (not '... criteria') -> I4 FAIL 'plan.md has no ## … criteria section'.
+Each is a formatting choice a cooperative planner makes. The failure message names the table row as the fix, and the row is already there.
+"""
+blocking = false
+
+[[finding]]
+id = "F4"
+attribute = "observability"
+severity = "low"
+probe = "declared attribute with no corresponding signal: I5 at the cycle level (plan A7, ADR-0019 rule 14)"
+evidence = """
+Plan A7 and ADR-0019 rule 14 put 'I4, promotion, I5 and traceability' on the cycle. The FWD-029 spec lists I4, promotion, TRACE and the sprint removal, and omits I5.
+gate_observability (verify.py:682-721) is unchanged and repository-wide: it passes on any observability.toml with [signals] or any file named *telemetry*/*tracing*.
+A cycle whose promotion.md '## Signals' section is empty, or missing, passes. Nothing reads the signals the plan's criteria declare.
+The criterion A7 is only partly realized, and the FWD-029 spec narrowed it silently. The spec is where the gap lives, not the code.
+"""
+blocking = false

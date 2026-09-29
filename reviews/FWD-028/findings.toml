@@ -1,0 +1,87 @@
+# Adversarial review report
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-028"
+cycle = "C-5"
+mode = "demand"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+rounds_planned = 1
+round = 1
+commit = "e180cb8"
+artifact_commit = "b6c7b25"
+agent_transcript = "agent-a5804c3b09beb4bef"
+probed = [
+  "git log -1 = e180cb8 (main); FWD-028 = b6c7b25. Read the spec/roles.toml and runtime/guard.py diffs, and the agents/fde-promotion.md, fde-review, fde-walkthrough and fde-design diffs, against ADR-0019 rules 1, 2, 3, 5, 6, 11 and 12",
+  "guard.py fed Claude Code PreToolUse payloads (agent_name + relative file_path) through scratchpad/guard.sh, with 17 role/path pairs under cycles/ and backlog.md. Exit codes are cited in the findings",
+  "python3 -m unittest discover -s tests: 503 tests OK",
+]
+notes = [
+  "The guard blocks what the spec asks: fde-implementation is denied cycles/C-5/plan.md (exit 2), fde-adversarial is denied plan.md and cycles/C-5.md (exit 2), fde-promotion is denied plan.md (exit 2), and fde-spec is denied review.md (exit 2).",
+  "The guard does not normalize paths. fde-implementation writing 'cycles/C-5/Plan.md' (exit 0; on case-insensitive APFS this IS plan.md) or 'cycles/C-5/../C-5/plan.md' (exit 0) passes. Hostile agents are outside the threat model, so this is a note.",
+  "fde-implementation may write the old single-file cycles/C-5.md (exit 0), which holds an old cycle's done items. That is pre-existing: the old layout had no guard here.",
+  "fde-promotion may overwrite backlog.md entirely (exit 0), although roles.toml says only 'append'. The guard cannot tell an append from a rewrite.",
+  "Walkthrough artifacts stay 'keyed by the front demand's id', but the walkthrough runs once per cycle on the integrated result. With two front demands in a cycle, the key is undefined (MNT-3).",
+  "roles.toml adversarial denied_paths still include specs/**, while cycle mode reads cycles/** and docs/adr/**. That is consistent (read-only), just noted.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "usability_accessibility"
+severity = "medium"
+probe = "case the spec does not cover and the text silently accepts: an S or M cycle with a `front` demand, followed to its cycle review"
+evidence = """
+ADR-0019 rule 5 says: 'A backend-only cycle runs no walkthrough. A cycle that changes the interface always runs one.' The layer table adds 'usability: walkthrough, user test' whenever a front demand is in the cycle.
+skills/fde-walkthrough/SKILL.md, as rewritten by this demand, says:
+  '| XS / S | never | ...'
+  '| M | opt-in, via `[walkthrough]` in `fde.config.toml` | the front demands merged, before promotion |'
+  '| L | opt-in, via `[walkthrough]` | ... |'
+So an XS or S cycle that changes the interface never runs one, and an M or L cycle runs one only when the project opted in. 'Always' has become 'only if opted in, and only at M/L'.
+Plan A6 ('Walkthrough runs only when a front demand is in the cycle') is met, because it says 'only when'. The ADR's 'always', which this demand follows, is not.
+"""
+blocking = false   # medium; A6 as written holds, and the ADR conformance gap has no gate
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "permission escalation through role confusion, inverted: a role told to write where the guard denies it"
+evidence = """
+ADR-0019 rule 1 says 'A new fact goes to the backlog', and fde-review (this demand) says 'a non-blocking finding goes to the backlog'. Rule 11 says every parallel agent coordinates on cycles/C-<n>/board.md, and the commit message says 'board.md shared'.
+Guard probes (scratchpad/guard.sh, agent_name payload):
+  fde-adversarial backlog.md          -> exit 2 ('writes only in reviews/, cycles/')
+  fde-spec backlog.md                 -> exit 2
+  fde-architecture cycles/C-5/board.md -> exit 2 (ALLOWED has no cycles/ for architecture)
+Only fde-promotion (and the unguarded implementation or main agent) can write backlog.md. The roles that discover most new facts (review, spec at planning) are blocked from recording them where the instructions send them, and architecture, which works at cycle planning, cannot post on the board.
+The likely outcome is the one rule 1 was written to stop: the fact stays in conversation or in findings.toml and is not captured in the backlog.
+"""
+blocking = false   # medium; the gate still catches nothing wrong, and the main agent can relay
+
+[[finding]]
+id = "F3"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-1"
+probe = "the review budget of an L cycle read from fde-review against ADR-0019 rule 12"
+evidence = """
+skills/fde-review/SKILL.md '## Budget — cycle rounds come from the cycle's size': '| L | 3 | full, delta, delta |'.
+ADR-0019 rule 12 and AGENTS.md step 7 say: '1 round at XS/S, and full + delta at M/L'.
+The skill this demand rewrote for the cycle mode keeps the per-demand L budget, which contradicts the ADR it follows. It is also the text the reviewer reads when deciding whether a blocker with the budget spent goes back to the user (see reviews/FWD-026 F2 for the same split in AGENTS.md).
+"""
+blocking = false
+
+[[finding]]
+id = "F4"
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-1"
+probe = "error path with no clear way out: a blocking finding open when the cycle-review budget is spent"
+evidence = """
+fde-review 'No extension' says: 'the user picks one (AGENTS.md `## Cycle`: nothing is declined without the user), and the builder records it in the promotion or the closing commit ... *declare* — the owner accepts it as a dated, named limit in `plan.md`'.
+- 'nothing is declined without the user' is the 0.17.0 wording that ADR-0019 rule 2 explicitly replaces. The current AGENTS.md '## Cycle' no longer contains it (grep: no match).
+- 'the builder records it in the promotion': fde-implementation is denied cycles/*/promotion.md (guard JUDGED_BY; probe implementation -> plan.md exit 2, same rule).
+- 'a dated, named limit in plan.md': the plan is 'frozen at sign-off' and writable only by fde-spec.
+All three routes the skill offers point at a rule or a file the new model removed or closed.
+"""
+blocking = false

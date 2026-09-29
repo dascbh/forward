@@ -1,0 +1,90 @@
+# Adversarial review report
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-026"
+cycle = "C-5"
+mode = "demand"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+rounds_planned = 1
+round = 1
+commit = "e180cb8"
+artifact_commit = "921e547"
+agent_transcript = "agent-a5804c3b09beb4bef"
+probed = [
+  "git log -1 = e180cb8 (main); FWD-026 = 921e547. Read AGENTS.md from '## Demand loop' through '## Scrum mode', templates/cycle/*.md, and skills/fde-triage/SKILL.md, and cross-read them against ADR-0019 rules 1-15 and cycles/C-5/plan.md",
+  "diff AGENTS.md against templates/AGENTS.md.template: they differ only in the placeholders",
+  "the unedited templates/cycle/plan.md run through the FWD-029 I4 gate: PASS (see reviews/FWD-029 F2)",
+  "guard.py probes: only fde-spec may write cycles/*/plan.md (fde-implementation, fde-adversarial and fde-promotion exit 2)",
+]
+notes = [
+  "AGENTS.md is 2,698 words. A9's limit of 1,600 belongs to FWD-033, so it is not judged here.",
+  "'## Scrum mode' still describes sprints/S-N/goal.md and 'no retro, no next sprint (--gate scrum)'. FWD-029 removed those gates. The text belongs to FWD-031, but today it promises a gate that no longer exists.",
+  "ADR-0019 rule 15 says each '## Next cycle' list moves into backlog.md with B-ids at the first sync. AGENTS.md states only that an old cycle finishes under its own rules, and never names the move. The spec cites rule 15.",
+  "templates/cycle/plan.md ships 'date: YYYY-MM-DD' and a placeholder A1, which the I4 gate accepts as dated criteria (FWD-029 F2). A template placeholder that satisfies a gate is a trap the template sets.",
+  "The size line says 'L: all six roles', but fde-triage's table says 'all five'. roles.toml lists five roles plus the walkthrough evaluator.",
+  "A demand spec has no template. The `cycle: C-<n>` header line that FWD-029's I4 accepts as a link is never mentioned in AGENTS.md, so the plan table is the only link an agent is told about.",
+  "The ownership sentence says 'A non-blocking finding is a backlog line'. The adversarial and spec roles cannot write backlog.md (guard exit 2, reviews/FWD-028 F2), and AGENTS.md does not say who writes the line.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-1"
+probe = "plausible requirement change that forces a rewrite: a demand whose real diff exceeds its estimate, followed through the instructions"
+evidence = """
+AGENTS.md step 1 says: 'Re-size a demand on its real diff before review: over twice the estimate or ~800 changed lines → split, don't review.'
+fde-triage '## Re-size on the real diff' says: 'the demand is split, not reviewed ... enter them in the demand list, and post the split on the board.'
+The same AGENTS.md step 2 says: 'Splitting happens at planning, not at review.'
+'## Cycle' says: 'The plan is frozen at sign-off.'
+ADR-0019 rule 3 says the ceiling is 'split at planning, not at review'. Rule 1 says a fact that changes the plan is a replan, the only point where the user is asked again.
+An agent in this state has three contradictory instructions: split at review, never split at review, and never edit the plan. Only fde-spec may write plan.md (guard probe), so 'enter them in the demand list' is also unreachable from the implementation role that notices the overrun.
+One fact, when to split, lives in three places with two answers.
+"""
+blocking = false   # medium; A8 (coherence) is FWD-032's criterion, and nothing is gated
+
+[[finding]]
+id = "F2"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-1"
+probe = "case the spec does not cover and the text silently accepts: the review budget of an L cycle read from each place that states it"
+evidence = """
+AGENTS.md step 1: '≥ 7 → **L**: all six roles, 3 rounds'.
+fde-triage table: 'L | ... | 1 full + 2 delta'.
+AGENTS.md step 7 (the cycle review): 'Budget: 1 round at XS/S, full + delta at M/L.'
+ADR-0019 rule 12: 'The cycle's size sets the budget: 1 round at XS/S, and full + delta at M/L (ADR-0018).'
+The same file gives an L cycle both 3 rounds and 2. ADR-0018 bars asking for an extra round, so which number counts decides when the owner is asked to narrow, declare, or pause.
+The size table is carried over from the per-demand model without being re-derived for the cycle.
+"""
+blocking = false
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "valid input at domain boundaries: an XS cycle (score ≤ 1) run as written"
+evidence = """
+AGENTS.md step 1: 'score ≤ 1 → **XS**: implementation, adversarial, 1 round · 2–3 → **S**: + spec · 4–6 → **M**: + promotion'.
+fde-triage's table says the same: XS active roles are implementation and adversarial.
+Every cycle needs a plan: step 1 says 'commit `plan.md` ... and stop at the sign-off', and step 2 requires dated criteria in plan.md (I4). Under FWD-029, I4 reads the criteria from cycles/C-<n>/plan.md, and only fde-spec may write it (guard: fde-implementation and fde-adversarial exit 2 on cycles/C-5/plan.md).
+An XS cycle therefore has no active role that can write the artifact its own gate requires. The same holds for promotion: step 8 says 'promotion (M/L)', while ADR-0019 rule 4 and plan A7 put promotion on every cycle.
+The per-demand size-to-roles mapping survives unchanged into a model where the plan and the promotion are per cycle.
+"""
+blocking = false   # medium; the main (un-roled) agent can still write plan.md, so the path is not dead
+
+[[finding]]
+id = "F4"
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-4"
+probe = "ambiguous next action with multiple plausible controls: moving a cycle through draft → planned → running → closed"
+evidence = """
+'## Cycle' defines the states and says to 'set `state: closed`' at close. The state lives in plan.md's header (templates/cycle/plan.md 'state: draft').
+The same section says 'The plan is frozen at sign-off', and the guard lets only fde-spec write plan.md.
+Nothing says who sets 'planned' (fde-backlog: 'the owner's sign-off does'), 'running' or 'closed', or that the state header is exempt from the freeze.
+Whoever closes a cycle, typically the main agent after promotion, either edits a frozen file or leaves the cycle open for status.py.
+"""
+blocking = false
