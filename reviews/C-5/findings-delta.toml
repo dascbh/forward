@@ -1,0 +1,98 @@
+# Adversarial review report — cycle mode (ADR-0019 rule 12), delta round
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "C-5"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+mode = "cycle"
+rounds_planned = 2                 # L: full + delta; this is the last round
+round = 2
+commit = "e71b089"
+agent_transcript = "agent-a0ef77d2d4dc3c6ca"
+probed = [
+  "git log -1 = e71b089; delta = git diff 01b7c5b..e71b089 (behavior in f2c05ff runtime, e71b089 text)",
+  "python3 -m unittest discover -s tests: 587 tests OK; python3 bin/fde/verify.py --all: all gates passed",
+  "live headlabs-platform, read-only: python3 <kernel>/bin/fde/verify.py --all -> 12/12 green, I4 33 demands",
+  "wc -w AGENTS.md = 1600, templates/AGENTS.md.template = 1324; longest description: 40 words (fde-walkthrough, fde-verify, .claude copies included)",
+  "scratch clone at e71b089, cycles/C-6 from templates/cycle/plan.md with state: closed and spec FWD-040: no promotion.md -> I4 red 'C-6 is closed without promotion.md', status warns; empty promotion.md -> I2 and TRACE red (promoted without review), status warns 'criteria not met: A1'; '- A1 — nothing — declined' + decision: hold -> status '1 declined', no warning",
+  "same clone, C-6 state: draft from the template: status lists the template's '- B-<n> <...>' as a draft item '(no id)'",
+  "grep over AGENTS.md, skills, agents, ADR-0018, ADR-0019 for the budget-spent / owner / replan paths",
+  "grep for 'declined|limit|not met' in agents/fde-promotion.md, templates/cycle/promotion.md, AGENTS.md vs skills/fde-status and runtime/status.py PROMOTION_MARKS",
+  "reviews/FWD-033/findings.toml F1 still blocking = true after its fix; no gate or artifact field records a demand blocker as closed",
+  "tests/test_instructions.py TestReconcileC5 pins: promotion isolation, never escalate, not asked beforehand, walkthrough with a front demand, one phrase per ADR-0019 rule, demand blocker path, states and writers, sync migration, no bare kernel ADR id",
+]
+notes = [
+  "The headlabs sync simulation with the new fde-sync steps (kernel_version bump, ## Next cycle migration) was not re-run: the isolation guard refused writes outside the worktree. Checked textually: the version source .fde/spec/invariants.toml [meta] kernel_version exists; headlabs C-1.md:33 has a ## Next cycle list the migration would move.",
+  "headlabs backlog.md has 11 lines with no B-ids; fde-sync §3 gives migrated lines 'the next free B-<n>' without saying to run fde-backlog §3 first, so the backlog would mix id'd and bare lines.",
+  "'A cycle opened before kernel ADR-0019' is still undatable in a client, which never receives kernel ADRs; naming the version (0.19.0) would resolve it.",
+  "templates/cycle/plan.md's placeholder criterion '- **A1 — <name>.**' counts as a criterion in status.py (0/1) while I4 rejects it as a placeholder (untouched code).",
+  "fde-backlog lists an 'open' action (view a cycle's artifacts) while its ## Never says 'Open or run a cycle' (untouched text).",
+  "AGENTS.md is at exactly 1,600 words: zero headroom, and TestTerse measures only this repo's expansion of the template.",
+  "The C-5 F4 rollback (git revert 321e045..<release>) is decided on board.md but lives in no artifact yet; plan.md deploy step 1 still reads 'git revert the release commit' (frozen). The board says promotion.md will carry it.",
+  "The 15 discovery items (discovery/sharpen-2026-09-29.md) were again not re-audited one by one inside the budget.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-1"
+probe = "case the spec does not cover: follow a cycle-review blocker at budget spent using AGENTS.md ## Cycle and fde-review against ADR-0019 rules 1 and 7"
+evidence = """
+The reconcile rewrote AGENTS.md ## Cycle (lines 151-157) and fde-review §Budget:
+'A cycle review budget spent with a blocker open is the owner's call:
+narrow, declare the limit, or pause'.
+ADR-0019 rule 1: 'replanning is the only other point where the user is
+asked'. Rule 7: 'The only thing that returns to the user is a replan,
+triggered by a fact that invalidates the plan.'
+A blocker at the end of a cycle review is not a fact that invalidates the
+plan, yet it returns to the owner. Either narrow/declare/pause is a kind
+of replan (nothing says so) or rule 1/7 no longer holds. ADR-0018 line 48
+still names the demand as what is narrowed or paused.
+The demand-level half of prior C-5 F1 is now consistent; this is the
+cycle-level half of the same model, in changed lines.
+"""
+blocking = false  # medium; the owner is asked in either reading, nothing is lost
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "case the spec does not cover and the code silently accepts: close a cycle with a declared limit, writing promotion.md as its writer is told to"
+evidence = """
+f2c05ff makes status.py settle a criterion when promotion.md's last field
+is met, declined or limit (runtime/status.py PROMOTION_MARKS), and warns
+'closed with criteria not met' otherwise.
+The convention is written only in skills/fde-status (a reader).
+The writer's texts do not carry it:
+- agents/fde-promotion.md:40: 'One line per criterion ... met / not met'.
+- templates/cycle/promotion.md:10: '- A1 — <where it is shown> — met | not met'.
+- AGENTS.md ## Cycle: 'marked in promotion.md at close', no format.
+Probe: a declared limit written per the template ('— not met') leaves the
+criterion unsettled, and status warns on a correctly closed cycle; the
+same line written '— limit' reads as settled. The promotion role cannot
+learn the second form from anything it loads.
+"""
+blocking = false  # medium; a status warning, not a gate; the I4 presence check is unaffected
+
+[[finding]]
+id = "F3"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-4"
+probe = "knowledge that only exists in the builder's head: after an in-demand fix of a blocking finding, where is 'no blocking finding open' (merge condition, AGENTS.md step 6) recorded?"
+evidence = """
+New text (AGENTS.md ## Cycle, fde-review §Budget): 'A demand review's
+blocking finding is fixed inside that demand and proven by its regression
+test'. The demand review is 1 round, so no reviewer verifies the fix.
+findings.toml is written by the adversarial role only; the builder cannot
+mark it fixed. reviews/FWD-033/findings.toml F1 still reads
+blocking = true after e71b089 fixed it, and no gate reads blocking.
+Nothing names the artifact that closes a blocker: not AGENTS.md, not
+fde-review, not the findings template, not agents/fde-implementation.md.
+C-5 recorded it on board.md by habit. The implementation role 'does not
+judge its own delivery', yet it alone decides that its blocker is closed,
+and the merge condition in step 6 has no evidence to point at.
+"""
+blocking = false  # medium; A5's merge condition is still stated, only its evidence is unnamed

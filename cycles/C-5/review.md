@@ -45,3 +45,71 @@ was only read. Findings are mirrored in reviews/C-5/findings.toml. -->
    - The client-facing texts cite kernel ADR ids: ADR-0019 ×11, plus ADR-0002, 0010, 0011, 0012, 0014, 0015 and 0018. In headlabs these resolve to nothing, or to unrelated ADRs such as ADR-0002 runtimes-internal-authorization. MNT-4.
 4. **F4 — medium.** Deploy step 1's rollback ("git revert the release commit") does not undo the 28-commit release. The clean range revert is not the documented one.
 5. **F5 — medium.** A cycle with `state: closed`, no promotion.md and 0/1 criteria met passes every gate. status.py shows it closed with no warning, so a cycle can skip promotion, and I2's promoted-without-review check with it.
+
+## Delta round
+
+round: 2 (delta, the last of the L budget) · commit e71b089 · worktree
+agent-a0ef77d2d4dc3c6ca · findings in reviews/C-5/findings-delta.toml.
+Suite 587 tests OK; `verify.py --all` green; live headlabs-platform
+(read-only, new runtime) 12/12 green.
+
+### Criteria
+
+- A1 — met (unchanged since the full round; not touched by the delta).
+- A2 — met. The plan template now keeps `## Items` and names every
+  state's writer. Note: a draft made from the template shows the
+  placeholder `- B-<n> <...>` as a "(no id)" item in status.
+- A3 — met. status.py now also warns when a closed directory cycle has
+  no promotion.md, or leaves a criterion unsettled (probed on a clone).
+- A4 — met (unchanged).
+- A5 — met. The demand blocker path is now written: fix inside the
+  demand, prove it with a regression test. Caveat (new F3): nothing names
+  where a fixed blocker is recorded as closed, and step 6's merge
+  condition "no blocking finding open" depends on that.
+- A6 — met. AGENTS.md step 7 and the fde-walkthrough description now
+  both trigger the walkthrough when the cycle has a `front` demand.
+- A7 — met. A closed directory cycle without promotion.md is I4 red. An
+  empty promotion.md turns I2 and TRACE red for an unreviewed demand.
+  Old single-file cycles and headlabs stay green.
+- A8 — met for the contradictions the full round found: prior F1 at the
+  demand level and prior F2 are gone. Residuals are not blocking:
+  - new F1: the cycle-review budget-spent path goes to the owner, and
+    ADR-0019 rules 1 and 7 say only a replan does;
+  - new F2: the `declined`/`limit` promotion marks exist only in
+    fde-status, not in the promotion role or its template.
+
+  The 15 discovery items were again not re-audited one by one.
+- A9 — met. `wc -w AGENTS.md` = 1600 (≤ 1600, no headroom). The longest
+  description is 40 words (fde-walkthrough, fde-verify).
+- A10 — not yet done (release).
+
+### Prior findings
+
+| finding | status | probe |
+|---|---|---|
+| C-5 F1 (blocking) | fixed | AGENTS.md ## Cycle, step 5 and fde-review §Budget agree: a demand blocker is fixed in the demand, and the owner is asked only on a replan. TestReconcileC5 pins it. Cycle-level residual: new F1. |
+| C-5 F2 | fixed | The states draft → planned → running → closed/abandoned have one meaning and one writer in AGENTS.md, ADR-0019 rule 9 (amended), fde-backlog, agents/fde-spec.md and the plan template. AGENTS.md names fde-backlog for backlog → draft. |
+| C-5 F3 | partly fixed | fde-sync §3 and SETUP ## Sync now migrate `## Next cycle` and bump `kernel_version`. Every client-text ADR id reads "kernel ADR-…", and a test forbids bare ids. The kernel ADRs still do not reach clients, so "a cycle opened before kernel ADR-0019" cannot be dated there. The headlabs sync was not re-simulated: the guard refused writes outside the worktree. |
+| C-5 F4 | partly fixed | The range revert `git revert 321e045..<release>` is decided on board.md, but it is in no artifact yet. plan.md deploy step 1 (frozen) still says "revert the release commit". promotion.md, which is to carry it, does not exist yet. |
+| C-5 F5 | fixed | Clone: closed with no promotion.md → I4 red and a status warning. Empty promotion.md → I2 and TRACE red. |
+| FWD-033 F1 (blocking) | fixed | AGENTS.md ## Roles and the template both say "The adversarial and promotion roles run isolated: artifact + spec only". Pinned. |
+| FWD-033 F2 | fixed | ## Detail has "Never escalate kernel-interpretation questions to the user mid-demand". Step 8 has "not asked beforehand". Pinned. |
+| FWD-033 F3 | fixed | The walkthrough description says "Runs at the cycle review when the cycle has a `front` demand". Step 7 has "With a `front` demand, it runs `fde-walkthrough`". Pinned. |
+| FWD-033 F4 | partly fixed | A test now pins one phrase per ADR-0019 rule, plus the three lost sentences. No trace of the other removed AGENTS.md sentences exists, so FM3's detector still sees only what is pinned. |
+| FWD-033 F5 | fixed | runtime/fde_lib.py:113 and bin/fde/fde_lib.py:113 now say "run the fde-init skill first". No `fde init/sync/verify` CLI mention is left. |
+
+### New findings (delta lines only)
+
+1. **F1 — medium.** The cycle-review budget-spent path returns to the
+   owner, and ADR-0019 rules 1 and 7 say only a replan does (MNT-1).
+2. **F2 — medium.** status.py settles a criterion with `declined` or
+   `limit`, but that convention appears only in fde-status. The
+   promotion role and its template write "met / not met", so a declared
+   limit written as told warns on a correctly closed cycle.
+3. **F3 — medium.** An in-demand blocker fix has no named closing
+   record. findings.toml keeps `blocking = true` (FWD-033 F1 still
+   does), and step 6's "no blocking finding open" has no evidence to
+   point at (MNT-4).
+
+No new finding is blocking. The budget is spent: no blocking finding is
+open at the end of the delta round.

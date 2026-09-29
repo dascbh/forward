@@ -46,3 +46,4 @@ another posts `blocked-on` and waits for its merge.
 - 2026-09-29 RECON-C5-RUNTIME claim widened: skills/fde-status/** (+ .claude copy) for the F5 promotion-mark convention
 - 2026-09-29 RECON-C5-TEXT claim widened: templates/*.template.toml (+ .fde copies), spec/roles.toml comments/purpose, tests/test_coherence.py (TestNoFdeCli), tests/test_instructions.py — bare kernel ADR ids and pins
 - 2026-09-29 RECON-C5-TEXT decided: AGENTS.md at 1,600 words; demand blocker fixed in-demand everywhere, cycle-review budget alone goes to the owner; states draft/planned/running with writers; kernel ADR ids in client texts; guard.py message left to backlog
+- 2026-09-29 C-5 decided delta cycle review done: L budget spent, no blocking finding open; A1–A9 met; delta F1–F3 (medium) and the partial C-5 F3 / FWD-033 F4 go to backlog.md; promotion starts
