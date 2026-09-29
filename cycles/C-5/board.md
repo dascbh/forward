@@ -43,3 +43,4 @@ another posts `blocked-on` and waits for its merge.
 - 2026-09-29 C-5 decided C-5 F4: the release rollback is `git revert 321e045..<release>` (restores the 0.18.0 tree exactly, probed by the cycle review); recorded in promotion.md
 - 2026-09-29 RECON-C5-TEXT claim AGENTS.md (+ template), skills/**, agents/**, templates/cycle/**, docs/adr/0019*, README.md, SETUP.md, runtime/fde_lib.py message (+ bin/fde), tests pinning them
 - 2026-09-29 RECON-C5-RUNTIME claim runtime/status.py, runtime/verify.py (+ bin/fde), tests/test_status.py, tests/test_verify.py
+- 2026-09-29 RECON-C5-RUNTIME claim widened: skills/fde-status/** (+ .claude copy) for the F5 promotion-mark convention

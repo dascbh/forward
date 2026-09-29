@@ -32,10 +32,12 @@ from fde_lib import (  # noqa: E402
     demand_cycles,
     escalated_security_floor,
     gate_paths,
+    header_lines,
     path_matches,
     plan_problem,
     project_root,
     promoted_demands,
+    read_text,
     reviewed_demands,
     validate,
 )
@@ -51,6 +53,22 @@ KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
 VENDOR_PATHS = ("node_modules/", ".venv/", "venv/", "vendor/", "dist/", "build/", "__pycache__/")
+
+
+def _cycle_closed(plan: Path) -> bool:
+    """A cycle plan's header ends it closed (ADR-0019 rule 9, as fde-status
+    reads it): the first `closed:`/`abandoned:` line with a value decides;
+    otherwise the first word of `state:`."""
+    header: dict[str, str] = {}
+    for line in header_lines(read_text(plan)):
+        m = re.match(r"([A-Za-z_]+)\s*:\s*(.*)$", line)
+        if m:
+            header.setdefault(m.group(1).lower(), m.group(2).strip())
+    for key in ("closed", "abandoned"):
+        if header.get(key):
+            return key == "closed"
+    words = re.findall(r"[a-z]+", header.get("state", "").lower())
+    return bool(words) and words[0] == "closed"
 
 
 class GitOpFailure(RuntimeError):
@@ -624,6 +642,16 @@ class Gate:
         demand_dirs = [d for d in sorted((self.project / "specs").glob("*"))
                        if d.is_dir()]
         cycles = cycle_dirs(self.project)
+        # a closed directory cycle is promoted at the cycle level: without
+        # promotion.md nothing checked that its demands were reviewed
+        # (C-5 F5). Old single-file cycles are not directories.
+        unpromoted = [f"{cid} is closed without promotion.md"
+                      for cid, cdir in sorted(cycles.items())
+                      if _cycle_closed(cdir / "plan.md")
+                      and not (cdir / "promotion.md").is_file()]
+        if unpromoted:
+            self.add("I4", False, "; ".join(unpromoted[:3]))
+            return
 
         def problem(cid: str) -> str | None:
             if cid not in cycles:

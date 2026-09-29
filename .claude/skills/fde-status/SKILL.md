@@ -34,7 +34,10 @@ The format comes from AGENTS.md `## Cycle`.
   is named, not guessed.
 - Progress: a directory cycle counts plan.md's `## Acceptance criteria`
   ids against promotion.md, where `- A1 — <evidence> — met` marks A1
-  met (anything else is pending). An old file counts `## Done when`:
+  met, and a last field `declined` or `limit` settles it on the
+  budget-spent path (anything else is pending). A closed directory
+  cycle without promotion.md, or with a criterion not settled there,
+  warns (the gate's I4 also fails on the first). An old file counts `## Done when`:
   `[x]` met, `[-]` declined by the user, anything else pending, an
   unknown mark shown as written. All met without an end line warns.
 - A backlog line belongs to a cycle when the line (every cell of a table

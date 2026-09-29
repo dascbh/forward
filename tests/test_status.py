@@ -687,5 +687,50 @@ class TestPanelFindings(StatusCase):
         self.assertEqual(data["next"], {"backlog_id": "B-1", "cycle_id": "C-1"})
 
 
+CLOSED_PLAN = PLAN.replace("state: running", "state: closed")
+
+
+class TestClosedCycleNeedsPromotion(StatusCase):
+    """C-5 F5: a closed directory cycle with no promotion.md, or with a
+    criterion not settled in it, must not look finished."""
+
+    def test_closed_without_promotion_warns(self):
+        self.write("cycles/C-6/plan.md", CLOSED_PLAN.replace("C-5", "C-6"))
+        self.write("cycles/C-7/plan.md",
+                   PLAN.replace("C-5", "C-7").replace("opened:", "closed: 2026-10-02\nopened:"))
+        out = run(self.root).stdout
+        self.assertIn("WARNING C-6 is closed without promotion.md", out)
+        self.assertIn("WARNING C-7 is closed without promotion.md", out)
+
+    def test_closed_with_an_unmet_criterion_warns(self):
+        self.write("cycles/C-6/plan.md", CLOSED_PLAN.replace("C-5", "C-6"))
+        self.write("cycles/C-6/promotion.md", PROMOTION)
+        out = run(self.root).stdout
+        self.assertIn("WARNING C-6 is closed with criteria not met: A3", out)
+        self.assertNotIn("without promotion.md", out)
+
+    def test_every_criterion_met_or_declined_is_settled(self):
+        self.write("cycles/C-6/plan.md", CLOSED_PLAN.replace("C-5", "C-6"))
+        for mark in ("declined", "limit", "**declined**"):
+            self.write("cycles/C-6/promotion.md", PROMOTION.replace(
+                "status view — not met",
+                f"budget spent, user declined 2026-10-01 — {mark}"))
+            r = run(self.root)
+            self.assertNotIn("WARNING C-6", r.stdout, mark)
+            self.assertIn("C-6  closed  1/2 met, 1 declined", r.stdout, mark)
+
+    def test_old_layout_closed_file_is_not_affected(self):
+        self.write("cycles/C-1.md", CLOSED)
+        out = run(self.root).stdout
+        self.assertNotIn("promotion.md", out)
+        self.assertNotIn("criteria not met", out)
+
+    def test_running_and_abandoned_cycles_are_not_affected(self):
+        self.write("cycles/C-5/plan.md", PLAN)
+        self.write("cycles/C-6/plan.md", "objective: gave up\nabandoned: 2026-10-01\n")
+        out = run(self.root).stdout
+        self.assertNotIn("is closed", out)
+
+
 if __name__ == "__main__":
     unittest.main()

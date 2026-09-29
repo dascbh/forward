@@ -1651,5 +1651,71 @@ class TestPlanCriteriaAreDeclared(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout)
 
 
+class TestClosedCycleNeedsPromotionGate(unittest.TestCase):
+    """C-5 F5: a closed directory cycle with no promotion.md skipped the
+    only cycle-level check that its demands were reviewed. I4 is red."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+        self.d = cycle_plan(self.p, 6, ["| FWD-040 | back | — | x | A1 |"])
+        cycle_spec(self.p, "FWD-040", cycle="C-6")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def gate(self):
+        return verify(self.p, "--gate", "promotion-criteria")
+
+    def close(self, line):
+        plan = self.d / "plan.md"
+        plan.write_text(plan.read_text().replace(
+            "date: 2026-09-29\n", f"date: 2026-09-29\n{line}\n"))
+
+    def test_running_cycle_without_promotion_passes(self):
+        r = self.gate()
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_closed_state_without_promotion_fails(self):
+        self.close("state: closed")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("C-6 is closed without promotion.md", r.stdout)
+
+    def test_closed_line_without_promotion_fails(self):
+        self.close("closed: 2026-10-02")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("C-6 is closed without promotion.md", r.stdout)
+
+    def test_closed_line_below_the_header_does_not_close(self):
+        plan = self.d / "plan.md"
+        plan.write_text(plan.read_text() + "\nclosed: 2026-10-02\n")
+        self.assertEqual(self.gate().returncode, 0)
+
+    def test_closed_with_promotion_passes(self):
+        self.close("closed: 2026-10-02")
+        (self.d / "promotion.md").write_text("decision: promote\n")
+        r = self.gate()
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_closed_cycle_before_any_demand_still_needs_promotion(self):
+        shutil.rmtree(Path(self.p) / "specs" / "FWD-040")
+        self.close("state: closed")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("C-6 is closed without promotion.md", r.stdout)
+
+    def test_abandoned_cycle_without_promotion_passes(self):
+        self.close("abandoned: 2026-10-02")
+        self.assertEqual(self.gate().returncode, 0)
+
+    def test_old_single_file_closed_cycle_is_never_affected(self):
+        (Path(self.p) / "cycles" / "C-1.md").write_text(
+            "objective: old\nclosed: 2026-09-01\n\n## Done when\n- [x] a\n")
+        r = self.gate()
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

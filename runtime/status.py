@@ -14,7 +14,9 @@ with a value ends it, whatever `state:` says (a disagreement warns);
 otherwise the first word of `state:` decides; otherwise it is running.
 More than one running cycle is a warning; drafts may be many. A directory
 cycle's progress is plan.md's acceptance criteria against promotion.md
-(`- A1 — <evidence> — met`).
+(`- A1 — <evidence> — met`; `— declined` or `— limit` settles a criterion
+on the budget-spent path). A closed directory cycle without promotion.md,
+or with a criterion not settled there, warns.
 
 A draft's `## Items` (the B-ids fde-backlog grouped) are read; a backlog
 item marked `→ C-<n>` is grouped into that cycle, and one B-id in two
@@ -208,9 +210,11 @@ class Cycle:
                     if m:
                         self.legacy_next.append(m.group(1).strip())
         self.done_source = "done when"
+        self.unsettled: list[str] = []
         if directory and self.criteria:
-            met = _met_criteria(directory / "promotion.md")
-            self.done = [("x" if cid in met else " ", text) for cid, text in self.criteria]
+            marks = _promotion_marks(directory / "promotion.md")
+            self.done = [(marks.get(cid, " "), text) for cid, text in self.criteria]
+            self.unsettled = [cid for cid, _ in self.criteria if cid not in marks]
             self.done_source = "criteria"
 
     @property
@@ -280,16 +284,23 @@ class Cycle:
         return out
 
 
-def _met_criteria(path: Path) -> set[str]:
-    """Criterion ids promotion.md marks met: a bullet whose first token is
-    the id and whose last `—` field is `met` (`- A1 — <evidence> — met`)."""
-    met = set()
+# promotion.md's last `—` field of a criterion bullet: met, or settled on
+# the budget-spent path (declined by the owner, or a declared limit)
+PROMOTION_MARKS = {"met": "x", "declined": "-", "limit": "-"}
+
+
+def _promotion_marks(path: Path) -> dict[str, str]:
+    """Criterion id -> mark ('x' met, '-' declined) for each bullet of
+    promotion.md whose first token is the id and whose last `—` field is
+    `met`, `declined` or `limit` (`- A1 — <evidence> — met`)."""
+    marks: dict[str, str] = {}
     for line in _read(path).splitlines():
         m = CRITERION.match(line.strip())
-        if m and re.split(r"\s[\u2014\u2013-]\s", line.strip())[-1] \
-                .strip(" .*`").lower() == "met":
-            met.add(m.group(1))
-    return met
+        last = m and re.split(r"\s[\u2014\u2013-]\s", line.strip())[-1] \
+            .strip(" .*`").lower()
+        if last in PROMOTION_MARKS:
+            marks[m.group(1)] = PROMOTION_MARKS[last]
+    return marks
 
 
 def load_cycles(root: Path, problems: list[str]) -> list[Cycle]:
@@ -438,6 +449,12 @@ def warnings(cycles: list[Cycle], backlog, problems: list[str]) -> list[str]:
                            "closed: line")
             else:
                 out.append(f"{c.id} has no pending done item but no closed: line")
+        if c.layout == "directory" and c.state == "closed":
+            if "promotion.md" not in c.artifacts:
+                out.append(f"{c.id} is closed without promotion.md")
+            elif c.unsettled:
+                out.append(f"{c.id} is closed with criteria not met: "
+                           f"{', '.join(c.unsettled)}")
         if c.legacy_next and not c.ended:
             out.append(f"{c.id} keeps a ## Next cycle list ({len(c.legacy_next)} "
                        "lines) — under AGENTS.md ## Cycle those lines belong in backlog.md")
