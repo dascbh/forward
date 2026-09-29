@@ -24,11 +24,19 @@ cycles warns. `next` gives the next free ids: B-<n> one more than the
 highest seen in backlog.md or any cycle, C-<n> one more than the highest
 directory or old file.
 
+The demands (FWD-034): every `specs/<id>/` (bare or `<id>-<slug>`), linked
+to a cycle by a plan's `## Demands` table or an old file's `demands:`
+line, else by the spec's own `cycle:` line, else loose; its review summary
+from `reviews/<id>/findings.toml` (a malformed file is named, never
+raised); its promotion from the cycle's promotion.md or the old
+`promotions/<id>/`. Each cycle also carries its artifact paths.
+
 A report, never a gate (ADR-0018): exit 0 on any content, exit 2 only for
 a bad argument. Read-only, stdlib only, no git.
 
   python3 bin/fde/status.py              # everything
   python3 bin/fde/status.py --cycle C-3  # one cycle in full
+  python3 bin/fde/status.py --demand FWD-7  # one demand: spec, findings, ADRs
   python3 bin/fde/status.py --backlog    # backlog only
   python3 bin/fde/status.py --cycles     # cycles only
   python3 bin/fde/status.py --format json  # the same content as JSON
@@ -39,6 +47,7 @@ import argparse
 import json
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 HEADER = re.compile(r"^([A-Za-z_]+)\s*:\s*(.*)$")
@@ -577,8 +586,229 @@ def show_backlog(backlog, nxt: dict) -> list[str]:
     return out + [""]
 
 
+# --- demands (FWD-034) -------------------------------------------------------
+
+SPEC_DIR = re.compile(r"^([A-Za-z][A-Za-z0-9]*-\d+)(?![0-9])(?:-.*)?$")
+ADR_REF = re.compile(r"\bADR-(\d+)\b")
+ADR_FILE = re.compile(r"^(\d+)-.*\.md$")
+
+
+def _rel(root: Path, p: Path) -> str:
+    try:
+        return p.relative_to(root).as_posix()
+    except ValueError:
+        return p.as_posix()
+
+
+def cycle_paths(root: Path, c: Cycle) -> list[str]:
+    """The cycle's artifact files, then its cycle review files."""
+    if c.layout == "directory":
+        out = [_rel(root, c.path / a) for a in c.artifacts]
+    else:
+        out = [_rel(root, c.path)]
+    rev = root / "reviews" / c.id
+    try:
+        out += [_rel(root, p) for p in sorted(rev.iterdir())
+                if p.is_file() and p.suffix == ".toml"]
+    except OSError:
+        pass
+    return out
+
+
+def _spec_fields(text: str) -> dict[str, str]:
+    """`key: value` pairs of the spec's lines before its first `##`, a line
+    split on `·` (`cycle: C-12 · layer: back · follows: ADR-0020`); the
+    first of each key wins."""
+    out: dict[str, str] = {}
+    for line in _sections(text)[0][1]:
+        for part in line.split("·"):
+            m = HEADER.match(part.strip())
+            if m:
+                out.setdefault(m.group(1).lower(), m.group(2).strip())
+    return out
+
+
+def _decision(path: Path) -> str:
+    """The `decision:` line of a promotion file, among its first lines."""
+    for line in _read(path).splitlines()[:30]:
+        m = HEADER.match(line.strip())
+        if m and m.group(1).lower() == "decision":
+            return m.group(2).strip()
+    return ""
+
+
+def _finding_title(f: dict) -> str:
+    for key in ("title", "probe", "evidence"):
+        v = f.get(key)
+        if isinstance(v, str) and v.strip():
+            return _clip(next(line for line in v.splitlines() if line.strip()))
+    return ""
+
+
+def load_findings(root: Path, did: str):
+    """(summary, findings) of `reviews/<id>/findings.toml`; (None, []) when
+    absent. A file that cannot be read as TOML, or a `finding` that is not
+    a list of tables, is named in `error`, never raised."""
+    p = root / "reviews" / did / "findings.toml"
+    if not p.is_file():
+        return None, []
+    summary: dict = {"path": _rel(root, p), "findings": None, "by_severity": {},
+                     "blocking": 0, "error": None}
+    try:
+        data = tomllib.loads(_read(p))
+    except (tomllib.TOMLDecodeError, ValueError) as e:
+        summary["error"] = f"not valid TOML: {_clip(str(e))}"
+        return summary, []
+    rows = data.get("finding", [])
+    if not isinstance(rows, list):
+        rows, summary["error"] = [], "`finding` is not a list of [[finding]] tables"
+    findings = []
+    for i, f in enumerate(rows, 1):
+        if not isinstance(f, dict):
+            summary["error"] = "a `finding` entry is not a table"
+            continue
+        sev = f.get("severity")
+        sev = sev.strip().lower() if isinstance(sev, str) and sev.strip() else "unset"
+        fid = f.get("id")
+        findings.append({"id": _clip(str(fid)) if fid not in (None, "") else f"#{i}",
+                         "severity": sev, "blocking": f.get("blocking") is True,
+                         "title": _finding_title(f)})
+    summary["findings"] = len(findings)
+    for f in findings:
+        summary["by_severity"][f["severity"]] = \
+            summary["by_severity"].get(f["severity"], 0) + 1
+    summary["blocking"] = sum(1 for f in findings if f["blocking"])
+    return summary, findings
+
+
+def _promotion(root: Path, did: str, cycle: Cycle | None):
+    """The cycle's promotion.md, else the old `promotions/<id>/` file."""
+    if cycle and cycle.layout == "directory" and "promotion.md" in cycle.artifacts:
+        p = cycle.path / "promotion.md"
+        return {"path": _rel(root, p), "decision": _clip(_decision(p))}
+    d = root / "promotions" / did
+    try:
+        files = sorted(p for p in d.iterdir() if p.is_file() and p.suffix == ".md")
+    except OSError:
+        return None
+    if not files:
+        return None
+    p = d / "decision.md" if (d / "decision.md") in files else files[0]
+    return {"path": _rel(root, p), "decision": _clip(_decision(p))}
+
+
+def load_demands(root: Path, cycles: list[Cycle], problems: list[str]) -> list[dict]:
+    """Every `specs/<id>/` (bare or `<id>-<slug>`), in id order, with its
+    cycle link, review summary and promotion. Old layout: the directory
+    holds acceptance.md (before kernel ADR-0019)."""
+    d = root / "specs"
+    try:
+        entries = sorted(p for p in d.iterdir() if p.is_dir()
+                         and not p.name.startswith("."))
+    except OSError:
+        return []
+    linked: dict[str, tuple[Cycle, dict]] = {}
+    for c in cycles:
+        for row in c.demands:
+            linked.setdefault(row["id"].upper(), (c, row))
+    by_id = {c.id: c for c in cycles}
+    out: list[dict] = []
+    seen: dict[str, str] = {}
+    for p in entries:
+        m = SPEC_DIR.match(p.name)
+        if not m:
+            continue
+        did = m.group(1).upper()
+        if did in seen:
+            problems.append(f"specs/{seen[did]} and specs/{p.name} both read as "
+                            f"{did}; the first is used")
+            continue
+        seen[did] = p.name
+        spec = p / "spec.md"
+        fields = _spec_fields(_read(spec)) if spec.is_file() else {}
+        cid, cycle, source, layer = None, None, None, ""
+        if did in linked:
+            cycle, row = linked[did]
+            cid, source, layer = cycle.id, "plan", row["layer"]
+        else:
+            cm = re.match(r"[`*]*(C-\d+)(?!\d)", fields.get("cycle", ""), re.I)
+            if cm:
+                cid, source = cm.group(1).upper(), "spec"
+                cycle = by_id.get(cid)
+        review, _ = load_findings(root, did)
+        follows = []
+        for n in ADR_REF.findall(fields.get("follows", "")):
+            if f"ADR-{n}" not in follows:
+                follows.append(f"ADR-{n}")
+        out.append({
+            "id": did, "dir": _rel(root, p),
+            "spec": _rel(root, spec) if spec.is_file() else None,
+            "layout": "old" if (p / "acceptance.md").is_file() else "new",
+            "cycle": cid, "cycle_source": source, "loose": cid is None,
+            "layer": _clip(layer or fields.get("layer", "")),
+            "follows": follows, "review": review,
+            "promotion": _promotion(root, did, cycle),
+        })
+    return sorted(out, key=lambda x: (x["id"].rsplit("-", 1)[0], _num(x["id"])))
+
+
+def adr_files(root: Path) -> dict[int, Path]:
+    try:
+        files = sorted((root / "docs" / "adr").iterdir())
+    except OSError:
+        return {}
+    out: dict[int, Path] = {}
+    for p in files:
+        m = ADR_FILE.match(p.name)
+        if m and p.is_file():
+            out.setdefault(int(m.group(1)), p)
+    return out
+
+
+def show_demand(root: Path, d: dict, findings: list[dict]) -> list[str]:
+    out = [f"DEMAND {d['id']}"]
+    link = "none (loose)" if d["loose"] else \
+        f"{d['cycle']} ({'plan' if d['cycle_source'] == 'plan' else 'spec cycle: line'})"
+    out.append(f"  cycle:     {link}")
+    out.append(f"  layer:     {d['layer'] or '—'}")
+    out.append(f"  layout:    {d['layout']}  {d['dir']}")
+    out.append(f"  spec:      {d['spec'] or '(no spec.md)'}")
+    rev = d["review"]
+    if rev is None:
+        out.append("  review:    none")
+    elif rev["findings"] is None:
+        out.append(f"  review:    {rev['path']} — {rev['error']}")
+    else:
+        sev = ", ".join(f"{k} {s}" for s, k in rev["by_severity"].items())
+        out.append(f"  review:    {rev['path']} — {rev['findings']} findings"
+                   f"{f' ({sev})' if sev else ''}, {rev['blocking']} blocking")
+        if rev["error"]:
+            out.append(f"    ({rev['error']})")
+        out += [f"    {f['id']}  {f['severity']}  {'blocking' if f['blocking'] else '—'}"
+                f"  {f['title'] or '—'}" for f in findings]
+    pro = d["promotion"]
+    out.append(f"  promotion: {pro['path']} — {pro['decision'] or '(no decision: line)'}"
+               if pro else "  promotion: none")
+    adrs = adr_files(root)
+    if d["follows"]:
+        out.append("  follows:")
+        for ref in d["follows"]:
+            p = adrs.get(int(ref.split("-")[1]))
+            if p is None:
+                out.append(f"    {ref}  (no file in docs/adr/)")
+                continue
+            title = next((line for line in _read(p).splitlines() if line.strip()), "")
+            out.append(f"    {ref}  {_rel(root, p)} — {_clip(title.lstrip('# '))}")
+    else:
+        out.append("  follows:   —")
+    if d["spec"]:
+        out += ["", f"SPEC {d['spec']}", _read(root / d["spec"]).rstrip()]
+    return out
+
+
 def as_json(cycles: list[Cycle], backlog, warns: list[str], parts,
-            nxt: dict) -> dict:
+            nxt: dict, root: Path | None = None,
+            demands: list[dict] | None = None) -> dict:
     """The text view's content; `parts` names which of cycles/backlog."""
     data: dict = {"warnings": warns, "next": nxt}
     if "cycles" in parts:
@@ -588,9 +818,12 @@ def as_json(cycles: list[Cycle], backlog, warns: list[str], parts,
             "done": dict(c.counts, source=c.done_source,
                          items=[{"mark": m, "text": t} for m, t in c.done]),
             "artifacts": c.artifacts,
+            "artifact_paths": cycle_paths(root, c) if root else [],
             "backlog_lines": owned_lines(c.id, backlog, "line"),
             "legacy_next": c.legacy_next,
         } for c in cycles]
+        if demands is not None:
+            data["demands"] = demands
     if "backlog" in parts:
         data["backlog"] = None if backlog is None else {"sections": [
             {"heading": heading, "items": [
@@ -612,6 +845,8 @@ def main(argv=None) -> int:
     part.add_argument("--cycle", metavar="C-N", help="one cycle in full")
     part.add_argument("--backlog", action="store_true", help="backlog only")
     part.add_argument("--cycles", action="store_true", help="cycles only")
+    part.add_argument("--demand", metavar="ID",
+                      help="one demand: spec, findings, promotion, ADRs")
     ap.add_argument("--format", choices=("text", "json"), default="text",
                     help="text (default) or json with the same content")
     args = ap.parse_args(argv)
@@ -628,6 +863,7 @@ def main(argv=None) -> int:
     cycles = load_cycles(root, problems)
     backlog = load_backlog(root, problems)
     nxt = next_ids(root, cycles)
+    demands = load_demands(root, cycles, problems)
 
     if args.cycle:
         match = [c for c in cycles if c.id.lower() == args.cycle.strip().lower()]
@@ -636,15 +872,27 @@ def main(argv=None) -> int:
             return 2
         if args.format == "json":
             return emit_json(as_json(match, backlog, warnings(cycles, backlog, problems),
-                                     ("cycles",), nxt))
+                                     ("cycles",), nxt, root))
         print("\n".join(show_cycle(match[0], backlog, "CYCLE")))
+        return 0
+
+    if args.demand:
+        match = [d for d in demands if d["id"] == args.demand.strip().upper()]
+        if not match:
+            print(f"status: no demand {args.demand} in specs/", file=sys.stderr)
+            return 2
+        _, findings = load_findings(root, match[0]["id"])
+        if args.format == "json":
+            return emit_json({"warnings": warnings(cycles, backlog, problems),
+                              "demand": dict(match[0], findings=findings)})
+        sys.stdout.write("\n".join(show_demand(root, match[0], findings)) + "\n")
         return 0
 
     warns = warnings(cycles, backlog, problems)
     if args.format == "json":
         parts = [p for p, off in (("cycles", args.backlog), ("backlog", args.cycles))
                  if not off]
-        return emit_json(as_json(cycles, backlog, warns, parts, nxt))
+        return emit_json(as_json(cycles, backlog, warns, parts, nxt, root, demands))
     out = [f"WARNING {w}" for w in warns]
     if out:
         out.append("")

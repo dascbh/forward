@@ -440,7 +440,8 @@ class TestJson(StatusCase):
 
     def test_round_trip(self):
         data = self.load()
-        self.assertEqual(set(data), {"warnings", "next", "cycles", "backlog"})
+        self.assertEqual(set(data), {"warnings", "next", "cycles", "backlog",
+                                     "demands"})
         by_id = {c["id"]: c for c in data["cycles"]}
         self.assertEqual([c["id"] for c in data["cycles"]], ["C-1", "C-2", "C-5", "C-6"])
         self.assertEqual(by_id["C-1"]["state"], "closed")
@@ -485,7 +486,8 @@ class TestJson(StatusCase):
 
     def test_selectors_narrow_json(self):
         self.assertEqual(set(self.load("--backlog")), {"warnings", "next", "backlog"})
-        self.assertEqual(set(self.load("--cycles")), {"warnings", "next", "cycles"})
+        self.assertEqual(set(self.load("--cycles")),
+                         {"warnings", "next", "cycles", "demands"})
         one = self.load("--cycle", "C-5")
         self.assertEqual([c["id"] for c in one["cycles"]], ["C-5"])
 
@@ -730,6 +732,216 @@ class TestClosedCycleNeedsPromotion(StatusCase):
         self.write("cycles/C-6/plan.md", "objective: gave up\nabandoned: 2026-10-01\n")
         out = run(self.root).stdout
         self.assertNotIn("is closed", out)
+
+
+# FWD-034: the demands inventory — both layouts, a slugged and a bare spec
+# directory, a loose demand, a malformed findings.toml
+OLD_FILE_CYCLE = """cycle: C-1
+objective: the old layout
+closed: 2026-08-09
+demands: FWD-001 (S)
+
+## Done when
+- [x] FWD-001 done
+"""
+
+DEMANDS_PLAN = """cycle: C-3
+state: running
+objective: the new layout
+
+## Acceptance criteria
+
+- **A1 — one.** first
+
+## Demands
+
+| id | layer | depends on | what | meets | follows |
+|---|---|---|---|---|---|
+| FWD-030 | back | — | the reader | A1 | ADR-0019 |
+| FWD-033 | front | FWD-030 | no spec yet | A1 | — |
+"""
+
+OLD_FINDINGS = '''[meta]
+demand_id = "FWD-001"
+
+[[finding]]
+id = "F1"
+severity = "high"
+probe = "probe one | with a pipe"
+blocking = true
+
+[[finding]]
+severity = "low"
+evidence = """
+first evidence line
+second"""
+blocking = false
+'''
+
+NEW_FINDINGS = """[[finding]]
+id = "F1"
+title = "the reader drops a row"
+severity = "medium"
+blocking = false
+"""
+
+
+class DemandsCase(StatusCase):
+    def setUp(self):
+        super().setUp()
+        w = self.write
+        w("cycles/C-1.md", OLD_FILE_CYCLE)
+        w("cycles/C-3/plan.md", DEMANDS_PLAN)
+        w("cycles/C-3/board.md", "# board\n")
+        w("cycles/C-3/promotion.md", "cycle: C-3\ndecision: promote\n\n"
+          "## Criteria\n\n- A1 — ok — met\n")
+        w("reviews/C-3/findings.toml", "")
+        # old layout, slugged, linked by the old file's demands: line
+        w("specs/FWD-001-self-install/spec.md", "# FWD-001 — self install\n\nold spec body\n")
+        w("specs/FWD-001-self-install/acceptance.md", "date: 2026-08-09\n")
+        w("reviews/FWD-001/findings.toml", OLD_FINDINGS)
+        w("promotions/FWD-001/decision.md", "---\ndemand: FWD-001\n"
+          "decision: promote\n---\n")
+        # old layout, bare directory, linked by nothing: loose
+        w("specs/FWD-002/spec.md", "# FWD-002 — loose\n")
+        w("specs/FWD-002/acceptance.md", "date: 2026-08-09\n")
+        w("promotions/FWD-002/decision.md", "decision: hold\n")
+        # new layout, linked by the plan's table
+        w("specs/FWD-030-panel/spec.md", "# FWD-030 — panel\n\ncycle: C-3 · "
+          "layer: back · meets: A1 · follows: ADR-0019 rules 9, ADR-0018\n\nbody\n")
+        w("reviews/FWD-030/findings.toml", NEW_FINDINGS)
+        # new layout, linked only by its own cycle: line
+        w("specs/FWD-031-retire/spec.md", "# FWD-031\n\ncycle: C-3 · layer: front\n")
+        # a malformed findings.toml
+        w("specs/FWD-032-coherence/spec.md", "# FWD-032\n\nfollows: ADR-0099\n")
+        w("reviews/FWD-032/findings.toml", "[[finding]\nseverity = \n")
+        w("docs/adr/0019-backlog-cycle-demand.md", "# ADR-0019 — Backlog, cycle, demand\n")
+        w("docs/adr/0018-status-is-a-report.md", "# ADR-0018 — Status is a report\n")
+
+    def load(self, *args):
+        r = run(self.root, "--format", "json", *args)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)
+
+
+class TestDemands(DemandsCase):
+    """FWD-034 / A3, A4, A6: every specs/<id>/ with its cycle link, review
+    summary and promotion; per-cycle artifact paths; --demand."""
+
+    def demands(self):
+        return {d["id"]: d for d in self.load()["demands"]}
+
+    def test_every_spec_directory_is_a_demand(self):
+        self.assertEqual(sorted(self.demands()),
+                         ["FWD-001", "FWD-002", "FWD-030", "FWD-031", "FWD-032"])
+
+    def test_cycle_link_from_table_file_line_and_spec_line(self):
+        d = self.demands()
+        self.assertEqual((d["FWD-030"]["cycle"], d["FWD-030"]["cycle_source"]),
+                         ("C-3", "plan"))
+        self.assertEqual(d["FWD-030"]["layer"], "back")
+        self.assertEqual((d["FWD-001"]["cycle"], d["FWD-001"]["cycle_source"]),
+                         ("C-1", "plan"))
+        self.assertEqual((d["FWD-031"]["cycle"], d["FWD-031"]["cycle_source"]),
+                         ("C-3", "spec"))
+        self.assertEqual(d["FWD-031"]["layer"], "front")
+        # FM2: a demand no cycle links is listed, and loose
+        self.assertIsNone(d["FWD-002"]["cycle"])
+        self.assertTrue(d["FWD-002"]["loose"])
+        self.assertFalse(d["FWD-030"]["loose"])
+
+    def test_layouts_and_paths(self):
+        d = self.demands()
+        self.assertEqual(d["FWD-001"]["layout"], "old")
+        self.assertEqual(d["FWD-030"]["layout"], "new")
+        self.assertEqual(d["FWD-001"]["dir"], "specs/FWD-001-self-install")
+        self.assertEqual(d["FWD-001"]["spec"], "specs/FWD-001-self-install/spec.md")
+        self.assertEqual(d["FWD-030"]["follows"], ["ADR-0019", "ADR-0018"])
+
+    def test_review_summary(self):
+        d = self.demands()
+        self.assertEqual(d["FWD-001"]["review"],
+                         {"path": "reviews/FWD-001/findings.toml", "findings": 2,
+                          "by_severity": {"high": 1, "low": 1}, "blocking": 1,
+                          "error": None})
+        self.assertEqual(d["FWD-030"]["review"]["by_severity"], {"medium": 1})
+        self.assertIsNone(d["FWD-031"]["review"])
+
+    def test_malformed_findings_do_not_traceback(self):
+        r = run(self.root, "--format", "json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+        rev = {d["id"]: d for d in json.loads(r.stdout)["demands"]}["FWD-032"]["review"]
+        self.assertIsNone(rev["findings"])
+        self.assertTrue(rev["error"])
+        r = run(self.root, "--demand", "FWD-032")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertIn("not valid TOML", r.stdout)
+
+    def test_malformed_shapes_do_not_traceback(self):
+        for body in ('finding = "text"\n', "[[finding]]\nseverity = 3\nblocking = 'yes'\n",
+                     "finding = [1, 2]\n", b"\xff\xfe[[finding]]\n"):
+            self.write("reviews/FWD-032/findings.toml", body, raw=isinstance(body, bytes))
+            for args in (("--format", "json"), ("--demand", "FWD-032")):
+                r = run(self.root, *args)
+                self.assertEqual(r.returncode, 0, (body, args, r.stderr))
+                self.assertNotIn("Traceback", r.stderr)
+
+    def test_promotion_from_cycle_or_old_directory(self):
+        d = self.demands()
+        self.assertEqual(d["FWD-030"]["promotion"],
+                         {"path": "cycles/C-3/promotion.md", "decision": "promote"})
+        self.assertEqual(d["FWD-001"]["promotion"],
+                         {"path": "promotions/FWD-001/decision.md", "decision": "promote"})
+        self.assertEqual(d["FWD-002"]["promotion"]["decision"], "hold")
+        self.assertIsNone(d["FWD-032"]["promotion"])
+
+    def test_cycle_artifact_paths(self):
+        cycles = {c["id"]: c for c in self.load()["cycles"]}
+        self.assertEqual(cycles["C-3"]["artifact_paths"],
+                         ["cycles/C-3/plan.md", "cycles/C-3/board.md",
+                          "cycles/C-3/promotion.md", "reviews/C-3/findings.toml"])
+        self.assertEqual(cycles["C-1"]["artifact_paths"], ["cycles/C-1.md"])
+
+    def test_demand_drill_down(self):
+        r = run(self.root, "--demand", "fwd-030")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = r.stdout
+        self.assertIn("DEMAND FWD-030", out)
+        self.assertIn("specs/FWD-030-panel/spec.md", out)
+        self.assertIn("\nbody\n", out)  # the spec text
+        self.assertIn("F1  medium  —  the reader drops a row", out)
+        self.assertIn("cycles/C-3/promotion.md — promote", out)
+        self.assertIn("ADR-0019  docs/adr/0019-backlog-cycle-demand.md", out)
+        self.assertIn("ADR-0018  docs/adr/0018-status-is-a-report.md", out)
+        old = run(self.root, "--demand", "FWD-001").stdout
+        self.assertIn("F1  high  blocking  probe one | with a pipe", old)
+        self.assertIn("#2  low  —  first evidence line", old)
+        self.assertIn("promotions/FWD-001/decision.md — promote", old)
+        missing = run(self.root, "--demand", "FWD-032").stdout
+        self.assertIn("ADR-0099  (no file in docs/adr/)", missing)
+
+    def test_demand_json(self):
+        data = self.load("--demand", "FWD-001")
+        self.assertEqual(data["demand"]["id"], "FWD-001")
+        self.assertEqual([f["id"] for f in data["demand"]["findings"]], ["F1", "#2"])
+
+    def test_bad_demand_id_is_a_bad_argument(self):
+        r = run(self.root, "--demand", "FWD-999")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("FWD-999", r.stderr)
+        # in a plan's table but without a spec directory: not a demand on disk
+        self.assertEqual(run(self.root, "--demand", "FWD-033").returncode, 2)
+
+    def test_read_only(self):
+        def snapshot():
+            return sorted((str(p.relative_to(self.root)), p.stat().st_mtime_ns)
+                          for p in self.root.rglob("*"))
+        before = snapshot()
+        for args in ((), ("--format", "json"), ("--demand", "FWD-001")):
+            run(self.root, *args)
+        self.assertEqual(before, snapshot())
 
 
 if __name__ == "__main__":
