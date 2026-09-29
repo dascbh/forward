@@ -1,0 +1,94 @@
+# Adversarial review report — cycle mode (ADR-0019 rule 12)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "C-13"
+kind = "cycle"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+mode = "cycle"
+rounds_planned = 1                 # S: one round
+round = 1
+commit = "9368d1d"
+agent_transcript = "agent-a08dd8b509eb4ce7d"
+probed = [
+  "git log -1 = 9368d1d (FWD-036: review by weight)",
+  "python3 -m unittest discover -s tests: 629 tests OK; python3 bin/fde/verify.py --all: all gates passed",
+  "cold read of AGENTS.md steps 1-8, skills/fde-review, agents/fde-adversarial, skills/fde-triage, agents/fde-spec for five cases: one-line front demand in a signed-off S plan; back demand in a sensitive project; diff over 300 lines; M plan before sign-off; cycle review",
+  "scratch fixture (tests/test_verify.py helpers): promoted C-1, FWD-121 front, reviews/FWD-121/findings.toml = installed template with kind = code + one MNT-10 finding -> I2, TRACE, I8 exit 0",
+  "same fixture: reviews/C-1/findings-plan.toml kind = plan, finding with neither probe nor principle -> I8 fails (read); with context_policy removed -> I2 still passes (not read)",
+  "description word counts over skills/*/SKILL.md and agents/*.md: max 40 (fde-verify, fde-backlog, fde-walkthrough, fde-status); AGENTS.md wc -w = 1599",
+  "diff skills/fde-review vs .claude copy: empty; templates/findings.template.toml vs .fde copy: empty; agents/fde-adversarial vs .claude copy: only the generated header and the rendered attack order",
+  "fde.config.toml kernel_version = 0.20.0; README.md:300; ls reviews/ for FWD-036",
+]
+notes = [
+  "FM2 holds: a kind = code record filled from the installed template passes I2, TRACE and I8 on a scratch fixture; a code record without context_policy still fails I2 (tests/test_verify.py TestCodeReviewRecordPassesTheGate).",
+  "Case 1 (one-line front demand, signed-off S plan) and case 5 (cycle review) are decided unambiguously and identically in AGENTS.md step 5, fde-review and fde-adversarial.",
+  "Case 3 (diff over ~300 lines) is decided by the same sentence in all three texts; fde-triage and fde-review 'Change sizing' say the overrun goes on the board and review proceeds, which is consistent with the switch to adversarial but never says who measures 'production lines' at review time.",
+  "A plan review recorded in reviews/C-<n>/findings-plan.toml is read by I8 but not by I2 (confirmed on the fixture); already captured as B-50.",
+  "Front code review checks 'design QA against the approved wireframe'; at XS/S there may be no wireframe, and no text says what the front layer check is then.",
+  "The fde-adversarial definition this session was launched with still carried the old demand/cycle modes (the harness loaded it before 9368d1d); the committed agents/ and .claude/agents/ copies carry the four modes.",
+  "Release not yet done, as expected: kernel_version 0.20.0; deploy.md rollback range a9d37f8..<release sha> starts at C-12's close, which covers C-13's three commits.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "high"
+principle = "MNT-4"
+probe = "cold read, case 'an M plan before sign-off': follow fde-triage (announce line), agents/fde-spec (stop at sign-off) and AGENTS.md steps 1-3 in order"
+evidence = """
+The rule 'An M/L plan, before sign-off: adversarial plan review' lives only in AGENTS.md step 5 'Review the demand', which comes after step 3 'Sign-off', and in fde-review / fde-adversarial.
+The texts that run before sign-off never name it:
+- AGENTS.md step 1: 'Announce the size in one line, commit plan.md, and stop at the sign-off'; 'Size sets only the planner's depth and the cycle review rounds'.
+- skills/fde-triage/SKILL.md:90 announce template for M: 'spec + architecture + impl + demand review(1r) + cycle review(full+delta) + promotion' — no plan review.
+- agents/fde-spec.md:49-51: 'Stop at the sign-off: the user signs plan.md once'.
+A cold agent sizing an M cycle announces, plans and stops for sign-off without ever scheduling the plan review; it meets the rule only on reaching step 5, when the plan is already signed and frozen.
+FM1's pins cover AGENTS.md step 5, fde-review and fde-adversarial only, so the disagreement with fde-triage and fde-spec is not detected. B-52 records the step-1 sentence but not the triage announce line or fde-spec's stop.
+Inside the threat model: a cooperative agent choosing too light a review, on the case ADR-0021 names as the costliest catch.
+"""
+blocking = false  # A2's letter holds (the named texts do send the plan to review); the sequence that skips it is a text-placement defect. Backlog.
+backlog = true
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "case the spec does not cover: 'a back demand in a sensitive project' read against AGENTS.md step 1 and step 5"
+evidence = """
+Step 5 sends 'a sensitive or irreversible demand' to adversarial review, but step 1 says sensitivity is judged on the cycle ('Size is set on the cycle, never on a demand. Inputs are judged for THIS cycle').
+No text defines when a single demand is sensitive, and neither the demand spec nor plan.md's demand table carries a sensitive/irreversible field (templates/cycle/plan.md has none).
+The demand also matches the first sentence ('A coding demand inside a signed-off plan: isolated code review'), and no text states which rule wins when both match.
+A cold agent can defend either answer. The step-1 rule 'Unsure on either -> true' and the Detail rule 'take the stricter reading' push toward adversarial, which is why this is not higher.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F3"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-13"
+probe = "readiness: ls reviews/ for FWD-036; read cycles/C-13/board.md against plan.md's triage note 'reviewed under the rule it ships (code review, kind = code)'"
+evidence = """
+reviews/FWD-036/ does not exist, and board.md has no review line for FWD-036 (claim, built, nothing after), although 9368d1d is on main.
+The plan declares that the one demand is reviewed under the rule it ships, as a code review with kind = code; that record is the first real use of the new mode and is absent.
+The gate stays green because the cycle is not promoted yet (I2/TRACE only require reviews for a promoted cycle's demands).
+This repeats C-12 F2 (B-39): a demand merged without its review record.
+"""
+blocking = false  # A1-A6 do not name the demand review; promotion cannot cite one until it exists
+backlog = true
+
+[[finding]]
+id = "F4"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-10"
+probe = "readiness: README.md 'Day-to-day' skill list read against ADR-0021"
+evidence = """
+README.md:300-301: '`fde-review` — two-pass review, isolated: adversarial probes, then heuristic judgment citing the principle catalogs'.
+After FWD-036 the default demand review is a code review with no probe hunt; adversarial is for sensitive, irreversible or oversized demands, and the plan review is new. The README still describes every review as an adversarial probe pass and names neither code nor plan mode.
+The skill's own description was updated ('Runs the isolated review sized by risk: code, adversarial, plan or cycle'); the README line that summarizes it was not. It is the one reader-facing doc 9368d1d did not touch.
+"""
+blocking = false
+backlog = true
