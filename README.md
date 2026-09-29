@@ -182,6 +182,8 @@ A role is not a job title. `spec/roles.toml` defines six because each one has
 **different access** — tools, context, artifacts. A role running the same
 model, in the same context, with the same tools as another is the same role in
 a different hat, and the "architect" approves what they themselves designed.
+"All five roles" means the five working roles; the walkthrough evaluator is a
+sixth role that writes nothing.
 
 What produces real separation: `denied_tools` (the role cannot), `isolation`
 (the role does not see), artifact handoff (I7).

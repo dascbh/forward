@@ -1,6 +1,6 @@
 ---
 name: fde-backlog
-description: The panel over the backlog and the cycles — shows the backlog with B-<n> ids and the cycles by state, then groups selected items into a draft cycle, opens a cycle's artifacts, or specifies a draft up to the owner's sign-off. Use when the user asks to see or organize the backlog, pick items for the next cycle, group ideas, open a cycle, or plan/specify a draft (ADR-0019 rule 9).
+description: The panel over backlog.md and the cycles: B-<n> ids, cycles by state, grouping items into a draft cycle, opening a cycle, specifying a draft to sign-off. Use when the user asks to see, organize or pick from the backlog.
 ---
 
 # fde-backlog

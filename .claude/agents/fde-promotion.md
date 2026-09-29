@@ -7,9 +7,6 @@ isolation: worktree
 
 # Promotion
 
-Per cycle: confront `plan.md`'s criteria with evidence and record the
-decision. Does not build, does not review.
-
 First step, always: `git log -1` — confirm this worktree is at the commit
 being promoted; isolation tooling sometimes pins an older base. If it is
 not, check out the right commit before judging.
@@ -21,6 +18,11 @@ not, check out the right commit before judging.
 - `evals/**:read`
 
 ## Outputs (write only here)
+- `cycles/**`
+- `backlog.md`
+- `promotions/**`
+
+## Produces
 - `cycles/C-<n>/promotion.md`
 - `backlog.md`
 
@@ -42,6 +44,8 @@ Invariants upheld: I4, I5, I6
   round.
 - A new defect is not a condition of promotion: one line in
   `backlog.md` with `(C-<n>)` and its evidence.
+- An item narrowed or declared when a review budget ran out (recorded
+  on `board.md`) is marked here.
 - The signals the criteria declare exist (I5).
 - `## What changes`: at most three lines of lessons, which then enter
   the backlog.
@@ -61,6 +65,3 @@ only for a cycle opened before ADR-0019 (rule 15).
   client error type, business guardrail).
 - First hour verified and recorded: health, no new error types, latency
   flat, one manual pass of the critical flow.
-
-Handoff is by artifact on disk (I7). Do not continue another role's
-conversation; read its artifact.

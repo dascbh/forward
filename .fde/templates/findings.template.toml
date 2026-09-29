@@ -5,7 +5,7 @@
 demand_id = "{{DEMAND_ID}}"
 context_policy = "artifact_only"   # I2: no builder context
 isolation_mode = "worktree"
-rounds_planned = {{ROUNDS_PLANNED}}   # the size's budget: XS/S 1, M 2, L 3 — never extended
+rounds_planned = {{ROUNDS_PLANNED}}   # demand review 1; cycle review XS/S 1, M/L 2 — never extended
 # round = 1                          # 1 is full; every later round is delta
 # notes = []                         # one line per observation past the cap of five findings
 # agent_transcript = "agent-<id>"  # your worktree directory name — links this
@@ -19,7 +19,7 @@ rounds_planned = {{ROUNDS_PLANNED}}   # the size's budget: XS/S 1, M 2, L 3 — 
 # severity  = "critical"   # critical | high | medium | low
 # probe     = "injection via observed content"
 # evidence  = "path:line or reproducible step"
-# blocking  = true         # only critical/high, inside the spec's threat model,
+# blocking  = true         # only critical/high, inside the plan's threat model,
 #                          # breaking a declared criterion — never weight alone
 
 # [[finding]]

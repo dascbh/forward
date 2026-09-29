@@ -32,3 +32,15 @@ artifacts — that is what I7 is for.
 Skills lost their "declare/report" phrasing; review rounds go to
 findings.toml metadata. A framework that needs constant explaining is
 not done — invisibility is the bar.
+
+## Note — 2026-09-29 (FWD-033): the loaded text has a budget
+
+AGENTS.md and every skill and agent `description:` load in every
+session, so they carry rules and pointers only: AGENTS.md at most 1,600
+words, each description at most 40 words of trigger phrases
+(`tests/test_instructions.py` `TestTerse`). Rationale, history and
+citations live in the ADR that owns the decision. A second reason to
+stay small: Codex truncates AGENTS.md at 32 KiB without warning. The
+tool-tier honesty `fde-doctor` reports is the same bar applied to
+enforcement: promising parity across tools and delivering it in two of
+five is what burns an open framework.

@@ -6,9 +6,6 @@ model: inherit
 
 # Specification
 
-Plan the cycle, then derive its demands (ADR-0019). The measure exists
-BEFORE any code does.
-
 ## Inputs
 - `discovery/**`
 - `backlog.md`
@@ -16,6 +13,12 @@ BEFORE any code does.
 - `fde.config.toml`
 
 ## Outputs (write only here)
+- `specs/**`
+- `discovery/**`
+- `cycles/**`
+- `backlog.md`
+
+## Produces
 - `cycles/C-<n>/plan.md`
 - `cycles/C-<n>/deploy.md`
 - `specs/<demand-id>/spec.md`
@@ -53,6 +56,3 @@ the plan needs another demand — say so instead of writing it.
 
 A fact that invalidates the plan's criteria or an ADR stops the demand:
 the cycle replans. Any other new fact goes to `backlog.md`.
-
-Handoff is by artifact on disk (I7). Do not continue another role's
-conversation; read its artifact.

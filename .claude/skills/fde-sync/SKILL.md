@@ -1,6 +1,6 @@
 ---
 name: fde-sync
-description: Updates the kernel and re-emits everything from it — one command. Use when the user asks to update, upgrade or sync FORWARD, to pull a new kernel version, when they change weights, switch or add an agentic tool, add a stack to the project, when a file carrying the FDE-KERNEL:GENERATED marker looks inconsistent with the configuration, or when they ask why a rule "is not kicking in" or "disappeared".
+description: Updates the kernel and re-emits everything from it. Use when the user asks to update, upgrade or sync FORWARD, changes weights, tools or stack, a generated file looks inconsistent, or a rule "is not kicking in".
 ---
 
 # fde-sync

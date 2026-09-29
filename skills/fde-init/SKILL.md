@@ -1,6 +1,6 @@
 ---
 name: fde-init
-description: Sets a project up under the FDE kernel — you, the agent, are the installer; detect the stack, interview only what files cannot tell, write fde.config.toml, install the gate runtime, and emit the native layer for your own tool. Use whenever the user asks to adopt, install, set up, or configure the kernel (or "forward") in a repository, or asks to build something in a repo that has no fde.config.toml yet.
+description: Installs the FDE kernel in a project; you, the agent, are the installer. Use when the user asks to adopt, install, set up or configure the kernel (or "forward"), or to build in a repo with no fde.config.toml.
 ---
 
 # fde-init

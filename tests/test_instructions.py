@@ -118,18 +118,32 @@ class TestRuleLaneIsAParagraphNotATableRow(unittest.TestCase):
                             f"{rel}: RULE paragraph must precede the "
                             f"score-boundary sentence, never follow it")
 
+    R5 = ("Categorically distinct", "data_class", "reversible",
+          "rule_lane_max_loc", "eval_paths",
+          "eval-coverage` gate is completely unchanged",
+          "verified_by` primacy")
+
     def test_rule_paragraph_says_what_r5_requires(self):
-        # content only, in each surface on its own; their byte identity is
-        # the agents-md pair in tests/mirror.toml (FWD-020)
+        # FWD-033 (A9, FM3): AGENTS.md keeps a pointer paragraph; the R5
+        # conditions moved, verbatim, to fde-triage's ## RULE, which the
+        # pointer names. Content only, in each surface on its own; their
+        # byte identity is tests/mirror.toml (FWD-020)
         for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
             text = read(rel)
             start = text.index("**RULE, checked mechanically")
-            para = text[start:text.index(self.SCORE_SENTENCE)]
-            for needle in ("Categorically distinct", "data_class",
-                           "reversible", "rule_lane_max_loc", "eval_paths",
-                           "eval-coverage` gate is completely unchanged",
-                           "verified_by` primacy"):
+            para = " ".join(text[start:text.index(self.SCORE_SENTENCE)].split())
+            for needle in ("Categorically distinct", "`rule-lane` gate",
+                           "`fde-triage`", "ADR-0015"):
                 self.assertIn(needle, para, f"{rel}: {needle}")
+        for rel in ("skills/fde-triage/SKILL.md",
+                    ".claude/skills/fde-triage/SKILL.md"):
+            rule = " ".join(section(read(rel), "RULE").split())
+            for needle in self.R5:
+                self.assertIn(needle.lower(), rule.lower(), f"{rel}: {needle}")
+            for needle in ("merge commit", "binary file",
+                           "`FORWARD: RULE — <one-line reason>`",
+                           "re-verifies the claim against the real diff"):
+                self.assertIn(needle, rule, f"{rel}: {needle}")
 
 
 class TestBoundedReview(unittest.TestCase):
@@ -240,6 +254,13 @@ class TestDeclaredCycle(unittest.TestCase):
         "rationale": "the rationale is ADR-0019",
     }
 
+    # reviews/FWD-032 F4: ## Cycle defines the spent budget, once
+    BUDGET_RULE = ("A review budget spent with a blocking finding open is "
+                   "the owner's call: narrow, declare the limit, or pause. "
+                   "The choice is recorded on `board.md`; a narrowed or "
+                   "declared item is marked in `promotion.md` at close, and "
+                   "`plan.md` stays frozen.")
+
     # the layout lives in ## Cycle
     LAYOUT = ("`plan.md`", "`deploy.md`", "`board.md`", "`review.md`",
               "`promotion.md`", "`.fde/templates/cycle/`",
@@ -283,10 +304,12 @@ class TestDeclaredCycle(unittest.TestCase):
         # requests elsewhere say the same thing as ## Cycle
         for rel in self.SURFACES:
             flat = self.flat(rel)
-            self.assertIn("Budget spent with a blocker open → replan "
-                          "(`## Cycle`): the user narrows, declares the "
-                          "limit, or pauses; never one more round "
+            # reviews/FWD-032 F4: the loop points at ## Cycle, which holds
+            # the owner's three options and where the choice is recorded
+            self.assertIn("Budget spent with a blocker open → the owner "
+                          "picks (`## Cycle`); never one more round "
                           "(`fde-review`).", flat, rel)
+            self.assertIn(self.BUDGET_RULE, self.cycle(rel), rel)
             # FWD-031: sprints are retired, so there is no retro to surface at
             self.assertIn("\"Fix it NOW\" skips the backlog order, never the "
                           "open cycle (`## Cycle`): it becomes the next "
@@ -297,15 +320,18 @@ class TestDeclaredCycle(unittest.TestCase):
         for rel in ("skills/fde-review/SKILL.md", ".claude/skills/fde-review/SKILL.md"):
             flat = " ".join(read(rel).split())
             self.assertIn("When the budget is spent with a blocking finding "
-                          "open, the cycle replans and the owner picks one "
-                          "(AGENTS.md `## Cycle`). `fde-promotion` records "
-                          "the choice in `promotion.md`; `plan.md` stays "
-                          "frozen.", flat, rel)
+                          "open, the owner picks one (AGENTS.md `## Cycle`). "
+                          "The choice is recorded on the cycle's `board.md`; "
+                          "a narrowed or declared item is marked in "
+                          "`promotion.md` at close; `plan.md` stays frozen.",
+                          flat, rel)
             self.assertIn("A non-blocking finding goes to `backlog.md` by "
                           "default.", flat, rel)
             for gone in ("the builder picks one", "nothing is declined "
                          "without the user", "the builder records it",
-                         "a dated, named limit in `plan.md`"):
+                         "a dated, named limit in `plan.md`",
+                         "the cycle replans and the owner picks one",
+                         "`fde-promotion` records the choice"):
                 self.assertNotIn(gone, flat, f"{rel}: {gone}")
         for rel in ("skills/fde-scrum/SKILL.md", ".claude/skills/fde-scrum/SKILL.md"):
             flat = " ".join(read(rel).split())
@@ -537,6 +563,86 @@ class TestReconcileText(unittest.TestCase):
             self.assertIn(out, roles[rid]["outputs"], rid)
         for out in roles["spec"]["outputs"] + roles["architecture"]["outputs"]:
             self.assertNotRegex(out, r"acceptance\.md|failure-modes|architecture\.md")
+
+
+def description(rel: str) -> str:
+    front = read(rel).split("---", 2)[1]
+    lines = [l for l in front.splitlines() if l.startswith("description:")]
+    assert len(lines) == 1, f"{rel}: one single-line description"
+    return lines[0][len("description:"):].strip()
+
+
+class TestTerse(unittest.TestCase):
+    """FWD-033 (C-5 A9): the text loaded in every session stays small.
+    AGENTS.md at most 1,600 words; every skill and agent description at
+    most 40 words, trigger phrases only. Rationale lives in ADRs."""
+
+    AGENTS_MAX = 1600
+    DESC_MAX = 40
+
+    def instruction_files(self):
+        for base in ("skills", ".claude/skills"):
+            for p in sorted((ROOT / base).glob("*/SKILL.md")):
+                yield str(p.relative_to(ROOT))
+        for base in ("agents", ".claude/agents"):
+            for p in sorted((ROOT / base).glob("*.md")):
+                yield str(p.relative_to(ROOT))
+
+    def test_agents_md_fits_the_budget(self):
+        n = len(read("AGENTS.md").split())
+        self.assertLessEqual(n, self.AGENTS_MAX, f"AGENTS.md has {n} words")
+
+    def test_every_description_fits_the_budget(self):
+        files = list(self.instruction_files())
+        self.assertGreaterEqual(len(files), 20)   # not vacuous
+        for rel in files:
+            n = len(description(rel).split())
+            self.assertLessEqual(n, self.DESC_MAX, f"{rel}: {n} words")
+
+    def test_descriptions_carry_no_history(self):
+        for rel in self.instruction_files():
+            desc = description(rel).lower()
+            for gone in ("prancheta", "absorbs", "discontinued", "adr-"):
+                self.assertNotIn(gone, desc, f"{rel}: {gone}")
+
+    def test_cut_rationale_is_gone_from_the_loaded_text(self):
+        # the discovery's cut list: each lives in its ADR now
+        for rel, gone in (
+                ("AGENTS.md", "Noise"),
+                ("AGENTS.md", "Codex truncates"),
+                ("AGENTS.md", "only measurement and review do"),
+                ("skills/fde-triage/SKILL.md", "Kahneman"),
+                ("skills/fde-erosion/SKILL.md", "SlopCodeBench"),
+                ("skills/fde-graph/SKILL.md", "GraphRAG"),
+                ("skills/fde-design/SKILL.md", "the research showed"),
+                ("skills/fde-walkthrough/SKILL.md",
+                 "This is a partial mitigation, not a solved problem"),
+                ("skills/fde-doctor/SKILL.md", "burns an open framework")):
+            self.assertNotIn(gone, read(rel), f"{rel}: {gone}")
+
+    def test_role_bodies_drop_the_repeated_handoff_line(self):
+        for base in ("agents", ".claude/agents"):
+            for p in sorted((ROOT / base).glob("*.md")):
+                self.assertNotIn("Do not continue another role's conversation",
+                                 " ".join(p.read_text(encoding="utf-8").split()),
+                                 p.name)
+
+
+class TestBacklogLineIsOneFormat(unittest.TestCase):
+    """FWD-033, discovery item 14: AGENTS.md and fde-scrum state the backlog
+    line in the same words."""
+
+    LINE = ("A backlog line is `B-<n>`, the text, `(C-<n>)` when a cycle "
+            "found it, and its evidence (`opinion < usage-data < user-test "
+            "< production`).")
+
+    def test_same_sentence_everywhere(self):
+        for rel in ("AGENTS.md", "templates/AGENTS.md.template",
+                    "skills/fde-scrum/SKILL.md",
+                    ".claude/skills/fde-scrum/SKILL.md"):
+            self.assertIn(self.LINE, " ".join(read(rel).split()), rel)
+        for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
+            self.assertNotIn("A backlog line carries", read(rel), rel)
 
 
 if __name__ == "__main__":

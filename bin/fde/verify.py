@@ -942,7 +942,7 @@ class Gate:
             self.add("CFG-VER", False,
                      f"fde.config.toml says kernel {declared} but the installed "
                      f".fde/spec is {installed} — an update landed half way; "
-                     f"re-run fde sync")
+                     f"re-run the fde-sync skill")
 
         floor = escalated_security_floor(cfg, spec)
         w = int(cfg.weights.get("security_privacy", 0))

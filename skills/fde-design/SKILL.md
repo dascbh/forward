@@ -1,22 +1,21 @@
 ---
 name: fde-design
-description: The design discipline for demands with a UI surface — foundation, flow, information architecture, wireframe, build rules, design QA, and user validation, proportional to triage size. Use whenever a demand creates or changes screens, flows, navigation, or user-facing text; when a project's design foundation is missing or drifting; when the user asks for a wireframe, mockup, redesign, UX review, or says a screen "doesn't look professional". Absorbs the discontinued prancheta suite into the kernel.
+description: The design chain for UI demands: foundation, flow, IA, wireframe, build rules, design QA, user validation. Use when screens, flows, navigation or user-facing text change, or the user asks for a wireframe, mockup, redesign or UX review.
 ---
 
 # fde-design
 
-Design under the kernel follows the same doctrine as everything else: the
-artifact is the contract, the review cites its principle (I8), and the
-empirical checks live in the eval suite (I1). Phases scale with triage
-size; artifact-quality violations reopen the phase — never patch the
-symptom in code.
+The artifact is the contract, the review cites its principle (I8), and
+the empirical checks live in the eval suite (I1). Phases scale with the
+cycle's size; an artifact-quality violation reopens the phase — never
+patch the symptom in code.
 
 ## Where each check runs (ADR-0019 rule 5)
 
 - A `front` demand: build within the foundation, design QA against the
   approved wireframe.
-- At the cycle, only when the cycle has a `front` demand: flow, IA, wireframe and
-  alternatives are planned before the sign-off; user validation and
+- At the cycle, only when the cycle has a `front` demand: flow, IA,
+  wireframe and alternatives are planned before the sign-off; user validation and
   `fde-walkthrough` run at the cycle review. A backend-only cycle runs
   neither.
 
@@ -30,20 +29,14 @@ symptom in code.
 
 ## The two diamonds
 
-Design alternates: **diverge, then converge — twice.** The first diamond
-is the problem space (discovery → a stated problem); the second is the
-solution space (alternatives → one chosen design). The rule that makes it
-real: **never converge without having diverged, and never diverge without
-a stated problem.**
+**Diverge, then converge — twice**: problem space (discovery → a stated
+problem), then solution space (alternatives → one chosen design). Never
+converge without having diverged; never diverge without a stated problem.
 
-This is enforced, not requested. The second diamond produces an artifact
-— `specs/<demand-id>/design/alternatives.md` — and the **`divergence`
-gate** (`python3 bin/fde/verify.py --gate divergence`) fails any M/L
-demand that has a design surface without it, or whose alternatives share
-a lens, lack a hypothesis, or record no discard. Instructing a model to
-"explore alternatives" is the class of intervention the research showed
-does not hold (ADR-0011, ADR-0012), so the discipline lives in a file the
-gate can read.
+The **`divergence` gate** (`python3 bin/fde/verify.py --gate divergence`)
+fails any M/L demand with a design surface and no
+`specs/<demand-id>/design/alternatives.md`, or whose alternatives share
+a lens, lack a hypothesis, or record no discard (ADR-0012).
 
 ### The artifact
 
@@ -70,11 +63,8 @@ Chose: A — the wait is the problem, not its length.
 
 ### Reframe before you solve (the generative move)
 
-Before generating anything, restate the problem as **"How might we…"** in
-at least two ways, and name the framing you chose and why. The reframe is
-where an extraordinary solution comes from; the render is not. A flawless
-solution to the unquestioned problem statement is a well-drawn wrong
-answer.
+Before generating anything, reframe: restate the problem as **"How might
+we…"** in at least two ways, and name the framing you chose and why.
 
 Example: "the export screen is slow" reframes to *HMW make waiting
 unnecessary?* (background job + notify) · *HMW make the wait productive?*
@@ -83,9 +73,8 @@ link). Those are three different products, not three layouts.
 
 ### The five lenses (alternatives must come from distinct ones)
 
-Each alternative is generated from a different lens. **Alternatives that
-share a lens count as one** — three variations of the same layout is one
-idea in three costumes, and satisfies nothing.
+Each alternative comes from a different lens. **Alternatives that
+share a lens count as one.**
 
 | lens | the question it forces |
 |---|---|
@@ -96,9 +85,8 @@ idea in three costumes, and satisfies nothing.
 | **object-first** | reorganize around the domain object instead of the task sequence |
 
 Each alternative carries a **one-line hypothesis** (what it bets improves,
-for whom). Converging, record what each discarded alternative **traded** —
-the discard is evidence, and it is what makes the choice auditable
-instead of invisible.
+for whom). Converging, record what each discarded alternative
+**traded**.
 
 ## Foundation — the suite of the design domain
 
@@ -292,40 +280,26 @@ script = "guest-checkout.spec.ts"    # the client-runnable artifact CI executes 
 authored_with = "claude-in-chrome"   # how the flow was discovered — never how it is gated
 ```
 
-`authored_with` names the technique that found the flow — a live agent
-session (Claude Code, Codex, the `claude-in-chrome` tool family, or
-equivalent) driving a real browser — and it is never on the gated
-critical path. CI runs `script`, always; an agent session never runs
-during promotion or CI (I6). The interactive session is authorship, the
-same way a designer's hand is authorship of a wireframe: what the gate
-reads back is the deterministic file the session produced, not the
-session itself.
+`authored_with` names how the flow was found (a live agent session
+driving a real browser); it is never on the gated path. CI runs
+`script`, always; an agent session never runs during promotion or CI
+(I6).
 
 ## User validation (L, or whenever the premise is a bet)
 
-Value before usability — impeccable usability on an unwanted feature is
-waste (fake door kept ethical; Sean Ellis >40% = strong signal). Tasks
+Value before usability (an ethical fake door; a >40% "very
+disappointed" score is a strong signal). Tasks
 are scenarios, never instructions, and never contain words visible in
 the UI. 5 participants per profile; fix between sessions; stop at
 saturation. Severity is 0–4 by frequency × impact × persistence. The
 chain observation → finding → change must be auditable. Synthetic users
 generate hypotheses and tasks, never findings — stamp their artifacts
-"[synthetic — not evidence]". The same limit holds for an agent that
-drives a real browser: completing a journey along a planned path proves
-the path exists, never that an unprepared human finds it without
-hesitation (Suchman) — "the agent succeeded" does not by itself close a
-usability_accessibility finding; only a demonstrated friction (probe) or
-a cited principle does.
-
-A narrower claim IS admissible from a synthetic source: not "users will
-feel X" (still inadmissible) and not "the agent completed the plan"
-(still not evidence by itself, USE-14) — but "this interface sustains
-two reasonable, independently-arrived-at interpretations," demonstrated
-by `fde-walkthrough`'s two isolated, blind runs reading the same
-first-contact surface and diverging. This is a claim about the artifact
-via demonstrated blind replication, never a population claim, and it is
-satisfied only by two genuinely independent runs — one run's confusion
-is an anecdote, not a finding.
+"[synthetic — not evidence]". An agent completing a planned journey
+proves the path exists, never that an unprepared human finds it without
+hesitation (USE-14); only a demonstrated friction (probe) or a cited
+principle closes a usability_accessibility finding. The one admissible
+synthetic claim — two blind runs sustain distinct interpretations — is
+`fde-walkthrough`'s.
 
 ## Findings and reopening
 

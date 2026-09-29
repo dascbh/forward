@@ -1,13 +1,11 @@
 ---
 name: fde-doctor
-description: Reports the enforcement tier of the agentic tool in use and what is ACTUALLY enforced versus merely suggested. Use when the user assumes a rule will block something, when switching tools, when they ask whether the standard "is active", or before promising rigor guarantees to a client. Use at the start of any session in a repository under the kernel that you have not yet inspected.
+description: Reports the agentic tool's enforcement tier: what is enforced versus only suggested. Use at the start of a session in a kernel repo, on switching tools, or when asked if a rule "is active" or will block.
 ---
 
 # fde-doctor
 
-Looks like an accessory and is politically the most important check: it
-keeps anyone from thinking they have a wall when they only have a
-recommendation.
+Tells a wall from a recommendation.
 
 ## Procedure
 
@@ -42,9 +40,5 @@ copies are the ones in force — the plugin's are the generic fallback.
 Separate **ENFORCED** (actually blocks: pre-commit, CI, denied tools,
 worktree isolation) from **advisory** (instruction the model can ignore
 under pressure). If the tier is `advisory`, say that roles are convention
-in that tool and the real blocking happens at commit and in CI — do not let
-the user believe in a guarantee that does not exist.
-
-Promising parity across tools and delivering theater in three out of five
-is what burns an open framework. Honesty about the tier is what sustains
-adoption.
+in that tool and the real blocking happens at commit and in CI — never
+promise a guarantee the tier does not give.

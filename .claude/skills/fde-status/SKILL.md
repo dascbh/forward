@@ -1,6 +1,6 @@
 ---
 name: fde-status
-description: Shows where the project stands — the running cycle (objective, demands, artifacts, done items with progress, the backlog lines it produced), drafts and planned cycles, every ended cycle on one line, and the backlog by section with its B-<n> ids, with warnings first (more than one running cycle, a cycle ready to close, no backlog.md). `--format json` feeds the panel. Use when the user asks "where are we", "what is open", "show the cycle", "show the backlog", "what is pending", before opening a new cycle, and at every cycle close.
+description: Shows where the project stands: the running cycle, drafts, ended cycles, the backlog with B-<n> ids, warnings first; `--format json` feeds the panel. Use for "where are we", "what is open", "show the cycle/backlog", and at every cycle close.
 ---
 
 # fde-status

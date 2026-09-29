@@ -1,5 +1,5 @@
 # fde.config.toml - the project's single declarative file.
-# Versioned. Auditable diff. Recompilable with `fde sync`.
+# Versioned. Auditable diff. Recompilable with the fde-sync skill.
 #
 # There is NO key here to turn off an invariant. Invariants live in
 # .fde/spec/invariants.toml and have no key. Weight moves rigor upward or

@@ -82,7 +82,7 @@ relation = "identical-except"
   text = '''
 <!--
 FDE-KERNEL:GENERATED — do not edit by hand.
-Source of truth: fde.config.toml + .fde/spec/. Regenerate with `fde sync`.
+Source of truth: fde.config.toml + .fde/spec/. Regenerate with the fde-sync skill.
 Manual edits here are overwritten and detected as drift.
 -->
 

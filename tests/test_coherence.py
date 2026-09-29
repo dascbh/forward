@@ -150,15 +150,25 @@ class TestRolesMatchTheSpec(unittest.TestCase):
                             r["id"])
 
     def test_role_files_list_the_spec_sections(self):
+        # reviews/FWD-032 F1: "Outputs (write only here)" is the role's
+        # whole write_scope (board and backlog included); what the role
+        # produces is listed apart, under "Produces"
         def bullets(text, heading):
-            m = re.search(r"\n## " + re.escape(heading) + r"[^\n]*\n(.*?)(?=\n\n|\n## |\Z)",
+            m = re.search(r"\n## " + re.escape(heading) + r"\n(.*?)(?=\n\n|\n## |\Z)",
                           text, re.S)
             return None if m is None else re.findall(r"^- `([^`]*)`", m.group(1), re.M)
         for r in ROLES:
+            if r["write_scope"]:
+                sections = (("Inputs", "inputs"),
+                            ("Outputs (write only here)", "write_scope"),
+                            ("Produces", "outputs"),
+                            ("Denied paths", "denied_paths"))
+            else:
+                sections = (("Inputs", "inputs"), ("Outputs", "outputs"),
+                            ("Denied paths", "denied_paths"))
             for base in ("agents", ".claude/agents"):
                 text = read(f"{base}/fde-{r['id']}.md")
-                for heading, key in (("Inputs", "inputs"), ("Outputs", "outputs"),
-                                     ("Denied paths", "denied_paths")):
+                for heading, key in sections:
                     want = [v.split(" (")[0] for v in r[key]]
                     self.assertEqual(bullets(text, heading), want,
                                      f"{base}/fde-{r['id']}.md {heading}")
@@ -168,14 +178,81 @@ class TestReviewBudgetIsAReplan(unittest.TestCase):
     """#6: budget spent with a blocker open is a replan, the owner's call,
     recorded in promotion.md; plan.md stays frozen."""
 
-    def test_budget_routes_to_the_replan(self):
+    def test_budget_routes_to_the_owner(self):
+        # reviews/FWD-032 F4: not a replan (plan.md stays frozen); the
+        # owner's choice goes on the board, and promotion marks it at close
         budget = " ".join(section(read("skills/fde-review/SKILL.md"), "Budget").split())
-        self.assertIn("the cycle replans and the owner picks one", budget)
+        self.assertIn("the owner picks one (AGENTS.md `## Cycle`)", budget)
+        self.assertIn("recorded on the cycle's `board.md`", budget)
         self.assertIn("`plan.md` stays frozen", budget)
         for gone in ("nothing is declined without the user",
                      "records it in the promotion or the closing commit",
-                     "the replan records it in `plan.md`"):
+                     "the replan records it in `plan.md`",
+                     "the cycle replans and the owner picks one"):
             self.assertNotIn(gone, budget, gone)
+        for rel in AGENTS_SURFACES:
+            cycle = " ".join(section(read(rel), "Cycle").split())
+            for needle in ("narrow, declare the limit, or pause",
+                           "recorded on `board.md`",
+                           "marked in `promotion.md` at close",
+                           "`plan.md` stays frozen"):
+                self.assertIn(needle, cycle, f"{rel}: {needle}")
+        for rel in ("agents/fde-promotion.md", ".claude/agents/fde-promotion.md"):
+            self.assertIn("recorded on `board.md`) is marked here",
+                          flat(rel), rel)
+
+
+class TestRoleCountIsOneSentence(unittest.TestCase):
+    """reviews/FWD-032 F2: "all five" is the five working roles; the
+    example beside the size table names architecture at M and the two
+    review kinds with their real budgets."""
+
+    FIVE = ("\"All five roles\" means the five working roles; the "
+            "walkthrough evaluator is a sixth role that writes nothing.")
+
+    def test_same_sentence_in_each_place(self):
+        for rel in AGENTS_SURFACES + ("README.md", "skills/fde-triage/SKILL.md",
+                                      ".claude/skills/fde-triage/SKILL.md"):
+            self.assertIn(self.FIVE, flat(rel), rel)
+        for rel in AGENTS_SURFACES:
+            self.assertIn(self.FIVE, " ".join(section(read(rel), "Roles").split()), rel)
+
+    def test_example_matches_the_table(self):
+        example = ("`FORWARD: M — spec + architecture + impl + demand "
+                   "review(1r) + cycle review(full+delta) + promotion`")
+        for rel in ("skills/fde-triage/SKILL.md", ".claude/skills/fde-triage/SKILL.md"):
+            self.assertIn(example, flat(rel), rel)
+        for rel in AGENTS_SURFACES + ("skills/fde-triage/SKILL.md", "README.md"):
+            self.assertNotIn("spec + impl + adversarial(2r)", flat(rel), rel)
+
+
+class TestFindingsTemplateRounds(unittest.TestCase):
+    """reviews/FWD-032 F3: the installed template states ADR-0019's rounds."""
+
+    def test_rounds_comment(self):
+        for rel in ("templates/findings.template.toml",
+                    ".fde/templates/findings.template.toml"):
+            line = next(l for l in read(rel).splitlines()
+                        if l.startswith("rounds_planned"))
+            self.assertIn("demand review 1; cycle review XS/S 1, M/L 2", line, rel)
+            self.assertNotIn("L 3", line, rel)
+
+
+class TestNoFdeCli(unittest.TestCase):
+    """reviews/FWD-032 F5: there is no `fde` executable; regeneration is
+    the fde-sync skill."""
+
+    def test_marker_names_the_skill(self):
+        marker = section(read("SETUP.md"), "6.")
+        self.assertIn("Regenerate with the fde-sync skill.", marker)
+        for rel in ("SETUP.md", "AGENTS.md", "templates/AGENTS.md.template",
+                    "templates/fde-gate.yml", ".github/workflows/fde-gate.yml",
+                    "templates/fde.config.template.toml", "fde.config.toml",
+                    "agents/fde-adversarial.md", ".claude/agents/fde-adversarial.md",
+                    "tests/mirror.toml", "runtime/verify.py"):
+            text = read(rel)
+            self.assertNotIn("`fde sync`", text, rel)
+            self.assertNotIn("re-run fde sync", text, rel)
 
 
 class TestWalkthroughSizeIsOneRule(unittest.TestCase):

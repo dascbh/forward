@@ -1,6 +1,6 @@
 ---
 name: fde-verify
-description: Runs the invariant gate — exactly the same verifier that the pre-commit and CI run. Use before any commit, before opening a PR, when a commit gets rejected by the hook, or when the user asks whether something "is ready", "can ship", "is production-grade". Also use to explain why a gate failed.
+description: Runs the invariant gate, the same verifier the pre-commit hook and CI run. Use before any commit or PR, when the hook rejects a commit, when asked whether something "is ready" or "can ship", or to explain a failed gate.
 ---
 
 # fde-verify

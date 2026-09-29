@@ -14,13 +14,13 @@ Header lines: `goal:` (the product goal, or `goal: not set`) and
 `date:`. Create it on the first capture. With `[scrum] enabled = true`
 in fde.config.toml, `--gate scrum` requires both (first 30 lines).
 
-One item per line — a table row or a bullet — carrying:
+One item per line, a table row or a bullet. A backlog line is `B-<n>`,
+the text, `(C-<n>)` when a cycle found it, and its evidence (`opinion <
+usage-data < user-test < production`).
 
-- `B-<n>` — the next free id; never reused (`fde-backlog` assigns ids
-  to a backlog that has none);
-- the item and its hypothesis: what value, for whom;
-- evidence: `opinion < usage-data < user-test < production`;
-- origin `(C-<n>)` when a cycle found it.
+- `B-<n>` is the next free id, never reused (`fde-backlog` assigns ids to
+  a backlog that has none).
+- The text states the item and its hypothesis: what value, for whom.
 
 The owner orders it. The label makes a bet visible; it never blocks one.
 

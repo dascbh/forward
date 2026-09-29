@@ -1,14 +1,12 @@
 ---
 name: fde-graph
-description: Query and mine FORWARD's artifact provenance graph — the demand loop's own output seen as a directed, weighted graph (goal → cycle → demand → spec → review → finding → promotion, joined by demand-id). Use to answer "what connects to demand X", "what does this cycle cover", "which principles do our reviews keep citing", "is the artifact chain intact"; when onboarding to a repo under the kernel; or when asked about graph-based context, knowledge graphs, or traceability.
+description: Queries the artifact provenance graph (goal, cycle, demand, spec, review, finding, promotion). Use for "what connects to demand X", "what does this cycle cover", "which principles keep recurring", "is the chain intact", onboarding, or traceability.
 ---
 
 # fde-graph
 
-The artifacts the kernel already writes ARE a typed graph — the demand-id
-in every path is the join key. This layer makes it explicit, weighted, and
-minable, deriving it from files on demand. No database, no index (see
-Doctrine).
+The artifacts the kernel writes are a typed graph joined by demand-id.
+This layer derives it from files on demand, weighted and minable.
 
 ```bash
 python3 bin/fde/graph.py --demand FWD-005   # ego-graph: all context of a demand
@@ -37,17 +35,12 @@ the kernel already holds: attribute nodes = vector-A weight, finding edges
 
 Every edge is derived from existing structure except one authored field:
 an ADR's `supersedes:` header line (a space/comma list of ADR numbers,
-in the header region above the first `##` section — the same place the
-title-first ADRs already carry `date:` and `status:`). Nothing else is
-authored — the graph cannot drift from the artifacts because it IS the
-artifacts.
+above the first `##` section).
 
 ## Mining
 
-- **`--recurring`** is the signal that pays: a principle cited often at
-  high severity across reviews is a structural weakness the project keeps
-  hitting. On this kernel it surfaced DOM-5 and OBS-1 as its own most-cited
-  principles — history telling you where to harden.
+- **`--recurring`**: a principle cited often at high severity across
+  reviews is a structural weakness the project keeps hitting.
 - **`--central`** ranks what the most findings and links point at; a
   demand or ADR with high weighted in-degree is load-bearing.
 - **`--demand X`** is the "give me everything about X" query — its spec,
@@ -65,15 +58,8 @@ dangles or cycles. It never flags an
 **incomplete** state (a demand mid-loop with a spec but no review yet) —
 that is normal, not an orphan.
 
-## Doctrine — graph as evidence, not graph as program (ADR-0010)
+## Limits
 
-The research is explicit (2025–2026): retrieval indexes, vector stores,
-graph databases, GraphRAG, and LLM-extracted graphs buy ~nothing below
-~1000 files, cost LLM-priced indexing, and are nondeterministic — so no
-gate can consume them, and they break I6 (client-runnable, zero-dep).
-Anthropic and Claude Code run no index: files + conventions + agentic
-search. Do NOT add any of that. This graph is derived from files, walked
-just-in-time, consumed by a gate, and written in stdlib — the only version
-the evidence supports. If a client ever exceeds the scale where indexing
-pays, that is their optimization, outside the kernel and off the gate's
-critical path.
+No database, vector store, graph DB or LLM-extracted graph: the graph is
+derived from files, walked just-in-time, stdlib, and consumed by a gate
+(rationale: ADR-0010).

@@ -1,6 +1,6 @@
 ---
 name: fde-debug
-description: Root-cause debugging under the kernel — stop-the-line on unexpected failure, a six-step triage to the actual cause, a decision tree for non-reproducible bugs, and the guard eval that turns the fix into an I1 entry. Use when a test fails unexpectedly, a bug is reported, behavior diverges from spec, CI breaks, or the user says "it stopped working" or "it works on my machine".
+description: Root-cause debugging: stop the line, a six-step triage, non-reproducible bugs, and a guard eval for the fix. Use when a test fails unexpectedly, a bug is reported, CI breaks, or "it stopped working" or "works on my machine".
 ---
 
 # fde-debug

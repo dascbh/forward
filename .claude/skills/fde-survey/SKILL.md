@@ -1,6 +1,6 @@
 ---
 name: fde-survey
-description: Architectural reconnaissance of a system nobody documented — read the code, the structure and the git history and produce discovery/survey.md, the map a team needs when it takes over. Use when joining or inheriting an existing codebase, when the user asks what a project is, how it is structured, what the history says, where the risk is, or says the project is undocumented, legacy, or "we just got handed this".
+description: Surveys an undocumented system from its code, structure and git history into discovery/survey.md. Use when joining or inheriting a codebase, or when the user asks what a project is, how it is built, or where the risk is.
 ---
 
 # fde-survey
