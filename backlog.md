@@ -71,6 +71,8 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 
 - B-43 owner request — `/fde-backlog` shows everything in the terminal, in sections: overview, backlog, cycles with their demands and artifacts, loose demands, discarded; drill down on request; no browser, no question box (owner, 2026-09-29) → C-12
 
+- B-44 owner direction — review by weight: a coding demand (back, front or infra) inside a signed-off plan gets a code review (diff vs demand spec, ADR conformance, tests, checklist; findings.toml kind = "code"); adversarial review is for the cycle's specification before sign-off and for larger changes (M/L cycles, sensitive or irreversible demands); the cycle review stays (owner, 2026-09-29) → C-13
+
 ## Discarded (2026-09-29)
 
 Reviewed against 0.19.0 with the owner; ids stay retired.
