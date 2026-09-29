@@ -37,3 +37,9 @@ another posts `blocked-on` and waits for its merge.
 - 2026-09-29 FWD-033 claim every instruction text: AGENTS.md (+ template), skills/**, agents/** (+ .claude copies), their pins in tests; includes discovery item 14 (backlog line format AGENTS ## Cycle vs fde-scrum)
 - 2026-09-29 C-5 decided FWD-032 review F1 (blocking) and F2–F5 fixed in FWD-033, which owns every instruction text; claim widened to templates/findings.template.toml (+ .fde copy) and SETUP.md marker lines
 - 2026-09-29 FWD-033 decided merged 39fc3e7: AGENTS.md 2,811 → 1,595 words, descriptions 1,169 → 736 (max 40); FWD-032 F1–F5 fixed in the same commit; all eight demands merged — cycle review starts
+- 2026-09-29 C-5 decided one reconcile round for reviews/FWD-033 F1–F5 and reviews/C-5 F1–F5 (+ notes: sync bumps kernel_version, README "sizes the demand", plan template ## Items); then a delta cycle review (L: full + delta)
+- 2026-09-29 C-5 decided C-5 F1 path: a blocking finding in a demand review is fixed inside that demand and proven by its regression test; the owner is asked only when the fix changes a criterion or an ADR (replan). A non-blocking finding goes to backlog.md unless it shows a plan criterion unmet — then the cycle fixes it
+- 2026-09-29 C-5 decided C-5 F2: draft (grouped) → planned (specified, awaiting sign-off; fde-spec writes it) → running (sign-off; the orchestrating agent writes it with `signed-off:`) → closed/abandoned
+- 2026-09-29 C-5 decided C-5 F4: the release rollback is `git revert 321e045..<release>` (restores the 0.18.0 tree exactly, probed by the cycle review); recorded in promotion.md
+- 2026-09-29 RECON-C5-TEXT claim AGENTS.md (+ template), skills/**, agents/**, templates/cycle/**, docs/adr/0019*, README.md, SETUP.md, runtime/fde_lib.py message (+ bin/fde), tests pinning them
+- 2026-09-29 RECON-C5-RUNTIME claim runtime/status.py, runtime/verify.py (+ bin/fde), tests/test_status.py, tests/test_verify.py
