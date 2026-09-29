@@ -238,3 +238,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertTrue((ROOT / "templates/cycle/plan.md").exists())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 19, 0))
+
+    def test_kernel_version_ships_the_terminal_panel(self):
+        # C-12 / kernel ADR-0020: clients receive --panel only through a
+        # moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertIn("--panel", (ROOT / "skills/fde-backlog/SKILL.md").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 20, 0))
