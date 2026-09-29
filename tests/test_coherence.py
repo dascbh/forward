@@ -191,7 +191,7 @@ class TestReviewBudgetIsAReplan(unittest.TestCase):
         budget = " ".join(section(read("skills/fde-review/SKILL.md"), "Budget").split())
         self.assertIn("the owner picks one (AGENTS.md `## Cycle`)", budget)
         self.assertIn("recorded on the cycle's `board.md`", budget)
-        self.assertIn("`plan.md` stays frozen", budget)
+        self.assertIn("`plan.md` is not edited", budget)
         for gone in ("nothing is declined without the user",
                      "records it in the promotion or the closing commit",
                      "the replan records it in `plan.md`",

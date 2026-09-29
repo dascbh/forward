@@ -93,6 +93,22 @@ class TestFixedIn(unittest.TestCase):
                     ".claude/skills/fde-review/SKILL.md"):
             text = " ".join((ROOT / rel).read_text(encoding="utf-8").split())
             self.assertIn("`fixed_in = \"<sha>\"`", text, rel)
+            # reviews/FWD-038 F2: when, and against which budget
+            self.assertIn("in a commit of its own (I3), in the cycle "
+                          "review's pass and within its budget, never as an "
+                          "extra round.", text, rel)
+
+    def test_the_reviewer_role_is_told(self):
+        # reviews/FWD-038 F1: the role that writes fixed_in says so
+        for rel in ("agents/fde-adversarial.md",
+                    ".claude/agents/fde-adversarial.md"):
+            text = " ".join((ROOT / rel).read_text(encoding="utf-8").split())
+            self.assertIn("On each blocking finding fixed inside its demand, "
+                          "record the fixing commit as `fixed_in = \"<sha>\"` "
+                          "in `reviews/<demand-id>/findings.toml`, in a "
+                          "commit of its own. This is part of the cycle "
+                          "review's pass, within its budget; it is never an "
+                          "extra round.", text, rel)
 
     def test_status_counts_a_fixed_blocker_as_closed(self):
         st = _status()

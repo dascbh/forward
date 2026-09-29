@@ -285,10 +285,11 @@ class TestDeclaredCycle(unittest.TestCase):
 
     # reviews/FWD-032 F4, narrowed to the cycle review by reviews/C-5 F1:
     # ## Cycle defines the spent budget, once
-    BUDGET_RULE = ("A cycle review budget spent with a blocker open is the "
-                   "owner's call: narrow, declare the limit, or pause, "
-                   "recorded on `board.md` and marked in `promotion.md` at "
-                   "close.")
+    # reviews/FWD-043 F1: it is a replan, and plan.md is not where it lands
+    BUDGET_RULE = ("A cycle review budget spent with a blocker open is a "
+                   "replan, the owner's call: narrow, declare the limit, or "
+                   "pause, recorded on `board.md` and marked in "
+                   "`promotion.md` at close, never in `plan.md`.")
 
     # the demand and the states live in ## Cycle; FWD-037 moved the cycle
     # directory's layout to fde-spec (cycles/C-14/inventory.md #47)
@@ -365,7 +366,8 @@ class TestDeclaredCycle(unittest.TestCase):
                           "(AGENTS.md `## Cycle`). The choice is recorded on "
                           "the cycle's `board.md`; a narrowed or declared "
                           "item is marked in `promotion.md` at close; "
-                          "`plan.md` stays frozen.", flat, rel)
+                          "`plan.md` is not edited: that pick is the replan "
+                          "(kernel ADR-0019).", flat, rel)
             for gone in ("the builder picks one", "nothing is declined "
                          "without the user", "the builder records it",
                          "a dated, named limit in `plan.md`",
@@ -1156,8 +1158,13 @@ class TestOpenWording(unittest.TestCase):
     REVIEW = ("skills/fde-review/SKILL.md", ".claude/skills/fde-review/SKILL.md")
 
     def test_b29_budget_spent_is_a_replan(self):
-        self.pinned(self.REVIEW, "It is a replan (kernel ADR-0019): the owner "
-                    "picks narrow, declare or pause as that replan.")
+        # reviews/FWD-043 F1: one statement, the replan edits no plan.md
+        self.pinned(self.REVIEW, "`plan.md` is not edited: that pick is the "
+                    "replan (kernel ADR-0019).")
+        for rel in self.REVIEW:
+            for gone in ("It is a replan (kernel ADR-0019)",
+                         "`plan.md` stays frozen"):
+                self.assertNotIn(gone, self.flat(rel), rel)
 
     def test_b11_resync_before_proposing(self):
         self.pinned(("skills/fde-backlog/SKILL.md",

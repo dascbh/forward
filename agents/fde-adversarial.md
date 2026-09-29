@@ -89,6 +89,11 @@ review (`kind = "plan"`). The cycle review is unchanged.
     rollback exercised where the project allows; the signals the
     criteria declare exist (I5); runbook and README match how the system
     now runs.
+  - *Closing records*: On each blocking finding fixed inside its demand,
+    record the fixing commit as `fixed_in = "<sha>"` in
+    `reviews/<demand-id>/findings.toml`, in a commit of its own. This is
+    part of the cycle review's pass, within its budget; it is never an
+    extra round.
   - Budget from the cycle's size: 1 round at XS/S, full + delta at M/L.
 
 ## Round kind — the prompt names it

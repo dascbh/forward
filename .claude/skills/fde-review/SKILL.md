@@ -70,7 +70,8 @@ is asked only when the fix changes a criterion or an ADR, which is a
 replan. A non-blocking finding goes to `backlog.md` unless it shows a
 plan criterion unmet; then the cycle fixes it. The reviewer closes a
 blocker fixed inside its demand by recording the fixing commit on it,
-`fixed_in = "<sha>"`, in a commit of its own (I3). A demand merges rebased
+`fixed_in = "<sha>"`, in a commit of its own (I3), in the cycle review's
+pass and within its budget, never as an extra round. A demand merges rebased
 onto main, with `python3 bin/fde/verify.py --all` green and no blocking
 finding open. A demand merges only with its review record
 (`reviews/<id>/findings.toml`), and its merge line on `board.md` names it.
@@ -84,9 +85,8 @@ finding open. A demand merges only with its review record
 - **No extension.** When a cycle review's budget is spent with a
   blocking finding open, the owner picks one (AGENTS.md `## Cycle`). The
   choice is recorded on the cycle's `board.md`; a narrowed or declared
-  item is marked in `promotion.md` at close; `plan.md` stays frozen.
-  It is a replan (kernel ADR-0019): the owner picks narrow, declare or
-  pause as that replan.
+  item is marked in `promotion.md` at close; `plan.md` is not edited:
+  that pick is the replan (kernel ADR-0019).
   1. *narrow* — cut the part the finding lives in, ship the rest, the cut
      goes to the backlog;
   2. *declare* — the owner accepts it as a dated, named limit (a limit,
