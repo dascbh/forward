@@ -1,0 +1,117 @@
+# Adversarial review report — cycle mode (ADR-0019 rule 12)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "C-5"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+mode = "cycle"
+rounds_planned = 2                 # L: full + delta
+round = 1
+commit = "01b7c5b"
+agent_transcript = "agent-acf3d5bbf50cf3424"
+probed = [
+  "git log -1 = 01b7c5b (C-5 board: FWD-033 merged, all demands in)",
+  "python3 -m unittest discover -s tests: 563 tests OK; python3 bin/fde/verify.py --all: all gates passed",
+  "full-history clone in the scratchpad: fde-backlog §3 ids (B-1..B-27, next B-28), §2 group into a new draft C-6 with → C-6 marks; status.py text + --format json (warnings [], C-6 draft with items, next C-7); verify.py --all green",
+  "C-6 specified from .fde/templates/cycle/ plus spec FWD-040 (cycle: C-6), reviews/FWD-040, promotion.md: all gates green; promotion.md without the review: I2 and TRACE red; closed without promotion.md and with the review removed: all gates green",
+  "live headlabs-platform (read-only): python3 <kernel>/bin/fde/verify.py --all → 12/12 green, I4 33 demands from acceptance.md; status.py → C-2 open old file, C-1 closed, backlog 11 items, no B-ids",
+  "headlabs clone with the kernel HEAD copied in (runtime, .fde/spec, .fde/templates, agents): CFG-VER red until fde.config.toml kernel_version was bumped by hand, then all green",
+  "git log origin/main..HEAD: 28 commits; git revert --no-commit 321e045..HEAD applies cleanly, git diff --cached 321e045 empty",
+  "wc -w AGENTS.md = 1595; the longest description: is 40 words (fde-verify), .claude copies included",
+  "grep of kernel ADR ids in templates/AGENTS.md.template, skills/*/SKILL.md, agents/*.md vs ls headlabs-platform/docs/adr",
+]
+notes = [
+  "README.md:297 still says 'fde-triage — sizes the demand'; AGENTS.md step 1 sets size on the cycle, never on a demand (MNT-10).",
+  "status.py's warning says 'no closed: line' while AGENTS.md ## Cycle tells the agent to write 'state: closed'; both close a cycle, but the warning names only one.",
+  "templates/cycle/plan.md has no ## Items section, so specifying a draft over the template drops the draft's B-id list; only the backlog's → C-n marks keep the link.",
+  "SETUP ## Sync / fde-sync re-run steps 6–8 only; fde.config.toml kernel_version (step 4) is not moved, so every client sync goes CFG-VER red until it is bumped by hand.",
+  "The graph reads reviews/C-5/ as demand:C-5 with a review; a cycle-review mirror has no cycle node or edge (graph.py --demand C-5).",
+  "C-5 itself has no deploy.md (the deploy plan is inside plan.md) and its demand table has no follows column; FWD-027-fix, RECON-TEXT and RECON-GATE ran outside the plan's demand list.",
+  "This repository's backlog has no B-ids (status: next id B-1), and the three (C-5) lines this cycle added carry none, although AGENTS.md ## Backlog defines the line as B-<n> first.",
+  "I4 does not check that plan.md's date precedes the first demand commit (a declared limit in fde-verify); A2 and AGENTS.md step 2 state it as if it were checked.",
+  "AGENTS.md ## Commands labels plain verify.py as the full gate, while step 6 and fde-sync require --all.",
+  "The 15 items of discovery/sharpen-2026-09-29.md were not re-audited one by one within the 25-minute budget.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "high"
+probe = "regression in previously accepted behavior: follow a blocking finding from a 1-round demand review to merge using only AGENTS.md, fde-review and ADR-0019"
+evidence = """
+AGENTS.md step 5 says a demand review is 'one round' and 'Budget spent with a blocker open → the owner picks (## Cycle); never one more round'.
+skills/fde-review/SKILL.md §Budget says 'A demand review is always 1 round' and 'When the budget is spent with a blocking finding open, the owner picks one: narrow / declare / pause'.
+So every blocking demand finding spends the budget at once and goes to the owner. The texts give no path to fix it and verify the fix.
+Two texts say otherwise:
+- AGENTS.md ## Cycle: 'The cycle owns its declared criteria and its blocking findings.'
+- ADR-0019 rule 7: 'The only thing that returns to the user is a replan.'
+AGENTS.md step 6 merges only with 'no blocking finding open', so the merge is reachable only by the owner narrowing or pausing.
+C-5's own board.md did neither. About 20 blocking findings, among them 026 F1–F4, 029 F1–F3, 030 F1–F4 and FWD-032 F1 (blocking), were 'fixed in-cycle' by demands absent from the plan table (FWD-027-fix, RECON-TEXT, RECON-GATE, FWD-033), without the owner and without a verifying round.
+The rule the cycle actually followed is written nowhere, and the rule that is written was not followed.
+This sits inside the threat model ('cooperative agents that ... contradict each other, or re-ask the owner').
+"""
+blocking = true   # high, inside the threat model, breaks A8 (no contradiction about the model); A5's merge condition depends on it
+
+[[finding]]
+id = "F2"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-1"
+probe = "case the spec does not cover: who writes state: planned, and when"
+evidence = """
+AGENTS.md:140-144: 'draft → planned (signed off) → running'; 'fde-spec writes state: draft and state: planned; the orchestrating agent writes state: running at sign-off'.
+templates/cycle/plan.md comment: 'state: draft and planned are written by fde-spec'.
+skills/fde-backlog/SKILL.md §2 specify: 'Never set state: planned yourself; the owner's sign-off does'. §Never: 'set state: planned/running'.
+agents/fde-spec.md: no mention of state at all; line 48 says 'Stop at the sign-off'.
+ADR-0019 rule 9 defines planned as 'signed off'. Read literally, the planner stops before sign-off yet writes the signed-off state, and running is also written 'at sign-off'. So planned is either never reached or asserted before approval, and status.py would show an unsigned plan as planned.
+AGENTS.md also never names fde-backlog or the backlog → draft → specify step. Its path starts at 'Triage the cycle', so a new agent learns how a draft comes to exist only from the skill's description.
+"""
+blocking = false  # medium; breaks A8 but not critical/high
+
+[[finding]]
+id = "F3"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-4"
+probe = "readiness of deploy step 2: can a client sync carry ADR-0019 rule 15 and the rules that cite ADR-0019"
+evidence = """
+The plan's deploy step 2 reads 'Its ## Next cycle lists move to backlog.md (ADR-0019 rule 15)'.
+Nothing a client runs carries that step:
+- grep 'Next cycle|rule 15|B-<n>' finds nothing in skills/fde-sync/SKILL.md or SETUP.md. fde-sync re-runs SETUP §6–8, and those sections have no migration step.
+- skills/fde-status only warns, and only for an open cycle (status.py:441, `not c.ended`).
+The kernel's docs/adr/ are not installed in clients, yet the client-facing texts cite them by bare id: ADR-0019 ×11, and ADR-0001, 0002, 0010, 0011, 0012, 0014, 0015 and 0018.
+In headlabs-platform/docs/adr, 0001, 0002, 0010, 0011, 0012 and 0014 are the client's own unrelated ADRs; ADR-0002 is runtimes-internal-authorization. 0015, 0018 and 0019 do not exist.
+Two load-bearing rules become unresolvable there:
+- AGENTS.md: 'A cycle opened before ADR-0019 finishes under its own rules'. headlabs C-2 is such a cycle, and the client cannot tell when 'ADR-0019' happened.
+- agents/fde-promotion.md: 'promotions/<id>/ is only for a cycle opened before ADR-0019 (rule 15)'.
+A9 moved rationale into ADRs that the reader of these texts never has.
+"""
+blocking = false  # medium; deploy readiness and MNT-4, headlabs stays green (A7 holds)
+
+[[finding]]
+id = "F4"
+attribute = "reliability_resilience"
+severity = "medium"
+probe = "partial failure in a multi-step operation: exercise deploy step 1's rollback as written"
+evidence = """
+plan.md deploy step 1 gives the rollback as '`git revert` the release commit and push'.
+`git log origin/main..HEAD` shows 28 unpushed commits (from 7ea8178 ADR-0019 accepted through 01b7c5b). They all ship in one push, together with the future bump commit.
+Reverting only the release commit restores the version string and leaves every ADR-0019 behavior change on main. Clients 'pin nothing' (README ### Update), so a sync after that rollback still installs the new behavior.
+In a clone, `git revert --no-commit 321e045..HEAD` applies with no conflict, and `git diff --cached 321e045` is empty. That is the rollback that works, and it is not the documented one.
+"""
+blocking = false  # medium; A10 is the release, not yet done; the fix is one line in the deploy plan
+
+[[finding]]
+id = "F5"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "case the spec does not cover and the code silently accepts: a directory cycle closed with no promotion.md and pending criteria"
+evidence = """
+In a clone, cycles/C-6 has `state: closed`, no promotion.md, and spec FWD-040 (in the plan's demand table) with its reviews/FWD-040 removed.
+`verify.py --all` passes all gates, and `status.py` prints 'C-6  closed  0/1 met, 1 pending' with no warning.
+With promotion.md restored, I2 and TRACE go red ('promoted without a recorded review: FWD-040'). Skipping the promotion therefore also skips the only cycle-level check that the demands were reviewed.
+AGENTS.md ## Cycle says 'A cycle closes when its criteria are met with integration evidence and it is deployed'. status.py warns about the reverse case (all met, no end line) but not this one.
+A7 names 'promotion' as a cycle-owned gate.
+"""
+blocking = false  # medium; the old layout had the same hole (ADR-0019 rule 14 adds no gate), so this is a warning gap rather than a regression
