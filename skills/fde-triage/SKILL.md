@@ -87,9 +87,13 @@ five roles. "All five roles" means the five working roles; the
 walkthrough evaluator is a sixth role that writes nothing.
 
 Announce the result in one line — size, roles, rounds — e.g.
-`FORWARD: M — spec + architecture + impl + demand review(1r) + cycle
-review(full+delta) + promotion` — and plan:
-`plan.md` comes first (AGENTS.md `## Cycle`), and the planner stops at the
+`FORWARD: M — spec + plan review + architecture + impl + demand review(1r)
++ cycle review(full+delta) + promotion` (at L, `FORWARD: L — full spec +
+plan review + architecture + impl + demand review(1r) + cycle
+review(full+delta) + promotion`) — and plan:
+`plan.md` comes first (AGENTS.md `## Cycle`). At M/L, the adversarial plan
+review (kernel ADR-0021) runs before the sign-off: the owner signs the
+plan that answered its findings. Then the planner stops at the
 sign-off. The table is deterministic; the reasoning behind the score does
 not belong in chat. The rounds are the cycle review's budget, not a
 minimum to extend: `fde-review` says what happens when it is spent.

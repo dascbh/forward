@@ -514,7 +514,7 @@ class TestReconcileText(unittest.TestCase):
         # F2 (and FWD-028 F3): ADR-0019 rule 12
         for rel in self.SURFACES:
             text = self.flat(rel)
-            self.assertIn("Size sets only the planner's depth and the cycle "
+            self.assertIn("Size sets the planner's depth and the cycle "
                           "review rounds: 1 round at XS/S, full + delta at "
                           "M/L.", text, rel)
             self.assertIn("a demand review is 1 round", text, rel)
@@ -907,6 +907,71 @@ class TestReviewByWeight(unittest.TestCase):
             self.assertIn('code | adversarial | plan | cycle', text, rel)
             # a code review is isolated too (I2)
             self.assertIn('context_policy = "artifact_only"', text, rel)
+
+    # C-13 cycle F1: the texts that run BEFORE sign-off schedule the plan
+    # review, so a cold agent cannot reach the sign-off without it.
+    SCHEDULE = ("At M/L, the adversarial plan review (kernel ADR-0021) runs "
+                "before the sign-off: the owner signs the plan that answered "
+                "its findings.")
+
+    def test_plan_review_is_scheduled_before_sign_off(self):
+        for rel in ("skills/fde-triage/SKILL.md",
+                    ".claude/skills/fde-triage/SKILL.md",
+                    "agents/fde-spec.md", ".claude/agents/fde-spec.md"):
+            text = self.flat(read(rel))
+            self.assertEqual(text.count(self.SCHEDULE), 1, rel)
+        for rel in ("skills/fde-triage/SKILL.md",
+                    ".claude/skills/fde-triage/SKILL.md"):
+            text = self.flat(read(rel))
+            # scheduled before the planner stops at the sign-off
+            self.assertLess(text.index(self.SCHEDULE),
+                            text.index("the planner stops at the sign-off"),
+                            rel)
+            self.assertIn("`FORWARD: M — spec + plan review + architecture + "
+                          "impl + demand review(1r) + cycle review(full+delta) "
+                          "+ promotion`", text, rel)
+            self.assertIn("`FORWARD: L — full spec + plan review + "
+                          "architecture + impl + demand review(1r) + cycle "
+                          "review(full+delta) + promotion`", text, rel)
+        for rel in ("agents/fde-spec.md", ".claude/agents/fde-spec.md"):
+            text = self.flat(read(rel))
+            self.assertLess(text.index(self.SCHEDULE),
+                            text.index("Stop at the sign-off"), rel)
+        for rel in ("skills/fde-review/SKILL.md",
+                    ".claude/skills/fde-review/SKILL.md"):
+            text = self.flat(section(read(rel), "Mode"))
+            plan = text[text.index("- **Plan**"):text.index("- **Cycle**")]
+            self.assertIn(self.SCHEDULE, plan, rel)
+
+    # C-13 code F1: step 1 no longer says size sets "only" two things
+    def test_step_1_does_not_limit_what_size_sets(self):
+        for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
+            text = self.flat(read(rel))
+            self.assertNotIn("Size sets only", text, rel)
+            self.assertIn("Size sets the planner's depth and the cycle review "
+                          "rounds", text, rel)
+
+    # C-13 cycle F2: when code review and adversarial both match, risk wins
+    RISK = ("The risk rule wins: a demand that is sensitive or irreversible, "
+            "or whose real diff overruns ~300 production lines, gets "
+            "adversarial review even inside a signed-off plan, and "
+            "`plan.md`'s demand table marks it (`adversarial` in its row).")
+
+    def test_the_risk_rule_wins(self):
+        for rel in ("skills/fde-review/SKILL.md",
+                    ".claude/skills/fde-review/SKILL.md"):
+            mode = self.flat(section(read(rel), "Mode"))
+            self.assertEqual(mode.count(self.RISK), 1, rel)
+            self.assertIn("kernel ADR-0021", mode, rel)
+
+    # C-13 cycle F4: the README names the four modes
+    def test_readme_names_the_four_review_modes(self):
+        text = self.flat(read("README.md"))
+        start = text.index("- `fde-review` —")
+        line = text[start:text.index("- `fde-debug`", start)]
+        for mode in ("code", "adversarial", "plan", "cycle"):
+            self.assertIn(mode, line, mode)
+        self.assertNotIn("two-pass review", line)
 
 
 if __name__ == "__main__":

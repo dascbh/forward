@@ -28,6 +28,10 @@ demand spec, ADR conformance, tests, the layer's check; `kind = "code"`;
 irreversible demand, or a real diff over ~300 production lines:
 adversarial review. An M/L plan, before sign-off: adversarial plan
 review (`kind = "plan"`). The cycle review is unchanged.
+The risk rule wins: a demand that is sensitive or irreversible, or whose
+real diff overruns ~300 production lines, gets adversarial review even
+inside a signed-off plan, and `plan.md`'s demand table marks it
+(`adversarial` in its row).
 
 Every mode stays isolated (I2), every finding cites a probe or a
 principle (I8), blocking follows `## What blocks`, and a code review's
@@ -41,7 +45,9 @@ record satisfies the promotion gate like any review.
 - **Adversarial**: the code review's scope, then the probe plan above,
   scratch repositories allowed (`kind = "adversarial"`). 1 round.
 - **Plan**: attack `plan.md`'s criteria, threat model and demand split,
-  and the cycle's ADRs, before the owner signs off. 1 round.
+  and the cycle's ADRs. At M/L, the adversarial plan review (kernel
+  ADR-0021) runs before the sign-off: the owner signs the plan that
+  answered its findings. 1 round.
 - **Cycle** (kernel ADR-0019 rule 12, `kind = "cycle"`): the objective
   on the integrated result; it never re-reviews a demand. *Functioning*:
   every `plan.md` criterion shown end to end (integration for back,

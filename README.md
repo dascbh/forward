@@ -297,8 +297,9 @@ tools; installed into the project for Claude Code):
 - `fde-triage` — sizes the cycle: planner depth and cycle review rounds
 - `fde-design` — the design discipline for UI demands: foundation, flow,
   IA, wireframe, design QA, user validation — proportional to size
-- `fde-review` — two-pass review, isolated: adversarial probes, then
-  heuristic judgment citing the principle catalogs
+- `fde-review` — isolated review sized by risk, in four modes: code (a
+  coding demand in a signed-off plan), adversarial (sensitive,
+  irreversible or oversized), plan (M/L, before sign-off) and cycle
 - `fde-debug` — stop-the-line, six-step triage to root cause, and the
   guard eval that turns the fix into an I1 entry
 - `fde-scrum` — the backlog format (B-<n> ids, evidence ladder, origin);

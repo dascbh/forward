@@ -63,7 +63,7 @@ the plan; it decides nothing new.
    from XS, a commit lane verified on the real diff by the `rule-lane`
    gate (`fde-triage`, kernel ADR-0015).
    score ≤ 1 → **XS** · 2–3 → **S** · 4–6 → **M** · ≥ 7 → **L**.
-   Size sets only the planner's depth and the cycle review rounds: 1
+   Size sets the planner's depth and the cycle review rounds: 1
    round at XS/S, full + delta at M/L. At every size `fde-spec` writes
    `plan.md` (minimal at XS) and a demand review is 1 round. M adds
    architecture: `fde-architecture` writes the ADRs, so M and L run all

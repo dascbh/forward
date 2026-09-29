@@ -219,8 +219,9 @@ class TestRoleCountIsOneSentence(unittest.TestCase):
             self.assertIn(self.FIVE, " ".join(section(read(rel), "Roles").split()), rel)
 
     def test_example_matches_the_table(self):
-        example = ("`FORWARD: M — spec + architecture + impl + demand "
-                   "review(1r) + cycle review(full+delta) + promotion`")
+        # C-13 cycle F1: the M example also names the plan review
+        example = ("`FORWARD: M — spec + plan review + architecture + impl + "
+                   "demand review(1r) + cycle review(full+delta) + promotion`")
         for rel in ("skills/fde-triage/SKILL.md", ".claude/skills/fde-triage/SKILL.md"):
             self.assertIn(example, flat(rel), rel)
         for rel in AGENTS_SURFACES + ("skills/fde-triage/SKILL.md", "README.md"):

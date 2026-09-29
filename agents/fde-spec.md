@@ -46,7 +46,9 @@ Invariants upheld: I1, I4
   step is marked and never bundled with a reversible one.
 
 Specifying a draft keeps its `## Items`. When the plan is specified,
-write `state: planned` in `plan.md` (specified, awaiting sign-off). Stop
+write `state: planned` in `plan.md` (specified, awaiting sign-off). At
+M/L, the adversarial plan review (kernel ADR-0021) runs before the
+sign-off: the owner signs the plan that answered its findings. Stop
 at the sign-off: the user signs `plan.md` once, and the orchestrating
 agent writes `state: running` with the `signed-off:` line.
 
