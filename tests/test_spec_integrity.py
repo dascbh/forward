@@ -230,3 +230,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("open_permissions", (ROOT / "templates/fde.config.template.toml").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 18, 0))
+
+    def test_kernel_version_ships_the_cycle_model(self):
+        # C-5 / kernel ADR-0019: clients receive backlog > cycle > demand only
+        # through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "templates/cycle/plan.md").exists())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 19, 0))
