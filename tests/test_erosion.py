@@ -395,9 +395,14 @@ class TestProcessOnlyRatio(unittest.TestCase):
         ]), 0.5)
         self.assertFalse(erosion.is_process_path("backlog.md.bak"))
         self.assertFalse(erosion.is_process_path("src/specs/x.py"))
-        for p in ("sprints/S-1/goal.md", "discovery/survey.md",
-                  "promotions/X/decision.md"):
-            self.assertTrue(erosion.is_process_path(p), p)
+        # the merge rule's list (fde-review), nothing wider: a demand's
+        # spec is part of its change (F4, DIRECT-2026-09-29-B)
+        self.assertEqual(erosion.PROCESS_PATHS,
+                         ("reviews/", "cycles/", "promotions/", "backlog.md"))
+        for p in ("specs/X/spec.md", "sprints/S-1/goal.md",
+                  "discovery/survey.md"):
+            self.assertFalse(erosion.is_process_path(p), p)
+        self.assertTrue(erosion.is_process_path("promotions/X/decision.md"))
 
     def test_measured_over_the_window_and_reported(self):
         with tempfile.TemporaryDirectory() as t:
@@ -417,11 +422,15 @@ class TestProcessOnlyRatio(unittest.TestCase):
             out = subprocess.run([sys.executable, str(ROOT / "runtime" / "erosion.py"),
                                   "--report"], cwd=p, capture_output=True, text=True)
             self.assertIn("process-only commits  0.5", out.stdout)
+            self.assertIn("last 50 commits on HEAD", out.stdout)
 
     def test_skills_state_the_metric_and_the_merge_rule(self):
         def read(rel):
             return " ".join((ROOT / rel).read_text(encoding="utf-8").split())
-        self.assertIn("`process_only_ratio`", read("skills/fde-erosion/SKILL.md"))
+        skill = read("skills/fde-erosion/SKILL.md")
+        self.assertIn("`process_only_ratio`", skill)
+        self.assertIn("(`reviews/`, `cycles/`, `promotions/`, `backlog.md`)", skill)
+        self.assertIn("the last N commits on HEAD", skill)
         self.assertIn(
             "On the demand's branch, process records (`reviews/`, `cycles/`, "
             "`promotions/`, `backlog.md`) stay in commits of their own, so no "

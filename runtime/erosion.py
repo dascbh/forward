@@ -414,8 +414,9 @@ def _largest_change(project: Path, window: int, scope: tuple | None = None,
 # Process records: the paths a commit touches when it records the work
 # rather than doing it. A high share of process-only commits is overhead
 # the history carries; the merge rule (fde-review) squashes them at merge.
-PROCESS_PATHS = ("cycles/", "reviews/", "promotions/", "specs/",
-                 "backlog.md", "sprints/", "discovery/")
+# The list is the merge rule's, nothing wider: a demand's spec is part of
+# its change, so specs/ is not a process record here.
+PROCESS_PATHS = ("reviews/", "cycles/", "promotions/", "backlog.md")
 
 
 def is_process_path(path: str) -> bool:
@@ -548,8 +549,8 @@ def main() -> int:
     print(f"  largest change (lines){fmt(m['largest_change'])}   "
           f"(batch size; large batches carry DORA's instability)")
     print(f"  process-only commits  {fmt(m['process_only_ratio'])}   "
-          f"(share touching only cycles/, reviews/, specs/… — reported, "
-          f"not gated)")
+          f"(last {m['window']} commits on HEAD; share touching only "
+          f"reviews/, cycles/, promotions/, backlog.md — reported, not gated)")
     if budget:
         breaches, unmeasured = check_budget(m, budget)
         mark = "✗ " if breaches else ("! " if unmeasured else "✓ ")

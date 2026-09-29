@@ -1960,10 +1960,52 @@ class TestRunRecordPerTree(unittest.TestCase):
         self.assertIn("FAILED (failures=1)", suite["summary"])
         self.assertIn("exit 3", verify(self.p, "--status").stdout)
 
-    def test_a_gate_rerun_keeps_the_suite_record_of_the_same_tree(self):
+    def test_a_gate_only_rerun_drops_the_earlier_suite_block(self):
+        # F3 (DIRECT-2026-09-29-B): a record is one run, never two mixed
         verify(self.p, "--all", "--record-suite")
+        self.assertIn("suite", self.record())
         verify(self.p, "--all")
-        self.assertEqual(self.record()["suite"]["exit_code"], 0)
+        self.assertNotIn("suite", self.record())
+        self.assertIn("suite: not recorded", verify(self.p, "--status").stdout)
+
+    def test_gate_and_suite_of_one_invocation_share_a_run_id(self):
+        verify(self.p, "--all", "--record-suite")
+        rec = self.record()
+        self.assertTrue(rec["gate"]["run_id"])
+        self.assertEqual(rec["suite"]["run_id"], rec["gate"]["run_id"])
+
+    def test_status_never_shows_a_suite_block_of_another_run(self):
+        verify(self.p, "--all", "--record-suite", "echo MARK-OTHER-RUN")
+        path = self.p / ".fde" / "runs" / f"{self.tree()}.json"
+        rec = json.loads(path.read_text())
+        rec["suite"]["run_id"] = "another-run"
+        path.write_text(json.dumps(rec))
+        out = verify(self.p, "--status").stdout
+        self.assertNotIn("suite: exit", out)
+        self.assertIn("suite: not recorded", out)
+
+    def test_a_dirty_tree_is_recorded_as_dirty(self):
+        # F2: untracked or unstaged files under the gate's paths
+        verify(self.p, "--all")
+        self.assertIs(self.record()["dirty"], False)
+        self.assertNotIn("dirty tree", verify(self.p, "--status").stdout)
+        (self.p / "src").mkdir()
+        (self.p / "src" / "new.py").write_text("x = 1\n")        # untracked
+        (self.p / "notes.txt").write_text("outside the gate's paths\n")
+        verify(self.p, "--all")
+        rec = self.record()
+        self.assertIs(rec["dirty"], True)
+        self.assertEqual(rec["dirty_paths"], ["src/new.py"])
+        self.assertIn("dirty tree — rerun before relying on it",
+                      verify(self.p, "--status").stdout)
+
+    def test_an_unstaged_change_is_dirty(self):
+        (self.p / "src").mkdir()
+        (self.p / "src" / "a.py").write_text("x = 1\n")
+        commit_all(self.p, "src")
+        (self.p / "src" / "a.py").write_text("x = 2\n")        # unstaged
+        verify(self.p, "--all")
+        self.assertEqual(self.record()["dirty_paths"], ["src/a.py"])
 
     def test_record_suite_without_all_is_refused(self):
         r = verify(self.p, "--record-suite")
@@ -2083,6 +2125,40 @@ class TestDuplicateBacklogIds(unittest.TestCase):
         r, row = self.gate()
         self.assertEqual(r.returncode, 0, r.stdout)
 
+    def test_a_prefix_inside_a_word_is_a_duplicate(self):
+        # F1 (DIRECT-2026-09-29-B): `Fix` is not the opening of `Fixture…`
+        self.backlog(self.p, "- B-12 Fix", "- B-12 Fixture cleanup")
+        r, row = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("B-12", row)
+
+    def test_a_short_prefix_is_a_duplicate(self):
+        # two words are too few to call one title the other's shortening
+        self.backlog(self.p, "- B-13 Add tests", "- B-13 Add tests for erosion")
+        r, row = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("B-13", row)
+
+    def test_same_item_rule(self):
+        same = verify_mod.same_item
+        self.assertTrue(same("Add tests now", "Add tests now for erosion"))
+        self.assertTrue(same("Add tests now …", "Add tests now, for erosion"))
+        self.assertTrue(same("one", "One."))
+        self.assertFalse(same("Add tests now", "Add tests nowhere else"))
+        self.assertFalse(same("Add tests", "Add tests for erosion"))
+        self.assertFalse(same("Fix", "Fixture cleanup"))
+        self.assertFalse(same("", "anything"))
+        # a `…` cut mid-word: the whole words before it are the evidence
+        self.assertTrue(same("so one red commit does not ke…",
+                             "so one red commit does not keep runs red"))
+        self.assertFalse(same("Fix…", "Fixture cleanup"))
+        self.assertFalse(same("Add tests fo…", "Add tests for erosion"))
+
+    def test_this_repository_stays_green(self):
+        r = verify(ROOT, "--gate", "backlog")
+        rows = [l for l in r.stdout.splitlines() if "BL-IDS" in l]
+        self.assertFalse(any("✗" in l for l in rows), rows)
+
     def test_a_plan_items_mention_passes(self):
         self.backlog(self.p, "- B-8 (C-1) opinion — the item")
         d = Path(self.p) / "cycles" / "C-2"
@@ -2099,6 +2175,18 @@ class TestDuplicateBacklogIds(unittest.TestCase):
         r, row = self.gate()
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("B-9", row)
+
+    def test_a_table_rows_title_cell_is_its_item(self):
+        # a short title closed as a list line is the same item as the table
+        # row it came from: the row's other cells are not its title
+        self.backlog(self.p, "| B-10 | Verification discipline → C-10 | five "
+                             "factual errors | usage-data (S-005) | M |",
+                     "- B-10 Verification discipline — discarded: no recurrence")
+        r, row = self.gate()
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertEqual(verify_mod.backlog_items(
+            "| B-10 | Verification discipline → C-10 | five | opinion | M |"),
+            [("B-10", "Verification discipline")])
 
 
 if __name__ == "__main__":

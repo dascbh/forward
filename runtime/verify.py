@@ -82,19 +82,50 @@ def backlog_items(text: str) -> list[tuple[str, str]]:
         m = _ITEM_LINE.match(line)
         if not m:
             continue
-        body = _ITEM_END.sub("", _ITEM_MARK.sub("", m.group(2)))
-        body = _ITEM_EVIDENCE.sub("", body.replace("|", " "))
+        body = m.group(2)
+        if line.lstrip().startswith("|"):
+            # a table row's item is its title cell; the other cells are the
+            # description, evidence and size, not the title a list line keeps
+            body = body.strip().lstrip("|").split("|")[0]
+        body = _ITEM_END.sub("", _ITEM_MARK.sub("", body))
+        body = _ITEM_EVIDENCE.sub("", body)
         body = re.sub(r"\s+", " ", body).strip(" —–-")
         out.append((f"B-{int(m.group(1))}", body))
     return out
 
 
+# A shortened title names the same item only when it is at least this many
+# words: two words ("Add tests", "Fix parser") are what parallel checkouts
+# open DIFFERENT items with, so a two-word prefix match would hide exactly
+# the clash BL-IDS exists to catch; three words is the shortest opening a
+# closing list keeps that still singles one item out (review F1,
+# DIRECT-2026-09-29-B).
+SHORTENED_TITLE_MIN_WORDS = 3
+
+
 def same_item(a: str, b: str) -> bool:
     """One item, two copies: equal texts, or one the other's opening words
-    (an item moved to a closing list keeps its title and drops the rest)."""
-    a, b = (t.casefold().rstrip(" .…(") for t in (a, b))
+    (an item moved to a closing list keeps its title and drops the rest) —
+    whole words only, and at least SHORTENED_TITLE_MIN_WORDS of them. A
+    text cut with `…` may end mid-word, so its last word is not evidence."""
+    def norm(t: str) -> str:
+        t = t.casefold().strip()
+        cut_mid_word = re.search(r"\w…$", t) is not None
+        t = t.rstrip(" .…(")
+        if cut_mid_word:
+            t = t.rsplit(" ", 1)[0] if " " in t else ""
+        return t.rstrip(" .…(,;:—–-")
+
+    a, b = norm(a), norm(b)
     short, long_ = sorted((a, b), key=len)
-    return bool(short) and long_.startswith(short)
+    if not short:
+        return False
+    if short == long_:
+        return True
+    if len(short.split()) < SHORTENED_TITLE_MIN_WORDS:
+        return False
+    # the longer text continues at a word boundary: space, punctuation or end
+    return long_.startswith(short) and not re.match(r"\w", long_[len(short):])
 
 
 def _cycle_closed(plan: Path) -> bool:
@@ -1144,6 +1175,33 @@ def current_tree(project: Path) -> str | None:
     return tree if out.returncode == 0 and re.fullmatch(r"[0-9a-f]{40,64}", tree) else None
 
 
+def dirty_paths(project: Path, roots: tuple) -> list[str] | None:
+    """Untracked or unstaged paths under `roots`: what the gate read from
+    the working tree but the record's key (the index tree) does not hold.
+    None when git cannot say."""
+    try:
+        out = subprocess.run(["git", "status", "--porcelain", "-z",
+                              "--untracked-files=all"], cwd=project,
+                             capture_output=True, text=True, check=False)
+    except OSError:
+        return None
+    if out.returncode != 0:
+        return None
+    found, entries = [], out.stdout.split("\0")
+    i = 0
+    while i < len(entries):
+        e = entries[i]
+        i += 1
+        if len(e) < 4:
+            continue
+        x, y, path = e[0], e[1], e[3:]
+        if x in "RC":
+            i += 1  # the rename's source path follows
+        if (x == "?" or y != " ") and path_matches(path, roots):
+            found.append(path)
+    return sorted(found)
+
+
 def _worktree_matches_index(project: Path) -> bool | None:
     try:
         out = subprocess.run(["git", "diff", "--quiet"], cwd=project,
@@ -1195,12 +1253,13 @@ def find_run(project: Path, tree: str) -> dict | None:
 
 
 def record_run(project: Path, tree: str, **parts) -> Path:
-    """Merge `parts` (gate=…, suite=…) into the tree's record; what is not
-    passed is kept, since the same tree means the same code."""
+    """Write `parts` (gate=…, suite=…, dirty=…) as the tree's record. One
+    record is one run: an earlier run's blocks are dropped, never merged,
+    so a suite line can never sit beside another run's gate line (review
+    F3, DIRECT-2026-09-29-B)."""
     runs = project / RUNS_DIR
     runs.mkdir(parents=True, exist_ok=True)
-    rec = read_run(project, tree) or {"tree": tree}
-    rec.update(parts)
+    rec = {"tree": tree, **parts}
     rec["worktree_matches_index"] = _worktree_matches_index(project)
     path = runs / f"{tree}.json"
     tmp = runs / f".{tree}.json.tmp"
@@ -1247,13 +1306,18 @@ def print_status(project: Path, fmt: str) -> int:
     else:
         print("  gate: not recorded")
     suite = rec.get("suite")
-    if isinstance(suite, dict):
+    # a suite block counts only beside the gate block of its own run
+    if (isinstance(suite, dict) and isinstance(gate, dict)
+            and suite.get("run_id") and suite.get("run_id") == gate.get("run_id")):
         print(f"  suite: exit {suite.get('exit_code')} · {suite.get('summary')} · "
               f"{suite.get('recorded_at')} · {suite.get('command')}")
     else:
         print("  suite: not recorded (verify.py --all --record-suite)")
-    if rec.get("worktree_matches_index") is False:
-        print("  note: the working tree had unstaged changes when recorded")
+    if rec.get("dirty") is not False:
+        paths = rec.get("dirty_paths") or []
+        what = (", ".join(paths[:5]) + (" …" if len(paths) > 5 else "")
+                if paths else "dirty state unknown")
+        print(f"  dirty tree — rerun before relying on it ({what})")
     return 0
 
 
@@ -1405,7 +1469,12 @@ def _record(project: Path, cfg: Config, args, code: int, g: Gate) -> None:
         tree = current_tree(project)
         if tree is None:
             raise RuntimeError("git write-tree failed")
+        import uuid
+        run_id = uuid.uuid4().hex
+        behavior_paths, eval_paths = gate_paths(cfg.raw)
+        dirty = dirty_paths(project, tuple(behavior_paths) + tuple(eval_paths))
         parts = {"gate": {
+            "run_id": run_id,
             "passed": code == 0,
             "gates": [{"id": i, "passed": p, "detail": m} for i, p, m in g.results],
             "recorded_at": _now(),
@@ -1417,7 +1486,11 @@ def _record(project: Path, cfg: Config, args, code: int, g: Gate) -> None:
             if not cmd:
                 raise RuntimeError("no suite command: pass one or set "
                                    "[stack].test_command")
-            parts["suite"] = run_suite(project, cmd)
+            parts["suite"] = {"run_id": run_id, **run_suite(project, cmd)}
+        # the key is the index tree; the gate read the working tree — an
+        # untracked or unstaged path under the gate's roots is a difference
+        parts["dirty"] = dirty is None or bool(dirty)
+        parts["dirty_paths"] = dirty or []
         record_run(project, tree, **parts)
         suite = parts.get("suite")
         tail = f"; suite exit {suite['exit_code']}" if suite else ""
