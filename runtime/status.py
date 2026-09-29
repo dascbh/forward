@@ -22,10 +22,11 @@ import re
 import sys
 from pathlib import Path
 
-HEADER = re.compile(r"^([A-Za-z_]+):\s*(.*)$")
-DONE = re.compile(r"^\s*[-*]\s+\[([ xX-])\]\s*(.*)$")
-BULLET = re.compile(r"^\s*[-*]\s+(.*)$")
-CYCLE_FILE = re.compile(r"^C-(\d+)\.md$")
+HEADER = re.compile(r"^([A-Za-z_]+)\s*:\s*(.*)$")
+DONE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\[([^\]]{0,3})\]\s*(.*)$")
+BULLET = re.compile(r"^\s*[-*+]\s+(.*)$")
+CYCLE_FILE = re.compile(r"^C-(\d+)\.md$", re.IGNORECASE)
+END_KEYS = ("closed", "abandoned")
 WIDTH = 110
 
 
@@ -42,15 +43,28 @@ def _clip(text: str) -> str:
 
 
 def _sections(text: str) -> list[tuple[str, list[str]]]:
-    """(heading, lines) per `## ` section; the part before the first one
-    has heading ''."""
+    """(heading, lines) per `##` section; the part before the first one
+    has heading ''. Lines inside ``` fences are dropped."""
     out: list[tuple[str, list[str]]] = [("", [])]
+    fenced = False
     for line in text.splitlines():
-        if line.startswith("## "):
-            out.append((line[3:].strip(), []))
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        if line.startswith("##") and not line.startswith("###"):
+            out.append((line[2:].strip(), []))
         else:
             out[-1][1].append(line)
     return out
+
+
+def _mark(raw: str) -> str:
+    """x met · - declined by the user · ' ' pending · anything else is shown
+    as written and counts as pending."""
+    m = raw.strip().lower()
+    return m if m in ("x", "-") else (" " if not m else raw)
 
 
 def cycle_token(cid: str) -> re.Pattern:
@@ -68,12 +82,24 @@ class Cycle:
             if m:
                 self.header.setdefault(m.group(1).lower(), m.group(2).strip())
         self.done: list[tuple[str, str]] = []
+        self.legacy_next: list[str] = []
+        self.misplaced_end: list[str] = []
         for heading, lines in sections[1:]:
-            if heading.lower().startswith("done when"):
+            h = heading.lower()
+            for line in lines:
+                m = HEADER.match(line.strip())
+                if m and m.group(1).lower() in END_KEYS and m.group(2).strip():
+                    self.misplaced_end.append(m.group(1).lower())
+            if h.startswith("done when"):
                 for line in lines:
                     m = DONE.match(line)
                     if m:
-                        self.done.append((m.group(1).lower(), m.group(2).strip()))
+                        self.done.append((_mark(m.group(1)), m.group(2).strip()))
+            elif h.startswith("next cycle"):
+                for line in lines:
+                    m = BULLET.match(line)
+                    if m:
+                        self.legacy_next.append(m.group(1).strip())
 
     @property
     def objective(self) -> str:
@@ -88,25 +114,51 @@ class Cycle:
         return ""
 
     @property
+    def pending(self) -> int:
+        return sum(1 for mark, _ in self.done if mark not in ("x", "-"))
+
+    @property
     def progress(self) -> str:
         met = sum(1 for mark, _ in self.done if mark == "x")
-        return f"{met}/{len(self.done)}"
+        declined = sum(1 for mark, _ in self.done if mark == "-")
+        out = f"{met}/{len(self.done)} met"
+        if declined:
+            out += f", {declined} declined"
+        if self.pending:
+            out += f", {self.pending} pending"
+        return out
 
 
-def load_cycles(root: Path) -> list[Cycle]:
+def load_cycles(root: Path, problems: list[str]) -> list[Cycle]:
     d = root / "cycles"
     if not d.is_dir():
         return []
+    try:
+        entries = sorted(d.iterdir())
+    except OSError as e:
+        problems.append(f"cycles/ cannot be read: {e.strerror or e}")
+        return []
     found = []
-    for p in d.iterdir():
+    for p in entries:
+        if p.name.startswith(".") or not p.is_file():
+            continue
         m = CYCLE_FILE.match(p.name)
-        if m and p.is_file():
-            found.append(Cycle(p, int(m.group(1))))
+        if not m:
+            problems.append(f"cycles/{p.name} is not named C-<n>.md and is not read")
+            continue
+        found.append(Cycle(p, int(m.group(1))))
+    seen: dict[str, int] = {}
+    for c in found:
+        seen[c.id] = seen.get(c.id, 0) + 1
+    for cid, k in seen.items():
+        if k > 1:
+            problems.append(f"{k} files in cycles/ read as {cid}")
     return sorted(found, key=lambda c: c.n)
 
 
 def load_backlog(root: Path) -> list[tuple[str, list[str]]] | None:
-    """(section, items) in file order; None when backlog.md is absent."""
+    """(section, [(shown, full)]) in file order; None when backlog.md is
+    absent. `full` is the whole row, so a cycle named in any cell counts."""
     p = root / "backlog.md"
     if not p.is_file():
         return None
@@ -127,18 +179,18 @@ def load_backlog(root: Path) -> list[tuple[str, list[str]]] | None:
                 if nxt.startswith("|") and set(nxt) <= set("|-: "):
                     continue  # header row
                 if len(cells) >= 2:
-                    items.append(_clip(f"#{cells[0]} {cells[1]}"))
+                    items.append((_clip(f"#{cells[0]} {cells[1]}"), s))
                 continue
             m = BULLET.match(line)
             if m:
-                items.append(_clip(m.group(1)))
+                items.append((_clip(m.group(1)), m.group(1)))
         if items:
             out.append((heading or "(top)", items))
     return out
 
 
-def warnings(cycles: list[Cycle], backlog) -> list[str]:
-    out = []
+def warnings(cycles: list[Cycle], backlog, problems: list[str]) -> list[str]:
+    out = list(problems)
     open_ = [c for c in cycles if not c.ended]
     if len(open_) > 1:
         out.append(f"{len(open_)} cycles open: {', '.join(c.id for c in open_)}"
@@ -146,8 +198,14 @@ def warnings(cycles: list[Cycle], backlog) -> list[str]:
     for c in cycles:
         if not c.objective:
             out.append(f"{c.id} has no objective: line")
-        if not c.ended and c.done and all(m == "x" for m, _ in c.done):
-            out.append(f"{c.id} has every done item met but no closed: line")
+        if c.misplaced_end and not c.ended:
+            out.append(f"{c.id} has a {c.misplaced_end[0]}: line below its header — "
+                       "it counts only among the lines before the first ##")
+        elif not c.ended and c.done and not c.pending:
+            out.append(f"{c.id} has no pending done item but no closed: line")
+        if c.legacy_next:
+            out.append(f"{c.id} keeps a ## Next cycle list ({len(c.legacy_next)} "
+                       "lines) — under AGENTS.md ## Cycle those lines belong in backlog.md")
     if backlog is None:
         out.append("no backlog.md — discoveries outside a cycle have nowhere to go")
     return out
@@ -155,8 +213,8 @@ def warnings(cycles: list[Cycle], backlog) -> list[str]:
 
 def owned_lines(cid: str, backlog) -> list[str]:
     tok = cycle_token(cid)
-    return [item for heading, items in backlog or []
-            for item in items if tok.search(heading) or tok.search(item)]
+    return [shown for heading, items in backlog or []
+            for shown, full in items if tok.search(heading) or tok.search(full)]
 
 
 def show_cycle(c: Cycle, backlog, title: str) -> list[str]:
@@ -164,12 +222,15 @@ def show_cycle(c: Cycle, backlog, title: str) -> list[str]:
            f"  objective: {_clip(c.objective) or '—'}"]
     if c.header.get("demands"):
         out.append(f"  demands:   {_clip(c.header['demands'])}")
-    out.append(f"  done when: {c.progress} done")
+    out.append(f"  done when: {c.progress}")
     out += [f"    [{m}] {_clip(t)}" for m, t in c.done]
     owned = owned_lines(c.id, backlog)
     if owned:
         out.append(f"  backlog lines from {c.id}: {len(owned)}")
         out += [f"    - {t}" for t in owned]
+    if c.legacy_next:
+        out.append(f"  ## Next cycle (old format): {len(c.legacy_next)} lines")
+        out += [f"    - {_clip(t)}" for t in c.legacy_next]
     return out
 
 
@@ -196,7 +257,7 @@ def show_backlog(backlog) -> list[str]:
     out = [f"BACKLOG ({total} items)"]
     for heading, items in backlog:
         out.append(f"  {heading}")
-        out += [f"    - {t}" for t in items]
+        out += [f"    - {shown}" for shown, _ in items]
     return out + [""]
 
 
@@ -209,8 +270,16 @@ def main(argv=None) -> int:
     part.add_argument("--cycles", action="store_true", help="cycles only")
     args = ap.parse_args(argv)
 
+    try:
+        sys.stdout.reconfigure(errors="replace")
+    except (AttributeError, ValueError):
+        pass
     root = Path(args.root)
-    cycles = load_cycles(root)
+    if not root.is_dir():
+        print(f"status: --root {args.root} is not a directory", file=sys.stderr)
+        return 2
+    problems: list[str] = []
+    cycles = load_cycles(root, problems)
     backlog = load_backlog(root)
 
     if args.cycle:
@@ -221,7 +290,7 @@ def main(argv=None) -> int:
         print("\n".join(show_cycle(match[0], backlog, "CYCLE")))
         return 0
 
-    out = [f"WARNING {w}" for w in warnings(cycles, backlog)]
+    out = [f"WARNING {w}" for w in warnings(cycles, backlog, problems)]
     if out:
         out.append("")
     if not args.backlog:

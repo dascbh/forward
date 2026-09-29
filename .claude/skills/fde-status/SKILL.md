@@ -20,13 +20,18 @@ for a decision that belongs to the user.
 
 ## What it reads
 
+The format comes from AGENTS.md `## Cycle`.
+
 - A cycle is open while its header (the lines before the first `##`)
-  has neither `closed:` nor `abandoned:`. Progress counts the
-  `## Done when` items marked `[x]`.
-- A backlog line belongs to a cycle when the line, or the `##` section
-  holding it, names that cycle (`C-3`, never matching `C-30`).
-- Backlog table rows show their first two cells. Bullets show as they
-  are.
+  has neither `closed:` nor `abandoned:`. When one of those keys appears
+  lower in the file, the view names it instead of guessing.
+- Done items are counted as `[x]` met, `[-]` declined by the user, and
+  anything else pending. An unknown mark is shown as it was written.
+- A backlog line belongs to a cycle when the line (every cell of a table
+  row), or the `##` section holding it, names that cycle (`C-3`, never
+  matching `C-30`).
+- An old-format `## Next cycle` list is shown with a warning to move it
+  into `backlog.md`.
 
 ## Never
 

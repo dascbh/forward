@@ -100,7 +100,7 @@ class TestView(StatusCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("OPEN CYCLE C-2", r.stdout)
         self.assertIn("erase a KB source", r.stdout)
-        self.assertIn("1/3 done", r.stdout)
+        self.assertIn("1/3 met, 1 declined, 1 pending", r.stdout)
         self.assertIn("[ ] DEM-036 — reindex guaranteed", r.stdout)
 
     def test_body_mention_of_closed_does_not_close(self):
@@ -111,7 +111,7 @@ class TestView(StatusCase):
 
     def test_closed_cycle_is_one_line(self):
         r = run(self.root)
-        self.assertIn("C-1  closed 2026-09-28  2/2  security debts", r.stdout)
+        self.assertIn("C-1  closed 2026-09-28  2/2 met  security debts", r.stdout)
 
     def test_backlog_lines_of_the_open_cycle_by_token_or_section(self):
         # FM-3: C-10 must not be claimed by C-2
@@ -151,7 +151,7 @@ class TestWarnings(StatusCase):
 
     def test_open_cycle_with_every_item_met_is_ready_to_close(self):
         self.write("cycles/C-1.md", "objective: o\n\n## Done when\n- [x] a\n")
-        self.assertIn("C-1 has every done item met but no closed:",
+        self.assertIn("C-1 has no pending done item but no closed: line",
                       run(self.root).stdout)
 
 
@@ -199,12 +199,65 @@ class TestTolerance(StatusCase):
         r = run(self.root)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("Traceback", r.stderr)
-        self.assertIn("1/1 done", r.stdout)
+        self.assertIn("1/1 met", r.stdout)
 
     def test_not_called_by_the_gate(self):
         gate = (ROOT / "runtime" / "verify.py").read_text()
         self.assertNotIn("import status", gate)
         self.assertNotIn("status.py", gate)
+
+
+class TestRoundOneFindings(StatusCase):
+    """reviews/FWD-024 round 1: each finding's probe, red before the fix."""
+
+    def test_f1_closed_line_below_the_header_is_named(self):
+        self.write("cycles/C-1.md", "objective: o\n\n## Done when\n- [x] a\n\nclosed: 2026-09-28\n")
+        out = run(self.root).stdout
+        self.assertIn("C-1 has a closed: line below its header", out)
+        self.assertNotIn("no pending done item but no closed:", out)
+
+    def test_f2_cycle_named_in_a_later_table_cell(self):
+        self.write("cycles/C-3.md", "objective: o\n")
+        self.write("backlog.md", "| # | item | evidence |\n|---|---|---|\n"
+                   "| 4 | Idea | usage-data (C-3 review) |\n")
+        part = run(self.root).stdout.split("BACKLOG")[0]
+        self.assertIn("#4 Idea", part)
+
+    def test_f3_numbered_spaced_and_unknown_marks_are_counted(self):
+        self.write("cycles/C-1.md", "objective: o\n## Done when\n1. [x] a\n- [ x ] b\n"
+                   "- [~] c\n- [] d\n")
+        out = run(self.root).stdout
+        self.assertIn("2/4 met, 2 pending", out)
+        self.assertIn("[~] c", out)
+        self.assertNotIn("no pending done item", out)
+
+    def test_f4_narrow_stdout_encoding_never_tracebacks(self):
+        self.write("cycles/C-1.md", "objective: seta → e caf\u00e9\n")
+        r = subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root)],
+                           capture_output=True, text=True, encoding="ascii",
+                           errors="replace", env={"PYTHONIOENCODING": "ascii",
+                                                  "PATH": "/usr/bin:/bin"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+
+    def test_f5_misnamed_and_duplicate_cycle_files_warn(self):
+        self.write("cycles/C-3-status.md", "objective: o\n")
+        self.write("cycles/C-01.md", "objective: o\n")
+        self.write("cycles/C-1.md", "objective: o\n")
+        self.write("cycles/.DS_Store", "x")
+        out = run(self.root).stdout
+        self.assertIn("cycles/C-3-status.md is not named C-<n>.md", out)
+        self.assertIn("2 files in cycles/ read as C-1", out)
+        self.assertNotIn(".DS_Store", out)
+
+    def test_notes_bad_root_fences_and_legacy_next_cycle(self):
+        self.assertEqual(run(self.root / "nope").returncode, 2)
+        self.write("cycles/C-1.md", "objective: o\n## Done when\n- [x] a\n```\n- [ ] fake\n```\n"
+                   "## Next cycle\n- old idea\n")
+        out = run(self.root).stdout
+        self.assertIn("1/1 met", out)
+        self.assertIn("C-1 keeps a ## Next cycle list (1 lines)", out)
+        self.assertIn("old idea", run(self.root, "--cycle", "C-1").stdout)
 
 
 if __name__ == "__main__":
