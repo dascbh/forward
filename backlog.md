@@ -94,6 +94,9 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 - B-65 (C-14) usage-data — at XS/S nothing says who writes the flow/IA/wireframe inputs the planner's intended model needs (code review FWD-043 F2)
 - B-66 (C-14) usage-data — "prove a reader against a real client" is text only; no artifact records what was proven where (code review FWD-043 F3)
 
+- B-67 (C-14) usage-data — sync removes any `fde-*` skill the kernel does not ship, including a client's own `fde-<x>` skill; tell before, or keep a list of retired kernel names (code review FWD-040 F1)
+- B-68 (C-14) usage-data — the 0.21.0 downgrade test skips silently when commit 5127c29 is absent (shallow CI clone) (code review FWD-040 F2)
+
 ## Discarded (2026-09-29)
 
 Reviewed against 0.19.0 with the owner; ids stay retired.

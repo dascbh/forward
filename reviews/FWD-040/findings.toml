@@ -1,0 +1,47 @@
+# Code review report (light pass)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-040"
+kind = "code"
+context_policy = "artifact_only"
+isolation_mode = "artifact_and_spec"
+rounds_planned = 1
+round = 1
+commit = "6b55ec0"
+agent_transcript = "agent-a5bbd64977a76ac99"
+probed = [
+  "spec.md, plan A6/FM3 and deploy.md step 3 read against git show 6b55ec0",
+  "python3 -m unittest test_install_sync.py: 32 tests OK; test_mirror.py: 50 tests OK",
+  "diff skills/fde-sync/SKILL.md against .claude/skills/fde-sync/SKILL.md: identical; diff -rq docs/adr .fde/adr: identical (kernel-adr pair holds)",
+  "SETUP step 6 renumbering: cross references to steps 7-8 and step 6 still point at the right sections",
+]
+notes = [
+  "B-32 done: SETUP step 6 and sync section 2 write kernel ADRs to .fde/adr/ only, replaced whole; both say the client's docs/adr is never written, merged or renumbered (FM3); mirror pair kernel-adr is in tests/mirror.toml and green.",
+  "B-38 done: both old comments are named verbatim, the result keeps the prefix and the enabled value, a live [scrum] header stays, and the commented block becomes # [backlog]. Only those exact strings are rewritten; a hand-edited variant of the old comment is left as is (bounded by design).",
+  "B-42 done: the notice sits before section 1 and tells the user to leave auto mode and re-run; test_the_notice_precedes_the_first_step guards the order.",
+  "Skill removal is limited to fde-* directories absent from the kernel's skills/; fde-init is in the kernel so it is never removed; non-fde-* directories stay. Consequence: a client's own skill named fde-something would be removed (see F1).",
+  "The 0.21.0 downgrade fixture runs the old gate from git archive, which proves the rollback claim of deploy.md step 3; it skips when the commit is absent (see F2).",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "low"
+principle = "FUN-3"
+evidence = """
+Sync removes every .claude/skills/fde-* directory that the kernel does not ship. The spec allows exactly this, but a client that named its own skill fde-<something> loses it, and the only safeguard is that the agent tells the user afterwards. The instruction removes without listing first and asking. Within the declared rule, not a spec break; the user's own docs/adr and non-fde-* skills are untouched.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F2"
+attribute = "reliability_resilience"
+severity = "low"
+principle = "REL-4"
+evidence = """
+test_the_0_21_0_gate_ignores_fde_adr_and_backlog calls self.skipTest when commit 5127c29 is not in the clone. CI on a shallow checkout would skip it silently and the rollback claim of deploy.md step 3 would go unverified there, while the suite stays green. The workflow uses full history for the ranged gate, so today it runs; the dependency is not stated in the test.
+"""
+blocking = false
+backlog = true
