@@ -93,19 +93,21 @@ backlog, and code starts only inside a signed-off cycle.
    message line (`FORWARD: RULE — <one-line reason>`); the `rule-lane`
    gate re-verifies every claim against the real diff, every time.
 
-   score ≤ 1 → **XS**: implementation, adversarial, 1 round ·
-   2–3 → **S**: + spec · 4–6 → **M**: + promotion, 2 rounds, ADR ·
-   ≥ 7 → **L**: all six roles, 3 rounds, ADR.
-   Size sets the planner's depth and the cycle review rounds. Announce
-   it in ONE line (e.g. `FORWARD: M — spec + impl + adversarial(2r) +
-   promotion`), commit `plan.md` (`## Cycle` below), and stop at the
-   sign-off.
+   score ≤ 1 → **XS** · 2–3 → **S** · 4–6 → **M** · ≥ 7 → **L**.
+   Size sets only the planner's depth and the cycle review rounds: 1
+   round at XS/S, full + delta at M/L. At every size `fde-spec` writes
+   `plan.md` (minimal at XS), a demand review is 1 round, and the cycle
+   closes with a promotion. Announce the size in ONE line (e.g.
+   `FORWARD: M — spec + impl + adversarial(2r) + promotion`), commit
+   `plan.md` (`## Cycle` below), and stop at the sign-off.
    **Budgets, not minimums.** Rounds after the first are delta rounds
    (the fixes, not the whole artifact again) and are never extended.
-   Timebox: XS 30 min · S 1 h · M 3 h · L 1 day. Re-size a demand on its
-   real diff before review: over twice the estimate or ~800 changed
-   lines → split, don't review. A new rule ships as instruction first;
-   it becomes a gate only when usage-data shows the instruction failed.
+   Timebox: XS 30 min · S 1 h · M 3 h · L 1 day. A demand whose real
+   diff overruns its estimate is not re-split at review: the overrun is
+   posted on the board and the demand proceeds; the cycle replans only
+   if a criterion or an ADR changes. A new rule ships as instruction
+   first; it becomes a gate only when usage-data shows the instruction
+   failed.
 2. **Plan** the cycle (`## Cycle`): `plan.md` carries a `## Threat model`
    (who the change contains, what is out of scope — it bounds what the
    review may block on), criteria and failure modes with ids, dated
@@ -174,13 +176,13 @@ backlog, and code starts only inside a signed-off cycle.
    step's verification and rollback exercised where the project allows;
    the signals the criteria declare exist (I5); runbook and README match
    how the system now runs. Budget: 1 round at XS/S, full + delta at M/L.
-8. **Promote and deploy**: promotion (M/L) is the promotion role's
-   decision against the plan's criteria, not a question to the user. The
-   deploy plan runs infra-expand → back → front → infra-contract, and
-   every step has its own verification and rollback. An irreversible
-   step is marked and never bundled with a reversible one. A step whose
-   verification fails is rolled back and the cycle stops; the user is
-   told the outcome, not asked beforehand.
+8. **Promote and deploy**: promotion, at every size, is
+   `fde-promotion`'s decision against the plan's criteria, not a
+   question to the user. The deploy plan runs infra-expand → back →
+   front → infra-contract, and every step has its own verification and
+   rollback. An irreversible step is marked and never bundled with a
+   reversible one. A step whose verification fails is rolled back and
+   the cycle stops; the user is told the outcome, not asked beforehand.
 
 Handoff between steps is by the artifacts named above, never by
 continuing the same conversation thread (I7).
@@ -207,7 +209,10 @@ spec is one page citing the plan's criteria and ADRs by id; a demand has
 no acceptance, failure modes, architecture or promotion of its own.
 
 A cycle moves `draft → planned (signed off) → running → closed`. Several
-drafts may exist; one cycle runs at a time.
+drafts may exist; one cycle runs at a time. `fde-spec` writes `state:
+draft` and `state: planned`; the orchestrating agent writes `state:
+running` at sign-off and `state: closed` or `state: abandoned` at close.
+These header lines are the only edits a frozen plan takes.
 
 A new fact always goes to the backlog — never a fix, an amendment or a
 question. The one exception is a fact that invalidates the demand's own
@@ -232,8 +237,8 @@ traceability; the demand carries I1, I2 and I3; the commit carries RULE.
 
 The plan is frozen at sign-off. A cycle closes when its criteria are met
 with integration evidence and it is deployed (or published, when the
-project does): set `state: closed` and show the user the backlog lines
-it added. `python3 bin/fde/status.py` shows the cycles and the backlog
+project does): write `state: closed` and show the user the backlog
+lines it added. `python3 bin/fde/status.py` shows the cycles and the backlog
 (`fde-status`). A cycle opened before ADR-0019 (`cycles/C-<n>.md`)
 finishes under the rules it opened with.
 

@@ -82,19 +82,16 @@ class TestRuleLaneIsAParagraphNotATableRow(unittest.TestCase):
     contain the word XS and pass a looser check."""
 
     XS_S_M_L_TABLE = (
-        "| score | size | active roles | adversarial rounds | ADR | timebox |\n"
+        "| score | size | planner (`fde-spec`, `plan.md`) | cycle review rounds | ADR | timebox |\n"
         "|---|---|---|---|---|---|\n"
-        "| ≤ 1 | XS | implementation, adversarial | 1 full | no | 30 min |\n"
-        "| 2–3 | S | spec, implementation, adversarial | 1 full | no | 1 h |\n"
-        "| 4–6 | M | spec, implementation, adversarial, promotion | 1 full + 1 delta | yes | 3 h |\n"
-        "| ≥ 7 | L | all five | 1 full + 2 delta | yes | 1 day |"
+        "| ≤ 1 | XS | minimal plan | 1 full | no | 30 min |\n"
+        "| 2–3 | S | plan | 1 full | no | 1 h |\n"
+        "| 4–6 | M | plan + ADRs | 1 full + 1 delta | yes | 3 h |\n"
+        "| ≥ 7 | L | full plan + ADRs | 1 full + 1 delta | yes | 1 day |"
     )
 
-    SCORE_SENTENCE = (
-        "score ≤ 1 → **XS**: implementation, adversarial, 1 round ·\n"
-        "   2–3 → **S**: + spec · 4–6 → **M**: + promotion, 2 rounds, ADR ·\n"
-        "   ≥ 7 → **L**: all six roles, 3 rounds, ADR."
-    )
+    # reviews/FWD-026 F2/F3: size sets only planner depth and cycle rounds
+    SCORE_SENTENCE = "score ≤ 1 → **XS** · 2–3 → **S** · 4–6 → **M** · ≥ 7 → **L**."
 
     def test_skill_table_is_unmodified_and_rule_precedes_it_as_prose(self):
         skill = read("skills/fde-triage/SKILL.md")
@@ -154,11 +151,13 @@ class TestBoundedReview(unittest.TestCase):
 
     def test_review_budget_is_sized_and_never_extended(self):
         budget = section(read("skills/fde-review/SKILL.md"), "Budget")
-        for needle in ("| XS, S | 1 | full |", "| M | 2 | full, delta |",
-                       "| L | 3 | full, delta, delta |", "No extension",
+        for needle in ("| XS, S | 1 | full |", "| M, L | 2 | full, delta |",
+                       "A demand review is always 1 round.", "No extension",
                        "*narrow*", "*declare*", "*pause*",
                        "never reopens the"):
             self.assertIn(needle, budget, needle)
+        # reviews/FWD-028 F3: ADR-0019 rule 12, no third round at L
+        self.assertNotIn("| L | 3 |", budget)
 
     def test_blocking_needs_severity_threat_model_and_a_criterion(self):
         for rel in ("skills/fde-review/SKILL.md", "agents/fde-adversarial.md"):
@@ -178,10 +177,12 @@ class TestBoundedReview(unittest.TestCase):
 
     def test_triage_resizes_on_the_real_diff_and_gates_come_last(self):
         skill = read("skills/fde-triage/SKILL.md")
-        resize = section(skill, "Re-size on the real diff")
-        for needle in ("more than\ntwice the estimate", "~800 lines",
-                       "split, not\nreviewed", "timebox"):
-            self.assertIn(needle, resize, needle)
+        # reviews/FWD-026 F1: an overrun is a fact for the board, never a
+        # re-split at review
+        overrun = " ".join(section(skill, "Overrun on the real diff").split())
+        for needle in ("more than twice the estimate", "~800",
+                       "is not re-split at review", "timebox"):
+            self.assertIn(needle, overrun, needle)
         self.assertIn("instruction", section(skill, "Smallest mechanism first"))
         agents = " ".join(read("AGENTS.md").split())
         for needle in ("Budgets, not minimums", "never extended",
@@ -291,11 +292,20 @@ class TestDeclaredCycle(unittest.TestCase):
                           "cycle's first demand.", flat, rel)
             self.assertNotIn("surfaces at the retro", flat, rel)
             self.assertNotIn("bypasses the backlog", flat, rel)
+        # reviews/FWD-028 F4: the budget's way out is ADR-0019's replan
         for rel in ("skills/fde-review/SKILL.md", ".claude/skills/fde-review/SKILL.md"):
             flat = " ".join(read(rel).split())
-            self.assertIn("the user picks one (AGENTS.md `## Cycle`: nothing is "
-                          "declined without the user)", flat, rel)
-            self.assertNotIn("the builder picks one", flat, rel)
+            self.assertIn("When the budget is spent with a blocking finding "
+                          "open, the cycle replans and the owner picks one "
+                          "(AGENTS.md `## Cycle`). `fde-promotion` records "
+                          "the choice in `promotion.md`; `plan.md` stays "
+                          "frozen.", flat, rel)
+            self.assertIn("A non-blocking finding goes to `backlog.md` by "
+                          "default.", flat, rel)
+            for gone in ("the builder picks one", "nothing is declined "
+                         "without the user", "the builder records it",
+                         "a dated, named limit in `plan.md`"):
+                self.assertNotIn(gone, flat, f"{rel}: {gone}")
         for rel in ("skills/fde-scrum/SKILL.md", ".claude/skills/fde-scrum/SKILL.md"):
             flat = " ".join(read(rel).split())
             self.assertIn("\"fix it NOW\" skips the backlog order, never the "
@@ -428,6 +438,91 @@ class TestRolesAtTheRightLevel(unittest.TestCase):
             self.assertIn("only when the cycle has a `front` demand", text, rel)
         self.assertNotIn("Use for an M/L demand with a UI surface",
                          read("skills/fde-walkthrough/SKILL.md"))
+
+    def test_walkthrough_runs_at_every_size(self):
+        # reviews/FWD-028 F1, ADR-0019 rule 5: a cycle that changes the
+        # interface always runs one, at any size, not opt-in
+        for rel in ("skills/fde-walkthrough/SKILL.md",
+                    ".claude/skills/fde-walkthrough/SKILL.md"):
+            text = " ".join(read(rel).split())
+            self.assertIn("It runs whenever the cycle has a `front` demand, "
+                          "at every size", text, rel)
+            self.assertIn("`[walkthrough]` in `fde.config.toml` sets only "
+                          "the divergence gate, never whether the "
+                          "walkthrough runs.", text, rel)
+            for gone in ("| XS / S | never |", "opt-in, via `[walkthrough]`",
+                         "Opt-in at every size"):
+                self.assertNotIn(gone, text, f"{rel}: {gone}")
+
+
+class TestReconcileText(unittest.TestCase):
+    """C-5 reconcile of reviews/FWD-026 F1-F4 and FWD-028 F3 against
+    ADR-0019: one answer per fact, in every place that states it."""
+
+    SURFACES = ("AGENTS.md", "templates/AGENTS.md.template")
+    ALL = SURFACES + ("skills/fde-triage/SKILL.md",
+                      ".claude/skills/fde-triage/SKILL.md",
+                      "skills/fde-review/SKILL.md",
+                      ".claude/skills/fde-review/SKILL.md")
+
+    def flat(self, rel):
+        return " ".join(read(rel).split())
+
+    def test_overrun_is_a_board_fact_not_a_split_at_review(self):
+        # F1: ADR-0019 rules 1 and 3
+        for rel in self.ALL:
+            text = self.flat(rel)
+            for gone in ("split, don't review", "split, not reviewed",
+                         "split before any review starts",
+                         "enter them in the demand list"):
+                self.assertNotIn(gone, text, f"{rel}: {gone}")
+        for rel in self.SURFACES + ("skills/fde-triage/SKILL.md",):
+            self.assertIn("is not re-split at review", self.flat(rel), rel)
+            self.assertIn("the cycle replans only if a criterion or an ADR "
+                          "changes", self.flat(rel), rel)
+
+    def test_one_round_count_everywhere(self):
+        # F2 (and FWD-028 F3): ADR-0019 rule 12
+        for rel in self.SURFACES:
+            text = self.flat(rel)
+            self.assertIn("Size sets only the planner's depth and the cycle "
+                          "review rounds: 1 round at XS/S, full + delta at "
+                          "M/L.", text, rel)
+            self.assertIn("a demand review is 1 round", text, rel)
+            for gone in ("3 rounds", "all six roles"):
+                self.assertNotIn(gone, text, f"{rel}: {gone}")
+        triage = self.flat("skills/fde-triage/SKILL.md")
+        self.assertIn("a demand review is 1 round", triage)
+        for gone in ("1 full + 2 delta", "all five"):
+            self.assertNotIn(gone, triage, gone)
+
+    def test_every_size_has_a_plan_and_a_promotion(self):
+        # F3: ADR-0019 rules 3 and 4
+        for rel in self.SURFACES:
+            text = self.flat(rel)
+            self.assertIn("At every size `fde-spec` writes `plan.md` "
+                          "(minimal at XS)", text, rel)
+            self.assertIn("the cycle closes with a promotion", text, rel)
+            self.assertIn("promotion, at every size, is `fde-promotion`'s "
+                          "decision", text, rel)
+            self.assertNotIn("promotion (M/L)", text, rel)
+        self.assertIn("Every size: `fde-spec` writes `plan.md`, a demand "
+                      "review is 1 round, and the cycle closes with a "
+                      "promotion by `fde-promotion`.",
+                      self.flat("skills/fde-triage/SKILL.md"))
+
+    def test_state_has_named_writers(self):
+        # F4: who moves state:, and the only edits a frozen plan takes
+        rule = ("`fde-spec` writes `state: draft` and `state: planned`; the "
+                "orchestrating agent writes `state: running` at sign-off and "
+                "`state: closed` or `state: abandoned` at close. These header "
+                "lines are the only edits a frozen plan takes.")
+        for rel in self.SURFACES:
+            self.assertIn(rule, " ".join(section(read(rel), "Cycle").split()),
+                          rel)
+        plan = self.flat("templates/cycle/plan.md")
+        self.assertIn("draft and planned are written by fde-spec; running, "
+                      "closed and abandoned by the orchestrating agent", plan)
 
     def test_role_scopes_include_cycles(self):
         import tomllib

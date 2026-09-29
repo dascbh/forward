@@ -23,21 +23,12 @@ twice, in isolation, is `walkthrough-evaluator` (`spec/roles.toml`).
 ## When this applies
 
 At the cycle, never inside a demand (ADR-0019 rules 5 and 12): it runs in
-the cycle review's functioning check, on the integrated result, only when
-the cycle has a `front` demand. A cycle with no `front` demand runs no
-walkthrough. Artifacts stay keyed by the front demand's id.
-
-| cycle size | applies | when |
-|---|---|---|
-| XS / S | never | no UI design phase exists at this size to have an intended model for (`fde-design`'s own table) |
-| M | opt-in, via `[walkthrough]` in `fde.config.toml` | the front demands merged, before promotion |
-| L | opt-in, via `[walkthrough]` | the front demands merged, before promotion |
-
-Opt-in at every size, deliberately — no "every M/L UI demand runs this
-before promotion" mandate exists yet. `fde-design`'s own precedent for
-journeys: ship the narrow structural check now, defer a completeness
-mandate until real client usage shows the gap is worth forcing
-(ADR-0014, Consequences).
+the cycle review's functioning check, on the integrated result, after the
+front demands merge and before promotion. It runs whenever the cycle has
+a `front` demand, at every size, and only when the cycle has a `front`
+demand; a backend-only cycle runs none. Artifacts stay keyed by the front
+demand's id. `[walkthrough]` in `fde.config.toml` sets only the
+divergence gate, never whether the walkthrough runs.
 
 ## The two-run protocol (structural independence)
 

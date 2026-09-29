@@ -37,8 +37,9 @@ description: Runs the adversarial review in an isolated context, with attack ord
 | size | rounds | kinds |
 |---|---|---|
 | XS, S | 1 | full |
-| M | 2 | full, delta |
-| L | 3 | full, delta, delta |
+| M, L | 2 | full, delta |
+
+A demand review is always 1 round.
 
 - **Full** (round 1): the whole artifact against the whole spec.
 - **Delta** (every later round): the prior findings plus the diff that
@@ -47,13 +48,13 @@ description: Runs the adversarial review in an isolated context, with attack ord
   backlog (`blocking = false`, `backlog = true`) — it never reopens the
   demand.
 - **No extension.** When the budget is spent with a blocking finding
-  open, the user picks one (AGENTS.md `## Cycle`: nothing is declined
-  without the user), and the builder records it in the promotion or the
-  closing commit:
+  open, the cycle replans and the owner picks one (AGENTS.md `## Cycle`).
+  `fde-promotion` records the choice in `promotion.md`; `plan.md` stays
+  frozen. A non-blocking finding goes to `backlog.md` by default.
   1. *narrow* — cut the part the finding lives in, ship the rest, the cut
-     goes to the backlog as its own demand;
-  2. *declare* — the owner accepts it as a dated, named limit in
-     `plan.md` (a limit, not a pass);
+     goes to the backlog;
+  2. *declare* — the owner accepts it as a dated, named limit (a limit,
+     not a pass);
   3. *pause* — revert, nothing ships, the backlog keeps the record.
   "One more round" is not an option: a round on a moving target finds the
   surface the last fix created, and never converges.
@@ -140,9 +141,9 @@ spans several times over, the design is wrong for this scope — narrow
 ## Change sizing
 
 ~100 changed lines review well; ~300 is the ceiling for one logical
-change; above ~800 (behavior + evals, not counting specs or reviews) the
-demand is split before any review starts — `fde-triage` re-sizes on the
-real diff. One structural problem outranks ten nits — the structural
+change. A demand is split at planning, never at review: an overrun of
+its estimate is posted on the board and the review proceeds
+(`fde-triage`). One structural problem outranks ten nits — the structural
 problem IS the review. A dependency bump is a behavior change nobody
 wrote: read the changelog, diff the lockfile, one package per change.
 

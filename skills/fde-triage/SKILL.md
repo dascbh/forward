@@ -96,12 +96,15 @@ score = min(3, surfaces)
       + (loc < 50 ? 0 : loc < 300 ? 1 : 2)
 ```
 
-| score | size | active roles | adversarial rounds | ADR | timebox |
+| score | size | planner (`fde-spec`, `plan.md`) | cycle review rounds | ADR | timebox |
 |---|---|---|---|---|---|
-| ≤ 1 | XS | implementation, adversarial | 1 full | no | 30 min |
-| 2–3 | S | spec, implementation, adversarial | 1 full | no | 1 h |
-| 4–6 | M | spec, implementation, adversarial, promotion | 1 full + 1 delta | yes | 3 h |
-| ≥ 7 | L | all five | 1 full + 2 delta | yes | 1 day |
+| ≤ 1 | XS | minimal plan | 1 full | no | 30 min |
+| 2–3 | S | plan | 1 full | no | 1 h |
+| 4–6 | M | plan + ADRs | 1 full + 1 delta | yes | 3 h |
+| ≥ 7 | L | full plan + ADRs | 1 full + 1 delta | yes | 1 day |
+
+Every size: `fde-spec` writes `plan.md`, a demand review is 1 round, and
+the cycle closes with a promotion by `fde-promotion`.
 
 Announce the result in one line — size, roles, rounds — and plan:
 `plan.md` comes first (AGENTS.md `## Cycle`), and the planner stops at the
@@ -109,16 +112,14 @@ sign-off. The table is deterministic; the reasoning behind the score does
 not belong in chat. The rounds are the cycle review's budget, not a
 minimum to extend: `fde-review` says what happens when it is spent.
 
-## Re-size on the real diff — the estimate is not a contract
+## Overrun on the real diff — a fact for the board
 
 A demand's `loc` is an estimate made before code exists; the diff is the
-fact. Before its review round, count the behavior + eval lines actually
-changed (specs, reviews and ADRs excluded). If the count is more than
-twice the estimate, or above ~800 lines, stop: the demand is split, not
-reviewed. Cut it into demands that each fit ~300 lines and one layer,
-enter them in the demand list, and post the split on the board. The same
-holds when the timebox runs out: work at its timebox is re-sized, never
-granted more time in place.
+fact. A demand whose real diff runs more than twice the estimate, or
+above ~800 behavior + eval lines, is not re-split at review: post the
+overrun on the board and the demand proceeds. Splitting happens at
+planning only; the cycle replans only if a criterion or an ADR changes.
+A timebox overrun is recorded the same way.
 
 ## Smallest mechanism first
 

@@ -7,7 +7,10 @@ signed-off: <date and the owner's words; empty until sign-off>
 
 <!-- ADR-0019. Criteria and failure modes carry ids and are dated before
 the first demand commit (I4). Decisions live in docs/adr/ and are cited
-here by id, never restated. The plan is frozen at sign-off. -->
+here by id, never restated. The plan is frozen at sign-off. At XS the plan
+is minimal. state: draft and planned are written by fde-spec; running,
+closed and abandoned by the orchestrating agent, the only edits a frozen
+plan takes. -->
 
 ## Threat model
 
