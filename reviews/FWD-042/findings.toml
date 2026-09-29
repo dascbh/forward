@@ -1,0 +1,45 @@
+# Code review report (light pass)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-042"
+kind = "code"
+context_policy = "artifact_only"
+isolation_mode = "artifact_and_spec"
+rounds_planned = 1
+round = 1
+commit = "c3a1216"
+agent_transcript = "agent-aa36a6194372d2854"
+probed = [
+  "spec.md read against git show c3a1216 (B-45 one parse via found dict, B-46 no nested and-subscript, B-47 inline bold + word cut)",
+  "python3 -m unittest discover -s tests -p test_status.py: 90 tests OK",
+  "cmp runtime/status.py bin/fde/status.py: identical",
+  "_promotion_cell probes: bold cut mid-word, cut leaving half a closing marker, unclosed backtick, underscore and html openers",
+]
+notes = [
+  "Diff does what the spec says for B-45, B-46, B-47; behavior outside them is unchanged (_clip default width is WIDTH, _md default path identical, findings dict is optional).",
+  "inline=True is used only at the two promotion-cell call sites, where the text follows '| ' or 'promotion ' and never starts a line; every other _md call keeps the block-marker escape, so FM1 holds for line starts.",
+  "load_demands is the only writer of the findings dict; --demand falls back to [] if the id is missing, which cannot happen for a matched demand.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "low"
+principle = "MNT-10"
+evidence = """
+Probe: _promotion_cell with decision '**' + 'a'*36 + '**x' returns '**aaaa...a*…**' (a lone '*' before the ellipsis). The cut lands between the two characters of the closing marker, so the bold is repaired only by the appended '**' and renders with a stray literal asterisk. Cosmetic, one-character window, no layout break.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F2"
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-10"
+evidence = """
+inline=True disables the whole leading-marker escape, not only for '**'. Probe: a decision starting with a backtick, underscore or '<b>' passes through unescaped and, when the cut leaves it unclosed, is not repaired (only '**' is). An unclosed html tag or emphasis in a table cell can leak formatting into neighbouring cells. The docstring states the behavior; the repair is bold-only by design of B-47.
+"""
+blocking = false
+backlog = true

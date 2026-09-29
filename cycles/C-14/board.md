@@ -6,3 +6,4 @@
 - 2026-09-29 FWD-044 claim templates/fde-gate.yml, .github/workflows/fde-gate.yml, tests/test_install_sync.py (workflow pins)
 - 2026-09-29 FWD-042 claim runtime/status.py (+ bin/fde), tests/test_status.py
 - 2026-09-29 FWD-044 decided merged e3633e8; code review 2 low, none blocking (F1 → backlog B-54, F2 same as before the demand)
+- 2026-09-29 FWD-042 decided merged c3a1216; code review 2 low, none blocking (→ backlog B-55)
