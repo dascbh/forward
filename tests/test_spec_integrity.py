@@ -282,3 +282,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertTrue((ROOT / "spec/retired.toml").exists())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 24, 0))
+
+    def test_kernel_version_ships_the_backlog_panel(self):
+        # kernel ADR-0023 (owner request, 2026-09-29): the interactive
+        # backlog panel reaches clients only through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "runtime/backlog.py").exists())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 25, 0))
