@@ -1761,5 +1761,127 @@ class TestClosedCycleNeedsPromotionGate(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout)
 
 
+class TestFileListsAreNulSeparated(unittest.TestCase):
+    """B-12 (FWD-041): without -z git C-quotes a path with non-ASCII bytes
+    or a tab ("src/a\\303\\247.py"); the quoted name matched no declared
+    root and I1 read a behavior change as none."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def behavior_file(self, name):
+        (self.p / "src").mkdir(exist_ok=True)
+        (self.p / "src" / name).write_text("x = 1\n")
+
+    def test_staged_non_ascii_behavior_path_is_seen(self):
+        self.behavior_file("ação.py")
+        run_git(self.p, "add", "-A")
+        r = verify(self.p, "--staged", "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("src/ação.py", r.stdout)
+
+    def test_committed_tab_behavior_path_is_seen(self):
+        (self.p / "tests").mkdir()
+        (self.p / "tests" / "seed.py").write_text("assert True\n")
+        commit_all(self.p, "eval seed")
+        self.behavior_file("a\tb.py")
+        commit_all(self.p, "behavior, no eval")
+        r = verify(self.p, "--gate", "eval-coverage")
+        self.assertEqual(r.returncode, 1, r.stdout)
+
+    def test_i3_sees_a_non_ascii_behavior_path_beside_a_finding(self):
+        self.behavior_file("ação.py")
+        (self.p / "reviews" / "D-1").mkdir(parents=True)
+        (self.p / "reviews" / "D-1" / "findings.toml").write_text(FINDINGS)
+        commit_all(self.p, "finding and behavior together")
+        r = verify(self.p, "--gate", "adversarial-isolation")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("same commit", r.stdout)
+
+
+class TestI1ReqsFrontDemandInTheCycleLayout(unittest.TestCase):
+    """B-27 (FWD-041): a `front` demand of the cycle layout traces the
+    plan criteria it meets (the ## Demands row's `meets`, or the spec's
+    `meets:`) to evals/journeys/<id>/, as an old-layout design surface
+    traces the R# of its acceptance.md."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def demand(self, layer="front", meets="A1, A2", spec_head=None, n=3):
+        cycle_plan(self.p, n, [f"| DEM-9 | {layer} | — | x | {meets} |"])
+        d = Path(self.p) / "specs" / "DEM-9-panel"
+        d.mkdir(parents=True, exist_ok=True)
+        head = spec_head if spec_head is not None \
+            else f"cycle: C-{n} · layer: {layer} · meets: {meets}"
+        (d / "spec.md").write_text(f"# DEM-9 — a panel\n\n{head}\n\nWhat.\n")
+        return d
+
+    def journey(self, reqs):
+        TestI1RequirementCoverage._journeys(self, "DEM-9", reqs)
+
+    def reqs_row(self):
+        r = verify(self.p, "--gate", "eval-coverage", "--format", "json")
+        rows = [g for g in json.loads(r.stdout)["gates"] if g["id"] == "I1-REQS"]
+        return r, (rows[0] if rows else None)
+
+    def test_red_when_a_met_criterion_has_no_journey(self):
+        self.demand()
+        self.journey(["A1"])
+        r, row = self.reqs_row()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertFalse(row["passed"], row)
+        self.assertIn("A2", row["detail"])
+
+    def test_green_when_every_met_criterion_has_a_journey(self):
+        self.demand()
+        self.journey(["A1", "A2"])
+        r, row = self.reqs_row()
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertTrue(row["passed"], row)
+
+    def test_plan_row_alone_links_a_spec_without_header_fields(self):
+        self.demand(spec_head="")
+        r, row = self.reqs_row()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("A1", str(row))
+
+    def test_spec_meets_alone_counts(self):
+        self.demand(meets="—", spec_head="cycle: C-3 · layer: front · meets: A4")
+        r, row = self.reqs_row()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("A4", str(row))
+
+    def test_back_demand_is_silent(self):
+        self.demand(layer="back")
+        _, row = self.reqs_row()
+        self.assertIsNone(row)
+
+    def test_ended_cycle_is_not_read(self):
+        self.demand()
+        plan = Path(self.p) / "cycles" / "C-3" / "plan.md"
+        plan.write_text(plan.read_text().replace(
+            "date: 2026-09-29", "date: 2026-09-29\nclosed: 2026-10-02"))
+        _, row = self.reqs_row()
+        self.assertIsNone(row)
+
+    def test_old_layout_design_surface_is_unchanged(self):
+        d = Path(self.p) / "specs" / "DEM-8"
+        (d / "design").mkdir(parents=True)
+        (d / "design" / "flow.md").write_text("# flow\n")
+        (d / "acceptance.md").write_text("---\ndate: 2026-08-09\n---\nR1: x\n")
+        r, row = self.reqs_row()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("R1", str(row))
+
+
 if __name__ == "__main__":
     unittest.main()

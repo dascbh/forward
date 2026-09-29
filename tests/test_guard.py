@@ -239,5 +239,43 @@ class TestGuardCycleFiles(unittest.TestCase):
         self.assertEqual(self.code("cycles/C-1/board.md", "fde-implementation"), 0)
 
 
+class TestRuntimeMessagesCiteKernelADRs(unittest.TestCase):
+    """B-28 (FWD-041): a client has its own docs/adr/, so a bare ADR id in
+    a runtime message points at the wrong decision. Every string a
+    runtime module prints says "kernel ADR-…"; comments and docstrings
+    are not messages."""
+
+    def test_no_bare_adr_id_in_a_runtime_string(self):
+        import ast
+        import re
+        root = Path(__file__).resolve().parent.parent / "runtime"
+        bare = []
+        for src in sorted(root.glob("*.py")):
+            tree = ast.parse(src.read_text(encoding="utf-8"))
+            docs = set()
+            for node in ast.walk(tree):
+                body = getattr(node, "body", None)
+                if isinstance(body, list) and body and \
+                        isinstance(body[0], ast.Expr) and \
+                        isinstance(body[0].value, ast.Constant):
+                    docs.add(id(body[0].value))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Constant) and \
+                        isinstance(node.value, str) and id(node) not in docs:
+                    for m in re.finditer(r"ADR-\d{4}", node.value):
+                        if not node.value[:m.start()].endswith("kernel "):
+                            bare.append(f"{src.name}:{node.lineno}: "
+                                        f"{node.value!r}")
+        self.assertEqual(bare, [])
+
+    def test_guard_legacy_note_names_the_kernel_adr(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = make_project(tmp)
+            r = guard(p, {"tool_input": {"file_path": str(Path(p) / "src/x.py")},
+                          "agent_name": "fde-promotion"})
+            self.assertEqual(r.returncode, 2)
+            self.assertIn("before kernel ADR-0019", r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

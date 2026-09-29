@@ -354,5 +354,31 @@ class TestGate(unittest.TestCase):
         self.assertIn("not measured", r.stdout)
 
 
+class TestGateHardening(unittest.TestCase):
+    """FWD-041: B-14 and B-20."""
+
+    def test_dependency_names_raise_no_deprecation_warning(self):
+        # B-14: re.split's positional maxsplit is deprecated (3.13+)
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            self.assertEqual(erosion._dep_name("requests>=2; python<4"),
+                             "requests")
+
+    def test_no_declared_roots_excludes_the_cycle_records(self):
+        # B-20: measured whole still means the project's code, not the
+        # append-only cycle trail
+        self.assertFalse(erosion.in_churn_scope("cycles/C-1/plan.md", None))
+        self.assertFalse(erosion.in_churn_scope("cycles/C-1/board.md", None))
+        self.assertTrue(erosion.in_churn_scope("src/a.py", None))
+        self.assertTrue(erosion.in_churn_scope("cyclesX/a.py", None))
+        text = "10\t0\tcycles/C-1/plan.md\n5\t1\tsrc/a.py\n"
+        self.assertEqual(erosion.parse_numstat(text, None), (5, 1, 1))
+
+    def test_declared_roots_still_decide(self):
+        # a project that declares cycles/ as a root measures it
+        self.assertTrue(erosion.in_churn_scope("cycles/x.py", ("cycles/",)))
+
+
 if __name__ == "__main__":
     unittest.main()

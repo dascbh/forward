@@ -52,7 +52,7 @@ SHARED = ("backlog.md", "cycles/*/board.md")
 LEGACY = {
     "fde-promotion": ("promotions/",),
 }
-LEGACY_NOTE = "only for a cycle opened before ADR-0019"
+LEGACY_NOTE = "only for a cycle opened before kernel ADR-0019"
 
 # Inside cycles/<C-n>/ each role writes only its own files (ADR-0019 rule
 # 10); board.md is shared by every role (rule 11). The criteria and the

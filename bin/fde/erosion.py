@@ -46,6 +46,10 @@ CLONE_K = 6  # line-window size for duplicate-block detection
 VENDOR_PREFIXES = ("node_modules/", ".venv/", "venv/", "vendor/", "dist/",
                    "build/", ".git/", "__pycache__/")
 DUPLICATION_EXCLUDED = VENDOR_PREFIXES
+# A project that declares no [gate] roots is measured whole, except the
+# cycle records (cycles/C-<n>/ plans, boards, reviews): they only grow,
+# and counting them read as accretion in the project's code (B-20).
+RECORD_PREFIXES = ("cycles/",)
 CODE_SUFFIXES = {".py", ".js", ".ts", ".tsx", ".jsx", ".go", ".rs", ".java",
                  ".rb", ".php", ".c", ".h", ".cpp", ".cs", ".kt", ".swift",
                  ".scala", ".sh", ".sql", ".toml", ".md"}
@@ -239,7 +243,7 @@ def _count_json_deps(text: str) -> int:
 
 
 def _dep_name(spec: str) -> str:
-    return re.split(r"[<>=!~;\[\s]", spec.strip(), 1)[0].lower()
+    return re.split(r"[<>=!~;\[\s]", spec.strip(), maxsplit=1)[0].lower()
 
 
 def _count_pyproject_deps(text: str) -> int:
@@ -321,7 +325,9 @@ def in_churn_scope(path: str, scope: tuple | None,
     if path.startswith(VENDOR_PREFIXES):
         return False
     if scope is None:
-        return True
+        # measured whole, but the cycle records are the kernel's own
+        # append-only trail, not the project's code (B-20)
+        return not path.startswith(RECORD_PREFIXES)
     return path_matches(path, scope)
 
 
@@ -358,7 +364,7 @@ def measure(project: Path, window: int = DEFAULT_WINDOW) -> dict:
     gen = generated_paths(project)
     m["scope"] = list(scope) if scope else []
     m["generated"] = list(gen)
-    m["churn_scope"] = ", ".join(scope) if scope else "everything tracked"
+    m["churn_scope"] = ", ".join(scope) if scope else "everything tracked except cycles/"
 
     contents, excluded = _tracked_code(project, scope, gen)
     m["duplication_pct"] = duplicate_block_pct(contents) if contents else None

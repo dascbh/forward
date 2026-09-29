@@ -143,5 +143,32 @@ class TestProbePlan(unittest.TestCase):
             self.assertNotIn("blocking", step, step["attribute"])
 
 
+class TestGatePathsMustBeLists(unittest.TestCase):
+    """B-16 (FWD-041): a bare string is not a list of paths — tuple("src/")
+    is four one-letter roots that match nothing, and I1 goes quiet."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.spec = Spec.load(ROOT)
+
+    def test_string_behavior_paths_are_rejected(self):
+        c = cfg(gate={"behavior_paths": "src/", "eval_paths": ["tests/"]})
+        self.assertIn("GATE-TYPE", codes(validate(c, self.spec)))
+
+    def test_string_eval_paths_are_rejected(self):
+        c = cfg(gate={"behavior_paths": ["src/"], "eval_paths": "tests/"})
+        self.assertIn("GATE-TYPE", codes(validate(c, self.spec)))
+
+    def test_non_string_entries_are_rejected(self):
+        for bad in ([1], ["src/", ""], [["src/"]], {"a": "src/"}):
+            c = cfg(gate={"behavior_paths": bad})
+            self.assertIn("GATE-TYPE", codes(validate(c, self.spec)), bad)
+
+    def test_a_list_of_paths_passes(self):
+        c = cfg(gate={"behavior_paths": ["src/", "SETUP.md"],
+                      "eval_paths": ["tests/"]})
+        self.assertEqual(validate(c, self.spec), [])
+
+
 if __name__ == "__main__":
     unittest.main()

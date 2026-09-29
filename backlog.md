@@ -78,6 +78,8 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 - B-54 (C-14) usage-data — the CI Range step writes the resolved base only to GITHUB_OUTPUT; echo it so a red run shows the range it diffed (code review FWD-044 F1)
 
 - B-55 (C-14) usage-data — the promotion cell's 40-char cut can split a closing `**` (stray `*`), and inline mode repairs only `**`, not backticks or `_` (code review FWD-042 F1, F2)
+- B-56 (C-14) usage-data — FWD-035 (closed C-12, layer `front`, meets A1–A6) is a terminal panel with no evals/journeys/; FWD-041's I1-REQS skips ended cycles, so it stays green, but a running cycle with a terminal-only `front` demand would need a journey manifest for text output — decide whether `front` means a UI surface only (FWD-041 build)
+- B-57 (C-14) opinion — status.py parses the spec header `key: value · …` fields on its own (line ~644) while fde_lib.spec_fields now does the same for verify.py; one definition would do (MNT-11; FWD-041 build, status.py claimed by FWD-042)
 
 ## Discarded (2026-09-29)
 

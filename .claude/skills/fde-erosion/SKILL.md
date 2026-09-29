@@ -46,8 +46,9 @@ Two consequences the report prints rather than hides:
   "within budget". A threshold that checked nothing has not been met.
 
 Declaring **no** `[gate]` roots is not an error: churn is then measured
-over everything tracked. A project that declared nothing is measured
-whole, never narrowed to kernel defaults it never asked for.
+over everything tracked except `cycles/`, the cycle records. A project
+that declared nothing is measured whole, never narrowed to kernel
+defaults it never asked for.
 
 Deeper metrics (exact cyclomatic complexity, structural erosion) need
 per-language tools (lizard, radon, jscpd): wire them into your eval suite

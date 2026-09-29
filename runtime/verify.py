@@ -29,8 +29,10 @@ from fde_lib import (  # noqa: E402
     Spec,
     canon_demand,
     cycle_dirs,
+    cycle_end,
     demand_cycles,
     escalated_security_floor,
+    front_demand_criteria,
     gate_paths,
     header_lines,
     path_matches,
@@ -59,16 +61,7 @@ def _cycle_closed(plan: Path) -> bool:
     """A cycle plan's header ends it closed (ADR-0019 rule 9, as fde-status
     reads it): the first `closed:`/`abandoned:` line with a value decides;
     otherwise the first word of `state:`."""
-    header: dict[str, str] = {}
-    for line in header_lines(read_text(plan)):
-        m = re.match(r"([A-Za-z_]+)\s*:\s*(.*)$", line)
-        if m:
-            header.setdefault(m.group(1).lower(), m.group(2).strip())
-    for key in ("closed", "abandoned"):
-        if header.get(key):
-            return key == "closed"
-    words = re.findall(r"[a-z]+", header.get("state", "").lower())
-    return bool(words) and words[0] == "closed"
+    return cycle_end(read_text(plan)) == "closed"
 
 
 class GitOpFailure(RuntimeError):
@@ -160,7 +153,20 @@ class Gate:
                 f"{(out.stderr or '').strip() or '(no stderr on the failing call)'}")
         return [l for l in out.stdout.splitlines() if l.strip()]
 
-    def _git_lenient(self, *args: str) -> list[str]:
+    def _git_paths(self, cmd: str, *args: str) -> list[str]:
+        """A file list from git, NUL-separated (`-z`) and never quoted.
+        Without -z, git C-quotes any path with non-ASCII bytes or a tab
+        ("src/a\\303\\247.py"); a quoted name matches no declared root, so
+        I1 read a behavior change there as no behavior change at all
+        (B-12). Strict, like `_git`."""
+        out = self._run_git(cmd, "-z", *args)
+        if out.returncode != 0:
+            raise GitOpFailure(
+                f"git {cmd} -z {' '.join(args)} failed (exit {out.returncode}): "
+                f"{(out.stderr or '').strip() or '(no stderr on the failing call)'}")
+        return [n for n in out.stdout.split("\0") if n.strip()]
+
+    def _git_lenient(self, *args: str, paths: bool = False) -> list[str]:
         """Deliberate, visible opt-in to the OLD, permissive contract
         `_git` had before round 3 (F9): a genuine git failure collapses
         into the same empty list a query that legitimately found nothing
@@ -173,7 +179,7 @@ class Gate:
         catching and discarding `GitOpFailure` locally, which would
         silently recreate the bug this split exists to close."""
         try:
-            return self._git(*args)
+            return self._git_paths(*args) if paths else self._git(*args)
         except GitOpFailure:
             return []
 
@@ -243,13 +249,13 @@ class Gate:
 
     def changed(self, staged: bool, since: str | None = None) -> list[str]:
         if staged:
-            return self._git("diff", "--cached", "--name-only")
+            return self._git_paths("diff", "--cached", "--name-only")
         # CI: diff the pushed/PR range when given; else the last commit;
         # else (first commit, shallow clone) everything in HEAD. Never fall
         # back to ls-files — that made I1 vacuously green.
         rng = self._resolve_range(since)
         if rng is not None:
-            return self._git("diff", "--name-only", rng)
+            return self._git_paths("diff", "--name-only", rng)
         # tier 3 ("everything reachable from HEAD"): in a genuinely fresh
         # repository (zero commits yet, an unborn branch) HEAD itself does
         # not resolve, and `git diff EMPTY_TREE HEAD` fails (exit 128,
@@ -261,7 +267,7 @@ class Gate:
         # GitOpFailure.
         if not self._rev_ok("HEAD"):
             return []
-        return self._git("diff", "--name-only", EMPTY_TREE, "HEAD")
+        return self._git_paths("diff", "--name-only", EMPTY_TREE, "HEAD")
 
     def _commits_in_range(self, since: str | None) -> list[tuple[str, str]]:
         """(sha, subject) pairs for the range `_resolve_range` selects
@@ -354,12 +360,17 @@ class Gate:
                 if scoped and did not in touched_ids:
                     continue
                 try:
-                    if not design.has_design_surface(d):
-                        continue
-                    acc = d / "acceptance.md"
-                    acc_text = acc.read_text(encoding="utf-8", errors="ignore") \
-                        if acc.is_file() else ""
-                    tokens = sorted(set(re.findall(r"\bR\d+\b", acc_text)))
+                    tokens: set[str] = set()
+                    # old layout: a design surface's R# in acceptance.md
+                    if design.has_design_surface(d):
+                        acc = d / "acceptance.md"
+                        acc_text = acc.read_text(encoding="utf-8", errors="ignore") \
+                            if acc.is_file() else ""
+                        tokens |= set(re.findall(r"\bR\d+\b", acc_text))
+                    # cycle layout: the plan criteria a front demand meets
+                    # (B-27), from the plan's ## Demands row or its spec
+                    tokens |= set(front_demand_criteria(self.project, d) or ())
+                    tokens = sorted(tokens)
                     if not tokens:
                         continue
                     checked += 1
@@ -377,7 +388,8 @@ class Gate:
             if errored or r_missing:
                 parts = []
                 if r_missing:
-                    parts.append("declared R# missing a real journey under "
+                    parts.append("declared criterion (R#, or a front demand's plan A#) "
+                                 "missing a real journey under "
                                  f"its own evals/**: {'; '.join(r_missing[:3])}")
                 if errored:
                     parts.append("requirement coverage could not be checked "
@@ -386,9 +398,9 @@ class Gate:
                 self.add("I1-REQS", False, "; ".join(parts))
             elif checked:
                 self.add("I1-REQS", True,
-                         f"{checked} design-surface demand(s), every declared R# "
-                         f"traces to a real, executed journey under its own "
-                         f"evals/**")
+                         f"{checked} design-surface or front demand(s), every "
+                         f"declared criterion traces to a real, executed "
+                         f"journey under its own evals/**")
 
         touched_behavior = [f for f in files if path_matches(f, self.behavior_paths)]
         # .gitkeep is structure, not a measure
@@ -523,7 +535,7 @@ class Gate:
             if not isinstance(reqs, list):
                 continue
             for r in reqs:
-                m = re.fullmatch(r"R\d+", str(r).strip())
+                m = re.fullmatch(r"[A-Z]+\d+", str(r).strip())
                 if m:
                     covered.add(m.group(0))
         return covered
@@ -590,8 +602,8 @@ class Gate:
         dirty = []
         for c in recent:
             try:
-                files = self._git("diff-tree", "--root", "--no-commit-id",
-                                  "--name-only", "-r", c)
+                files = self._git_paths("diff-tree", "--root", "--no-commit-id",
+                                        "--name-only", "-r", c)
             except GitOpFailure as e:
                 self.add("I3", False,
                          f"could not read commit {c[:7]}'s changed files "
@@ -736,7 +748,8 @@ class Gate:
         # a failure. There is no false-PASS path for a swallowed failure
         # to hide behind here, unlike the F4/F6/F9 bug class this file's
         # other git calls were hardened against.
-        files = self._git_lenient("ls-files", "-co", "--exclude-standard")
+        files = self._git_lenient("ls-files", "-co", "--exclude-standard",
+                                   paths=True)
         hits = [f for f in files
                 if ("telemetry" in f.lower() or "tracing" in f.lower())
                 and not f.startswith(VENDOR_PATHS)
@@ -892,7 +905,7 @@ class Gate:
             self.add("RULE-LANE", False,
                      f"rule-lane could not determine which commits are in "
                      f"range to re-verify: {e} — mechanical certainty is "
-                     f"unavailable, so RULE defaults to never (ADR-0015); "
+                     f"unavailable, so RULE defaults to never (kernel ADR-0015); "
                      f"this blocks rather than silently skipping "
                      f"re-verification")
             return

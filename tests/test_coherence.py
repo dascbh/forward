@@ -331,7 +331,7 @@ class TestGuardNamesTheCycleLayoutFirst(unittest.TestCase):
         r = self.run_guard("reviews/D-1/findings.toml", "fde-promotion")
         self.assertEqual(r.returncode, 2)
         self.assertIn("writes only in cycles/, backlog.md", r.stderr)
-        self.assertIn("promotions/ only for a cycle opened before ADR-0019", r.stderr)
+        self.assertIn("promotions/ only for a cycle opened before kernel ADR-0019", r.stderr)
 
     def test_implementation_block_names_the_cycle_files(self):
         r = self.run_guard("cycles/C-1/plan.md", "fde-implementation")

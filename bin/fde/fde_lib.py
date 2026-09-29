@@ -249,6 +249,18 @@ def validate(cfg: Config, spec: Spec) -> list[Violation]:
     # 7. [gate] retargets I1 to the repo's real layout; it cannot empty it
     gate = cfg.raw.get("gate", {}) or {}
     for key in ("behavior_paths", "eval_paths"):
+        # a bare string is not a list: tuple("src/") is four one-letter
+        # "roots" that match nothing, and I1 goes quiet (B-16)
+        if key in gate and gate[key] and not (
+                isinstance(gate[key], list)
+                and all(isinstance(x, str) and x.strip() for x in gate[key])):
+            v.append(
+                Violation(
+                    "GATE-TYPE",
+                    f"[gate] {key} must be a list of path strings "
+                    f"(e.g. [\"src/\"]), got {gate[key]!r}.",
+                )
+            )
         if key in gate and not gate[key]:
             v.append(
                 Violation(
@@ -425,6 +437,96 @@ def plan_demands(plan_text: str) -> list[str]:
         if did and did not in ids:
             ids.append(did)
     return ids
+
+
+def plan_demand_rows(plan_text: str) -> dict[str, dict[str, str]]:
+    """Demand id -> {column title (lower-case): plain cell} for each row
+    of a plan's `## Demands` table, keyed by the header row's titles
+    (`id | layer | depends on | what | meets | follows`). A row with no
+    demand id in its first cell is skipped, as in plan_demands."""
+    rows: dict[str, dict[str, str]] = {}
+    titles: list[str] | None = None
+    for line in section(plan_text, "demands"):
+        s = line.strip()
+        if not s.startswith("|"):
+            continue
+        cells = [_plain(c) for c in s.strip("|").split("|")]
+        if titles is None:
+            titles = [c.lower() for c in cells]
+            continue
+        did = demand_id(cells[0]) if cells else None
+        if did and did not in rows:
+            rows[did] = dict(zip(titles, cells))
+    return rows
+
+
+def spec_fields(spec_text: str) -> dict[str, str]:
+    """The `key: value` pairs of a demand spec's header, split on `·`
+    (`cycle: C-14 · layer: front · meets: A1, A3`). Keys lower-case."""
+    out: dict[str, str] = {}
+    for line in header_lines(spec_text):
+        for part in line.split("·"):
+            key, sep, value = part.partition(":")
+            key = key.strip().lower()
+            if sep and re.fullmatch(r"[a-z][a-z_ -]*", key):
+                out.setdefault(key, value.strip())
+    return out
+
+
+CRITERION_ID_RE = re.compile(r"(?<![\w-])([A-Z]+\d+)(?![\w-])")
+
+
+def cycle_end(plan_text: str) -> str | None:
+    """How a cycle plan's header ends it: "closed", "abandoned", or None
+    while it has not ended (ADR-0019 rule 9, as fde-status reads it). The
+    first `closed:`/`abandoned:` line with a value decides; otherwise the
+    first word of `state:`."""
+    header: dict[str, str] = {}
+    for line in header_lines(plan_text):
+        m = re.match(r"([A-Za-z_]+)\s*:\s*(.*)$", line)
+        if m:
+            header.setdefault(m.group(1).lower(), m.group(2).strip())
+    for key in ("closed", "abandoned"):
+        if header.get(key):
+            return key
+    words = re.findall(r"[a-z]+", header.get("state", "").lower())
+    return words[0] if words and words[0] in ("closed", "abandoned") else None
+
+
+def front_demand_criteria(project: Path, spec_dir: Path) -> list[str] | None:
+    """The plan criteria a `front` demand of the cycle layout meets, or
+    None when the demand is not one: no cycle links it (neither its
+    spec's `cycle:` line nor a plan's `## Demands` row), or neither its
+    spec header nor its plan row says `front`. The criteria are the union
+    of the plan row's `meets` cell and the spec's `meets:` line — either
+    link names what the demand must trace (B-27).
+
+    Only a cycle that has not ended is read: a closed or abandoned cycle
+    finished under the rules it ran with, as a cycle opened before kernel
+    ADR-0019 does; its demands merged while it ran, when this check
+    applied."""
+    text = read_text(spec_dir / "spec.md")
+    did = canon_demand(spec_dir.name)
+    fields = spec_fields(text)
+    cycles = cycle_dirs(project)
+    own = spec_cycle(text)
+    layers = {fields.get("layer", "").lower()}
+    meets = fields.get("meets", "")
+    linked = False
+    for cid, cdir in sorted(cycles.items()):
+        plan = read_text(cdir / "plan.md")
+        row = plan_demand_rows(plan).get(did)
+        if row is None and cid != own:
+            continue
+        if cycle_end(plan):
+            continue
+        linked = True
+        row = row or {}
+        layers.add(row.get("layer", "").lower())
+        meets += f" {row.get('meets', '')}"
+    if not linked or "front" not in layers:
+        return None
+    return sorted(set(CRITERION_ID_RE.findall(meets)))
 
 
 def _plain(cell: str) -> str:

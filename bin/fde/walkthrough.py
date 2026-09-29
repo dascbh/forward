@@ -231,7 +231,7 @@ _AC_UNEXPECTED_HINT = (
     "line written after a [[action_consequences]] section header binds "
     "to that table, not the document root — write action_consequences "
     "as a plain array of inline { action = ..., consequence = ... } "
-    "tables instead (ADR-0014's Aug-25 amendment)")
+    "tables instead (kernel ADR-0014's Aug-25 amendment)")
 
 # The actual signature of the scoping trap `_AC_UNEXPECTED_HINT` explains:
 # an unexpected key inside one `action_consequences` table entry whose
@@ -518,7 +518,7 @@ def main() -> int:
     ap.add_argument("--report", action="store_true")
     ap.add_argument("--compute", nargs=2, metavar=("PERCEIVED_A", "PERCEIVED_B"),
                     help="compute a divergence.toml from two perceived-model.toml "
-                         "files — the mechanical filing step ADR-0014 assigns to "
+                         "files — the mechanical filing step kernel ADR-0014 assigns to "
                          "architecture")
     ap.add_argument("--demand", default=None)
     ap.add_argument("--intended-model", dest="intended_model", default=None)

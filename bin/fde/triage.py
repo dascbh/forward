@@ -147,7 +147,7 @@ def check_eligibility(data_class: str, reversibility: str,
             "commit touches at least one binary file — git reports no "
             "line count for it ('-' in numstat), so added+deleted cannot "
             "be mechanically computed for this commit; RULE defaults to "
-            "never when mechanical certainty is unavailable (ADR-0015)", 0)
+            "never when mechanical certainty is unavailable (kernel ADR-0015)", 0)
 
     size = sum(a + d for _, a, d in files)
     if size >= rule_lane_max_loc:
@@ -360,7 +360,7 @@ def eligibility_for_commit(project: Path, sha: str,
             False, "git_failure",
             f"git could not determine this commit's actual diff ({e}) — "
             f"mechanical certainty is unavailable, so RULE defaults to "
-            f"never (ADR-0015); run this demand through the normal "
+            f"never (kernel ADR-0015); run this demand through the normal "
             f"XS/S/M/L table instead", 0)
     return check_eligibility(data_class, reversibility, files, eval_paths,
                              rule_lane_max_loc=_max_loc(cfg),
