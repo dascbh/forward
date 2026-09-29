@@ -1,0 +1,90 @@
+# Adversarial review report — cycle mode (kernel ADR-0019, ADR-0021)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "C-14"
+kind = "cycle"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+mode = "cycle"
+rounds_planned = 2                 # M: full + delta
+round = 1
+commit = "6b55ec0"
+agent_transcript = "agent-a6b2c2f2c37902119"
+probed = [
+  "git log -1 = 6b55ec0 (FWD-040: sync ships kernel ADRs to .fde/adr ...)",
+  "python3 -m unittest discover -s tests: 705 tests OK; python3 bin/fde/verify.py --all: all gates passed (BACKLOG id, I2 46 reports)",
+  "ls reviews/: FWD-037, 038, 039, 041, 042, 043, 044 present; FWD-040 absent; board.md has no 'FWD-040 decided merged' line",
+  "git log --merges f4c879f..HEAD: none; b77621c (C-14 reconcile) edits AGENTS.md, skills/fde-review, agents/fde-adversarial and belongs to no demand",
+  "wc -w AGENTS.md = 1090; cold read of AGENTS.md for a back cycle and a front cycle; grep fde-design / fde-survey over agents/*.md and skills/*/SKILL.md",
+  "grep of A2 wording: fde-review 'Budget' + 'Before the cycle review', fde-backlog specify (resync), templates/cycle/plan.md + deploy.md (never a range), AGENTS.md '(MNT-9 scope discipline)', fde-walkthrough 'compiled first, by the planner'",
+  "scratch clone (scratchpad/c14rev/old): [backlog] -> [scrum] -> --gate backlog and --gate scrum green; goal: not set -> BACKLOG red; top-level scrum = true / backlog = \"yes\" -> CFG BACKLOG-TABLE red, no traceback",
+  "scratch clone: context_policy removed from reviews/C-14/findings-plan.toml -> adversarial-isolation gate red; FWD-038 F1 set blocking = true -> status --demand '1 blocking'; + fixed_in = \"0521ded\" -> '0 blocking', 'fixed in 0521ded'; finding-discipline green",
+  "SETUP.md §7 step 6 and §8 step 5, skills/fde-sync: .fde/adr copy (replaced whole, never docs/adr), fde- skill removal, old [scrum] comment rewrite, permissions / auto-mode notice",
+  "cd headlabs-platform && python3 <worktree>/runtime/verify.py --all: all gates passed; git status clean afterwards; status.py --panel promotion cell shows **promovido** unescaped, cut at a word",
+  "grep -n '→ C-14' backlog.md: 30 items; B-1 line unchanged (not recorded as declined); cycles/C-14/promotion.md absent",
+  "fde.config.toml and spec/invariants.toml kernel_version = 0.21.0",
+]
+notes = [
+  "A5, A7 (headlabs read-only) and A8 hold on probes; A4's four mechanics hold on the fixture.",
+  "AGENTS.md step 5 ends 'The cycle review is unchanged.' — a cold reader has no referent for 'unchanged'; step 7 carries the pointer, so the sentence is residue of a diff (MNT-10).",
+  "A9 says the backlog holds only what this cycle's reviews add; B-56, B-57 and B-61 come from builds (FWD-041, FWD-043 build notes), not reviews. Harmless, but not the criterion's letter.",
+  "README.md names fde-backlog-format and [backlog]; it does not describe the installed .fde/ layout at all, so .fde/adr/ missing from it is consistent, not drift.",
+  "b77621c (reconcile of FWD-038 F1+F2, FWD-043 F1) changed behavior outside any demand and has no review record of its own; its lines are this cycle review's to verify in the delta round.",
+  "Headroom in AGENTS.md is 10 words against the 1,100 cap; F4's pointer needs a matching cut.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "high"
+probe = "ls reviews/ for FWD-037..044; grep 'FWD-040' cycles/C-14/board.md; verify.py --all"
+evidence = """
+FWD-040 (A6: .fde/adr, config comment rewrite, permissions notice, renamed-skill removal) is on main as 6b55ec0 with no reviews/FWD-040/ record and no merge line on board.md.
+The cycle's own A4 item (B-39) says a demand merges only with its review record and its merge line names it, and fde-review 'Before the cycle review' says the demand reviews are committed before the cycle review starts (B-49). Both are broken by the cycle that ships them.
+The gate stays green: B-39 is text only, nothing checks that each demand of the running cycle has a review record. B-32, B-38, B-42 and the FWD-039 F1 routing are therefore delivered unreviewed.
+Inside the threat model (a cooperative agent under the kernel's instructions).
+"""
+blocking = true   # breaks A4 (B-39) and the B-49 precondition; high; inside the threat model
+backlog = false
+
+[[finding]]
+id = "F2"
+attribute = "reliability_resilience"
+severity = "medium"
+principle = "REL-3"
+probe = "git log --merges f4c879f..HEAD (empty); git show --stat b77621c"
+evidence = """
+deploy.md step 2 rollback: 'git revert of the release commit and of the demand merge commits, listed in promotion.md'.
+There are no merge commits: every demand landed rebased as plain commits, FWD-037 as two (7b274ad inventory, ed6eb8f skeleton).
+And b77621c 'C-14 reconcile' changes AGENTS.md, templates/AGENTS.md.template, skills/fde-review and agents/fde-adversarial but belongs to no demand. A rollback that reverts only demand commits plus the release leaves the reconcile in place on top of reverted FWD-038/FWD-043 text: the revert conflicts or leaves orphan sentences.
+The list promotion.md will carry must name every behavior commit of the cycle (demand commits plus the reconcile), not 'merge commits'.
+"""
+blocking = false  # readiness defect with an in-cycle fix at promotion; no plan criterion is broken yet
+backlog = false
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "grep -n 'B-1 ' backlog.md; ls cycles/C-14/"
+evidence = """
+A3 says B-1 is 'recorded as declined in promotion.md and in the backlog'. The plan was replanned at 940c6f1 ('B-1 declined'), but backlog.md:13 still reads 'Per-demand sensitive/irreversible in triage → C-14', the same as the other 29 items.
+promotion.md does not exist yet, so A9 (every item done or declined in promotion.md) is open, as expected before close. At close: B-1 declined with the date and the reason (plan review F2), and the other 29 items marked done by demand.
+"""
+blocking = false  # due at close, owned by promotion; not yet a broken criterion
+backlog = false
+
+[[finding]]
+id = "F4"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-4"
+probe = "cold read of AGENTS.md for a cycle with a front demand; grep -ln fde-design agents/*.md skills/*/SKILL.md -> only fde-design and fde-walkthrough"
+evidence = """
+A1 asks that a new agent can run a whole cycle finding each rule through its pointer. For a front demand it cannot: AGENTS.md no longer names fde-design (inventory #23 tagged it a 'duplicate of the skill description'), and neither fde-triage, fde-spec, fde-review nor fde-backlog points to it.
+The design chain (flow and wireframe before build at M, divergence alternatives) is then reachable only if the tool auto-triggers the skill by its description; an AGENTS.md-only tool (Codex, Aider) never sees it. The same holds for fde-survey (B-60).
+B-60 already records this as a backlog item, but it shows A1 unmet for front cycles, so by fde-review the cycle fixes it: one pointer (e.g. step 2 'UI: fde-design; inherited system: fde-survey') inside the 10-word headroom.
+"""
+blocking = false  # A1's word cap and the back-cycle path hold; the gap is a missing pointer, fixable in-cycle
+backlog = false
