@@ -11,7 +11,8 @@ here by id, never restated. The plan is frozen at sign-off. At XS the plan
 is minimal. States: draft (grouped) is written by fde-backlog; planned
 (specified, awaiting sign-off) by fde-spec; running (with signed-off:),
 closed and abandoned by the orchestrating agent, the only edits a frozen
-plan takes. -->
+plan takes. Rollback reverts the demand merges and the release commit,
+never a range: a range would revert the cycle's own records. -->
 
 ## Items
 

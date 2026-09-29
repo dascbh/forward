@@ -113,7 +113,7 @@ A new fact always goes to the backlog — never a fix, an amendment or a
 question. The one exception is a fact that invalidates the demand's own
 ADR or criteria: the demand stops and the cycle replans. The cycle owns
 its declared criteria and its blocking findings. Nothing is fixed
-in-band (MNT-9) except a defect blocking a declared task, noted as such.
+in-band (MNT-9 scope discipline) except a defect blocking a declared task, noted as such.
 A finding's path: `fde-review`. A cycle review budget spent with a
 blocker open is the owner's call: narrow, declare the limit, or pause,
 recorded on `board.md` and marked in `promotion.md` at close.

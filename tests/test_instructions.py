@@ -1137,5 +1137,71 @@ class TestInventory(unittest.TestCase):
         self.assertEqual(anchor, TestReviewByWeight.RULE)
 
 
+class TestOpenWording(unittest.TestCase):
+    """FWD-043 (C-14 A2): each open wording has one pinned sentence in the
+    skill or template that owns its topic, source and installed copy."""
+
+    @staticmethod
+    def flat(rel: str) -> str:
+        return " ".join(read(rel).split())
+
+    def pinned(self, rels, sentence):
+        for rel in rels:
+            self.assertIn(sentence, self.flat(rel), rel)
+
+    REVIEW = ("skills/fde-review/SKILL.md", ".claude/skills/fde-review/SKILL.md")
+
+    def test_b29_budget_spent_is_a_replan(self):
+        self.pinned(self.REVIEW, "It is a replan (kernel ADR-0019): the owner "
+                    "picks narrow, declare or pause as that replan.")
+
+    def test_b11_resync_before_proposing(self):
+        self.pinned(("skills/fde-backlog/SKILL.md",
+                     ".claude/skills/fde-backlog/SKILL.md"),
+                    "Before proposing a plan for a paused or long-running "
+                    "cycle, fetch and read the log since the last known commit")
+
+    def test_b48_b49_before_the_cycle_review(self):
+        for rel in self.REVIEW:
+            text = " ".join(section(read(rel), "Before the cycle review").split())
+            self.assertIn("The demand reviews are committed before the cycle "
+                          "review starts", text, rel)
+            self.assertIn("A change to a reader or a gate is proven read-only "
+                          "against a real client before the cycle review",
+                          text, rel)
+
+    def test_b40_rollback_reverts_merges_never_a_range(self):
+        self.pinned(("templates/cycle/deploy.md", ".fde/templates/cycle/deploy.md",
+                     "templates/cycle/plan.md", ".fde/templates/cycle/plan.md"),
+                    "Rollback reverts the demand merges and the release "
+                    "commit, never a range: a range would revert the cycle's "
+                    "own records.")
+
+    def test_b21_mnt9_is_resolvable(self):
+        self.pinned(("AGENTS.md", "templates/AGENTS.md.template"),
+                    "Nothing is fixed in-band (MNT-9 scope discipline)")
+        # the gloss is the principle's own name in the catalog
+        self.assertIn("MNT-9 scope discipline:",
+                      read("spec/dimensions/quality-attributes.toml"))
+
+    def test_b25_the_planner_writes_the_intended_model(self):
+        self.pinned(("skills/fde-walkthrough/SKILL.md",
+                     ".claude/skills/fde-walkthrough/SKILL.md"),
+                    "the planner (`fde-spec`) compiles "
+                    "`specs/<demand-id>/design/intended-model.md`, at every size")
+        self.pinned(("agents/fde-spec.md", ".claude/agents/fde-spec.md"),
+                    "For a `front` demand, at every size, the planner also "
+                    "writes `specs/<demand-id>/design/intended-model.md`")
+        self.assertNotIn("the `architecture` role compiles",
+                         self.flat("skills/fde-walkthrough/SKILL.md"))
+        for rel in ("agents/fde-architecture.md", ".claude/agents/fde-architecture.md"):
+            self.assertNotIn("intended-model", read(rel), rel)
+        import tomllib
+        roles = {r["id"]: r for r in tomllib.loads(read("spec/roles.toml"))["role"]}
+        model = "specs/<front-demand-id>/design/intended-model.md"
+        self.assertIn(model, roles["spec"]["outputs"])
+        self.assertNotIn(model, roles["architecture"]["outputs"])
+
+
 if __name__ == "__main__":
     unittest.main()

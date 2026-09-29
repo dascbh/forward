@@ -86,6 +86,8 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 
 - B-60 (C-14) usage-data — AGENTS.md no longer names fde-survey ("undocumented system: survey first") or fde-design; the survey-first rule is only loosely in the skill's description (code review FWD-037 F1)
 
+- B-61 (C-14) opinion — AGENTS.md cites MNT-10 by bare id ("README and runbook change with how the system runs (MNT-10)"), the same unresolvable reference B-21 fixed for MNT-9 (FWD-043 build)
+
 ## Discarded (2026-09-29)
 
 Reviewed against 0.19.0 with the owner; ids stay retired.

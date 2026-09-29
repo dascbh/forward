@@ -314,7 +314,7 @@ def build_graph(project: Path) -> Graph:
             g.add_edge(dnode, "promoted_by", g.add_node("promotion", did))
 
         # first-contact walkthrough evidence (ADR-0014, FWD-018): the
-        # intended model architecture compiles, the two blind runs'
+        # intended model the planner compiles, the two blind runs'
         # perceived models, and their confrontation. Pure analytics —
         # "graph as evidence, not graph as program" (ADR-0010); the
         # matching enforcement lives in forbidden_orphans() below.

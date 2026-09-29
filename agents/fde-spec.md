@@ -22,6 +22,7 @@ model: inherit
 - `cycles/C-<n>/plan.md`
 - `cycles/C-<n>/deploy.md`
 - `specs/<demand-id>/spec.md`
+- `specs/<front-demand-id>/design/intended-model.md`
 
 ## Denied paths
 - `src/**`
@@ -69,6 +70,9 @@ One page (~800 words): layer, the plan's criteria and ADR ids it cites,
 what it changes, what is out of scope. It decides nothing new. No
 per-demand acceptance, failure modes or architecture. Needing more means
 the plan needs another demand — say so instead of writing it.
+For a `front` demand, at every size, the planner also writes
+`specs/<demand-id>/design/intended-model.md`, the walkthrough's intended
+model (`fde-walkthrough`).
 
 A fact that invalidates the plan's criteria or an ADR stops the demand:
 the cycle replans. Any other new fact goes to `backlog.md`.

@@ -32,7 +32,8 @@ plan's ids and decide nothing new (kernel ADR-0019). The measure exists BEFORE
 any code does.
 """
 inputs = ["discovery/**", "backlog.md", "docs/adr/**", "fde.config.toml"]
-outputs = ["cycles/C-<n>/plan.md", "cycles/C-<n>/deploy.md", "specs/<demand-id>/spec.md"]
+outputs = ["cycles/C-<n>/plan.md", "cycles/C-<n>/deploy.md", "specs/<demand-id>/spec.md",
+           "specs/<front-demand-id>/design/intended-model.md"]
 write_scope = ["specs/**", "discovery/**", "cycles/**", "backlog.md"]
 denied_paths = ["src/**", "tests/**", "infra/**"]
 isolation = false
@@ -50,7 +51,6 @@ code.
 """
 inputs = ["cycles/**:read", "specs/**", "fde.config.toml", "src/**:read"]
 outputs = ["docs/adr/*.md",
-           "specs/<front-demand-id>/design/intended-model.md",
            "walkthroughs/<front-demand-id>/perceived-model-a.toml",
            "walkthroughs/<front-demand-id>/perceived-model-b.toml",
            "walkthroughs/<front-demand-id>/divergence.toml"]

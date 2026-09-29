@@ -4,7 +4,8 @@ date: YYYY-MM-DD
 <!-- kernel ADR-0019 rule 5. Order: infra-expand → back → front → infra-contract.
 Drop a step the cycle does not touch. An irreversible step is never
 bundled with a reversible one. A failed verification rolls the step back
-and stops the cycle. -->
+and stops the cycle. Rollback reverts the demand merges and the release
+commit, never a range: a range would revert the cycle's own records. -->
 
 1. **infra-expand** — <backward-compatible infra change>
    - Verification: <plan diff, live check>

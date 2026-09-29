@@ -21,7 +21,6 @@ model: inherit
 
 ## Produces
 - `docs/adr/*.md`
-- `specs/<front-demand-id>/design/intended-model.md`
 - `walkthroughs/<front-demand-id>/perceived-model-a.toml`
 - `walkthroughs/<front-demand-id>/perceived-model-b.toml`
 - `walkthroughs/<front-demand-id>/divergence.toml`

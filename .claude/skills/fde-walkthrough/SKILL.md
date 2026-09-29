@@ -57,10 +57,11 @@ role's `tools:` list holds only browser tools. On the `commit` and
 `advisory` tiers it is instruction only, and every claim below that rests
 on it carries that qualification (kernel ADR-0014, amendment FWD-018 F4).
 
-## The intended model — compiled first, by architecture
+## The intended model — compiled first, by the planner
 
-Before either run, the `architecture` role compiles
-`specs/<demand-id>/design/intended-model.md` from the demand's `spec.md`,
+Before either run, the planner (`fde-spec`) compiles
+`specs/<demand-id>/design/intended-model.md`, at every size, from the
+demand's `spec.md`,
 `flow.md`, `ia.md`, wireframe(s), glossary and the cycle's `plan.md`
 criteria. A demand missing those design artifacts owes them first.
 

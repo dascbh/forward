@@ -82,12 +82,21 @@ finding open.
   blocking finding open, the owner picks one (AGENTS.md `## Cycle`). The
   choice is recorded on the cycle's `board.md`; a narrowed or declared
   item is marked in `promotion.md` at close; `plan.md` stays frozen.
+  It is a replan (kernel ADR-0019): the owner picks narrow, declare or
+  pause as that replan.
   1. *narrow* — cut the part the finding lives in, ship the rest, the cut
      goes to the backlog;
   2. *declare* — the owner accepts it as a dated, named limit (a limit,
      not a pass);
   3. *pause* — revert, nothing ships, the backlog keeps the record.
   "One more round" is not an option (kernel ADR-0018).
+
+## Before the cycle review
+
+The demand reviews are committed before the cycle review starts, so the
+cycle reviewer reads them, not a stale tree. A change to a reader or a
+gate is proven read-only against a real client before the cycle review,
+not only against this repository's layout.
 
 ## What blocks
 

@@ -54,7 +54,10 @@ in the conversation. The actions:
   ADRs it follows); read any artifact on request.
 - **specify** — pick a draft; run the planner (the fde-spec role in
   cycle mode) to produce plan.md and deploy.md, and stop at the owner's
-  sign-off. The plan keeps the draft's `## Items`. `fde-spec` writes
+  sign-off. Before proposing a plan for a paused or long-running cycle,
+  fetch and read the log since the last known commit (`git fetch`, then
+  `git log <sha>..origin/<default branch>`): a parallel session may have
+  made the proposal obsolete. The plan keeps the draft's `## Items`. `fde-spec` writes
   `state: planned` when the plan is specified; at the sign-off the
   orchestrating agent writes `state: running` and the `signed-off:`
   line.
