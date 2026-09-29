@@ -1,7 +1,7 @@
 # ADR-0019 — Backlog, cycle, demand: plan once, derive down
 
 date: 2026-09-29
-status: proposed — open questions below are discussed before acceptance
+status: accepted (owner, 2026-09-29)
 
 ## Context
 
@@ -151,19 +151,65 @@ Rules:
     `failure-modes.toml`, `architecture.md` and `promotions/<id>/` are
     removed.
 
-## Open questions — to deepen before acceptance
+11. **Parallel by default, coordinated on a board.** The plan declares
+    dependencies between demands (a contract, a file, a migration), not a
+    sequence. Every demand whose dependencies are merged runs at once, in
+    its own worktree. Stages overlap too:
+    - one demand is reviewed while the next is built;
+    - the cycle's integration checks are written from the plan's
+      criteria while the demands are built.
 
-- **Q3 — demand order and parallelism.** The plan gives the order.
-  Can independent demands run in parallel worktrees?
-- **Q4 — cycle review budget.** How many rounds per size? What does the
-  integration test suite look like when the client has none?
-- **Q5 — sprints.** With backlog > cycle > demand, is a sprint still a
-  separate concept, or is a cycle the sprint?
-- **Q6 — gates.** I4, TRACE and the promotion checks are per demand
-  today. They move to the cycle; this changes gates, it does not add any
-  (ADR-0018).
-- **Q7 — migration.** How does an open cycle such as headlabs C-2 cross
-  over? Does it finish under 0.17.0, or is it re-planned?
+    Parallel agents coordinate through `cycles/C-<n>/board.md`, which
+    has one line per event:
+    - claim;
+    - contract change proposed;
+    - blocked on;
+    - decided.
+
+    Agents may message each other directly to settle a question quickly.
+    The outcome is always written on the board, because the board is the
+    record (I7), not the conversation.
+    - A decision inside the plan is taken by the agents and recorded.
+    - A decision that changes an ADR or a criterion is a replan.
+
+    Every merge rebases onto main and passes the gate. When two demands
+    turn out to need the same file, the later one waits on the board; it
+    is never merged blind. Parallelism stops only where it would break
+    the build or a declared contract (owner, 2026-09-29).
+12. **The cycle review judges the objective, not the tasks.** It never
+    re-reviews a demand. It validates two things.
+    - **Functioning:** every criterion of `plan.md` shown end to end on
+      the integrated result. The checks come from the touched layers
+      (rule 5): integration for back, usability for front, live checks
+      for infra.
+    - **Readiness:**
+      - the deploy plan is complete, with each step's verification and
+        rollback exercised where the project allows it;
+      - the signals the criteria declare exist (I5);
+      - the runbook and README match how the system now runs.
+
+    The cycle's size sets the budget: 1 round at XS/S, and full + delta
+    at M/L (ADR-0018). A client with no integration suite gets a minimal
+    one from the cycle, covering its criteria only.
+13. **Sprints are retired.** Backlog > cycle > demand is the cadence.
+    `sprints/`, the sprint goal and the sprint gates are removed, and
+    `fde-scrum` shrinks to the backlog format. Lessons go in three lines
+    at most, in the cycle's `promotion.md` (`## What changes`), and from
+    there into the backlog.
+14. **Gates follow the level that owns the thing.**
+    - Cycle: I4 (`plan.md` criteria dated before the first demand
+      commit), promotion, I5, and traceability (cycle → demands → ADRs).
+    - Demand: I1 (eval with every behavior change) and the review
+      isolation checks (I2/I3).
+    - Commit: RULE.
+
+    This moves existing checks. It adds no new gate (ADR-0018).
+15. **Migration.** A cycle open before this ADR finishes under the rules
+    it opened with. Replanning it mid-flight costs more than it saves:
+    headlabs C-2 completes DEM-036..038 under 0.17.0. At the first sync
+    after this ADR ships:
+    - each `## Next cycle` list moves into `backlog.md` with `B-<n>` ids;
+    - the next cycle is the first one planned under this ADR.
 
 ## Consequences
 
