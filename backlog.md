@@ -73,6 +73,9 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 
 - B-44 owner direction — review by weight: a coding demand (back, front or infra) inside a signed-off plan gets a code review (diff vs demand spec, ADR conformance, tests, checklist; findings.toml kind = "code"); adversarial review is for the cycle's specification before sign-off and for larger changes (M/L cycles, sensitive or irreversible demands); the cycle review stays (owner, 2026-09-29) → C-13
 
+- B-45 (C-12) usage-data — `--demand` parses findings.toml twice (code review FWD-034 F3)
+- B-46 (C-12) usage-data — nested `d and d[...]` expressions in status.py's panel helpers are hard to read (code review FWD-035 F2)
+
 ## Discarded (2026-09-29)
 
 Reviewed against 0.19.0 with the owner; ids stay retired.

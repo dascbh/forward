@@ -1,0 +1,106 @@
+# Adversarial review report — cycle mode (ADR-0019 rule 12)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "C-12"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+mode = "cycle"
+rounds_planned = 1                 # S: one round
+round = 1
+commit = "d05a4ad"
+agent_transcript = "agent-affc6dbe313e0da33"
+probed = [
+  "git log -1 = d05a4ad (FWD-035: terminal panel)",
+  "python3 -m unittest discover -s tests: 612 tests OK; python3 bin/fde/verify.py --all: all gates passed",
+  "status.py --panel on this repo: exit 0, 156 lines, five sections; counts equal --format json (backlog 32, discarded 12, cycles 1/0/7/5, demands 27/14 loose)",
+  "status.py --cycle C-5; --demand FWD-029; --demand FWD-999 (exit 2); --demand fwd-029 (resolves); --cycle C-12",
+  "headlabs-platform read-only: --panel, --cycle C-2, --demand DEM-035, --format json all exit 0 with empty stderr; every demand reads 'not reviewed'",
+  "scratch fixture: pipes, #/### headings and <script> in objective, items, section title, table cell and a findings probe; slugged reviews/FWD-100-x; malformed findings.toml; old promotions/FWD-101",
+  "scratch fixture: 200 closed cycles, 401 loose specs, 500 items of 80 words -> 1326 lines, max 141 chars, 200 warning lines",
+  "skills/fde-backlog/SKILL.md followed mechanically: §1 run --panel, §2 actions in plain text, open -> --cycle, show -> --demand; diff with .claude copy empty",
+  "README.md:314-318 and skills/fde-status document --panel and --demand",
+]
+notes = [
+  "FM1 holds: every pipe and leading # comes out escaped in the fixture, and the demand table stays intact.",
+  "FM4 holds: the panel counts equal the JSON on this repo.",
+  "FM2 holds: old-layout loose specs are listed.",
+  "Discarded line with a pipe in its reason printed 'done — reason \\| with pipe — (no reason)': the reason split lands on the wrong dash.",
+  "--cycle C-5 clips criteria at their first line, so A2 and A3 read 'produces `cycles/C-<n>/plan.md` with:' and 'shows:', which say nothing.",
+  "The running cycle's own objective is clipped mid-word in both the Overview and the Cycles section ('cycles with their demands an…').",
+  "Release not yet done, as expected: kernel_version 0.19.0; 7 commits after 397a40f^ unpushed; the deploy.md step 2 range revert is the correct form.",
+  "backlog.md B-43 holds the full request, while the plan's ## Items carries a shortened text; the panel shows both, worded differently, for one id.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "high"
+probe = "valid input at domain boundaries: status.py --root /Users/dascbh/Documents/headlabs-platform --panel and --demand DEM-035, where reviews and promotions live in slugged dirs"
+evidence = """
+runtime/status.py:654 reads `root / "reviews" / did / "findings.toml"`, and :691 reads `root / "promotions" / did`. Both use the bare id only, although spec dirs are resolved bare or slugged.
+In headlabs-platform, reviews/ has 29 slugged directories (e.g. reviews/DEM-035-kb-erase-source/findings.toml, 'counts = { ... blocking = 0 }') and promotions/ has 20 (e.g. promotions/DEM-002-runtimes-wizard/decision.md).
+The panel prints every one of the 33 demands as 'not reviewed · promotion —'. `--demand DEM-035` prints 'review: none' and 'promotion: none'.
+The same result reproduces on a scratch fixture: reviews/FWD-100-x/findings.toml holds a blocking high finding, and the panel prints 'FWD-100 · old · not reviewed'.
+The owner is told that reviewed and promoted work was never reviewed. The fault is silent: warnings stay 'none' and the exit code is 0.
+This is inside the threat model: the owner reading their own repository, and headlabs is the kernel's live client.
+"""
+blocking = true   # high, inside the threat model, breaks A3 (review status per demand), A4 (loose demands with review and promotion status), A6 (--demand findings)
+
+[[finding]]
+id = "F2"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-13"
+probe = "readiness: ls reviews/FWD-034 reviews/FWD-035; read cycles/C-12/board.md against plan.md's triage note 'demand reviews 1 round each'"
+evidence = """
+Neither reviews/FWD-034/ nor reviews/FWD-035/ exists.
+board.md records 'FWD-034 committed 2bfa7a7 (suite and verify --all green)' with no review line. For FWD-035 it has only a claim line and no committed or review line, although d05a4ad is on main.
+The panel built by this cycle prints 'FWD-034 | back | not reviewed' and 'FWD-035 | front | not reviewed'.
+The gate stays green: I2 counts the reports that exist, not the demands that should have one.
+This is B-39 recurring ('a demand can merge without its review'). The promotion cannot cite a demand review for either demand.
+"""
+blocking = false  # medium; A7 names suite, gate, version and push, not demand reviews
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "medium"
+principle = "USE-3"
+probe = "case the spec does not cover: FM3 folds an ended cycle to one line 'with detail by drill-down'; drill down with --cycle C-5 and --cycle C-12, as fde-backlog §2 'open' prescribes"
+evidence = """
+`--cycle C-5` lists 'FWD-026  back', ..., 'FWD-033  back  depends on ...': layer and dependencies only.
+The panel's table for the running cycle shows review and promotion per demand. The drill-down that the skill maps to 'abre C-n' shows less than the panel it drills from.
+For an ended cycle, whose demands the panel folds to a count ('8 demands'), A3's 'each of its demands shows its layer, review status and promotion' is reachable only by eight separate `--demand` calls.
+The same concept, a cycle's demands, carries different fields on two surfaces (USE-3).
+"""
+blocking = false  # medium; A3 holds for the cycles shown in full, and the folded case is FM3's declared trade
+
+[[finding]]
+id = "F4"
+attribute = "usability_accessibility"
+severity = "medium"
+principle = "USE-2"
+probe = "cold read of `status.py --panel` on this repository as a first-time owner (the declared substitute for the walkthrough)"
+evidence = """
+Terms the output never defines, or uses inconsistently:
+- 'old' appears on all 14 loose-demand lines ('FWD-001 · old · 13 findings, 8 blocking · promotion —'). It is system vocabulary for a spec layout, and the reader cannot tell whether it is a state to act on (USE-2).
+- '### (before any section)' is a parser label, not an owner heading.
+- The ended cycles use two words for one measure: 'criteria 10/10 met' (C-5) and 'done 5/5 met' (C-1..C-4) (USE-3).
+- A loose demand showing '8 blocking' has no state, so open work and settled history read the same (USE-1).
+- The clip cuts the running cycle's own objective mid-word ('cycles with their demands an…'), in the one line that says what the running work is for.
+"""
+blocking = false  # medium; no criterion requires glossary-free labels
+
+[[finding]]
+id = "F5"
+attribute = "usability_accessibility"
+severity = "low"
+principle = "USE-1"
+probe = "volume 10x the development data: scratch fixture with 200 closed cycles without promotion.md, 401 loose specs and 500 items of 80 words"
+evidence = """
+The panel prints 1,326 lines. Clipping holds (longest line 141 characters), and ended cycles and loose demands fold to one line each, as FM3 declares.
+The folding rule does not cover warnings: Overview prints 'warnings: 200' followed by 200 lines of 'C-n is closed without promotion.md' before the backlog starts.
+The one section that should give state at a glance becomes the flood that FM3 exists to prevent.
+"""
+blocking = false  # low; FM3's declared mitigations (clip, fold cycles and loose demands) hold
