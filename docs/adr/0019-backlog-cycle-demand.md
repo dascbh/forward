@@ -39,7 +39,7 @@ DEMAND   quick planner: one-page spec citing the cycle's criteria and ADRs by id
 |---|---|---|
 | Plans | spec, threat model, dated acceptance criteria (I4), demand list | one page, derived; decides nothing new |
 | Architecture | decided at cycle sizing; ADRs name the demands that realize them | conforms to its ADRs; never amends them |
-| Verifies | architecture review of the whole, integration and usability tests (walkthrough), promotion (I5) | unit tests, code review, ADR conformance; 1 round |
+| Verifies | architecture review of the whole, plus what the touched layers require (rule 5), promotion (I5) | unit tests, code review, ADR conformance, plus its layer's check (rule 5); 1 round |
 | Ships | promotion + deploy, following the deploy plan | merge to main behind the gate (I1) |
 | New fact | backlog | backlog, always |
 | Closes when | criteria met with integration evidence, deployed | gate green, no blocking finding |
@@ -60,18 +60,30 @@ Rules:
    about 300 production lines, and it is split at planning, not at
    review.
 4. **Merge per demand; promotion and deploy per cycle.**
-5. **The deploy plan has two dimensions, application and infrastructure.**
-   The cycle plan tags each demand `app`, `infra` or `both` and orders the
-   deploy steps:
-   - infra goes first and backward-compatible (expand);
-   - then the app;
-   - then infra contraction, if any.
-   Each step has:
+5. **Every demand has one layer: `front`, `back` or `infra`.**
+   - `front` is the interface: screens, flows, user-facing text.
+   - `back` is the API, domain logic and data access.
+   - `infra` is IaC, roles, pipelines and runtime configuration.
+
+   The layer sets what gets verified and where it goes in the deploy
+   plan:
+
+   | layer | demand verifies | cycle adds, only when a demand of this layer is in it | deploy step |
+   |---|---|---|---|
+   | infra | plan diff (e.g. `cdk diff`), policy check | live checks after the infra step | 1 (expand, backward-compatible) and 4 (contract, if any) |
+   | back | unit + contract tests | integration tests across the cycle's demands | 2 |
+   | front | unit + design QA against the approved wireframe | usability: walkthrough, user test | 3 |
+
+   A backend-only cycle runs no walkthrough. A cycle that changes the
+   interface always runs one.
+
+   Each deploy step has:
    - its own verification;
    - its own rollback;
    - a note if it is irreversible (migration, deletion, external side
      effect). An irreversible step is never bundled with a reversible
      one.
+
 6. **The ADR is the only home of a decision.** The acceptance and the
    demand specs cite it by id. `specs/<demand>/architecture.md` is
    removed.
@@ -81,9 +93,9 @@ Rules:
 - **Q1 — artifact layout.** Does `cycles/C-<n>/` become a directory
   (`plan.md`, `deploy.md`, `review/`, `promotion.md`)? Or does the cycle
   file stay flat and point at `specs/C-<n>/`?
-- **Q2 — `both` demands.** Is a demand that touches app and infra
-  allowed? Or must planning split it, so that each deploy step maps to
-  whole demands?
+- **Q2 — one layer per demand.** Rule 5 assumes planning always splits a
+  change that spans layers. Is that too strict for a small change that
+  needs one API field and its screen label at once?
 - **Q3 — demand order and parallelism.** The plan gives the order.
   Can independent demands run in parallel worktrees?
 - **Q4 — cycle review budget.** How many rounds per size? What does the
@@ -102,6 +114,7 @@ Rules:
   and acceptance of the promotion. Replanning happens only when a fact
   invalidates the plan.
 - Demands get faster: no ADR, no promotion, no acceptance of their own.
-- Walkthrough and integration testing get a defined place, at the cycle.
+- Walkthrough and integration testing get a defined place: at the cycle, and
+  only for the layers the cycle touches.
 - A cycle deploys later than a per-demand flow. That is the price of
   verifying the whole before it ships.
