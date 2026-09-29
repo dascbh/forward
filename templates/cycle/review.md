@@ -2,7 +2,7 @@ cycle: C-<n>
 date: YYYY-MM-DD
 round: 1 (full) | 2 (delta)
 
-<!-- ADR-0019 rule 12. Judges the objective against plan.md; never
+<!-- kernel ADR-0019 rule 12. Judges the objective against plan.md; never
 re-reviews a demand. Checks come from the touched layers: integration
 for back, usability (walkthrough) for front, live checks for infra. -->
 

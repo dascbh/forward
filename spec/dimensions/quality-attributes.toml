@@ -13,7 +13,7 @@
 #   - adversarial attack order
 #   - suite sizing (failure modes and coverage per dimension)
 #   - work order when dimensions conflict
-# It never adds review rounds and never makes a finding blocking (ADR-0018).
+# It never adds review rounds and never makes a finding blocking (kernel ADR-0018).
 #
 # Weight does NOT govern: anything below the floor defined in
 # spec/invariants.toml.

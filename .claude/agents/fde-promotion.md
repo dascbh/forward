@@ -52,7 +52,7 @@ Invariants upheld: I4, I5, I6
 
 Promotion is this role's decision, not a question to the user; the
 sign-off of `plan.md` already covers it. `promotions/<demand-id>/` is
-only for a cycle opened before ADR-0019 (rule 15).
+only for a cycle opened before kernel ADR-0019 (rule 15).
 
 ## Production rollout — what the decision demands
 

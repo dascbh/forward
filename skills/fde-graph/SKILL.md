@@ -28,7 +28,7 @@ promoted_by, supersedes, links). A cycle `plans` a demand when the
 demand is a row of `cycles/C-<n>/plan.md`'s `## Demands` table (first
 cell only — the depends-on column is not a link) or its spec's header
 says `cycle: C-<n>`; a demand `follows` the ADRs its spec's `follows:`
-header names. Sprints are retired (ADR-0019): `sprints/` still reads as
+header names. Sprints are retired (kernel ADR-0019): `sprints/` still reads as
 `selects` edges, never required. Weights come from data
 the kernel already holds: attribute nodes = vector-A weight, finding edges
 = severity (critical 4 … low 1), demand nodes = triage size (XS 1 … L 4).
@@ -62,4 +62,4 @@ that is normal, not an orphan.
 
 No database, vector store, graph DB or LLM-extracted graph: the graph is
 derived from files, walked just-in-time, stdlib, and consumed by a gate
-(rationale: ADR-0010).
+(rationale: kernel ADR-0010).

@@ -2,6 +2,7 @@
 
 date: 2026-09-29
 status: accepted (owner, 2026-09-29)
+amended: 2026-09-29 — rule 9 states named by meaning and writer: planned is specified and awaiting sign-off (written by fde-spec), running is signed off (reviews/C-5 F2)
 
 ## Context
 
@@ -139,7 +140,11 @@ Rules:
      sign-off.
 
    Grouping is organization only: no spec and no commitment. A cycle's
-   states are `draft → planned (signed off) → running → closed`. Several
+   states are `draft` (grouped) → `planned` (specified, awaiting
+   sign-off) → `running` (signed off) → `closed` or `abandoned`. The
+   panel writes `draft`, `fde-spec` writes `planned`, and the
+   orchestrating agent writes `running` with a `signed-off:` line.
+   Several
    drafts may exist, but only one cycle runs. The panel is
    conversational, because specifying needs the agent anyway;
    `status.py --format json` feeds it.

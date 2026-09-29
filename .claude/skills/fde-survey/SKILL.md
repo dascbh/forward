@@ -71,7 +71,7 @@ Check it with `python3 bin/fde/verify.py --gate survey`.
 ## What this is not
 
 Not an index, not a knowledge graph, not a retrieval layer — the kernel
-refused those with evidence (ADR-0010). A survey is read once by a human
+refused those with evidence (kernel ADR-0010). A survey is read once by a human
 and by the next agent, then maintained like any artifact. If it drifts
 far from HEAD, the gate says so; re-survey rather than patch a stale map.
 

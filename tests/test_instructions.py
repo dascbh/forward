@@ -202,7 +202,7 @@ class TestBoundedReview(unittest.TestCase):
         agents = " ".join(read("AGENTS.md").split())
         for needle in ("Budgets, not minimums", "never extended",
                        "Timebox: XS 30 min", "instruction first",
-                       "never one more round"):
+                       "never by one more round"):
             self.assertIn(needle, agents, needle)
 
     def test_architecture_revises_only_when_a_decision_changes(self):
@@ -240,7 +240,7 @@ class TestDeclaredCycle(unittest.TestCase):
         "deploy": ("The deploy plan runs infra-expand → back → front → "
                    "infra-contract, and every step has its own verification "
                    "and rollback."),
-        "adr": "An ADR is the only home of a decision.",
+        "adr": "An ADR is the only home of a decision;",
         "approval": ("Approval happens once, at plan sign-off, and is "
                      "inherited by everything after it"),
         "reask": "Only a replan asks the owner again.",
@@ -251,21 +251,22 @@ class TestDeclaredCycle(unittest.TestCase):
         "cycle-review": ("The cycle review judges the objective — "
                          "functioning and readiness against `plan.md` — and "
                          "never re-reviews a demand."),
-        "rationale": "the rationale is ADR-0019",
+        "rationale": "code starts only inside a signed-off cycle (kernel ADR-0019)",
     }
 
-    # reviews/FWD-032 F4: ## Cycle defines the spent budget, once
-    BUDGET_RULE = ("A review budget spent with a blocking finding open is "
-                   "the owner's call: narrow, declare the limit, or pause. "
-                   "The choice is recorded on `board.md`; a narrowed or "
-                   "declared item is marked in `promotion.md` at close, and "
-                   "`plan.md` stays frozen.")
+    # reviews/FWD-032 F4, narrowed to the cycle review by reviews/C-5 F1:
+    # ## Cycle defines the spent budget, once
+    BUDGET_RULE = ("A cycle review budget spent with a blocker open is the "
+                   "owner's call: narrow, declare the limit, or pause, "
+                   "recorded on `board.md` and marked in `promotion.md` at "
+                   "close.")
 
     # the layout lives in ## Cycle
     LAYOUT = ("`plan.md`", "`deploy.md`", "`board.md`", "`review.md`",
               "`promotion.md`", "`.fde/templates/cycle/`",
               "`specs/<id>/spec.md` plus `reviews/<id>/findings.toml`",
-              "`draft → planned (signed off) → running → closed`")
+              "`draft` (grouped) → `planned` (specified, awaiting sign-off) "
+              "→ `running` (signed off) → `closed` or `abandoned`")
 
     def flat(self, rel):
         return " ".join(read(rel).split())
@@ -304,11 +305,10 @@ class TestDeclaredCycle(unittest.TestCase):
         # requests elsewhere say the same thing as ## Cycle
         for rel in self.SURFACES:
             flat = self.flat(rel)
-            # reviews/FWD-032 F4: the loop points at ## Cycle, which holds
-            # the owner's three options and where the choice is recorded
-            self.assertIn("Budget spent with a blocker open → the owner "
-                          "picks (`## Cycle`); never one more round "
-                          "(`fde-review`).", flat, rel)
+            # reviews/C-5 F1: the loop points at ## Cycle, which holds the
+            # demand blocker path and the cycle review's three options
+            self.assertIn("A blocker is fixed in the demand (`## Cycle`), "
+                          "never by one more round.", flat, rel)
             self.assertIn(self.BUDGET_RULE, self.cycle(rel), rel)
             # FWD-031: sprints are retired, so there is no retro to surface at
             self.assertIn("\"Fix it NOW\" skips the backlog order, never the "
@@ -319,14 +319,12 @@ class TestDeclaredCycle(unittest.TestCase):
         # reviews/FWD-028 F4: the budget's way out is ADR-0019's replan
         for rel in ("skills/fde-review/SKILL.md", ".claude/skills/fde-review/SKILL.md"):
             flat = " ".join(read(rel).split())
-            self.assertIn("When the budget is spent with a blocking finding "
-                          "open, the owner picks one (AGENTS.md `## Cycle`). "
-                          "The choice is recorded on the cycle's `board.md`; "
-                          "a narrowed or declared item is marked in "
-                          "`promotion.md` at close; `plan.md` stays frozen.",
-                          flat, rel)
-            self.assertIn("A non-blocking finding goes to `backlog.md` by "
-                          "default.", flat, rel)
+            self.assertIn("When a cycle review's budget is spent with a "
+                          "blocking finding open, the owner picks one "
+                          "(AGENTS.md `## Cycle`). The choice is recorded on "
+                          "the cycle's `board.md`; a narrowed or declared "
+                          "item is marked in `promotion.md` at close; "
+                          "`plan.md` stays frozen.", flat, rel)
             for gone in ("the builder picks one", "nothing is declined "
                          "without the user", "the builder records it",
                          "a dated, named limit in `plan.md`",
@@ -541,16 +539,20 @@ class TestReconcileText(unittest.TestCase):
 
     def test_state_has_named_writers(self):
         # F4: who moves state:, and the only edits a frozen plan takes
-        rule = ("`fde-spec` writes `state: draft` and `state: planned`; the "
-                "orchestrating agent writes `state: running` at sign-off and "
-                "`state: closed` or `state: abandoned` at close. These header "
-                "lines are the only edits a frozen plan takes.")
+        # reviews/C-5 F2: fde-backlog writes draft, fde-spec planned
+        rule = ("`fde-backlog` groups items (backlog → draft); `fde-spec` "
+                "writes `state: planned`; the orchestrating agent writes "
+                "`running` with `signed-off:` at sign-off, then `closed` or "
+                "`abandoned`. The plan is frozen at sign-off; these header "
+                "lines are the only edits it takes.")
         for rel in self.SURFACES:
             self.assertIn(rule, " ".join(section(read(rel), "Cycle").split()),
                           rel)
         plan = self.flat("templates/cycle/plan.md")
-        self.assertIn("draft and planned are written by fde-spec; running, "
-                      "closed and abandoned by the orchestrating agent", plan)
+        self.assertIn("draft (grouped) is written by fde-backlog; planned "
+                      "(specified, awaiting sign-off) by fde-spec; running "
+                      "(with signed-off:), closed and abandoned by the "
+                      "orchestrating agent", plan)
 
     def test_role_scopes_include_cycles(self):
         import tomllib
@@ -643,6 +645,191 @@ class TestBacklogLineIsOneFormat(unittest.TestCase):
             self.assertIn(self.LINE, " ".join(read(rel).split()), rel)
         for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
             self.assertNotIn("A backlog line carries", read(rel), rel)
+
+
+class TestReconcileC5(unittest.TestCase):
+    """C-5 reconcile of reviews/FWD-033 F1-F5 and reviews/C-5 F1-F3: every
+    operative sentence the terse pass dropped is restored and pinned, and
+    the demand blocker path, the cycle states and kernel ADR citations say
+    one thing everywhere."""
+
+    SURFACES = ("AGENTS.md", "templates/AGENTS.md.template")
+
+    def flat(self, rel):
+        return " ".join(read(rel).split())
+
+    def sect(self, rel, heading):
+        return " ".join(section(read(rel), heading).split())
+
+    def step(self, rel, n):
+        loop = section(read(rel), "Demand loop")
+        start = loop.index(f"\n{n}. **")
+        end = loop.find(f"\n{n + 1}. **", start)
+        return " ".join(loop[start:end if end > 0 else None].split())
+
+    # reviews/FWD-033 F1
+    def test_promotion_isolation_is_stated_in_roles(self):
+        for rel in self.SURFACES:
+            self.assertIn("The adversarial and promotion roles run isolated: "
+                          "artifact + spec only, never the builder's thread.",
+                          self.sect(rel, "Roles"), rel)
+
+    # reviews/FWD-033 F2
+    def test_never_escalate_and_not_asked_beforehand(self):
+        for rel in self.SURFACES:
+            self.assertIn("Never escalate kernel-interpretation questions to "
+                          "the user mid-demand: resolve from the skill, take "
+                          "the stricter reading, flag it afterwards.",
+                          self.sect(rel, "Detail"), rel)
+            self.assertIn("A failed step rolls back and the cycle stops; the "
+                          "user is told the outcome, not asked beforehand.",
+                          self.step(rel, 8), rel)
+
+    # reviews/FWD-033 F3
+    def test_cycle_review_runs_the_walkthrough_with_a_front_demand(self):
+        for rel in self.SURFACES:
+            self.assertIn("With a `front` demand, it runs `fde-walkthrough`.",
+                          self.step(rel, 7), rel)
+        for rel in ("skills/fde-walkthrough/SKILL.md",
+                    ".claude/skills/fde-walkthrough/SKILL.md"):
+            desc = description(rel)
+            self.assertIn("at the cycle review when the cycle has a `front` "
+                          "demand", desc, rel)
+            self.assertLessEqual(len(desc.split()), TestTerse.DESC_MAX, rel)
+
+    # reviews/FWD-033 F4: ADR-0019's rules, each by its key term
+    ADR0019_TERMS = {
+        1: "A new fact always goes to the backlog",
+        2: "The cycle owns its declared criteria and its blocking findings",
+        3: "Size is set on the cycle",
+        4: "Merge happens per demand",
+        5: "exactly one layer",
+        6: "An ADR is the only home of a decision",
+        7: "not asked beforehand",
+        8: "Approval happens once, at plan sign-off",
+        9: "`fde-backlog`",
+        10: "`deploy.md`",
+        11: "`cycles/C-<n>/board.md`",
+        12: "never re-reviews a demand",
+        13: "Sprints are retired",
+        14: "Gates follow the owning level",
+        15: "opened before kernel ADR-0019 finishes under its own rules",
+    }
+
+    def test_agents_md_names_every_adr0019_rule(self):
+        for rel in self.SURFACES:
+            text = self.flat(rel)
+            for n, term in self.ADR0019_TERMS.items():
+                self.assertIn(term, text, f"{rel}: rule {n}")
+
+    # reviews/C-5 F1
+    DEMAND_BLOCKER = ("A demand review's blocking finding is fixed inside "
+                      "that demand and proven by its regression test; the "
+                      "owner is asked only when the fix changes a criterion "
+                      "or an ADR, which is a replan. A non-blocking finding "
+                      "goes to `backlog.md` unless it shows a plan criterion "
+                      "unmet; then the cycle fixes it.")
+
+    def test_demand_blocker_is_fixed_inside_the_demand(self):
+        for rel in self.SURFACES:
+            self.assertIn("A blocker is fixed in the demand (`## Cycle`), "
+                          "never by one more round.",
+                          self.step(rel, 5), rel)
+            self.assertIn(self.DEMAND_BLOCKER, self.sect(rel, "Cycle"), rel)
+            text = self.flat(rel)
+            self.assertNotIn("Budget spent with a blocker open → the owner "
+                             "picks", text, rel)
+            self.assertIn(TestDeclaredCycle.BUDGET_RULE, text, rel)
+        for rel in ("skills/fde-review/SKILL.md",
+                    ".claude/skills/fde-review/SKILL.md"):
+            text = self.flat(rel)
+            self.assertIn(self.DEMAND_BLOCKER, text, rel)
+            self.assertIn("When a cycle review's budget is spent with a "
+                          "blocking finding open, the owner picks one", text,
+                          rel)
+            self.assertNotIn("When the budget is spent with a blocking "
+                             "finding open", text, rel)
+
+    # reviews/C-5 F2
+    def test_states_have_one_meaning_and_one_writer(self):
+        states = ("`draft` (grouped) → `planned` (specified, awaiting "
+                  "sign-off) → `running` (signed off) → `closed` or "
+                  "`abandoned`")
+        writers = ("`fde-backlog` groups items (backlog → draft); "
+                   "`fde-spec` writes `state: planned`; the orchestrating "
+                   "agent writes `running` with `signed-off:` at sign-off, "
+                   "then `closed` or `abandoned`. The plan is frozen at "
+                   "sign-off; these header lines are the only edits it "
+                   "takes.")
+        for rel in self.SURFACES:
+            cycle = self.sect(rel, "Cycle")
+            self.assertIn(states, cycle, rel)
+            self.assertIn(writers, cycle, rel)
+            self.assertNotIn("planned (signed off)", self.flat(rel), rel)
+        for rel in ("skills/fde-backlog/SKILL.md",
+                    ".claude/skills/fde-backlog/SKILL.md"):
+            text = self.flat(rel)
+            self.assertIn(states, text, rel)
+            self.assertIn("`fde-spec` writes `state: planned` when the plan "
+                          "is specified", text, rel)
+            self.assertNotIn("Never set `state: planned` yourself; the "
+                             "owner's sign-off does", text, rel)
+        for rel in ("agents/fde-spec.md", ".claude/agents/fde-spec.md"):
+            self.assertIn("write `state: planned` in `plan.md`",
+                          self.flat(rel), rel)
+        plan = self.flat("templates/cycle/plan.md")
+        self.assertIn("draft (grouped) is written by fde-backlog; planned "
+                      "(specified, awaiting sign-off) by fde-spec; running "
+                      "(with signed-off:), closed and abandoned by the "
+                      "orchestrating agent", plan)
+        self.assertIn("## Items", read("templates/cycle/plan.md"))
+        adr = read("docs/adr/0019-backlog-cycle-demand.md")
+        self.assertRegex(adr, r"(?m)^amended: 2026-09-29 .*rule 9")
+        self.assertIn("`draft` (grouped) → `planned` (specified, awaiting "
+                      "sign-off) → `running` (signed off) → `closed`",
+                      " ".join(adr.split()))
+
+    def test_agents_md_names_the_backlog_to_draft_step(self):
+        for rel in self.SURFACES:
+            self.assertIn("backlog → draft", self.flat(rel), rel)
+
+    # reviews/C-5 F3 + note: sync migrates and bumps the version
+    def test_sync_migrates_next_cycle_and_bumps_the_version(self):
+        for rel in ("skills/fde-sync/SKILL.md",
+                    ".claude/skills/fde-sync/SKILL.md"):
+            text = self.flat(rel)
+            for needle in ("`## Next cycle`", "`B-<n>`", "`(C-<n>)`",
+                           "kernel ADR-0019 rule 15",
+                           "`kernel_version` in `fde.config.toml`"):
+                self.assertIn(needle, text, f"{rel}: {needle}")
+        setup = self.flat("SETUP.md")
+        self.assertIn("`## Next cycle`", section(read("SETUP.md"),
+                                                 "Sync — regeneration"))
+        self.assertIn("kernel_version", setup)
+
+    def client_texts(self):
+        yield from ("AGENTS.md", "templates/AGENTS.md.template", "SETUP.md")
+        for base in ("skills", ".claude/skills", "agents", ".claude/agents",
+                     "templates", ".fde/templates", "spec", ".fde/spec"):
+            for p in sorted((ROOT / base).rglob("*")):
+                if p.is_file() and p.suffix in (".md", ".toml", ".template",
+                                                ".yml"):
+                    yield str(p.relative_to(ROOT))
+
+    def test_no_client_text_cites_a_bare_kernel_adr(self):
+        import re
+        files = list(self.client_texts())
+        self.assertGreater(len(files), 40)   # not vacuous
+        for rel in files:
+            text = self.flat(rel)
+            bare = re.findall(r"(?<!kernel )ADR-00\d\d", text)
+            self.assertEqual(bare, [], rel)
+
+    # reviews/C-5 note
+    def test_readme_triage_sizes_the_cycle(self):
+        readme = self.flat("README.md")
+        self.assertIn("`fde-triage` — sizes the cycle", readme)
+        self.assertNotIn("sizes the demand", readme)
 
 
 if __name__ == "__main__":

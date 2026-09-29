@@ -2,7 +2,7 @@ cycle: C-<n>
 date: YYYY-MM-DD
 decision: promote | hold
 
-<!-- ADR-0019 rule 7. The promotion role's decision against plan.md's
+<!-- kernel ADR-0019 rule 7. The promotion role's decision against plan.md's
 criteria, not a question to the user. -->
 
 ## Evidence

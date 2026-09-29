@@ -45,7 +45,10 @@ Invariants upheld: I1, I4
   (contract), each with its verification and rollback; an irreversible
   step is marked and never bundled with a reversible one.
 
-Stop at the sign-off: the user signs `plan.md` once.
+Specifying a draft keeps its `## Items`. When the plan is specified,
+write `state: planned` in `plan.md` (specified, awaiting sign-off). Stop
+at the sign-off: the user signs `plan.md` once, and the orchestrating
+agent writes `state: running` with the `signed-off:` line.
 
 ## Demand spec — `specs/<demand-id>/spec.md`
 

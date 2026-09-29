@@ -10,7 +10,7 @@ the empirical checks live in the eval suite (I1). Phases scale with the
 cycle's size; an artifact-quality violation reopens the phase — never
 patch the symptom in code.
 
-## Where each check runs (ADR-0019 rule 5)
+## Where each check runs (kernel ADR-0019 rule 5)
 
 - A `front` demand: build within the foundation, design QA against the
   approved wireframe.
@@ -36,7 +36,7 @@ converge without having diverged; never diverge without a stated problem.
 The **`divergence` gate** (`python3 bin/fde/verify.py --gate divergence`)
 fails any M/L demand with a design surface and no
 `specs/<demand-id>/design/alternatives.md`, or whose alternatives share
-a lens, lack a hypothesis, or record no discard (ADR-0012).
+a lens, lack a hypothesis, or record no discard (kernel ADR-0012).
 
 ### The artifact
 

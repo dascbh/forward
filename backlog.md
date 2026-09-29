@@ -65,3 +65,4 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 - (C-5) usage-data — at XS/S the walkthrough's intended model is compiled by the architecture role, which those sizes do not otherwise plan in (RECON-TEXT note)
 - (C-5) usage-data — I5 stays repository-wide (observability.toml); reading the cycle's promotion.md ## Signals is not implemented (reviews/FWD-029 F4, declared limit)
 - (C-5) usage-data — I1-REQS reads journey R# tokens only from per-demand acceptance.md; a front demand in the cycle layout (A# criteria in plan.md) is not traced to evals/journeys/ — needs a follow-up in verify.py (FWD-032 note)
+- (C-5) usage-data — runtime messages still cite bare kernel ADR ids a client cannot resolve: guard.py LEGACY_NOTE "only for a cycle opened before ADR-0019" (pinned by tests/test_coherence.py); instruction texts now say "kernel ADR-00NN" (RECON-C5-TEXT, reviews/C-5 F3)

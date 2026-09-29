@@ -29,4 +29,4 @@ rounds_planned = {{ROUNDS_PLANNED}}   # demand review 1; cycle review XS/S 1, M/
 # evidence  = "screen or path + what violates the principle"
 # blocking  = false
 # backlog   = true         # a non-blocking finding goes to backlog.md by
-#                          # default (ADR-0019 rule 2)
+#                          # default (kernel ADR-0019 rule 2)

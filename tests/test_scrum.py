@@ -168,9 +168,9 @@ class TestBacklogInstructions(unittest.TestCase):
             self.assertNotIn("## Scrum mode", text, rel)
             section = self.section(rel)
             for needle in ("becomes a backlog item, not a demand",
-                           "Sprints are retired (ADR-0019); `sprints/` is "
-                           "history.", "`--gate scrum` requires the "
-                           "backlog's `goal:` and `date:`",
+                           "Sprints are retired; `sprints/` is history.", "`backlog.md` starts with `goal:` (or "
+                           "`goal: not set`) and `date:`; with `[scrum] "
+                           "enabled = true`, `--gate scrum` requires them.",
                            "`fde-scrum` skill"):
                 self.assertIn(needle, section, f"{rel}: {needle}")
             for gone in self.SPRINT_CEREMONY + ("retro", "sprint;"):

@@ -6,7 +6,7 @@ description: The backlog format â€” B-<n> ids, evidence ladder, origin (C-<n>) â
 # fde-scrum
 
 The backlog feeds cycles (AGENTS.md `## Cycle`). Sprints are retired
-(ADR-0019 rule 13); a `sprints/` directory is history, never extended.
+(kernel ADR-0019 rule 13); a `sprints/` directory is history, never extended.
 
 ## backlog.md
 

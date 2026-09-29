@@ -39,7 +39,7 @@ behavior the framework exists to prevent.
 
 I1 matches files, not diff content: a comment-only or prose-only edit
 inside a behavior root trips the gate. Deliberate. In this kernel,
-instructions ARE behavior (ADR-0001) — a prose edit to a skill changes
+instructions ARE behavior (kernel ADR-0001) — a prose edit to a skill changes
 what agents do, and the drift-detector tests are its legitimate eval.
 For code, inspecting diff content to exempt "harmless" edits would make
 the wall guess. The cost is one touched eval; the alternative is a wall

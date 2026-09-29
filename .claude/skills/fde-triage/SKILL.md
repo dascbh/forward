@@ -7,7 +7,7 @@ description: Sizes a cycle (XS/S/M/L), bounds its demands, and recognizes the RU
 
 Apply the table; do not negotiate it or interview the user about the
 formula. Estimate the inputs yourself; if torn between two sizes,
-take the larger. Rationale: ADR-0019 rule 3.
+take the larger. Rationale: kernel ADR-0019 rule 3.
 
 ## What gets sized
 
@@ -42,7 +42,7 @@ demand list, not at review.
 
 RULE is categorically distinct from XS/S/M/L, not a smaller XS: XS runs
 judgment in reduced form; RULE runs none. It is never estimated, only
-computed after the fact from the commit's own diff. Rationale: ADR-0015.
+computed after the fact from the commit's own diff. Rationale: kernel ADR-0015.
 
 A commit is RULE-eligible only when ALL four hold on the committed diff:
 `[triage].data_class` is exactly `public` or `internal`;

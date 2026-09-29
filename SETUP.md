@@ -107,7 +107,7 @@ root and fill every `{{...}}` placeholder with the facts from steps 1–3.
 
 Then allocate **vector A** with the user. Explain what weight does — orders
 the adversarial attack and sizes the suite; it never adds review rounds and
-never makes a finding blocking (ADR-0018) — show the default allocation,
+never makes a finding blocking (kernel ADR-0018) — show the default allocation,
 and let them move points:
 
 | attribute | default | floor |
@@ -190,7 +190,7 @@ the user names.
    pointer with the concrete plan: attributes sorted by this project's
    weights descending, one `### N. <label> — weight <w>` heading each
    (weight orders the attack only — rounds come from the triage size and
-   blocking from the spec's threat model, ADR-0018); probes listed per
+   blocking from the spec's threat model, kernel ADR-0018); probes listed per
    attribute from `.fde/spec/dimensions/quality-attributes.toml`.
 3. `CLAUDE.md`: if absent, create it containing `@AGENTS.md` on the first
    line plus a note that roles live in `.claude/agents/` and their write
@@ -214,7 +214,7 @@ the user names.
    `NotebookEdit`, `WebFetch`, `WebSearch`. Keep any entries already
    there. Never touch `permissions.ask` or `permissions.deny`: they
    belong to the user and take precedence over `allow`. The cycle
-   sign-off is the permission (ADR-0019), so no call waits on a prompt.
+   sign-off is the permission (kernel ADR-0019), so no call waits on a prompt.
    The guard hook still runs on every `Write`/`Edit`. Writes made through
    `Bash` or `NotebookEdit` are contained by the gate, at commit and in
    CI.
@@ -289,4 +289,8 @@ When `fde.config.toml`, the tool set, or the stack changes: re-run steps
 marker. Files WITHOUT the marker (user-owned `CLAUDE.md`, merged
 `settings.json`) are merged, never clobbered. To detect drift: regenerate
 and diff — any difference in a marked file is drift; the fix belongs at the
-source, never in the generated file.
+source, never in the generated file. After re-emitting, set
+`fde.config.toml` `kernel_version` to the installed kernel's version, and
+move any `## Next cycle` list in a cycle file to `backlog.md` with
+`B-<n>` ids and a `(C-<n>)` origin (kernel ADR-0019 rule 15; the
+fde-sync skill).

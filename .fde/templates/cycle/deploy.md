@@ -1,7 +1,7 @@
 cycle: C-<n>
 date: YYYY-MM-DD
 
-<!-- ADR-0019 rule 5. Order: infra-expand → back → front → infra-contract.
+<!-- kernel ADR-0019 rule 5. Order: infra-expand → back → front → infra-contract.
 Drop a step the cycle does not touch. An irreversible step is never
 bundled with a reversible one. A failed verification rolls the step back
 and stops the cycle. -->

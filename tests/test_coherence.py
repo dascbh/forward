@@ -192,10 +192,11 @@ class TestReviewBudgetIsAReplan(unittest.TestCase):
             self.assertNotIn(gone, budget, gone)
         for rel in AGENTS_SURFACES:
             cycle = " ".join(section(read(rel), "Cycle").split())
+            # reviews/C-5 F1: the frozen plan is stated once, at sign-off
             for needle in ("narrow, declare the limit, or pause",
                            "recorded on `board.md`",
                            "marked in `promotion.md` at close",
-                           "`plan.md` stays frozen"):
+                           "The plan is frozen at sign-off"):
                 self.assertIn(needle, cycle, f"{rel}: {needle}")
         for rel in ("agents/fde-promotion.md", ".claude/agents/fde-promotion.md"):
             self.assertIn("recorded on `board.md`) is marked here",
@@ -253,6 +254,17 @@ class TestNoFdeCli(unittest.TestCase):
             text = read(rel)
             self.assertNotIn("`fde sync`", text, rel)
             self.assertNotIn("re-run fde sync", text, rel)
+
+    def test_runtime_names_no_fde_cli(self):
+        # reviews/FWD-033 F5: the missing-config error names the skill
+        import re
+        files = sorted(ROOT.glob("runtime/*.py")) + sorted(ROOT.glob("bin/fde/*.py"))
+        self.assertGreater(len(files), 5)   # not vacuous
+        for p in files:
+            text = p.read_text(encoding="utf-8")
+            self.assertIsNone(re.search(r"`fde (init|sync|verify|status)`", text), p.name)
+        for rel in ("runtime/fde_lib.py", "bin/fde/fde_lib.py"):
+            self.assertIn("run the fde-init skill first", read(rel), rel)
 
 
 class TestWalkthroughSizeIsOneRule(unittest.TestCase):

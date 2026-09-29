@@ -54,7 +54,7 @@ The format comes from AGENTS.md `## Cycle`.
 
 ## Never
 
-- A gate: it exits 0 on any content (ADR-0018). A warning is information
+- A gate: it exits 0 on any content (kernel ADR-0018). A warning is information
   for the user, not a block.
 - A writer: it changes no file. The fixes a warning points to go through
   AGENTS.md `## Cycle`.

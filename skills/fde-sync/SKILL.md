@@ -42,6 +42,19 @@ Idempotent: same sources, same output.
 - Copy directories, never a remembered list of filenames — an enumerated
   set silently omits whatever the update added.
 
+Then set `kernel_version` in `fde.config.toml` to the kernel's version
+(`.fde/spec/invariants.toml` → `[meta] kernel_version`); change nothing
+else in the config.
+
+## 3. Migrate the project's records
+
+A `## Next cycle` list in a cycle file (`cycles/C-<n>.md` or
+`cycles/C-<n>/*.md`) moves to `backlog.md` (kernel ADR-0019 rule 15):
+each line becomes a backlog line with the next free `B-<n>` id and the
+`(C-<n>)` of the cycle it came from, and the section leaves the cycle
+file. A cycle opened before kernel ADR-0019 otherwise finishes under its
+own rules. Commit the move on its own: `backlog: migrate ## Next cycle`.
+
 Close by running `python3 bin/fde/verify.py --all`. A red `CFG-VER` means
 the update landed half way: the config and the installed spec disagree on
 the version.

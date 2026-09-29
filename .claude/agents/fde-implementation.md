@@ -33,7 +33,7 @@ model: inherit
 - `specs/**/acceptance.md`
 
 `specs/**/acceptance.md` is a demand's criteria in a cycle opened before
-ADR-0019.
+kernel ADR-0019.
 
 Invariants upheld: I1
 

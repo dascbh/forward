@@ -28,7 +28,7 @@ label = "Specification"
 purpose = """
 Plan the cycle: dated criteria and failure modes with ids, threat model,
 demand list, deploy plan. Then derive one-page demand specs that cite the
-plan's ids and decide nothing new (ADR-0019). The measure exists BEFORE
+plan's ids and decide nothing new (kernel ADR-0019). The measure exists BEFORE
 any code does.
 """
 inputs = ["discovery/**", "backlog.md", "docs/adr/**", "fde.config.toml"]
@@ -45,7 +45,7 @@ label = "Architecture"
 purpose = """
 Decide boundaries, contracts, and trade-offs in light of the weight vector,
 at cycle planning. Each ADR names the demands that realize it; the ADR is
-the only home of a decision (ADR-0019). Produces recorded decisions, not
+the only home of a decision (kernel ADR-0019). Produces recorded decisions, not
 code.
 """
 inputs = ["cycles/**:read", "specs/**", "fde.config.toml", "src/**:read"]
@@ -70,7 +70,7 @@ access to production code. It does not judge its own delivery.
 inputs = ["specs/**", "docs/adr/**", "cycles/**:read"]
 outputs = ["src/**", "tests/**", "evals/**"]
 write_scope = ["src/**", "tests/**", "evals/**", "infra/**", "backlog.md", "cycles/*/board.md"]
-# specs/**/acceptance.md: per-demand criteria of a cycle opened before ADR-0019
+# specs/**/acceptance.md: per-demand criteria of a cycle opened before kernel ADR-0019
 denied_paths = ["cycles/*/plan.md", "cycles/*/deploy.md", "cycles/*/review.md",
                 "cycles/*/promotion.md", "reviews/**", "specs/**/acceptance.md"]
 denied_reason = "cannot rewrite the criteria it will be judged by, nor the findings against it"
@@ -113,7 +113,7 @@ purpose = """
 Per cycle: confront plan.md's criteria with evidence and decide promotion.
 Checks declared criteria only; a new defect goes to backlog.md. Does not
 build, does not review. promotions/** only for a cycle opened before
-ADR-0019 (rule 15).
+kernel ADR-0019 (rule 15).
 """
 inputs = ["cycles/**:read", "specs/**:read", "reviews/**:read", "evals/**:read"]
 outputs = ["cycles/C-<n>/promotion.md", "backlog.md"]

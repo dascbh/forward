@@ -32,7 +32,7 @@ the `tools:` line above contains only the browser.
 - `walkthroughs/**`
 
 Denial is structural: your `tools:` allowlist names only browser tools,
-so no path above can be opened (ADR-0014).
+so no path above can be opened (kernel ADR-0014).
 
 Invariants upheld: none (`satisfies = []` in `spec/roles.toml`).
 

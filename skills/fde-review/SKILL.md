@@ -9,7 +9,7 @@ description: Runs the isolated adversarial and heuristic review, attack ordered 
 
 1. Read `[weights]` from `fde.config.toml`; sort attributes descending.
    Weight orders the attack — nothing else. It does not add rounds and it
-   does not make a finding blocking (ADR-0018). A low-weight attribute is
+   does not make a finding blocking (kernel ADR-0018). A low-weight attribute is
    still probed in the full round.
 2. Probes per attribute come from
    `.fde/spec/dimensions/quality-attributes.toml` (`adversarial_probes`).
@@ -19,7 +19,7 @@ description: Runs the isolated adversarial and heuristic review, attack ordered 
    `.fde/templates/findings.template.toml`. Cycle mode: write
    `cycles/C-<n>/review.md`.
 
-## Mode — demand or cycle (ADR-0019 rule 12)
+## Mode — demand or cycle (kernel ADR-0019 rule 12)
 
 - **Demand**: the code against the demand spec, plus conformance to the
   cycle ADRs it cites, plus its layer's check (`back` unit + contract
@@ -40,7 +40,11 @@ description: Runs the isolated adversarial and heuristic review, attack ordered 
 | XS, S | 1 | full |
 | M, L | 2 | full, delta |
 
-A demand review is always 1 round.
+A demand review is always 1 round. A demand review's blocking finding
+is fixed inside that demand and proven by its regression test; the owner
+is asked only when the fix changes a criterion or an ADR, which is a
+replan. A non-blocking finding goes to `backlog.md` unless it shows a
+plan criterion unmet; then the cycle fixes it.
 
 - **Full** (round 1): the whole artifact against the whole spec.
 - **Delta** (every later round): the prior findings plus the diff that
@@ -48,24 +52,24 @@ A demand review is always 1 round.
   only the changed lines. A new defect in untouched code goes to the
   backlog (`blocking = false`, `backlog = true`) — it never reopens the
   demand.
-- **No extension.** When the budget is spent with a blocking finding
-  open, the owner picks one (AGENTS.md `## Cycle`). The choice is
-  recorded on the cycle's `board.md`; a narrowed or declared item is
-  marked in `promotion.md` at close; `plan.md` stays frozen. A
-  non-blocking finding goes to `backlog.md` by default.
+- **No extension.** When a cycle review's budget is spent with a
+  blocking finding open, the owner picks one (AGENTS.md `## Cycle`). The
+  choice is recorded on the cycle's `board.md`; a narrowed or declared
+  item is marked in `promotion.md` at close; `plan.md` stays frozen.
   1. *narrow* — cut the part the finding lives in, ship the rest, the cut
      goes to the backlog;
   2. *declare* — the owner accepts it as a dated, named limit (a limit,
      not a pass);
   3. *pause* — revert, nothing ships, the backlog keeps the record.
-  "One more round" is not an option (ADR-0018).
+  "One more round" is not an option (kernel ADR-0018).
 
 ## What blocks
 
 `blocking = true` only when all three hold: severity `critical`/`high`;
 the path is reachable inside the plan's threat model; it breaks a declared
 acceptance criterion or failure mode of `plan.md`. Anything else records,
-and a non-blocking finding goes to the backlog. A defect reachable only by
+and a non-blocking finding goes to the backlog unless it shows a plan
+criterion unmet. A defect reachable only by
 an actor or sequence the threat model excludes is a declared limit. No
 threat model in the plan → that is the first finding.
 

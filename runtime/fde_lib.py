@@ -110,7 +110,7 @@ class Config:
         p = project / CONFIG_NAME
         if not p.exists():
             raise FileNotFoundError(
-                f"{CONFIG_NAME} not found in {project}. Run `fde init` first."
+                f"{CONFIG_NAME} not found in {project}. Install the kernel: run the fde-init skill first."
             )
         raw = load_toml(p)
         return cls(

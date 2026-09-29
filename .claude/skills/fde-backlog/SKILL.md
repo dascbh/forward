@@ -50,8 +50,10 @@ multi-select for items). The actions:
   cites) and read any one on request.
 - **specify** — pick a draft; run the planner (the fde-spec role in
   cycle mode) to produce plan.md and deploy.md, and stop at the owner's
-  sign-off. Never set `state: planned` yourself; the owner's sign-off
-  does.
+  sign-off. The plan keeps the draft's `## Items`. `fde-spec` writes
+  `state: planned` when the plan is specified; at the sign-off the
+  orchestrating agent writes `state: running` and the `signed-off:`
+  line.
 - **exit**.
 
 After an action, show the panel again and ask again, until exit.
@@ -74,6 +76,9 @@ first token of a bullet. Do it in one commit, before grouping.
 
 ## 4. Rules
 
+- A cycle moves `draft` (grouped) → `planned` (specified, awaiting
+  sign-off) → `running` (signed off) → `closed` or `abandoned`. This
+  panel writes only `state: draft`.
 - Grouping never writes a spec and never commits to anything.
 - Only one cycle may be running; drafts may be many.
 - A draft is organization only: no demand ids, no criteria, no specs

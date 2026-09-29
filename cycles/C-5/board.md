@@ -44,3 +44,5 @@ another posts `blocked-on` and waits for its merge.
 - 2026-09-29 RECON-C5-TEXT claim AGENTS.md (+ template), skills/**, agents/**, templates/cycle/**, docs/adr/0019*, README.md, SETUP.md, runtime/fde_lib.py message (+ bin/fde), tests pinning them
 - 2026-09-29 RECON-C5-RUNTIME claim runtime/status.py, runtime/verify.py (+ bin/fde), tests/test_status.py, tests/test_verify.py
 - 2026-09-29 RECON-C5-RUNTIME claim widened: skills/fde-status/** (+ .claude copy) for the F5 promotion-mark convention
+- 2026-09-29 RECON-C5-TEXT claim widened: templates/*.template.toml (+ .fde copies), spec/roles.toml comments/purpose, tests/test_coherence.py (TestNoFdeCli), tests/test_instructions.py — bare kernel ADR ids and pins
+- 2026-09-29 RECON-C5-TEXT decided: AGENTS.md at 1,600 words; demand blocker fixed in-demand everywhere, cycle-review budget alone goes to the owner; states draft/planned/running with writers; kernel ADR ids in client texts; guard.py message left to backlog

@@ -6,7 +6,7 @@ description: Measures and gates long-term decay of AI-built code: clone ratio, a
 # fde-erosion
 
 Decay is measured, not prompted: instruction alone does not stop it
-(the evidence is ADR-0011).
+(the evidence is kernel ADR-0011).
 
 ```bash
 python3 bin/fde/erosion.py --report            # the stdlib signals

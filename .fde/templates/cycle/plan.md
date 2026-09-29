@@ -5,12 +5,17 @@ size: XS | S | M | L
 objective: <one line: what is true when this cycle closes>
 signed-off: <date and the owner's words; empty until sign-off>
 
-<!-- ADR-0019. Criteria and failure modes carry ids and are dated before
+<!-- kernel ADR-0019. Criteria and failure modes carry ids and are dated before
 the first demand commit (I4). Decisions live in docs/adr/ and are cited
 here by id, never restated. The plan is frozen at sign-off. At XS the plan
-is minimal. state: draft and planned are written by fde-spec; running,
+is minimal. States: draft (grouped) is written by fde-backlog; planned
+(specified, awaiting sign-off) by fde-spec; running (with signed-off:),
 closed and abandoned by the orchestrating agent, the only edits a frozen
 plan takes. -->
+
+## Items
+
+- B-<n> <the backlog item this cycle groups; kept when the draft is specified>
 
 ## Threat model
 
