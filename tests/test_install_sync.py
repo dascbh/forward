@@ -188,8 +188,15 @@ class TestGeneratedSurfaces(unittest.TestCase):
     GATE_STEP = (
         "      - name: FDE gate\n"
         "        run: python bin/fde/verify.py --all --since "
-        "\"${{ github.event.pull_request.base.sha || "
-        "github.event.before }}\"\n")
+        "\"${{ steps.range.outputs.base }}\"\n")
+    # FWD-044 (B-15): the range the gate step reads is computed by the
+    # step right before it, from the event's base; exact literals again.
+    RANGE_ENV = (
+        "        env:\n"
+        "          BASE: ${{ github.event.pull_request.base.sha || "
+        "github.event.before }}\n"
+        "          DEFAULT_BRANCH: "
+        "${{ github.event.repository.default_branch }}\n")
     TRIGGER = "\non: [push, pull_request]\n"
     NEVER_IN_THE_GATE_FILES = ("continue-on-error", "if:", '"if"', "'if'",
                                '"on"', "'on'",
@@ -206,6 +213,94 @@ class TestGeneratedSurfaces(unittest.TestCase):
                 self.assertEqual(wf.count("\non:"), 1)
                 for needle in self.NEVER_IN_THE_GATE_FILES:
                     self.assertNotIn(needle, wf)
+
+    @staticmethod
+    def _range_script(wf: str) -> str:
+        """The Range step's `run: |` block, dedented: the lines after it
+        up to the next step."""
+        lines = wf.splitlines()
+        start = lines.index("      - name: Range")
+        run = lines.index("        run: |", start)
+        body = []
+        for ln in lines[run + 1:]:
+            if ln.startswith("      - "):
+                break
+            body.append(ln[10:])
+        return "\n".join(body) + "\n"
+
+    def test_range_step_feeds_the_gate_and_handles_the_zero_sha(self):
+        # the step right before the gate, reading the event's base through
+        # env (never ${{ }} inside the script), with the all-zero case
+        # routed to the merge-base with the default branch (B-15)
+        for rel in ("templates/fde-gate.yml", ".github/workflows/fde-gate.yml"):
+            with self.subTest(file=rel):
+                wf = read(ROOT / rel)
+                self.assertEqual(wf.count("      - name: Range\n"
+                                          "        id: range\n"), 1)
+                self.assertIn(self.RANGE_ENV, wf)
+                _, tail = wf.split("      - name: Range\n")
+                self.assertTrue(tail.endswith(self.GATE_STEP))
+                self.assertNotIn("      - ", tail[:-len(self.GATE_STEP)])
+                script = self._range_script(wf)
+                self.assertNotIn("${{", script)
+                self.assertIn("*[!0]*) ;;", script)
+                self.assertIn('git merge-base HEAD "origin/$DEFAULT_BRANCH"',
+                              script)
+                self.assertIn('echo "base=$base" >> "$GITHUB_OUTPUT"', script)
+
+    def test_range_step_resolves_the_zero_sha_to_the_merge_base(self):
+        # runs the Range step's own shell against a real repository: a
+        # new-branch push (all-zero before) gets the merge-base with
+        # origin/main, not the fallback; a real SHA passes through; HEAD
+        # on the default branch itself, or no merge-base, gives "" (so
+        # verify.py falls back to the last commit, never to HEAD..HEAD)
+        import tempfile
+
+        def git(cwd, *a):
+            return subprocess.run(
+                ["git", "-C", str(cwd), *a], check=True,
+                capture_output=True, text=True).stdout.strip()
+
+        for rel in ("templates/fde-gate.yml", ".github/workflows/fde-gate.yml"):
+            script = self._range_script(read(ROOT / rel))
+            with tempfile.TemporaryDirectory() as tmp:
+                repo = Path(tmp) / "r"
+                repo.mkdir()
+                git(repo, "init", "-q", "-b", "main")
+                git(repo, "config", "user.email", "t@example.invalid")
+                git(repo, "config", "user.name", "t")
+                git(repo, "config", "commit.gpgsign", "false")
+                git(repo, "commit", "-q", "--allow-empty", "-m", "one")
+                git(repo, "commit", "-q", "--allow-empty", "-m", "red on main")
+                main = git(repo, "rev-parse", "HEAD")
+                git(repo, "update-ref", "refs/remotes/origin/main", main)
+                git(repo, "checkout", "-q", "-b", "feature")
+                git(repo, "commit", "-q", "--allow-empty", "-m", "feature")
+                feature = git(repo, "rev-parse", "HEAD")
+
+                def base(before, ref="feature", default="main"):
+                    git(repo, "checkout", "-q", ref)
+                    out = Path(tmp) / "out"
+                    out.write_text("")
+                    env = {**os.environ, "BASE": before,
+                           "DEFAULT_BRANCH": default,
+                           "GITHUB_OUTPUT": str(out)}
+                    subprocess.run(["bash", "-e", "-c", script], cwd=repo,
+                                   env=env, check=True, capture_output=True)
+                    return read(out)
+
+                zero = "0" * 40
+                with self.subTest(file=rel, case="new-branch push"):
+                    self.assertEqual(base(zero), f"base={main}\n")
+                with self.subTest(file=rel, case="empty base"):
+                    self.assertEqual(base(""), f"base={main}\n")
+                with self.subTest(file=rel, case="real SHA passes through"):
+                    self.assertEqual(base(main), f"base={main}\n")
+                    self.assertEqual(base(feature), f"base={feature}\n")
+                with self.subTest(file=rel, case="default branch itself"):
+                    self.assertEqual(base(zero, ref="main"), "base=\n")
+                with self.subTest(file=rel, case="no such default branch"):
+                    self.assertEqual(base(zero, default="nope"), "base=\n")
 
     def test_pre_commit_runs_the_staged_gate_first(self):
         # exec replaces the shell, so nothing after it runs; nothing may

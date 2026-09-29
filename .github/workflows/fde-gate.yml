@@ -13,5 +13,23 @@ jobs:
         with: { python-version: '3.12' }
       - name: Tests
         run: python3 -m unittest discover -s tests
+      - name: Range
+        id: range
+        # A new-branch push has an all-zero `before`: diff from the merge-base
+        # with the default branch, so one red commit already there does not
+        # keep every run red. Empty (no merge-base, or HEAD is that base):
+        # verify.py falls back to the last commit.
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          base="$BASE"
+          case "$base" in
+            *[!0]*) ;;
+            *) mb=$(git merge-base HEAD "origin/$DEFAULT_BRANCH") || mb=""
+               base=""
+               [ -z "$mb" ] || [ "$mb" = "$(git rev-parse HEAD)" ] || base="$mb" ;;
+          esac
+          echo "base=$base" >> "$GITHUB_OUTPUT"
       - name: FDE gate
-        run: python bin/fde/verify.py --all --since "${{ github.event.pull_request.base.sha || github.event.before }}"
+        run: python bin/fde/verify.py --all --since "${{ steps.range.outputs.base }}"
