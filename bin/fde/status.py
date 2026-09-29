@@ -37,6 +37,8 @@ a bad argument. Read-only, stdlib only, no git.
   python3 bin/fde/status.py              # everything
   python3 bin/fde/status.py --cycle C-3  # one cycle in full
   python3 bin/fde/status.py --demand FWD-7  # one demand: spec, findings, ADRs
+  python3 bin/fde/status.py --panel      # overview, backlog, cycles, demands,
+                                         # discarded: markdown, from the JSON
   python3 bin/fde/status.py --backlog    # backlog only
   python3 bin/fde/status.py --cycles     # cycles only
   python3 bin/fde/status.py --format json  # the same content as JSON
@@ -833,6 +835,182 @@ def as_json(cycles: list[Cycle], backlog, warns: list[str], parts,
     return data
 
 
+# --- the panel (FWD-035, ADR-0020) ------------------------------------------
+
+BLOCK_START = re.compile(r"^(?:[#>\-+*=<`~_]|\d+[.)])")
+DISCARD = re.compile(r"\s*[—–-]*\s*discarded\s*:\s*", re.IGNORECASE)
+
+
+def _md(text) -> str:
+    """File text made safe for one markdown line: whitespace collapsed,
+    clipped, table pipes escaped, a leading block marker (heading, quote,
+    list, fence, html) escaped (FM1)."""
+    t = _clip(str(text or "")).replace("\\|", "|").replace("|", "\\|")
+    return "\\" + t if BLOCK_START.match(t) else t
+
+
+def _discarded(heading: str) -> bool:
+    return heading.strip().lower().startswith("discarded")
+
+
+def _review_cell(d: dict | None) -> str:
+    if d is None:
+        return "no spec"
+    rev = d["review"]
+    if rev is None:
+        return "not reviewed"
+    if rev["findings"] is None:
+        return "findings.toml unreadable"
+    return f"{_n(rev['findings'], 'finding')}, {rev['blocking']} blocking"
+
+
+def _n(k: int, word: str) -> str:
+    return f"{k} {word}{'' if k == 1 else 's'}"
+
+
+def _promotion_cell(d: dict | None) -> str:
+    pro = d and d["promotion"]
+    if not pro:
+        return "—"
+    first = re.split(r"\s[—–]\s", pro["decision"] or "")[0].strip()
+    return first[:40] or "(no decision: line)"
+
+
+def panel_counts(data: dict) -> dict:
+    """The numbers the Overview states, from the JSON (FM4)."""
+    sections = (data.get("backlog") or {}).get("sections", [])
+    states: dict[str, int] = {}
+    for c in data.get("cycles", []):
+        states[c["state"]] = states.get(c["state"], 0) + 1
+    demands = data.get("demands", [])
+    return {
+        "backlog": sum(len(s["items"]) for s in sections if not _discarded(s["heading"])),
+        "discarded": sum(len(s["items"]) for s in sections if _discarded(s["heading"])),
+        "cycles": len(data.get("cycles", [])),
+        "running": states.get("running", 0), "planned": states.get("planned", 0),
+        "draft": states.get("draft", 0),
+        "ended": states.get("closed", 0) + states.get("abandoned", 0),
+        "demands": len(demands), "loose": sum(1 for d in demands if d["loose"]),
+    }
+
+
+def _progress(c: dict) -> str:
+    k = c["done"]
+    label = "criteria" if k["source"] == "criteria" else "done"
+    out = f"{label} {k['met']}/{k['total']} met"
+    if k["declined"]:
+        out += f", {k['declined']} declined"
+    if k["pending"]:
+        out += f", {k['pending']} pending"
+    return out
+
+
+def _item_line(it: dict, indent: str = "") -> str:
+    mark = f" → {it['cycle']}" if it.get("cycle") else ""
+    return f"{indent}- {it['id'] or '(no id)'} {_md(it['text'])}{mark}"
+
+
+def _cycle_full(c: dict, by_id: dict[str, dict]) -> list[str]:
+    out = [f"### {c['id']} · {c['ended'] or c['state']} · {_progress(c)}", "",
+           f"- objective: {_md(c['objective']) or '—'}"]
+    if c["items"]:
+        out.append(f"- items ({len(c['items'])}):")
+        out += [_item_line(it, "  ") for it in c["items"]]
+    rows = [(r["id"], r["layer"]) for r in c["demands"]]
+    named = {r[0].upper() for r in rows}
+    rows += [(d["id"], d["layer"]) for d in by_id.values()
+             if d["cycle"] == c["id"] and d["id"] not in named]
+    if rows:
+        out += [f"- demands ({len(rows)}):", "",
+                "| id | layer | review | promotion |", "|---|---|---|---|"]
+        for did, layer in rows:
+            d = by_id.get(did.upper())
+            out.append(f"| {_md(did)} | {_md(layer or (d and d['layer'])) or '—'} | "
+                       f"{_review_cell(d)} | {_md(_promotion_cell(d))} |")
+        out.append("")
+    out.append(f"- artifacts: {_md(', '.join(c['artifact_paths'])) or '—'}")
+    return out + [""]
+
+
+def render_panel(data: dict) -> list[str]:
+    """The five sections, rendered only from `data` — the same dict
+    `--format json` prints (FM4). Running and planned cycles in full,
+    drafts with their items, ended cycles and loose demands one line each,
+    every item clipped to one line (FM3)."""
+    k = panel_counts(data)
+    cycles = data.get("cycles", [])
+    by_id = {d["id"]: d for d in data.get("demands", [])}
+    running = [c for c in cycles if c["state"] == "running"]
+    planned = [c for c in cycles if c["state"] == "planned"]
+    drafts = [c for c in cycles if c["state"] == "draft"]
+    ended = [c for c in cycles if c["ended"]]
+    warns = data.get("warnings", [])
+    out = ["## Overview", ""]
+    out += [f"- running: {c['id']} — {_md(c['objective']) or '—'} — {_progress(c)}"
+            for c in running] or ["- running: none"]
+    out.append("- planned: " + (", ".join(c["id"] for c in planned) or "none"))
+    out.append("- drafts: " + (", ".join(c["id"] for c in drafts) or "none"))
+    out.append(f"- warnings: {len(warns) or 'none'}")
+    out += [f"  - {_md(w)}" for w in warns]
+    nxt = data.get("next", {})
+    out.append(f"- next ids: {nxt.get('backlog_id', '—')} · {nxt.get('cycle_id', '—')}")
+    out.append(f"- counts: backlog {k['backlog']} · discarded {k['discarded']} · "
+               f"cycles {k['cycles']} ({k['running']} running, {k['planned']} planned, "
+               f"{k['draft']} draft, {k['ended']} ended) · demands {k['demands']} "
+               f"({k['loose']} loose)")
+
+    out += ["", f"## Backlog ({k['backlog']})", ""]
+    backlog = data.get("backlog")
+    if backlog is None:
+        out.append("(no backlog.md)")
+    for s in (backlog or {}).get("sections", []):
+        if _discarded(s["heading"]):
+            continue
+        out += [f"### {_md(s['heading'])}", ""]
+        out += [_item_line(it) for it in s["items"]] + [""]
+
+    out += ["", f"## Cycles ({k['cycles']})", ""]
+    for c in running + planned:
+        out += _cycle_full(c, by_id)
+    if drafts:
+        out += [f"### Drafts ({len(drafts)})", ""]
+        for c in drafts:
+            out.append(f"- {c['id']} — {_md(c['objective']) or '—'}")
+            out += [_item_line(it, "  ") for it in c["items"]]
+        out.append("")
+    if ended:
+        out += [f"### Ended ({len(ended)})", ""]
+        for c in reversed(ended):
+            n = sum(1 for d in by_id.values() if d["cycle"] == c["id"])
+            out.append(f"- {c['id']} · {_md(c['ended'])} · {_progress(c)} · "
+                       f"{_n(n, 'demand')} · {_md(c['objective']) or '—'}")
+        out.append("")
+    if not cycles:
+        out += ["(no cycles)", ""]
+
+    loose = [d for d in by_id.values() if d["loose"]]
+    out += ["", f"## Demands ({k['demands']}, {k['loose']} loose)", ""]
+    out.append("Loose demands (no cycle links them) below; a linked demand shows "
+               "under its cycle, an ended cycle's as a count. `--demand <id>` "
+               "opens any one.")
+    out.append("")
+    for d in loose:
+        out.append(f"- {_md(d['id'])} · {d['layout']} · {_review_cell(d)} · "
+                   f"promotion {_md(_promotion_cell(d))}")
+
+    out += ["", f"## Discarded ({k['discarded']})", ""]
+    for s in (backlog or {}).get("sections", []):
+        if not _discarded(s["heading"]):
+            continue
+        for it in s["items"]:
+            parts = DISCARD.split(it["text"], maxsplit=1)
+            text, reason = parts if len(parts) == 2 else (it["text"], "")
+            out.append(f"- {it['id'] or '(no id)'} {_md(text)} — "
+                       f"{_md(reason) or '(no reason)'}")
+    return [line for i, line in enumerate(out)
+            if line or (i and out[i - 1])]  # no double blank line
+
+
 def emit_json(data: dict) -> int:
     sys.stdout.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     return 0
@@ -847,6 +1025,8 @@ def main(argv=None) -> int:
     part.add_argument("--cycles", action="store_true", help="cycles only")
     part.add_argument("--demand", metavar="ID",
                       help="one demand: spec, findings, promotion, ADRs")
+    part.add_argument("--panel", action="store_true",
+                      help="the whole panel as markdown sections")
     ap.add_argument("--format", choices=("text", "json"), default="text",
                     help="text (default) or json with the same content")
     args = ap.parse_args(argv)
@@ -889,6 +1069,12 @@ def main(argv=None) -> int:
         return 0
 
     warns = warnings(cycles, backlog, problems)
+    if args.panel:
+        data = as_json(cycles, backlog, warns, ("cycles", "backlog"), nxt, root, demands)
+        if args.format == "json":
+            return emit_json(data)
+        sys.stdout.write("\n".join(render_panel(data)).rstrip() + "\n")
+        return 0
     if args.format == "json":
         parts = [p for p, off in (("cycles", args.backlog), ("backlog", args.cycles))
                  if not off]

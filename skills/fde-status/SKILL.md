@@ -1,6 +1,6 @@
 ---
 name: fde-status
-description: Shows where the project stands: the running cycle, drafts, ended cycles, the backlog with B-<n> ids, warnings first; `--format json` feeds the panel. Use for "where are we", "what is open", "show the cycle/backlog", and at every cycle close.
+description: Shows where the project stands: the running cycle, drafts, ended cycles, the backlog with B-<n> ids, warnings first; `--panel` the whole panel, `--demand` one demand. Use for "where are we", "what is open", "show the cycle/backlog", at every cycle close.
 ---
 
 # fde-status
@@ -12,7 +12,9 @@ python3 bin/fde/status.py              # warnings, open cycle, closed cycles, ba
 python3 bin/fde/status.py --cycle C-3  # one cycle in full
 python3 bin/fde/status.py --cycles     # cycles only
 python3 bin/fde/status.py --backlog    # backlog only
-python3 bin/fde/status.py --format json  # same content: warnings, cycles, backlog
+python3 bin/fde/status.py --format json  # same content: warnings, cycles, demands, backlog
+python3 bin/fde/status.py --panel      # markdown: overview, backlog, cycles, demands, discarded
+python3 bin/fde/status.py --demand FWD-7  # one demand: spec, findings, promotion, ADRs
 ```
 
 Run it and show the user the output as it is. Do not summarize it or
@@ -49,6 +51,11 @@ The format comes from AGENTS.md `## Cycle`.
   line, a later cell) warns; a reused id warns.
 - JSON items carry the full `text` and, for a table row, every `cells`
   value; only the text view clips.
+- A demand is a `specs/<id>/` directory, linked by a plan's `## Demands`
+  table or its spec's `cycle:` line, else loose, with its review summary
+  and promotion.
+- `--panel` renders only from the JSON; `--demand` on an unknown id
+  exits 2.
 - An old-format `## Next cycle` list is shown with a warning to move it
   into `backlog.md`.
 

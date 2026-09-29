@@ -26,16 +26,21 @@ def flat(text: str) -> str:
 
 class TestSkillRules(unittest.TestCase):
     RULES = (
-        "Run `python3 bin/fde/status.py --format json` and show the panel",
-        "running, planned, draft, closed",
-        "multi-select for items",
+        # FWD-035 (ADR-0020): the panel is printed, the actions are text
+        "Run `python3 bin/fde/status.py --panel` and show the output as it "
+        "is. Do not summarize, reorder or reword it.",
+        "Overview, Backlog, Cycles, Demands, Discarded",
+        "list the actions in plain text, one line each. Never use the "
+        "question box",
+        "\"abre C-<n>\": run `python3 bin/fde/status.py --cycle C-<n>`",
+        "\"mostra <id>\": run `python3 bin/fde/status.py --demand <id>`",
+        "read any artifact on request",
         "a new `cycles/C-<n>/plan.md`",
         "state: draft",
         "## Items",
         "or an existing draft",
-        "list its artifacts (plan, deploy, board, review, promotion, the "
-        "demand specs",
-        "the ADRs it cites) and read any one on request",
+        "Its artifacts (plan, deploy, board, review, promotion, the demand specs",
+        "the ADRs it cites) are named on the panel; read any one on request",
         "run the planner (the fde-spec role in cycle mode) to produce plan.md "
         "and deploy.md, and stop at the owner's sign-off",
         "**exit**",
@@ -46,7 +51,7 @@ class TestSkillRules(unittest.TestCase):
         "Only one cycle may be running; drafts may be many.",
         "After every edit, re-run status.py. The result must still parse (FM4)",
         # FWD-030 review F1–F4
-        "a draft with its `items` (B-ids and text)",
+        "Drafts show with their items.",
         "next free `n`: `next.cycle_id`, which counts both `cycles/C-<n>/` "
         "and old `cycles/C-<n>.md`",
         "An item already grouped (its `cycle` is set, or another cycle lists "
@@ -61,6 +66,13 @@ class TestSkillRules(unittest.TestCase):
         text = flat(read(SKILL))
         for rule in self.RULES:
             self.assertIn(flat(rule), text, rule)
+
+    def test_no_question_box_and_no_json_panel(self):
+        # FWD-035: the old question-box procedure is gone
+        text = flat(read(SKILL))
+        for gone in ("Ask through the tool's question UI", "multi-select",
+                     "Run `python3 bin/fde/status.py --format json` and show"):
+            self.assertNotIn(gone, text, gone)
 
     def test_skill_is_a_procedure_not_a_wrapper(self):
         self.assertIn("there is no script behind it", read(SKILL))

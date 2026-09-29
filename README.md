@@ -311,8 +311,11 @@ tools; installed into the project for Claude Code):
   documented: the map a team needs when it takes over, evidence-labeled
 - `fde-status` — where the project stands: the open cycle with its done
   progress, closed cycles, and the backlog (`python3 bin/fde/status.py`)
-- `fde-backlog` — the panel: the backlog with `B-<n>` ids and the cycles
-  by state; group items into a draft cycle, open a cycle, specify a draft
+- `fde-backlog` — the panel printed in the terminal
+  (`python3 bin/fde/status.py --panel`): overview, backlog with `B-<n>`
+  ids, cycles with their demands, loose demands, discarded; group items
+  into a draft cycle, open a cycle or a demand (`--demand <id>`), specify
+  a draft
 - `fde-verify` — the gate: `python3 bin/fde/verify.py --all` (same as CI)
 - `fde-doctor` — what is actually enforced vs. merely suggested
 - `fde-sync` — regenerate after config, stack, or tool changes

@@ -4,6 +4,7 @@ temporary tree, the way the owner runs it."""
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -942,6 +943,194 @@ class TestDemands(DemandsCase):
         for args in ((), ("--format", "json"), ("--demand", "FWD-001")):
             run(self.root, *args)
         self.assertEqual(before, snapshot())
+
+
+# FWD-035: the terminal panel
+TERMINAL_BACKLOG = """---
+goal: g
+date: 2026-09-29
+---
+
+# Backlog
+
+| id | item | evidence |
+|---|---|---|
+| B-1 | table item → C-6 | opinion |
+
+## Ideas
+
+- B-2 a bullet idea (C-3)
+- B-3 grouped → C-3
+
+## Discarded (2026-09-29)
+
+- B-4 old thing — discarded: done — shipped in FWD-001
+- B-5 no reason given
+"""
+
+SECTIONS = ["## Overview", "## Backlog", "## Cycles", "## Demands", "## Discarded"]
+
+
+def panel(root, *args):
+    r = run(root, "--panel", *args)
+    assert r.returncode == 0, r.stderr
+    assert "Traceback" not in r.stderr, r.stderr
+    return r.stdout
+
+
+def section(out: str, name: str) -> list[str]:
+    lines, keep = [], False
+    for line in out.splitlines():
+        if line.startswith("## "):
+            keep = line.startswith(f"## {name}")
+            continue
+        if keep:
+            lines.append(line)
+    return lines
+
+
+class TestPanel(DemandsCase):
+    """FWD-035 / A1, A2, A3, A5: five markdown sections from the JSON."""
+
+    def setUp(self):
+        super().setUp()
+        self.write("backlog.md", TERMINAL_BACKLOG)
+        self.write("cycles/C-6/plan.md", "state: draft\nobjective: later\n\n"
+                   "## Items\n\n- B-1 table item\n")
+        self.write("cycles/C-7/plan.md", "state: planned\nobjective: next up\n\n"
+                   "## Acceptance criteria\n\n- A1 — x\n")
+
+    def test_five_sections_in_order(self):
+        out = panel(self.root)
+        heads = [line for line in out.splitlines() if line.startswith("## ")]
+        self.assertEqual([h.split(" (")[0] for h in heads], SECTIONS)
+
+    def test_overview(self):
+        ov = "\n".join(section(panel(self.root), "Overview"))
+        self.assertIn("- running: C-3 — the new layout — criteria 1/1 met", ov)
+        self.assertIn("- planned: C-7", ov)
+        self.assertIn("- drafts: C-6", ov)
+        self.assertIn("- next ids: B-6 · C-8", ov)
+        self.assertIn("- warnings:", ov)
+        self.write("cycles/C-3/plan.md", DEMANDS_PLAN.replace("state: running",
+                                                              "state: planned"))
+        self.assertIn("- running: none", panel(self.root))
+
+    def test_backlog_by_section_with_id_and_cycle_mark(self):
+        bl = "\n".join(section(panel(self.root), "Backlog"))
+        self.assertIn("- B-1 table item → C-6", bl)
+        self.assertIn("### Ideas", bl)
+        self.assertIn("- B-3 grouped → C-3", bl)
+        self.assertNotIn("B-4", bl)
+
+    def test_running_and_planned_cycles_in_full(self):
+        cy = "\n".join(section(panel(self.root), "Cycles"))
+        self.assertIn("### C-3 · running · criteria 1/1 met", cy)
+        self.assertIn("| FWD-030 | back | 1 finding, 0 blocking | promote |", cy)
+        self.assertIn("| FWD-033 | front | no spec | — |", cy)
+        self.assertIn("| FWD-031 | front | not reviewed | promote |", cy)
+        self.assertIn("- artifacts: cycles/C-3/plan.md, cycles/C-3/board.md, "
+                      "cycles/C-3/promotion.md, reviews/C-3/findings.toml", cy)
+        self.assertIn("### C-7 · planned", cy)
+
+    def test_drafts_with_items_and_ended_one_line(self):
+        cy = section(panel(self.root), "Cycles")
+        self.assertIn("- C-6 — later", cy)
+        self.assertIn("  - B-1 table item", cy)
+        ended = [l for l in cy if l.startswith("- C-1 ")]
+        self.assertEqual(ended, ["- C-1 · closed 2026-08-09 · done 1/1 met · 1 demand · "
+                                 "the old layout"])
+
+    def test_loose_demands_one_line_each(self):
+        dm = [l for l in section(panel(self.root), "Demands") if l.startswith("- ")]
+        self.assertEqual(dm, ["- FWD-002 · old · not reviewed · promotion hold",
+                              "- FWD-032 · new · findings.toml unreadable · promotion —"])
+
+    def test_discarded_with_reason(self):
+        ds = [l for l in section(panel(self.root), "Discarded") if l.startswith("- ")]
+        self.assertEqual(ds, ["- B-4 old thing — done — shipped in FWD-001",
+                              "- B-5 no reason given — (no reason)"])
+
+    def test_counts_equal_the_json(self):
+        # FM4: the panel's numbers are the JSON's
+        data = self.load()
+        items = [(s["heading"], i) for s in data["backlog"]["sections"] for i in s["items"]]
+        disc = [i for h, i in items if h.lower().startswith("discarded")]
+        states = [c["state"] for c in data["cycles"]]
+        expected = (f"- counts: backlog {len(items) - len(disc)} · discarded {len(disc)} · "
+                    f"cycles {len(states)} ({states.count('running')} running, "
+                    f"{states.count('planned')} planned, {states.count('draft')} draft, "
+                    f"{states.count('closed') + states.count('abandoned')} ended) · "
+                    f"demands {len(data['demands'])} "
+                    f"({sum(d['loose'] for d in data['demands'])} loose)")
+        out = panel(self.root)
+        self.assertIn(expected, out)
+        self.assertEqual(len([l for l in section(out, "Backlog") if l.startswith("- ")]),
+                         len(items) - len(disc))
+        self.assertEqual(len([l for l in section(out, "Discarded") if l.startswith("- ")]),
+                         len(disc))
+        self.assertEqual(len([l for l in section(out, "Demands") if l.startswith("- ")]),
+                         sum(d["loose"] for d in data["demands"]))
+        self.assertEqual(data["warnings"],
+                         [l[4:].replace("\\|", "|") for l in section(out, "Overview")
+                          if l.startswith("  - ")])
+
+    def test_panel_json_is_the_full_json(self):
+        r = run(self.root, "--panel", "--format", "json")
+        self.assertEqual(json.loads(r.stdout), self.load())
+
+    def test_hostile_text_keeps_the_layout(self):
+        # FM1: pipes and heading markers from file text are escaped
+        self.write("backlog.md", "# b\n\n## # evil | heading\n\n"
+                   "- B-1 # looks | like a heading\n- ## two\n- > quote\n- 1. listed\n"
+                   "| B-2 | cell with \\| an escaped pipe | x |\n")
+        self.write("cycles/C-3/plan.md", DEMANDS_PLAN.replace(
+            "objective: the new layout", "objective: | a | b |").replace(
+            "| FWD-030 | back |", "| FWD-030 | ba\\|ck |"))
+        self.write("specs/FWD-031-retire/spec.md", "# x\n\ncycle: C-3 · layer: # h | x\n")
+        out = panel(self.root)
+        own = ("## ", "### ")
+        for line in out.splitlines():
+            if line.startswith("#"):
+                self.assertTrue(line.startswith(own), line)
+                self.assertFalse(line.split(" ", 1)[1].startswith("#"), line)
+            if line.startswith("|"):
+                pipes = len(re.findall(r"(?<!\\)\|", line))
+                self.assertEqual(pipes, 5, line)
+            if line.startswith(("- ", "  - ")):
+                body = line.lstrip(" ")[2:]
+                self.assertFalse(re.match(r"[#>]|\d+\.", body), line)
+        self.assertIn("\\# looks \\| like a heading", out)
+        self.assertIn("### \\# evil \\| heading", out)
+        self.assertIn("objective: \\| a \\| b \\|", out)
+
+
+class TestPanelScale(StatusCase):
+    """FM3: a large repository stays one line per backlog item, ended cycle
+    and loose demand, plus a bounded frame."""
+
+    def test_line_count_is_bounded(self):
+        long = "word " * 80
+        rows = "\n".join(f"- B-{n} {long}" for n in range(1, 301))
+        self.write("backlog.md", f"goal: g\ndate: 2026-09-29\n\n## Ideas\n\n{rows}\n")
+        for n in range(1, 41):
+            table = "\n".join(f"| X-{n}{k} | back | — |" for k in range(5))
+            self.write(f"cycles/C-{n}/plan.md",
+                       f"objective: {long}\nclosed: 2026-09-01\n\n## Acceptance criteria\n\n"
+                       + "\n".join(f"- A{k} — {long}" for k in range(10))
+                       + f"\n\n## Demands\n\n| id | layer | depends on |\n|---|---|---|\n{table}\n")
+            self.write(f"cycles/C-{n}/promotion.md", "\n".join(
+                f"- A{k} — ok — met" for k in range(10)) + "\n")
+            for k in range(5):
+                self.write(f"specs/X-{n}{k}-s/spec.md", f"# x\n\n{long}\n")
+        for n in range(1, 61):
+            self.write(f"specs/L-{n}-loose/spec.md", "# loose\n")
+            self.write(f"reviews/L-{n}/findings.toml",
+                       "[[finding]]\nseverity = 'low'\nblocking = false\n" * 20)
+        out = panel(self.root).splitlines()
+        self.assertLessEqual(len(out), 300 + 40 + 60 + 40, len(out))
+        self.assertLessEqual(max(len(line) for line in out), 260)
+        self.assertNotIn("A3 —", "\n".join(out))  # ended cycles fold
 
 
 if __name__ == "__main__":
