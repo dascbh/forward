@@ -246,3 +246,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("--panel", (ROOT / "skills/fde-backlog/SKILL.md").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 20, 0))
+
+    def test_kernel_version_ships_review_by_weight(self):
+        # C-13 / kernel ADR-0021: clients receive review by weight only
+        # through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertIn('kind = "code"', (ROOT / "skills/fde-review/SKILL.md").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 21, 0))
