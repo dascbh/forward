@@ -22,6 +22,8 @@ rounds_planned = {{ROUNDS_PLANNED}}   # demand review 1; cycle review XS/S 1, M/
 # evidence  = "path:line or reproducible step"
 # blocking  = true         # only critical/high, inside the plan's threat model,
 #                          # breaking a declared criterion — never weight alone
+# fixed_in  = "<sha>"      # a blocker fixed inside its demand: the commit that
+#                          # fixed it — the finding is then closed
 
 # [[finding]]
 # attribute = "usability_accessibility"

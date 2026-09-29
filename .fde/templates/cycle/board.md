@@ -9,3 +9,4 @@ criterion is a replan, not a board line. -->
 
 - YYYY-MM-DD C-<n> decided plan signed off
 - YYYY-MM-DD DEM-<n> claim <files>
+- YYYY-MM-DD DEM-<n> decided merged <sha>; review `reviews/DEM-<n>/findings.toml`

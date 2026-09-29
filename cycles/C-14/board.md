@@ -17,3 +17,4 @@
 - 2026-09-29 FWD-039 claim fde.config.toml, templates/fde.config.template.toml, runtime/fde_lib.py validate, runtime/verify.py gate_scrum, skills/fde-scrum (rename), AGENTS.md ## Backlog lines (+ copies), tests/test_scrum.py
 - 2026-09-29 FWD-037 decided code review 2 low, none blocking; no rule lost (75 sentences checked by script); F1 → B-60, F2 (inventory paragraph reworded after the move, no re-tag) noted
 - 2026-09-29 FWD-043 claim widened: skills/fde-review (B-48/B-49 cycle-review preconditions, one short section), skills/fde-walkthrough and agents/fde-spec.md, agents/fde-architecture.md, spec/roles.toml intended-model output moves to the planner (B-25), runtime/graph.py one comment (+ copies), tests/test_instructions.py pins
+- 2026-09-29 FWD-038 claim widened: templates/cycle/board.md (+ .fde) — the merge example line names the review record (B-39); tests/test_review_records.py (new, the four items' tests)

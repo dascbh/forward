@@ -37,8 +37,9 @@ Invariants upheld: I4, I5, I6
 
 ## The decision — `cycles/C-<n>/promotion.md`
 
-- One line per criterion of `plan.md` (`A1`…): met / not met, with its
-  evidence (the cycle's `review.md`, the integration checks, and the
+- One line per criterion of `plan.md` (`A1`…), ending in one of
+  `— met`, `— declined` (by the owner), `— limit` (a declared limit) or
+  `— not met` — the endings `status.py` reads — with its evidence (the cycle's `review.md`, the integration checks, and the
   output of `python3 bin/fde/verify.py --all`, run at the promoted
   commit). Checks the declared criteria only — never a hidden review
   round.

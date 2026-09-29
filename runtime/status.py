@@ -686,6 +686,12 @@ def demand_dir(root: Path, kind: str, did: str) -> Path | None:
     return None
 
 
+def _finding_state(f: dict) -> str:
+    if f["blocking"]:
+        return "blocking"
+    return f"fixed in {f['fixed_in']}" if f.get("fixed_in") else "—"
+
+
 def load_findings(root: Path, did: str):
     """(summary, findings) of `reviews/<id>[-<slug>]/findings.toml`; (None,
     []) when absent. A file that cannot be read as TOML, or a `finding`
@@ -712,9 +718,14 @@ def load_findings(root: Path, did: str):
         sev = f.get("severity")
         sev = sev.strip().lower() if isinstance(sev, str) and sev.strip() else "unset"
         fid = f.get("id")
+        # a blocker fixed inside its demand names the commit (`fixed_in`)
+        # and is closed: it no longer counts as blocking
+        fixed = f.get("fixed_in")
+        fixed = _clip(fixed.strip()) if isinstance(fixed, str) and fixed.strip() else None
         findings.append({"id": _clip(str(fid)) if fid not in (None, "") else f"#{i}",
-                         "severity": sev, "blocking": f.get("blocking") is True,
-                         "title": _finding_title(f)})
+                         "severity": sev,
+                         "blocking": f.get("blocking") is True and fixed is None,
+                         "fixed_in": fixed, "title": _finding_title(f)})
     summary["findings"] = len(findings)
     for f in findings:
         summary["by_severity"][f["severity"]] = \
@@ -838,7 +849,7 @@ def show_demand(root: Path, d: dict, findings: list[dict]) -> list[str]:
                    f"{f' ({sev})' if sev else ''}, {rev['blocking']} blocking")
         if rev["error"]:
             out.append(f"    ({rev['error']})")
-        out += [f"    {f['id']}  {f['severity']}  {'blocking' if f['blocking'] else '—'}"
+        out += [f"    {f['id']}  {f['severity']}  {_finding_state(f)}"
                 f"  {f['title'] or '—'}" for f in findings]
     pro = d["promotion"]
     out.append(f"  promotion: {pro['path']} — {pro['decision'] or '(no decision: line)'}"

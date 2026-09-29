@@ -7,7 +7,7 @@ criteria, not a question to the user. -->
 
 ## Evidence
 
-- A1 — <where it is shown> — met | not met
+- A1 — <where it is shown> — met | declined | limit | not met
 
 ## Signals
 

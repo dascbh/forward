@@ -68,9 +68,12 @@ A demand review is always 1 round. A demand review's blocking finding
 is fixed inside that demand and proven by its regression test; the owner
 is asked only when the fix changes a criterion or an ADR, which is a
 replan. A non-blocking finding goes to `backlog.md` unless it shows a
-plan criterion unmet; then the cycle fixes it. A demand merges rebased
+plan criterion unmet; then the cycle fixes it. The reviewer closes a
+blocker fixed inside its demand by recording the fixing commit on it,
+`fixed_in = "<sha>"`, in a commit of its own (I3). A demand merges rebased
 onto main, with `python3 bin/fde/verify.py --all` green and no blocking
-finding open.
+finding open. A demand merges only with its review record
+(`reviews/<id>/findings.toml`), and its merge line on `board.md` names it.
 
 - **Full** (round 1): the whole artifact against the whole spec.
 - **Delta** (every later round): the prior findings plus the diff that

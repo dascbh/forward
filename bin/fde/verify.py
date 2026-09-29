@@ -542,9 +542,11 @@ class Gate:
 
     # -- I2/I3: adversarial review isolated, unable to fix ----------------
     def gate_adversarial(self) -> None:
-        reviews = list((self.project / "reviews").rglob("findings.toml"))
+        # every review record: findings.toml, and the plan and delta
+        # records beside it (findings-plan.toml, findings-delta.toml)
+        reviews = sorted((self.project / "reviews").rglob("findings*.toml"))
         if not reviews:
-            self.add("I2", False, "no report in reviews/**/findings.toml — "
+            self.add("I2", False, "no report in reviews/**/findings*.toml — "
                                   "the adversarial review did not run")
             return
         # the finding must declare an isolated context and cannot come from the same hand
