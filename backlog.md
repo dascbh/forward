@@ -84,6 +84,8 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 - B-51 (C-13) usage-data — AGENTS.md is at 1,599 of 1,600 words after FWD-036; almost every sentence is pinned verbatim, so the next instruction change pays for its words with pin edits (FWD-036 trimmed pointers and in-file repeats to fit)
 - B-52 (C-13) opinion — AGENTS.md step 1 says "Size sets only the planner's depth and the cycle review rounds", while kernel ADR-0021 also lets size (M/L) decide the adversarial plan review (FWD-036)
 
+- B-53 owner decision — AGENTS.md keeps only the loop's skeleton and a pointer per step; detailed rules (sizing table, RULE lane, review modes, cycle states, blocker path, deploy order, backlog format) move into their skills (fde-triage, fde-review, fde-backlog, fde-scrum), with their verbatim pins moving with them; target: AGENTS.md well under the cap so a new rule never forces trims (resolves B-51; owner, 2026-09-29)
+
 ## Discarded (2026-09-29)
 
 Reviewed against 0.19.0 with the owner; ids stay retired.
