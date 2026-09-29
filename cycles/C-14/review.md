@@ -31,3 +31,14 @@ record: reviews/C-14/findings.toml
 - **F2 — medium (REL-3).** The rollback lists "demand merge commits" that do not exist and omits the reconcile commit b77621c. Fix in promotion.md's release list.
 - **F3 — medium (probe: backlog.md:13).** B-1 is not recorded as declined in the backlog. A9 closes at promotion.
 - **F4 — medium (MNT-4).** No pointer to fde-design (or fde-survey) on the loop, so A1 fails for a front cycle in an AGENTS.md-only tool. One pointer fits in the 10-word headroom. Fix in-cycle (B-60 shows A1 unmet).
+
+## Delta round
+
+Commit b18199b. Suite: 715 tests, 2 failures. `verify.py --all`: I3 red.
+
+- **F1 — fixed.** reviews/FWD-040/findings.toml exists (99852cc); reviews exist for FWD-037..044. The board's merge line names FWD-040.
+- **F2 — not fixed yet, plan confirmed.** promotion.md is not written; deploy.md still says "merge commit". The release list must name the plain demand commits and b77621c (D2, non-blocking).
+- **F3 — fixed.** backlog.md:126 records B-1 declined with the reason.
+- **F4 — fixed.** AGENTS.md step 2 points to `fde-design` and `fde-survey`; 1098 words (cap 1100).
+- **8b222e4** does not contradict C-14's criteria (A1 cap holds).
+- **D1 — high, blocking.** b18199b puts findings and behavior in one commit: I3 red, and two suite tests fail with it (A10 broken). Findings: reviews/C-14/findings-delta.toml.

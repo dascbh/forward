@@ -1,0 +1,48 @@
+# Adversarial review report — cycle mode, delta round
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "C-14"
+kind = "cycle"
+context_policy = "artifact_only"
+isolation_mode = "worktree"
+mode = "cycle"
+rounds_planned = 2
+round = 2
+commit = "b18199b"
+agent_transcript = "agent-aff738080a44cd696"
+probed = [
+  "git log -1 = b18199b; git diff --stat 6b55ec0..b18199b",
+  "python3 -m unittest discover -s tests: 715 tests, 2 failures (test_review_records.TestI2ReadsEveryRecord.test_this_repository_records_pass, test_verify.TestBothLayoutsStayGreen.test_this_repository_passes_the_cycle_level_gates)",
+  "python3 bin/fde/verify.py --all: I3 red 'findings and behavior changed in the same commit: b18199b'; --gate adversarial-isolation reproduces it",
+  "git show --stat b18199b: reviews/C-14/findings.toml + AGENTS.md + templates/AGENTS.md.template + tests/test_instructions.py in one commit",
+  "wc -w AGENTS.md = 1098; grep fde-design/fde-survey AGENTS.md line 77; backlog.md:126 B-1 declined; ls reviews/FWD-040",
+]
+notes = [
+  "8b222e4 (direct lane, tests once per SHA) does not contradict a C-14 criterion: A1 word cap holds at 1098, the pointers resolve. Not reviewed further, per the brief.",
+  "tests/test_instructions.py: the new TestSkeletonPointsToDesignAndSurvey class sits after the `if __name__ == '__main__'` guard; discovery still runs it, but running the file directly would not.",
+  "deploy.md step 2 and plan.md line 74 still say 'merge commit'; F2 depends on promotion.md listing plain commits plus b77621c.",
+]
+
+[[finding]]
+id = "D1"
+attribute = "functional_correctness"
+severity = "high"
+probe = "python3 bin/fde/verify.py --all -> I3 red on b18199b; unittest 2 failures from the same cause"
+evidence = """
+b18199b commits reviews/C-14/findings.toml (findings) together with AGENTS.md, templates/AGENTS.md.template and tests/test_instructions.py (behavior). I3 forbids findings and behavior in one commit. The full gate is red at HEAD and two suite tests fail with it, so A10 (suite and verify.py --all green) does not hold at the reviewed SHA.
+Fix: the owner splits the commit (findings apart from behavior) before promotion; a later fixing commit does not clear the per-commit check. Inside the threat model (ordinary commit flow).
+"""
+blocking = true   # high, reachable, breaks A10
+
+[[finding]]
+id = "D2"
+attribute = "reliability_resilience"
+severity = "medium"
+principle = "REL-3"
+probe = "grep -n 'merge' cycles/C-14/deploy.md; ls cycles/C-14/promotion.md (absent)"
+evidence = """
+F2 is not fixed on disk: promotion.md does not exist and deploy.md still names a 'merge commit' rollback. The board says the release list carries it; it must include b77621c and the plain demand commits.
+"""
+blocking = false
+backlog = false
