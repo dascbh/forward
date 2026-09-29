@@ -1,0 +1,58 @@
+# Code review report (light pass)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-043"
+kind = "code"
+context_policy = "artifact_only"
+isolation_mode = "artifact_and_spec"
+rounds_planned = 1
+round = 1
+commit = "592be14"
+agent_transcript = "agent-a6994da3945d0249f"
+probed = [
+  "spec.md and cycles/C-14/plan.md (A2) read against the diff of 592be14",
+  "python3 -m unittest discover -s tests: 692 tests OK (includes TestOpenWording)",
+  "cmp of skills/, agents/, templates/cycle/, spec/roles.toml, runtime/graph.py against .claude, .fde and bin/fde copies: identical",
+  "grep intended-model, rollback, range over skills, agents, spec, templates, runtime",
+  "wc -w AGENTS.md = 1085 (limit 1100)",
+]
+notes = [
+  "All six items (B-29, B-11, B-48/B-49, B-40, B-21, B-25) have one text each in the owning skill or template; mirrors identical.",
+  "docs/adr ADR-0014 still says architecture compiles the intended model; history, left alone.",
+  "The rollback sentence lives inside an HTML comment in plan.md and deploy.md; 'release commit' is not defined anywhere else.",
+  "Backlog B-61 (MNT-10 bare id in AGENTS.md) was captured by the builder; not repeated.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-10"
+evidence = """
+B-29 is settled with two sentences that disagree in the same bullet of skills/fde-review/SKILL.md: 'It is a replan (kernel ADR-0019)' and, a few lines earlier in the same bullet, 'plan.md stays frozen'. A replan under ADR-0019 changes the plan; the choice narrow/declare/pause records on board.md and promotion.md without editing it. AGENTS.md ## Cycle still says 'the owner's call' and never says replan, so the two surfaces state the rule differently. A reader cannot tell whether the owner's pick re-triggers sign-off.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F2"
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-10"
+evidence = """
+B-25 moves intended-model.md to the planner, but agents/fde-spec.md keeps 'No per-demand acceptance, failure modes or architecture' and a one-page (~800 words) limit on spec.md, while the model is compiled from flow.md, ia.md, wireframes and glossary; the diff does not say which role authors those design inputs at XS/S. The new duty sits in a role file whose neighbouring sentences read as a prohibition.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F3"
+attribute = "usability_accessibility"
+severity = "low"
+principle = "MNT-10"
+evidence = """
+B-48/B-49 ('Before the cycle review') and B-40 (rollback) are pinned by tests only as text presence; nothing tells the cycle reviewer or the deploy step what 'proven read-only against a real client' means (which client, what evidence recorded). No artifact records the proof (compare A7's headlabs read-only check), so the instruction cannot be shown done.
+"""
+blocking = false
+backlog = true

@@ -88,6 +88,12 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 
 - B-61 (C-14) opinion — AGENTS.md cites MNT-10 by bare id ("README and runbook change with how the system runs (MNT-10)"), the same unresolvable reference B-21 fixed for MNT-9 (FWD-043 build)
 
+- B-62 (C-14) usage-data — status.py accepts any non-empty `fixed_in` as closing; no gate checks it names a real commit (code review FWD-038 F3)
+- B-63 (C-14) usage-data — a config with both `[backlog]` and `[scrum]` fails BACKLOG-ALIAS at once, with no grace period (code review FWD-039 F2)
+- B-64 (C-14) usage-data — the sprint-wording test matches exact phrases only; "mid-sprint" and fde-graph's "sprint" pass, and the allowlist excuses a whole line (code review FWD-039 F3)
+- B-65 (C-14) usage-data — at XS/S nothing says who writes the flow/IA/wireframe inputs the planner's intended model needs (code review FWD-043 F2)
+- B-66 (C-14) usage-data — "prove a reader against a real client" is text only; no artifact records what was proven where (code review FWD-043 F3)
+
 ## Discarded (2026-09-29)
 
 Reviewed against 0.19.0 with the owner; ids stay retired.

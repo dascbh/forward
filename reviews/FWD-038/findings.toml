@@ -1,0 +1,56 @@
+# Code review report (light pass)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-038"
+kind = "code"
+context_policy = "artifact_only"
+isolation_mode = "artifact_and_spec"
+rounds_planned = 1
+round = 1
+commit = "0521ded"
+agent_transcript = "agent-a6994da3945d0249f"
+probed = [
+  "spec.md and cycles/C-14/plan.md (A4) read against the diff of 0521ded",
+  "python3 -m unittest discover -s tests: 692 tests OK (includes tests/test_review_records.py)",
+  "cmp of runtime/*, agents/fde-promotion.md, skills/fde-review, templates/{cycle/board,cycle/promotion,findings.template.toml} against bin/fde and .claude/.fde copies: identical",
+  "grep fixed_in over skills, agents, templates, runtime, AGENTS.md",
+]
+notes = [
+  "Diff does what the spec says: four promotion endings in template and agent, fixed_in read by status.py, board template merge line names the review, gate_adversarial globs findings*.toml.",
+  "The C-14 board's own earlier merge lines (FWD-041/042/044) and the batch line for FWD-043/038/039 do not use the new merge-line form; predates the rule, not a defect.",
+  "The merge-line rule is instruction only: no gate or status reads it (spec asks for an instruction).",
+]
+
+[[finding]]
+id = "F1"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-10"
+evidence = """
+fixed_in is stated consistently in skills/fde-review/SKILL.md, the findings template and status.py, but agents/fde-adversarial.md (the reviewer's own role file, its Produces and Conduct) never mentions it, and AGENTS.md is silent. The role that must write fixed_in is not told it does; the rule lives only in the skill.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F2"
+attribute = "usability_accessibility"
+severity = "medium"
+principle = "MNT-10"
+evidence = """
+The skill says the reviewer records fixed_in 'in a commit of its own (I3)', but the reviewer's contract is one round per demand and it 'never asks for another'. Nothing says who invokes the reviewer again after the fix, or whether that pass counts against the demand's 1-round budget. C-14's board says 'fixed_in is recorded by the reviewer (I3) — accepted' but the trigger stays ambiguous, so an implementer will edit findings.toml itself (an I3 breach) or skip the record.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "low"
+principle = "MNT-10"
+evidence = """
+status.py treats any non-empty string as a closing fixed_in (_clip(fixed.strip())): 'x' closes a blocker, and no gate checks the value is a commit reachable from main. A blocker can be closed with a typo. Low: cooperative-agent threat model, and status only displays it.
+"""
+blocking = false
+backlog = true

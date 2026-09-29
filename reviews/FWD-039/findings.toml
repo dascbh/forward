@@ -1,0 +1,57 @@
+# Code review report (light pass)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-039"
+kind = "code"
+context_policy = "artifact_only"
+isolation_mode = "artifact_and_spec"
+rounds_planned = 1
+round = 1
+commit = "296e2be"
+agent_transcript = "agent-a6994da3945d0249f"
+probed = [
+  "spec.md and cycles/C-14/plan.md (A5, FM2) read against the diff of 296e2be",
+  "python3 -m unittest discover -s tests: 692 tests OK",
+  "python3 bin/fde/verify.py --gate backlog and --gate scrum: both pass on this repository",
+  "grep -rnI for fde-scrum, [scrum], SCRUM outside cycles/, reviews/, specs/, docs/adr/, sprints/, promotions/, discovery/, tests/: only alias mentions in code and SETUP.md/skill; no stale reference (backlog.md lines are history)",
+  "cmp runtime/{fde_lib,verify}.py, skills/fde-backlog-format/SKILL.md against bin/fde and .claude copies: identical",
+]
+notes = [
+  "Diff does what the spec says: [backlog] with [scrum] alias, gate id backlog with --gate scrum alias, header-only goal read, goal: not set rejected, non-table named as BACKLOG-TABLE and never crashes, sprint-wording test added.",
+  "Skill renamed to fde-backlog-format (not folded); AGENTS.md, template, README, SETUP.md and config all point to the new name.",
+  "Check id in output changed SCRUM to BACKLOG; a client script matching the old id would miss it (not a gate criterion).",
+]
+
+[[finding]]
+id = "F1"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-10"
+evidence = """
+The skill rename leaves a client's installed .claude/skills/fde-scrum/ in place: nothing in the diff or in skills/fde-sync (no mention of removing a renamed skill) deletes it. After a sync a client carries both fde-scrum (still saying '[scrum] enabled', 'first 30 lines') and fde-backlog-format, with contradictory instructions. FWD-040 owns sync, so a candidate for that demand or the backlog.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "low"
+principle = "MNT-10"
+evidence = """
+FM2 is met for a client with [scrum] alone, but validate() returns BACKLOG-ALIAS (a violation, red gate) when both [backlog] and [scrum] are present, including [backlog] enabled = false with [scrum] enabled = true. A client that adds [backlog] by hand next to its old [scrum] turns red with no grace period; the message says only 'declare [backlog] only'. Low: the message is actionable.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F3"
+attribute = "maintainability"
+severity = "low"
+principle = "MNT-10"
+evidence = """
+TestNoSprintWording's regex covers 'sprint goal', 'retro', 'retrospective', 'sprint review', 'planning sitting' only. The bare words the old skill used (mid-sprint, two sittings, 'sprints/S-N', 'sprint;') slip through, and the allowlist 'Sprints are retired' excuses any wording on the same line. skills/fde-graph/SKILL.md still lists 'sprint' among node kinds, which the guard cannot see. The guard stops the exact phrases, not the return of the concept.
+"""
+blocking = false
+backlog = true
