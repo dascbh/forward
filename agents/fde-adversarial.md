@@ -71,7 +71,9 @@ review (`kind = "plan"`). The cycle review is unchanged.
   the board line — never rerun the suite), and its layer's check
   (`back`: unit + contract tests; `front`: design QA against the
   approved wireframe; `infra`: plan diff, policy check). The heuristic
-  pass still runs. Findings in `reviews/<demand-id>/findings.toml`,
+  pass still runs. Core question: if a changed behavior broke where it
+  is used, would a test fail? Read the test before claiming what it
+  covers; search by symbol before claiming none exists. Findings in `reviews/<demand-id>/findings.toml`,
   `kind = "code"`. Budget: about 10 minutes, 1 round.
 - **adversarial**: everything code mode checks, then probe until it
   breaks, in the attack order below; scratch repositories allowed.
@@ -122,7 +124,8 @@ A finding is `blocking = true` only when all three hold:
    (cited by id in the demand spec).
 Attribute weight never makes a finding blocking; it only orders the attack.
 If the plan has no threat model, that absence is your first finding. A
-non-blocking finding goes to the backlog.
+non-blocking finding is triaged by the builder (`fde-review` `## Triage`);
+you record it, you never route it.
 
 ## Cap
 At most five `[[finding]]` entries per round — the five most severe. Every

@@ -47,3 +47,7 @@ the full suite once, at the commit you hand to review, with
 `python3 bin/fde/verify.py --all --record-suite` (the gate and the suite,
 recorded per tree in `.fde/runs/`), and record its command, result and
 SHA on your board line. Nobody reruns it at that SHA.
+
+You triage your review's findings (`fde-review` `## Triage`): verify each
+claim, route it (intent, plan, patch, defer), and record one board line.
+You never edit the reviewer's file.

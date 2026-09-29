@@ -42,6 +42,11 @@ and the demand list; `deploy.md` the deploy plan; `docs/adr/` the
 decisions. An ADR is the only home of a decision; plan and specs cite
 it by id; a demand never amends it.
 
+- Investigate before asking: the code, its history, the backlog and
+  prior cycles answer most questions. Only what they cannot answer goes
+  to the owner — at most three questions, all at once, each with its
+  options and a recommended answer — before `plan.md` is written; each
+  answer is recorded in the plan as a criterion or an assumption.
 - A `date:` line; criteria (`A1`, `A2`…) and failure modes (`FM1`…),
   each with an id. A requirement is measurable — "fast" becomes a number
   with a baseline; an unmeasurable one is a finding, not a vibe.

@@ -31,5 +31,5 @@ rounds_planned = {{ROUNDS_PLANNED}}   # demand review 1; cycle review XS/S 1, M/
 # principle = "USE-3"      # from heuristic_principles in .fde/spec/dimensions/
 # evidence  = "screen or path + what violates the principle"
 # blocking  = false
-# backlog   = true         # a non-blocking finding goes to backlog.md by
-#                          # default (kernel ADR-0019 rule 2)
+# backlog   = true         # a non-blocking finding is triaged by the builder
+#                          # (fde-review ## Triage): patch, defer or drop

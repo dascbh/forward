@@ -119,3 +119,51 @@ class TestWavesFromThePlan(ProseTestCase):
         for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
             self.assertIn("Parallel demands come from the plan's `files` "
                           "(`status.py --waves`).", read(rel), rel)
+
+
+class TestTriageAndVerificationGap(unittest.TestCase):
+    """BMAD-method learnings (owner, 2026-09-29): reviewers find, the
+    builder triages; the code review asks the verification-gap question;
+    the planner investigates before asking."""
+
+    def test_triage_verifies_then_routes_by_where_the_defect_lives(self):
+        text = read("skills/fde-review/SKILL.md")
+        self.assertIn("## Triage — reviewer output is data, not a verdict", text)
+        self.assertIn("Recall belongs to the reviewer, precision to the triage.", text)
+        for route in ("`intent`", "`plan`", "`patch`", "`defer`"):
+            self.assertIn(route, text)
+        self.assertIn("`real` (the reviewer's severity stands), `false` (write "
+                      "what disproves this claim", text)
+        self.assertIn("The reviewer's file is never edited (I3).", text)
+        self.assertIn("A blocking finding is never triaged away", text)
+        self.assertIn("The cycle review audits every `false`.", text)
+        self.assertNotIn("## Reconciliation", text)
+
+    def test_a_patch_is_the_second_in_band_exception(self):
+        for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
+            self.assertIn("except a blocker or a triaged `patch` "
+                          "(`fde-review`).", read(rel), rel)
+        self.assertIn("This is the one in-band fix MNT-9 allows besides a "
+                      "blocker.", read("skills/fde-review/SKILL.md"))
+
+    def test_roles_know_who_triages(self):
+        self.assertIn("you record it, you never route it.",
+                      read("agents/fde-adversarial.md"))
+        self.assertIn("You never edit the reviewer's file.",
+                      read("agents/fde-implementation.md"))
+        self.assertIn("patch, defer or drop",
+                      read("templates/findings.template.toml"))
+
+    def test_code_review_asks_the_verification_gap_question(self):
+        self.assertIn("if it broke where it is used, would a test fail?",
+                      read("skills/fde-review/SKILL.md"))
+        self.assertIn("search the repository by the symbol before claiming "
+                      "no test exists", read("skills/fde-review/SKILL.md"))
+        self.assertIn("if a changed behavior broke where it is used, would a "
+                      "test fail?", read("agents/fde-adversarial.md"))
+
+    def test_the_planner_investigates_before_asking(self):
+        text = read("agents/fde-spec.md")
+        self.assertIn("Investigate before asking", text)
+        self.assertIn("at most three questions, all at once, each with its "
+                      "options and a recommended answer", text)

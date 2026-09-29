@@ -42,6 +42,13 @@ record satisfies the promotion gate like any review.
   check (`back` unit + contract tests, `front` design QA against the
   approved wireframe, `infra` plan diff + policy check). No scratch
   repositories, no probe hunt; the heuristic pass still runs. 1 round.
+  Its core question is the **verification gap**: for each behavior the
+  diff changes, if it broke where it is used, would a test fail? Trace
+  the changed behavior to its callers and consumers, name the smallest
+  realistic regression each would see, and read the test that should
+  catch it. Evidence rules: read a test before claiming what it covers;
+  search the repository by the symbol before claiming no test exists;
+  say how far you looked; never file what you did not verify.
 - **Adversarial**: the code review's scope, then the probe plan above,
   scratch repositories allowed (`kind = "adversarial"`). 1 round.
 - **Plan**: attack `plan.md`'s criteria, threat model and demand split,
@@ -67,8 +74,9 @@ record satisfies the promotion gate like any review.
 A demand review is always 1 round. A demand review's blocking finding
 is fixed inside that demand and proven by its regression test; the owner
 is asked only when the fix changes a criterion or an ADR, which is a
-replan. A non-blocking finding goes to `backlog.md` unless it shows a
-plan criterion unmet; then the cycle fixes it. The reviewer closes a
+replan. A non-blocking finding is triaged by the builder (`## Triage`):
+fixed in the demand as a patch, deferred to `backlog.md`, or dropped; one
+that shows a plan criterion unmet is fixed by the cycle. The reviewer closes a
 blocker fixed inside its demand by recording the fixing commit on it,
 `fixed_in = "<sha>"`, in a commit of its own (I3), in the cycle review's
 pass and within its budget, never as an extra round. A demand merges rebased
@@ -139,8 +147,7 @@ not only against this repository's layout.
 `blocking = true` only when all three hold: severity `critical`/`high`;
 the path is reachable inside the plan's threat model; it breaks a declared
 acceptance criterion or failure mode of `plan.md`. Anything else records,
-and a non-blocking finding goes to the backlog unless it shows a plan
-criterion unmet. A defect reachable only by
+and a non-blocking finding is triaged (`## Triage`). A defect reachable only by
 an actor or sequence the threat model excludes is a declared limit. No
 threat model in the plan → that is the first finding.
 
@@ -174,14 +181,38 @@ their `heuristic_principles`. A heuristic finding cites `principle` and
 severity (I8): "USE-3: the same filter is called 'Period' on one screen
 and 'Range' on another — medium".
 
-## Reconciliation — reviewer output is data, not a verdict
+## Triage — reviewer output is data, not a verdict
 
-The builder reconciles findings with a fixed precedence: contract
-misread > actionable > trade-off > noise. Two consecutive rounds of
-substantive findings with zero classified actionable means the review
-turned into validation — stop.
+Reviewers find; the builder triages, once every review result is in.
+Recall belongs to the reviewer, precision to the triage.
 
-One commit per reconciliation: the fixes, their evals, and — only when a
+1. **Verify each claim** at its evidence: does the bad outcome happen?
+   Read past the changed lines (callers, guards upstream). Verdict:
+   `real` (the reviewer's severity stands), `false` (write what disproves
+   this claim; a true fact about nearby code does not), or `unsure`
+   (write what would settle it).
+2. **Route each real finding by where the defect lives:**
+   - `intent` — the plan does not say what the owner wants: stop and ask
+     the owner one question with a recommended answer. An answer that
+     changes a criterion is the replan; any other answer is one board
+     line and the demand continues.
+   - `plan` — the demand spec was unclear or wrong: revert the demand's
+     code, fix the spec, rebuild from it. No patch on patch.
+   - `patch` — the smallest fix is trivial, adds no public surface and no
+     new guard: fixed inside the demand now, with a regression test when
+     behavior changes. This is the one in-band fix MNT-9 allows besides a
+     blocker.
+   - `defer` — pre-existing, or `unsure` with medium/high stakes: one
+     backlog line with its evidence. A low finding whose fix adds
+     complexity is dropped, not deferred.
+3. **Record** one board line: `<date> <demand> decided triage F1
+   real/patch <sha>; F2 false — <refutation>; F3 real/defer`. The
+   reviewer's file is never edited (I3). A blocking finding is never
+   triaged away: it is fixed (`fixed_in`) or its refutation goes on the
+   board for the cycle review to decide. The cycle review audits every
+   `false`.
+
+One commit per triage: the patches, their evals, and — only when a
 decision changed — the ADR edit. A fix that rewrites far more than the
 finding's evidence spans is the wrong design for this scope: narrow
 (Budget, option 1) instead of rebuilding under review.
