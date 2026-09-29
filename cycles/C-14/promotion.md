@@ -1,6 +1,6 @@
 cycle: C-14
 date: 2026-09-29
-decision: promote — A10 pending the deploy (version bump to 0.22.0, push, CI on the release SHA)
+decision: promote — deploy done (8446fec)
 commit: 5d791ca
 
 Evidence: cycles/C-14/review.md (full round at 6b55ec0, delta round at b18199b), reviews/C-14/ (findings.toml, findings-delta.toml, findings-plan.toml), reviews/FWD-037..044, board.md, and `python3 bin/fde/verify.py --all` run once at 5d791ca: all gates passed (I1, I2 over 49 reports, I3, I8 over 295 findings, I4, I5, I6, I7, BACKLOG, TRACE, EROSION, DIVERGE, SURVEY). The suite at 5d791ca was recorded OK by the main thread and not rerun here.
@@ -16,7 +16,7 @@ Evidence: cycles/C-14/review.md (full round at 6b55ec0, delta round at b18199b),
 - A7 — B-12, B-14, B-16, B-20, B-27, B-28 have tests red before the fix (FWD-041 review); B-15 in the CI workflow (FWD-044, e3633e8); headlabs-platform green under the new runtime, read-only run in the cycle review — met
 - A8 — findings parsed once, helpers without nested and-expressions, the promotion cell unescaped and cut at a word (cycle review A8 on headlabs; FWD-042 review) — met
 - A9 — 30 items listed in plan.md: 29 delivered by the eight demands (each in its board line and review) and B-1 declined (A3). The backlog holds only what this cycle's reviews added, B-54 to B-68, none owned by a C-14 criterion — met
-- A10 — the suite and `verify.py --all` are green at 5d791ca (delta D1, the mixed commit, was fixed by splitting it and I3 is green at HEAD); version 0.22.0 and the push are the release step, per deploy.md — pending deploy
+- A10 — released as 0.22.0 in 8446fec (7 version files) with 8b222e4 in the release, pushed 9f9f3a2..8446fec; suite and `verify.py --all` green before the push; CI not verified (gh 401) — met
 
 Budget: the M cycle review (full plus delta) is spent. Blockers found: F1 (fixed), D1 (fixed by the split). None open, nothing narrowed, no declared limit.
 

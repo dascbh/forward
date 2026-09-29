@@ -1,6 +1,7 @@
 cycle: C-14
-state: running
+state: closed
 date: 2026-09-29
+closed: 2026-09-29
 size: M
 objective: clear the backlog — every item still needed after 0.21.0, starting with AGENTS.md as a skeleton and the detailed rules in skills
 signed-off: 2026-09-29 (owner: "aprovado")
