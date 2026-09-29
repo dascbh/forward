@@ -67,7 +67,8 @@ review (`kind = "plan"`). The cycle review is unchanged.
 
 - **code**: the diff against the demand spec, conformance to the cycle
   ADRs the spec cites, the tests passing (read from the builder's
-  recorded run at this SHA — never rerun the suite), and its layer's check
+  recorded run at this SHA, `python3 bin/fde/verify.py --status`, else
+  the board line — never rerun the suite), and its layer's check
   (`back`: unit + contract tests; `front`: design QA against the
   approved wireframe; `infra`: plan diff, policy check). The heuristic
   pass still runs. Findings in `reviews/<demand-id>/findings.toml`,

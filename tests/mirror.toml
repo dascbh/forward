@@ -34,7 +34,7 @@ attributes = "spec/dimensions/quality-attributes.toml"
 # (`*.pyc`) must be matched by a .gitignore basename pattern (`*.py[co]`);
 # and no entry may match a file git tracks (test_mirror
 # TestIgnoreNeverSilencesATrackedFile); nothing else is ignored
-entries = ["__pycache__/", "*.pyc", ".DS_Store", ".claude/worktrees/", ".fde/guard-audit.jsonl"]
+entries = ["__pycache__/", "*.pyc", ".DS_Store", ".claude/worktrees/", ".fde/guard-audit.jsonl", ".fde/runs/"]
 
 # --- runtime and spec (SETUP §6 steps 1-2) --------------------------------
 

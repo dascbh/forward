@@ -1029,6 +1029,141 @@ class Gate:
         return 1 if failed else 0
 
 
+# ---------------------------------------------------------------------------
+# run record — a result is a fact about a tree, recorded once and read back
+# ---------------------------------------------------------------------------
+# `--all` writes its outcome to .fde/runs/<tree>.json, where <tree> is
+# `git write-tree` of the index (HEAD's tree when the index is clean);
+# `--record-suite` adds the unit suite's exit code to the same record, and
+# `--status` reads it. Reviewers and promotion read the record instead of
+# rerunning the suite at the same tree. Recording is a side channel: it
+# runs after the verdict and a failure to record never changes it.
+RUNS_DIR = Path(".fde") / "runs"
+
+
+def current_tree(project: Path) -> str | None:
+    try:
+        out = subprocess.run(["git", "write-tree"], cwd=project,
+                             capture_output=True, text=True, check=False)
+    except OSError:
+        return None
+    tree = out.stdout.strip()
+    return tree if out.returncode == 0 and re.fullmatch(r"[0-9a-f]{40,64}", tree) else None
+
+
+def _worktree_matches_index(project: Path) -> bool | None:
+    try:
+        out = subprocess.run(["git", "diff", "--quiet"], cwd=project,
+                             capture_output=True, check=False)
+    except OSError:
+        return None
+    return {0: True, 1: False}.get(out.returncode)
+
+
+def _now() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def read_run(project: Path, tree: str) -> dict | None:
+    path = project / RUNS_DIR / f"{tree}.json"
+    try:
+        rec = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return rec if isinstance(rec, dict) and rec.get("tree") == tree else None
+
+
+def _worktrees(project: Path) -> list[Path]:
+    try:
+        out = subprocess.run(["git", "worktree", "list", "--porcelain"],
+                             cwd=project, capture_output=True, text=True,
+                             check=False)
+    except OSError:
+        return []
+    return [Path(l[len("worktree "):]) for l in out.stdout.splitlines()
+            if l.startswith("worktree ")]
+
+
+def find_run(project: Path, tree: str) -> dict | None:
+    """This checkout's record first, then any other worktree's: a record is
+    keyed by the tree's content hash, so a builder's run in its worktree is
+    the same fact for a reviewer in another one."""
+    rec = read_run(project, tree)
+    if rec is not None:
+        return rec
+    here = project.resolve()
+    for wt in _worktrees(project):
+        if wt.resolve() != here:
+            rec = read_run(wt, tree)
+            if rec is not None:
+                return {**rec, "found_in": str(wt)}
+    return None
+
+
+def record_run(project: Path, tree: str, **parts) -> Path:
+    """Merge `parts` (gate=…, suite=…) into the tree's record; what is not
+    passed is kept, since the same tree means the same code."""
+    runs = project / RUNS_DIR
+    runs.mkdir(parents=True, exist_ok=True)
+    rec = read_run(project, tree) or {"tree": tree}
+    rec.update(parts)
+    rec["worktree_matches_index"] = _worktree_matches_index(project)
+    path = runs / f"{tree}.json"
+    tmp = runs / f".{tree}.json.tmp"
+    tmp.write_text(json.dumps(rec, indent=2, ensure_ascii=False) + "\n",
+                   encoding="utf-8")
+    tmp.replace(path)
+    return path
+
+
+def run_suite(project: Path, command: str) -> dict:
+    try:
+        out = subprocess.run(command, shell=True, cwd=project,
+                             capture_output=True, text=True, check=False)
+        code, text = out.returncode, (out.stdout or "") + (out.stderr or "")
+    except OSError as e:
+        code, text = 127, str(e)
+    # the last lines that say something (a runner's `----` rule says nothing)
+    lines = [l.strip() for l in text.splitlines() if re.search(r"\w", l)]
+    return {"command": command, "exit_code": code,
+            "summary": " · ".join(lines[-3:]), "recorded_at": _now()}
+
+
+def print_status(project: Path, fmt: str) -> int:
+    tree = current_tree(project)
+    rec = find_run(project, tree) if tree else None
+    if fmt == "json":
+        print(json.dumps({"tree": tree, "record": rec}, indent=2,
+                         ensure_ascii=False))
+        return 0
+    if tree is None:
+        print("no record for this tree (git write-tree failed)")
+        return 0
+    if rec is None:
+        print(f"tree {tree}: no record for this tree")
+        return 0
+    where = f" (recorded in {rec['found_in']})" if rec.get("found_in") else ""
+    print(f"tree {tree}{where}")
+    gate = rec.get("gate")
+    if isinstance(gate, dict):
+        failed = [x.get("id") for x in gate.get("gates", []) if not x.get("passed")]
+        verdict = "passed" if gate.get("passed") else f"failed ({', '.join(map(str, failed))})"
+        print(f"  gate: {verdict} · {len(gate.get('gates', []))} results · "
+              f"{gate.get('recorded_at')} · {gate.get('command')}")
+    else:
+        print("  gate: not recorded")
+    suite = rec.get("suite")
+    if isinstance(suite, dict):
+        print(f"  suite: exit {suite.get('exit_code')} · {suite.get('summary')} · "
+              f"{suite.get('recorded_at')} · {suite.get('command')}")
+    else:
+        print("  suite: not recorded (verify.py --all --record-suite)")
+    if rec.get("worktree_matches_index") is False:
+        print("  note: the working tree had unstaged changes when recorded")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--staged", action="store_true", help="pre-commit mode")
@@ -1037,7 +1172,20 @@ def main() -> int:
     ap.add_argument("--since", default=None,
                     help="CI: diff this rev..HEAD for I1 (push base / PR base)")
     ap.add_argument("--format", choices=["text", "json"], default="text")
+    ap.add_argument("--status", action="store_true",
+                    help="print the recorded run for the current tree")
+    ap.add_argument("--record-suite", nargs="?", const="", default=None,
+                    metavar="CMD",
+                    help="with --all: also run the unit suite once (CMD, else "
+                         "[stack].test_command) and record its exit code")
     args = ap.parse_args()
+
+    if args.status:
+        return print_status(project_root(), args.format)
+    if args.record_suite is not None and (not args.all or args.gate or args.staged):
+        print("\033[31m✗\033[0m --record-suite runs with --all only "
+              "(no --gate, no --staged)", file=sys.stderr)
+        return 2
 
     if args.gate is not None and args.gate not in KNOWN_GATES:
         print(f"\033[31m✗\033[0m unknown gate '{args.gate}'. "
@@ -1151,7 +1299,37 @@ def main() -> int:
     if not g.results:
         print("\033[31m✗\033[0m no gate ran — check the flags", file=sys.stderr)
         return 2
-    return g.report(args.format)
+    code = g.report(args.format)
+    if args.all and only is None and not args.staged:
+        _record(project, cfg, args, code, g)
+    return code
+
+
+def _record(project: Path, cfg: Config, args, code: int, g: Gate) -> None:
+    """After the verdict, never before: nothing here can change `code`."""
+    try:
+        tree = current_tree(project)
+        if tree is None:
+            raise RuntimeError("git write-tree failed")
+        parts = {"gate": {
+            "passed": code == 0,
+            "gates": [{"id": i, "passed": p, "detail": m} for i, p, m in g.results],
+            "recorded_at": _now(),
+            "command": " ".join(["python3", "bin/fde/verify.py", *sys.argv[1:]]),
+        }}
+        if args.record_suite is not None:
+            cmd = args.record_suite or str(
+                cfg.raw.get("stack", {}).get("test_command") or "")
+            if not cmd:
+                raise RuntimeError("no suite command: pass one or set "
+                                   "[stack].test_command")
+            parts["suite"] = run_suite(project, cmd)
+        record_run(project, tree, **parts)
+        suite = parts.get("suite")
+        tail = f"; suite exit {suite['exit_code']}" if suite else ""
+        print(f"recorded for tree {tree[:12]}{tail}", file=sys.stderr)
+    except Exception as e:  # noqa: BLE001 — a record never breaks the gate
+        print(f"\033[33m!\033[0m run not recorded: {e}", file=sys.stderr)
 
 
 if __name__ == "__main__":

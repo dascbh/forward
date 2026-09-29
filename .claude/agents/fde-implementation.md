@@ -42,5 +42,7 @@ goes to `backlog.md` with no id (ids are assigned on main after the
 merge).
 
 Tests: while building, run only the tests of the files you touch; run
-the full suite once, at the commit you hand to review, and record its
-command, result and SHA on your board line. Nobody reruns it at that SHA.
+the full suite once, at the commit you hand to review, with
+`python3 bin/fde/verify.py --all --record-suite` (the gate and the suite,
+recorded per tree in `.fde/runs/`), and record its command, result and
+SHA on your board line. Nobody reruns it at that SHA.

@@ -1883,5 +1883,135 @@ class TestI1ReqsFrontDemandInTheCycleLayout(unittest.TestCase):
         self.assertIn("R1", str(row))
 
 
+class TestRunRecordPerTree(unittest.TestCase):
+    """`--all` records its outcome in .fde/runs/<tree>.json; `--status`
+    reads it back; recording never changes a gate result."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+        commit_all(self.p, "init")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def tree(self) -> str:
+        return git_out(self.p, "write-tree")
+
+    def record(self) -> dict:
+        path = self.p / ".fde" / "runs" / f"{self.tree()}.json"
+        self.assertTrue(path.is_file(), path)
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def test_all_records_gates_timestamp_and_command(self):
+        self.assertFalse((self.p / ".fde" / "runs").exists())
+        r = verify(self.p, "--all", "--format", "json")
+        rec = self.record()
+        self.assertEqual(rec["tree"], self.tree())
+        gate = rec["gate"]
+        self.assertEqual(gate["passed"], r.returncode == 0)
+        self.assertEqual(gate["gates"], json.loads(r.stdout)["gates"])
+        self.assertIn("--all", gate["command"])
+        self.assertRegex(gate["recorded_at"], r"^\d{4}-\d\d-\d\dT")
+
+    def test_a_single_gate_run_records_nothing(self):
+        verify(self.p, "--gate", "config")
+        self.assertFalse((self.p / ".fde" / "runs").exists())
+
+    def test_status_on_the_recorded_tree(self):
+        verify(self.p, "--all")
+        r = verify(self.p, "--status")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(self.tree(), r.stdout)
+        self.assertIn("gate:", r.stdout)
+        self.assertNotIn("no record for this tree", r.stdout)
+
+    def test_status_on_another_tree(self):
+        verify(self.p, "--all")
+        (self.p / "src").mkdir()
+        (self.p / "src" / "a.py").write_text("x = 1\n")
+        run_git(self.p, "add", "-A")
+        r = verify(self.p, "--status")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("no record for this tree", r.stdout)
+        j = verify(self.p, "--status", "--format", "json")
+        self.assertEqual(j.returncode, 0)
+        self.assertEqual(json.loads(j.stdout),
+                         {"tree": self.tree(), "record": None})
+
+    def test_status_json_is_the_record(self):
+        verify(self.p, "--all")
+        r = verify(self.p, "--status", "--format", "json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = json.loads(r.stdout)
+        self.assertEqual(out["tree"], self.tree())
+        self.assertEqual(out["record"], self.record())
+
+    def test_record_suite_stores_exit_code_and_summary(self):
+        # the fixture's configured test_command is `true`
+        verify(self.p, "--all", "--record-suite")
+        suite = self.record()["suite"]
+        self.assertEqual(suite["exit_code"], 0)
+        self.assertEqual(suite["command"], "true")
+        verify(self.p, "--all", "--record-suite",
+               "echo Ran 3 tests; echo 'FAILED (failures=1)'; exit 3")
+        suite = self.record()["suite"]
+        self.assertEqual(suite["exit_code"], 3)
+        self.assertIn("FAILED (failures=1)", suite["summary"])
+        self.assertIn("exit 3", verify(self.p, "--status").stdout)
+
+    def test_a_gate_rerun_keeps_the_suite_record_of_the_same_tree(self):
+        verify(self.p, "--all", "--record-suite")
+        verify(self.p, "--all")
+        self.assertEqual(self.record()["suite"]["exit_code"], 0)
+
+    def test_record_suite_without_all_is_refused(self):
+        r = verify(self.p, "--record-suite")
+        self.assertEqual(r.returncode, 2)
+
+    def test_recording_never_changes_the_gate_result(self):
+        base = verify(self.p, "--all", "--format", "json")
+        again = verify(self.p, "--all", "--format", "json")
+        suite_red = verify(self.p, "--all", "--format", "json",
+                           "--record-suite", "exit 1")
+        shutil.rmtree(self.p / ".fde" / "runs")
+        (self.p / ".fde" / "runs").write_text("not a directory\n")
+        blocked = verify(self.p, "--all", "--format", "json")
+        for other in (again, suite_red, blocked):
+            self.assertEqual(other.returncode, base.returncode)
+            self.assertEqual(json.loads(other.stdout), json.loads(base.stdout))
+        self.assertIn("not recorded", blocked.stderr)
+
+    def test_status_reads_a_record_from_another_worktree(self):
+        verify(self.p, "--all")
+        wt = Path(self._tmp.name).parent / (Path(self._tmp.name).name + "-wt")
+        run_git(self.p, "worktree", "add", "-q", "--detach", str(wt))
+        self.addCleanup(shutil.rmtree, wt, ignore_errors=True)
+        r = verify(wt, "--status")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("recorded in", r.stdout)
+        self.assertIn("gate:", r.stdout)
+
+    def test_kernel_and_clients_gitignore_the_runs(self):
+        self.assertIn(".fde/runs/", (ROOT / ".gitignore").read_text().splitlines())
+        self.assertIn("`.fde/runs/`", (ROOT / "SETUP.md").read_text())
+
+    def test_roles_read_the_record_instead_of_rerunning(self):
+        def read(rel):
+            return " ".join((ROOT / rel).read_text(encoding="utf-8").split())
+        self.assertIn("`python3 bin/fde/verify.py --all --record-suite`",
+                      read("agents/fde-implementation.md"))
+        for rel in ("agents/fde-adversarial.md", "agents/fde-promotion.md"):
+            self.assertIn("`python3 bin/fde/verify.py --status`", read(rel), rel)
+        self.assertIn("`verify.py --status` prints the record for the current "
+                      "tree", read("skills/fde-review/SKILL.md"))
+
+    def test_a_missing_fde_directory_is_created(self):
+        shutil.rmtree(self.p / ".fde")
+        path = verify_mod.record_run(self.p, "0" * 40, gate={"passed": True})
+        self.assertTrue(path.is_file())
+        self.assertEqual(json.loads(path.read_text())["gate"], {"passed": True})
+
+
 if __name__ == "__main__":
     unittest.main()

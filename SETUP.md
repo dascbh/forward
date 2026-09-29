@@ -239,7 +239,8 @@ the user names.
    stays.
 6. The guard writes its decision trail to `.fde/guard-audit.jsonl`
    (timestamp, path, agent, decision, rule) — add that path to the
-   project's `.gitignore`. If the user asks for operational telemetry,
+   project's `.gitignore`, and `.fde/runs/` (the gate's run records per
+   tree, `verify.py --status`). If the user asks for operational telemetry,
    add to the same settings.json `"env"` block:
    `"CLAUDE_CODE_ENABLE_TELEMETRY": "1"`, `"OTEL_METRICS_EXPORTER":
    "otlp"`, `"OTEL_LOGS_EXPORTER": "otlp"`,

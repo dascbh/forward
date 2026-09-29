@@ -42,7 +42,8 @@ Invariants upheld: I4, I5, I6
   `— not met` — the endings `status.py` reads — with its evidence (the cycle's `review.md`, the integration checks, and the
   output of `python3 bin/fde/verify.py --all`, run once at the promoted
   commit). Checks the declared criteria only — never a hidden review
-  round. The builder's recorded run and the review record are the
+  round. The builder's recorded run (`python3 bin/fde/verify.py
+  --status`, else its board line) and the review record are the
   evidence per criterion: no red→green reproduction per criterion, no
   mutation testing unless `plan.md` declares it.
 - A new defect is not a condition of promotion: one line in

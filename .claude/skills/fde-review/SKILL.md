@@ -103,9 +103,15 @@ SHA.
 
 - **Builder**: while building, only the tests of the files touched; the
   full suite once, at the commit handed to review. Its command, result
-  and SHA go on the demand's board line.
+  and SHA go on the demand's board line. `verify.py --all --record-suite`
+  runs the gate and the configured `test_command` once and records both
+  in `.fde/runs/<tree>.json` (the tree is `git write-tree`; the
+  directory is gitignored).
 - **Code review**: reads that record and the tests in the diff; never
-  reruns the suite. One targeted test only to prove a suspected finding.
+  reruns the suite. `verify.py --status` prints the record for the current
+  tree, from any worktree of the repository, or "no record for this
+  tree" — then the board line is the record. One targeted test only to
+  prove a suspected finding.
 - **Adversarial review**: probes are targeted executions, never a
   full-suite rerun.
 - **Promotion**: `verify.py --all` once at the promoted commit; the
