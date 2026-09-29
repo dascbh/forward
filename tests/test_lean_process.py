@@ -109,6 +109,9 @@ class TestWavesFromThePlan(unittest.TestCase):
                       "demands run in parallel.", read("agents/fde-spec.md"))
         self.assertIn("A demand that needs a file outside its row posts "
                       "`claim widened`", read("templates/cycle/board.md"))
+        self.assertIn("Your files are your plan row's `files` cell; post "
+                      "`claim widened` on `cycles/C-<n>/board.md` only for a "
+                      "file outside it;", read("agents/fde-implementation.md"))
         for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
             self.assertIn("Parallel demands come from the plan's `files` "
                           "(`status.py --waves`).", read(rel), rel)

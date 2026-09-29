@@ -37,7 +37,8 @@ kernel ADR-0019.
 
 Invariants upheld: I1
 
-Post your claim on `cycles/C-<n>/board.md` before editing; a new fact
+Your files are your plan row's `files` cell; post `claim widened` on
+`cycles/C-<n>/board.md` only for a file outside it; a new fact
 goes to `backlog.md` with no id (ids are assigned on main after the
 merge).
 
