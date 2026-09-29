@@ -75,6 +75,10 @@ pass and within its budget, never as an extra round. A demand merges rebased
 onto main, with `python3 bin/fde/verify.py --all` green and no blocking
 finding open. A demand merges only with its review record
 (`reviews/<id>/findings.toml`), and its merge line on `board.md` names it.
+On the demand's branch, process records (`reviews/`, `cycles/`,
+`promotions/`, `backlog.md`) stay in commits of their own, so no commit
+mixes findings with behavior (I3); the merge to main squashes the branch
+into one commit, or fast-forwards when the branch has a single commit.
 
 - **Full** (round 1): the whole artifact against the whole spec. A full
   round with no blocking finding ends the review: the delta round runs

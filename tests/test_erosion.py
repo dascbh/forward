@@ -380,5 +380,60 @@ class TestGateHardening(unittest.TestCase):
         self.assertTrue(erosion.in_churn_scope("cycles/x.py", ("cycles/",)))
 
 
+class TestProcessOnlyRatio(unittest.TestCase):
+    """Share of commits touching only process records — a report line."""
+
+    def test_pure_core(self):
+        self.assertIsNone(erosion.process_only_ratio([]))
+        self.assertIsNone(erosion.process_only_ratio([[]]))
+        self.assertEqual(erosion.process_only_ratio([
+            ["cycles/C-1/plan.md"],                 # process only
+            ["backlog.md", "reviews/X/f.toml"],     # process only
+            ["specs/X/spec.md", "src/a.py"],        # mixed: not process only
+            ["src/a.py"],
+            [],                                     # touches nothing: ignored
+        ]), 0.5)
+        self.assertFalse(erosion.is_process_path("backlog.md.bak"))
+        self.assertFalse(erosion.is_process_path("src/specs/x.py"))
+        for p in ("sprints/S-1/goal.md", "discovery/survey.md",
+                  "promotions/X/decision.md"):
+            self.assertTrue(erosion.is_process_path(p), p)
+
+    def test_measured_over_the_window_and_reported(self):
+        with tempfile.TemporaryDirectory() as t:
+            p = Path(t)
+            run_git(p, "init", "-q")
+            run_git(p, "config", "user.email", "x@y")
+            run_git(p, "config", "user.name", "x")
+            for rel in ("src/a.py", "cycles/C-1/plan.md", "backlog.md",
+                        "src/b.py"):
+                (p / rel).parent.mkdir(parents=True, exist_ok=True)
+                (p / rel).write_text("x\n")
+                commit_all(p, rel)
+            self.assertEqual(erosion.measure(p)["process_only_ratio"], 0.5)
+            self.assertEqual(erosion.measure(p, window=2)["process_only_ratio"], 0.5)
+            self.assertEqual(erosion.measure(p, window=1)["process_only_ratio"], 0.0)
+            import subprocess
+            out = subprocess.run([sys.executable, str(ROOT / "runtime" / "erosion.py"),
+                                  "--report"], cwd=p, capture_output=True, text=True)
+            self.assertIn("process-only commits  0.5", out.stdout)
+
+    def test_skills_state_the_metric_and_the_merge_rule(self):
+        def read(rel):
+            return " ".join((ROOT / rel).read_text(encoding="utf-8").split())
+        self.assertIn("`process_only_ratio`", read("skills/fde-erosion/SKILL.md"))
+        self.assertIn(
+            "On the demand's branch, process records (`reviews/`, `cycles/`, "
+            "`promotions/`, `backlog.md`) stay in commits of their own, so no "
+            "commit mixes findings with behavior (I3); the merge to main "
+            "squashes the branch into one commit, or fast-forwards when the "
+            "branch has a single commit.", read("skills/fde-review/SKILL.md"))
+
+    def test_never_gated(self):
+        self.assertEqual(erosion.check_budget({"process_only_ratio": 1.0},
+                                              {"max_process_only_ratio": 0.1}),
+                         ([], []))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -383,6 +383,9 @@ def measure(project: Path, window: int = DEFAULT_WINDOW) -> dict:
 
     m["stale_roots"] = stale_roots(project, scope)
     m["dependencies"] = dependency_count(project)
+    # over every commit in the window, not the population above: it
+    # measures the history's process overhead, a report line, never gated
+    m["process_only_ratio"] = process_only_ratio(_commit_paths(project, window))
     return m
 
 
@@ -406,6 +409,41 @@ def _largest_change(project: Path, window: int, scope: tuple | None = None,
         if mt and in_churn_scope(numstat_path(mt.group(3)), scope, generated):
             cur += int(mt.group(1)) + int(mt.group(2))
     return max(biggest, cur)
+
+
+# Process records: the paths a commit touches when it records the work
+# rather than doing it. A high share of process-only commits is overhead
+# the history carries; the merge rule (fde-review) squashes them at merge.
+PROCESS_PATHS = ("cycles/", "reviews/", "promotions/", "specs/",
+                 "backlog.md", "sprints/", "discovery/")
+
+
+def is_process_path(path: str) -> bool:
+    return any(path == p or (p.endswith("/") and path.startswith(p))
+               for p in PROCESS_PATHS)
+
+
+def process_only_ratio(commits: list) -> float | None:
+    """Share of commits (each a list of the paths it touched) that touch
+    only process paths. Commits touching no file do not count; no commit
+    left is None — not measured, never 0."""
+    touched = [c for c in commits if c]
+    if not touched:
+        return None
+    only = sum(1 for c in touched if all(is_process_path(p) for p in c))
+    return round(only / len(touched), 2)
+
+
+def _commit_paths(project: Path, window: int) -> list:
+    out = _git(project, "-c", "core.quotepath=off", "log", f"-{window}",
+               "--name-only", "--format=%x01%H")
+    commits: list = []
+    for line in out.splitlines():
+        if line.startswith("\x01"):
+            commits.append([])
+        elif line.strip() and commits:
+            commits[-1].append(line.strip())
+    return commits
 
 
 def load_budget(project: Path) -> dict:
@@ -509,6 +547,9 @@ def main() -> int:
     print(f"  dependency count      {fmt(m['dependencies'])}")
     print(f"  largest change (lines){fmt(m['largest_change'])}   "
           f"(batch size; large batches carry DORA's instability)")
+    print(f"  process-only commits  {fmt(m['process_only_ratio'])}   "
+          f"(share touching only cycles/, reviews/, specs/… — reported, "
+          f"not gated)")
     if budget:
         breaches, unmeasured = check_budget(m, budget)
         mark = "✗ " if breaches else ("! " if unmeasured else "✓ ")

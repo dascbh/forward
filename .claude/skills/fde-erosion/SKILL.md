@@ -21,6 +21,12 @@ python3 bin/fde/verify.py --gate erosion       # enforce the [erosion] budget
   never consolidates.
 - **largest change (lines)** — batch size.
 - **dependency count** — reinvent-or-import bloat.
+- **process-only commits** (`process_only_ratio`) — the share of commits
+  in the window that touch only process paths (`cycles/`, `reviews/`,
+  `promotions/`, `specs/`, `backlog.md`, `sprints/`, `discovery/`). It
+  reads every commit in the window, not the population below, and is a
+  report line only: no budget key, never gated. A high share is what the
+  squash at merge (`fde-review`) removes from main's history.
 
 ## What is measured — one population, and you declare it
 
