@@ -32,3 +32,4 @@ another posts `blocked-on` and waits for its merge.
 - 2026-09-29 RECON-GATE claim runtime/verify.py, runtime/graph.py, runtime/fde_lib.py, runtime/status.py (+ bin/fde), skills/fde-backlog, tests for them — fixes 029 F1–F3, 030 F1–F4
 - 2026-09-29 FWD-032 takes 028 F2 (guard: adversarial and spec write backlog.md, every role writes board.md) — guard.py is in its claim
 - 2026-09-29 RECON-TEXT decided merged 08c6a7b: overrun is a board fact, never a re-split at review; rounds XS/S 1, M/L full+delta, demand review 1; plan.md and promotion at every size; state: owners named; walkthrough whenever a front demand exists
+- 2026-09-29 RECON-GATE decided merged b327188: any <PREFIX>-<n> demand id; I4 needs a real ISO date and a non-placeholder criterion; tolerant plan table; draft items, → C-n marks, double-grouping warning and next ids in status JSON; headlabs byte-identical
