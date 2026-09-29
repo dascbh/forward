@@ -194,3 +194,10 @@ class TestOneGoalPerDemand(unittest.TestCase):
         self.assertIn("`[review] max_findings` (default 5)", text)
         self.assertIn("`[review] max_findings` (default 5)",
                       read("agents/fde-adversarial.md"))
+
+
+class TestBacklogPanelIsDocumented(unittest.TestCase):
+    def test_the_skill_points_the_owner_to_the_panel(self):
+        text = read("skills/fde-backlog/SKILL.md")
+        self.assertIn("`python3 bin/fde/backlog.py`", text)
+        self.assertIn("copies\n`/fde-backlog specify C-<n>`".replace("\n", " "), text)

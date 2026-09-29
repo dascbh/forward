@@ -2,6 +2,7 @@
 
 date: 2026-09-29
 status: accepted (C-12 signed off 2026-09-29)
+amended: 2026-09-29 — ADR-0023 adds a curses panel run in the owner's own terminal; this printed panel stays the view inside the conversation
 realized by: FWD-034 (back), FWD-035 (front)
 
 ## Context

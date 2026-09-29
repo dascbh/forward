@@ -76,7 +76,10 @@ class TestSkillRules(unittest.TestCase):
 
     def test_skill_is_a_procedure_not_a_wrapper(self):
         self.assertIn("there is no script behind it", read(SKILL))
-        self.assertFalse((ROOT / "runtime/backlog.py").exists())
+        # kernel ADR-0023: the curses panel is the owner's tool in their own
+        # terminal; the agent's procedure stays script-free
+        self.assertTrue((ROOT / "docs/adr/0023-an-interactive-panel-in-the-"
+                                "owners-terminal.md").exists())
 
     def test_installed_copy_is_identical(self):
         self.assertEqual(read(SKILL), read(COPY))

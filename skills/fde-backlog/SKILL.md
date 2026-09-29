@@ -18,6 +18,15 @@ and planned cycles show in full, with their demands
 and artifacts. Drafts show with their items. Ended cycles and loose
 demands show one line each.
 
+## 1b. The interactive panel
+
+In a terminal of their own, the owner can run `python3 bin/fde/backlog.py`:
+the same data as a keyboard panel (j/k, space to select, enter to open,
+`/` to search, `?` for every key). It writes the mechanical actions itself
+— group, merge, discard, restore, reorder, edit, undo — and copies
+`/fde-backlog specify C-<n>` for a draft, the one action that needs you.
+After the owner used it, re-read backlog.md and cycles/ before acting.
+
 ## 2. Offer actions
 
 After the panel, list the actions in plain text, one line each. Never
