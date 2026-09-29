@@ -306,6 +306,8 @@ tools; installed into the project for Claude Code):
   add/delete ratio, batch size, against an opt-in `[erosion]` budget
 - `fde-survey` — architectural reconnaissance of a system nobody
   documented: the map a team needs when it takes over, evidence-labeled
+- `fde-status` — where the project stands: the open cycle with its done
+  progress, closed cycles, and the backlog (`python3 bin/fde/status.py`)
 - `fde-verify` — the gate: `python3 bin/fde/verify.py --all` (same as CI)
 - `fde-doctor` — what is actually enforced vs. merely suggested
 - `fde-sync` — regenerate after config, stack, or tool changes
