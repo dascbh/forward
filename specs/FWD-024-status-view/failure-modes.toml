@@ -1,0 +1,57 @@
+# Failure modes — FWD-024 cycle and backlog view. Declared before any
+# code exists (I4).
+
+[meta]
+demand_id = "FWD-024"
+date = "2026-09-29"
+spec = "specs/FWD-024-status-view/spec.md"
+
+[[failure_mode]]
+id = "FM-1"
+title = "an open cycle is shown as closed or vice versa"
+attribute = "functional_correctness"
+severity = "high"
+trigger = "`closed:` or `abandoned:` read from the body instead of the header lines"
+consequence = "the owner believes a cycle is finished when it is not"
+detection = "tests with header-only and body-mention cases"
+requirements = ["R1"]
+
+[[failure_mode]]
+id = "FM-2"
+title = "a second open cycle goes unreported"
+attribute = "functional_correctness"
+severity = "high"
+trigger = "only the newest cycle is inspected"
+consequence = "the one-open-cycle rule is broken silently"
+detection = "test with two open cycle files"
+requirements = ["R2"]
+
+[[failure_mode]]
+id = "FM-3"
+title = "C-1 matches C-10"
+attribute = "functional_correctness"
+severity = "medium"
+trigger = "substring match for cycle tokens in backlog lines"
+consequence = "the open cycle claims backlog lines it did not produce"
+detection = "test with C-1 and C-10 lines"
+requirements = ["R1"]
+
+[[failure_mode]]
+id = "FM-4"
+title = "malformed input crashes the report"
+attribute = "reliability_resilience"
+severity = "medium"
+trigger = "missing directory, empty or non-UTF-8 file, absent sections"
+consequence = "the owner gets a traceback instead of a status"
+detection = "tests per malformed shape"
+requirements = ["R4"]
+
+[[failure_mode]]
+id = "FM-5"
+title = "the view becomes a gate"
+attribute = "maintainability"
+severity = "medium"
+trigger = "a non-zero exit on content, or a call from verify.py"
+consequence = "repeats FWD-021"
+detection = "test: every content case exits 0; review: verify.py untouched"
+requirements = ["R2"]
