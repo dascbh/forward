@@ -1,0 +1,94 @@
+# Adversarial review report
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-032"
+context_policy = "artifact_only"   # I2: no builder context
+isolation_mode = "worktree"
+rounds_planned = 1
+round = 1
+commit = "940119f"
+agent_transcript = "agent-a7b78dc6152c91c01"
+probed = [
+  "git log -1 = abc15c5 (C-5 board, a descendant of 940119f); the artifact is read at HEAD",
+  "spec: specs/FWD-032-coherence/spec.md, discovery/sharpen-2026-09-29.md (15 inconsistencies), cycles/C-5/plan.md (A8, threat model), docs/adr/0019-backlog-cycle-demand.md",
+  "git show 940119f over runtime/guard.py, spec/roles.toml, spec/invariants.toml, SETUP.md, README.md, ADR-0017, agents/fde-promotion.md, templates/findings.template.toml, tests/mirror.toml",
+  "guard matrix: bin/fde/guard.py copied into a scratch project, 6 roles x 17 paths (backlog.md, cycles/C-5/{board,plan,deploy,review,promotion}.md, cycles/C-4.md, promotions/, specs/**/acceptance.md, specs/**/spec.md, reviews/, cycles/C-5/x/board.md, walkthroughs/, discovery/, docs/adr/, src/, sprints/) with agent_name in the payload; every result matches roles.toml write_scope and the cycle-file split",
+  "cmp: spec/roles.toml = .fde/spec/roles.toml, spec/invariants.toml = .fde/spec/invariants.toml, templates/cycle/ = .fde/templates/cycle/, templates/findings.template.toml = .fde/templates/findings.template.toml, runtime/guard.py = bin/fde/guard.py",
+  "verify.py KNOWN_GATES: every invariants.toml verifiable_by names a real gate; gate_adversarial emits I3",
+  "git grep for each inconsistency's phrasing across AGENTS.md, templates/AGENTS.md.template, skills/, agents/, README.md, SETUP.md, spec/",
+  "python3 -m unittest discover -s tests: 553 OK",
+]
+notes = [
+  "Guard: fde-spec, fde-adversarial and fde-promotion are blocked on an old single-file cycle (cycles/C-4.md), since _cycle_file returns '' for it. AGENTS says such a cycle 'finishes under the rules it opened with'. Today only the orchestrator writes those files, so this is latent.",
+  "Guard: fde-walkthrough-evaluator has no ALLOWED entry, so the guard lets it write anywhere. roles.toml gives it write_scope = [], and its tools list has no write tool, so this is not reachable today.",
+  "ADR-0018 (lines 58, 86) still states the ~800-line split and the 400-line diff. ADR-0019 rule 3 replaces both, but ADR-0018's status names no successor, which ADR-0017 now does.",
+  "AGENTS.md ## Voice still names 'promotions/' as where the record lives. That path is legacy now.",
+  "#10, second half ('no ADR records FWD-023'): only ADR-0019 rule 2 ('replaces the 0.17.0 wording') covers it, and it does not name FWD-023. This is acceptable as 'no longer applies'.",
+  "SETUP §6 step 5 and fde-sync copy templates/cycle/ as a directory. A template file removed upstream is never deleted from a client's .fde/templates/cycle/.",
+  "The findings template's blocking comment says 'inside the spec's threat model'. The threat model is plan.md's now (ADR-0019), and fde-adversarial's 'What blocks' says both.",
+  "tests/test_coherence.py test_role_files_list_the_spec_sections pins each agent's 'Outputs (write only here)' to roles.toml `outputs`, not `write_scope`. That makes F1 a green test.",
+  "#1, #2, #4, #8, #9 (key and path), #11, #12 (invariants), #13, #14, #15: resolved at HEAD by probe or grep.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "maintainability"
+severity = "high"
+probe = "inconsistency #7 re-checked: write scope per role in spec/roles.toml vs AGENTS.md ## Roles vs agents/*.md"
+evidence = """
+roles.toml write_scope and AGENTS.md ## Roles now agree, and the guard enforces them (matrix probe). The role files do not.
+agents/*.md and .claude/agents/*.md render roles.toml `outputs` under the heading '## Outputs (write only here)':
+- fde-implementation: 'write only here' lists src/**, tests/**, evals/**. write_scope adds infra/**, backlog.md and cycles/*/board.md. infra/** is the very example the discovery cited for #7.
+- fde-adversarial: lists reviews/<id>/findings.toml and cycles/C-<n>/review.md, with no backlog.md. Yet 'What blocks' in the same file sends a non-blocking finding to the backlog.
+- fde-spec: lists plan.md, deploy.md and spec.md, with no discovery/**, backlog.md or board.md.
+A cooperative role agent obeying 'write only here' never posts its claim on cycles/C-<n>/board.md. That is the coordination A5 and FM2 rely on. It also never writes the backlog line that ADR-0019 rules 1-2 require. So the contradiction has moved from AGENTS.md into the role files. That is inside the plan's threat model (cooperative agents that contradict each other), and it breaks A8.
+"""
+blocking = true   # high, inside the threat model, breaks A8 (#7 not resolved) and weakens A5/FM2
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "inconsistencies #3 and #5 re-checked: which roles run at M/L, against the role catalog and the example beside the rule"
+evidence = """
+AGENTS.md:123-125 (and templates/AGENTS.md.template:107-109, skills/fde-triage/SKILL.md:84,107-109) says 'M adds architecture ... so M and L run all five roles'. The example on the next line is 'FORWARD: M — spec + impl + adversarial(2r) + promotion', which leaves architecture out. It also shows adversarial at 2 rounds, while the demand review is 'always 1 round' (fde-review) and only the cycle review gets full + delta.
+spec/roles.toml defines six roles, and AGENTS.md ## Roles and README.md:179 ('The six roles') list six. So 'all five' still contradicts the catalog: 'six vs five' was renamed, not resolved.
+An agent that copies the example announces and runs M without architecture, so the ADR that M owes has no author. That is #3 again.
+"""
+blocking = false  # medium; the rule sentence is right, the example and the count mislead
+
+[[finding]]
+id = "F3"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "inconsistency #9 re-checked: the findings template, now installed into every client, against the budget rules"
+evidence = """
+templates/findings.template.toml:8, installed by SETUP §6 step 5 at .fde/templates/findings.template.toml:
+  rounds_planned = {{ROUNDS_PLANNED}}   # the size's budget: XS/S 1, M 2, L 3 — never extended
+fde-review says 'A demand review is always 1 round' and gives cycle rounds as XS/S 1 and M/L 2 (full, delta). No surface has L at 3 any more.
+FWD-032 edited this file (the `backlog` key) and made it the review's starting point in clients. Every client demand review at M/L therefore starts from a template telling the reviewer to plan 2 or 3 rounds. That contradicts ADR-0019 rule 3 and ADR-0018, and it is exactly the 'one more round' loop the budget forbids.
+"""
+blocking = false  # medium; contradiction inside the artifact the demand installed
+
+[[finding]]
+id = "F4"
+attribute = "maintainability"
+severity = "medium"
+probe = "inconsistency #6 re-checked: budget spent with a blocker open, what happens and where it is recorded"
+evidence = """
+AGENTS.md:188-190: 'Budget spent with a blocker open → replan (`## Cycle`): the user narrows, declares the limit, or pauses'. The ## Cycle section it points to (AGENTS.md:241-268) defines replan only as 'a fact that invalidates the demand's own ADR or criteria'. It never names narrow, declare or pause, and it gives no place to record the choice.
+skills/fde-review/SKILL.md:50-53: 'the cycle replans and the owner picks one ... fde-promotion records the choice in promotion.md; plan.md stays frozen.' A replan that leaves plan.md frozen is self-contradictory. And promotion.md is written only at the cycle close, so a demand's 1-round budget spent mid-cycle has no artifact to record the choice until then.
+The two surfaces still give different answers. #6 has moved rather than been resolved (A8).
+"""
+blocking = false  # medium; cooperative agents get two procedures, neither loses data
+
+[[finding]]
+id = "F5"
+attribute = "maintainability"
+severity = "low"
+probe = "inconsistency #12 class re-checked: instructions citing an `fde` CLI that does not exist"
+evidence = """
+invariants.toml was fixed to 'python3 bin/fde/verify.py --gate ...'. But the FDE-KERNEL:GENERATED marker that SETUP.md:167 puts at the top of every generated file still says 'Regenerate with `fde sync`', and SETUP.md:17 and :271 repeat it. This review's own role prompt carries it too. No `fde` executable exists: bin/fde/ is a directory of scripts, and regeneration is the fde-sync skill re-running SETUP §6-8. This is the same defect #12 named ('an `fde verify` CLI that does not exist'), left in the most-read header of the kernel.
+"""
+blocking = false  # low
