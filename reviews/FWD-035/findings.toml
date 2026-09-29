@@ -1,0 +1,51 @@
+# Code review report (light pass)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-035"
+kind = "code"
+context_policy = "artifact_only"
+isolation_mode = "artifact_and_spec"
+rounds_planned = 1
+round = 1
+commit = "d05a4ad"
+probed = [
+  "spec.md read against the diff of runtime/status.py, tests, skills, README",
+  "cmp runtime/status.py bin/fde/status.py: identical; diff -r skills/fde-status and skills/fde-backlog against .claude/skills copies: identical",
+  "python3 -m unittest tests.test_status tests.test_backlog_panel: 85 tests OK",
+  "live: --panel on this repo (exit 0, five sections); --panel --demand rejected by argparse (exit 2); fixture with a demand pointing at a missing cycle",
+]
+notes = [
+  "Five sections, rendered only from as_json data (render_panel takes the dict), read-only, exit 0 on content. Conforms to ADR-0020. Pipes and leading block markers are escaped by _md; tests cover hostile text and a line bound.",
+  "README and both skills updated in the same change.",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "medium"
+probe = "a demand whose spec says 'cycle: C-99' when no C-99 exists"
+evidence = """
+Fixture: specs/FWD-1/spec.md with 'cycle: C-99'. The panel prints 'Demands (1, 0 loose)' and lists nothing: the demand is not loose (so absent from the Demands section), and no cycle carries it (so absent from Cycles). The demand exists in the count and is visible nowhere. Spec says the Demands section lists loose demands and linked ones show under their cycle; a dangling link falls between. Root cause is in FWD-034 F2; the panel should at least list demands whose cycle is not in the cycle list.
+"""
+blocking = false
+
+[[finding]]
+id = "F2"
+attribute = "maintainability"
+severity = "low"
+principle = "readability: name what a helper returns"
+evidence = """
+_promotion_cell cuts the decision at the first ' — ' and to 40 characters, and the panel shows only that; `d and d['promotion']` and `layer or (d and d['layer'])` mix None, dict and str in one expression. Works, but the nested short-circuit chains in _cycle_full and _promotion_cell are hard to read; a small helper returning '' for a missing demand would flatten them.
+"""
+blocking = false
+
+[[finding]]
+id = "F3"
+attribute = "usability_accessibility"
+severity = "low"
+principle = "state what is not shown"
+evidence = """
+The Demands section prints a fixed sentence and only loose demands, so with zero loose demands the section is the sentence and nothing else, with no 'none' line (Backlog prints '(no backlog.md)' and Cycles prints '(no cycles)' for the same case). Linked demands of running/planned cycles are shown in tables, but of ended cycles only as a count; the pointer to `--demand <id>` does not say how to find those ids.
+"""
+blocking = false

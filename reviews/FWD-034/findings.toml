@@ -1,0 +1,52 @@
+# Code review report (light pass)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "FWD-034"
+kind = "code"
+context_policy = "artifact_only"
+isolation_mode = "artifact_and_spec"
+rounds_planned = 1
+round = 1
+commit = "30488e3"
+probed = [
+  "spec.md read against the diff of runtime/status.py, tests/test_status.py",
+  "cmp runtime/status.py bin/fde/status.py: identical",
+  "python3 -m unittest tests.test_status tests.test_backlog_panel: 85 tests OK",
+  "live: --demand FWD-99 exits 2 with a stderr message; --demand '' exits 0",
+  "scratch fixture: specs/FWD-1/spec.md with 'cycle: C-99' (no such cycle)",
+]
+notes = [
+  "Diff stays inside the spec: demands inventory, artifact_paths, --demand. Read-only; no write calls added. Exit 2 on unknown id, 0 on content, as ADR-0020 requires.",
+  "Malformed findings.toml is named in summary.error, never raised (spec point covered by tests).",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "low"
+probe = "--demand with an empty string"
+evidence = """
+`python3 bin/fde/status.py --demand ""` exits 0 and prints the full status, because main() tests `if args.demand:` (truthiness). The spec says a bad id exits 2; an empty id is a bad id and is silently treated as no argument.
+"""
+blocking = false
+
+[[finding]]
+id = "F2"
+attribute = "functional_correctness"
+severity = "low"
+probe = "spec whose cycle: line names a cycle with no file"
+evidence = """
+Fixture specs/FWD-1/spec.md with 'cycle: C-99' and no cycles/C-99: load_demands sets cid = 'C-99', loose = False, cycle_source = 'spec', with no warning. The demand is neither loose nor attached to any existing cycle. Spec R (link, else loose) does not say what a dangling link is; the data says linked, so a consumer (the FWD-035 panel) can show it nowhere (see FWD-035 F1). A problems.append warning like the duplicate-id one would name it.
+"""
+blocking = false
+
+[[finding]]
+id = "F3"
+attribute = "maintainability"
+severity = "low"
+principle = "readability: one reader, small helpers"
+evidence = """
+load_findings reads and parses reviews/<id>/findings.toml once inside load_demands (summary) and again in main() for --demand (findings list). Two parses of the same file per --demand call, and load_demands discards the findings list (`review, _ =`). Harmless at this scale; returning both from load_demands or caching would remove the double read.
+"""
+blocking = false
