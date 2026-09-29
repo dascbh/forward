@@ -13,3 +13,6 @@ another posts `blocked-on` and waits for its merge.
 - 2026-09-29 C-5 decided mirror copies (.claude/**, bin/fde/**, .fde/spec/**) follow their source's owner
 - 2026-09-29 FWD-027 decided merged 180548d (ff); main --all red only on I4 (per-demand acceptance.md), pre-existing since 4f25730, cleared by FWD-029
 - 2026-09-29 FWD-030 claim skills/fde-backlog/**, tests/test_backlog_panel.py; contract: status.py --format json (FWD-027)
+- 2026-09-29 FWD-028 decided merged 181ed34 (rebased); guard: inside cycles/C-<n>/ each role writes only its file, board.md open to all; promotion also writes backlog.md
+- 2026-09-29 FWD-028 proposes FWD-026: AGENTS.md ## Roles must match roles.toml scopes (cycles/**)
+- 2026-09-29 FWD-028 proposes FWD-032/033: fde-review Budget still "never reopens the demand" / "the user picks one" (pinned by tests); walkthrough and design descriptions over 40 words; fde-design "Phases scale with triage size"
