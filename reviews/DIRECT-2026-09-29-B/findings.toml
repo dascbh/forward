@@ -1,0 +1,68 @@
+# Code review report (light pass)
+# This file is written by the adversarial role and by no one else.
+
+[meta]
+demand_id = "DIRECT-2026-09-29-B"
+kind = "code"
+context_policy = "artifact_only"
+isolation_mode = "artifact_and_spec"
+rounds_planned = 1
+round = 1
+commit = "bd38a2e"
+agent_transcript = "agent-a0ef459a6fa2e5ae7"
+probed = [
+  "commits 5db15bc, b0e71a5, 6997671 and bd38a2e read in full against their commit messages (no spec)",
+  "python3 bin/fde/verify.py --status: tree 9a46a712, gate passed, suite not recorded (suite not rerun)",
+  "bin/fde vs runtime for verify.py and erosion.py identical; skills/ vs .claude/skills/ identical; agents/ vs .claude/agents/ differ only by the generated header",
+]
+notes = [
+  "5db15bc: _record runs after report() and swallows every exception, so it cannot change the exit code; --status exits 0 on a missing record and searches other worktrees; carrying the suite block over on the same tree is by design.",
+  "b0e71a5: process_only_ratio reads the last N commits of the whole repository, not the [gate] population, and says so in a code comment; acceptable for a report-only line.",
+  "6997671: instruction plus a test pin only; mirror copies agree.",
+  "bd38a2e: two other worktrees clashing with each other, not with this tree, are not reported (scope is this tree vs others); `here` in gate_backlog_ids only decides whether the pass line prints.",
+  "The suite was not recorded at this tree, so the suite result is unread here (not rerun per review rules).",
+]
+
+[[finding]]
+id = "F1"
+attribute = "functional_correctness"
+severity = "high"
+probe = "reading same_item in bd38a2e: casefold, rstrip of ' .…(' then long_.startswith(short), with no word boundary and no minimum length"
+evidence = """
+The prefix rule is a raw string startswith. Concrete cases that pass BL-IDS although they are two items: tree backlog `- B-12 Fix` versus another worktree `- B-12 Fixture cleanup` (prefix of a word); `- B-12 Add tests` versus `- B-12 Add tests for erosion` (a different item that took the same id in a parallel checkout); a title that is one common word ('Add', 'Update') after the evidence label and the ' → C-n' mark are stripped versus any item starting with it. Two parallel checkouts allocating the same next id is exactly what the gate exists to catch, and a short or generic title makes it silent (a hidden failure, not a false alarm).
+"""
+blocking = true
+backlog = false
+
+[[finding]]
+id = "F2"
+attribute = "reliability_resilience"
+severity = "medium"
+principle = "REL-1"
+evidence = """
+Records are keyed by `git write-tree` (the index) but the gate reads the working tree, untracked files included. worktree_matches_index uses `git diff --quiet`, which ignores untracked files, and --status prints only a trailing note when it is False. A run with an untracked or unstaged change is stored under the index tree's hash and read back, possibly from another worktree, as 'gate: passed' for that tree.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F3"
+attribute = "maintainability"
+severity = "medium"
+principle = "MNT-10"
+evidence = """
+record_run merges into the tree's existing record, so a later `--all` without --record-suite keeps the earlier suite block and refreshes only `gate`; if the working tree changed in between (worktree_matches_index is overwritten by the latest run), the suite line can describe different files than the gate line beside it, and --status prints both as one record. At this SHA --status shows 'suite: not recorded', so the roles now told to read instead of rerun have no suite fact for the tree under review.
+"""
+blocking = false
+backlog = true
+
+[[finding]]
+id = "F4"
+attribute = "observability"
+severity = "low"
+principle = "OBS-3"
+evidence = """
+process_only_ratio's path list (cycles/, reviews/, promotions/, specs/, backlog.md, sprints/, discovery/) is wider than the merge rule's sentence (reviews/, cycles/, promotions/, backlog.md), so the reported 0.56 is not the quantity the rule squashes; and after squash merges the ratio falls without overhead having fallen. Report-only, never gated.
+"""
+blocking = false
+backlog = true
