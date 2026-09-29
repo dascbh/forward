@@ -271,3 +271,14 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertTrue((ROOT / "tests/prose.py").exists())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 23, 0))
+
+    def test_kernel_version_ships_the_bmad_tracks(self):
+        # BMAD-method tracks (owner decision, direct, 2026-09-29): review
+        # triage, process knobs, retired names and migrations, run records
+        # with their instructions, and kernel ADR-0022 reach clients only
+        # through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "docs/adr/0022-a-demand-is-one-goal.md").exists())
+        self.assertTrue((ROOT / "spec/retired.toml").exists())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 24, 0))
