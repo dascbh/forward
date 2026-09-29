@@ -1256,5 +1256,81 @@ class TestCycleReviewC12(DemandsCase):
         self.assertEqual(dm, ["- FWD-050 · no cycle (C-99 not in cycles/) · "
                               "not reviewed · promotion —"])
 
+
+class TestPanelPolish(DemandsCase):
+    """FWD-042 / A8: one findings parse per --demand (B-45), readable panel
+    helpers (B-46), a promotion cell that keeps bold and cuts at a word
+    (B-47)."""
+
+    def test_b45_demand_parses_its_findings_once(self):
+        import contextlib
+        import importlib.util
+        import io
+        from unittest import mock
+        spec = importlib.util.spec_from_file_location("status_fwd042", SCRIPT)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        seen: list[str] = []
+        real = mod.tomllib.loads
+
+        def counting(text, *a, **k):
+            seen.append(text)
+            return real(text, *a, **k)
+        target = (self.root / "reviews/FWD-030/findings.toml").read_text()
+        buf = io.StringIO()
+        with mock.patch.object(mod.tomllib, "loads", counting), \
+                contextlib.redirect_stdout(buf):
+            code = mod.main(["--root", str(self.root), "--demand", "FWD-030"])
+        self.assertEqual(code, 0)
+        self.assertEqual(seen.count(target), 1, "FWD-030's findings.toml parsed "
+                         f"{seen.count(target)} times")
+        self.assertIn("review:", buf.getvalue())
+        with mock.patch.object(mod.tomllib, "loads", counting), \
+                contextlib.redirect_stdout(io.StringIO()) as js:
+            mod.main(["--root", str(self.root), "--demand", "FWD-030",
+                      "--format", "json"])
+        demand = json.loads(js.getvalue())["demand"]
+        self.assertEqual([f["id"] for f in demand["findings"]],
+                         [f["id"] for f in json.loads(run(
+                             self.root, "--demand", "FWD-030", "--format", "json"
+                         ).stdout)["demand"]["findings"]])
+        self.assertTrue(demand["findings"])
+        # the panel JSON keeps its shape: no findings list on each demand
+        self.assertNotIn("findings", {x["id"]: x for x in self.load()["demands"]}["FWD-030"])
+
+    def test_b46_no_nested_and_subscript_in_the_helpers(self):
+        src = SCRIPT.read_text()
+        start = src.index("# --- the panel")
+        helpers = src[src.index("def _promotion("):src.index("def load_demands(")] \
+            + src[start:]
+        bad = [l.strip() for l in helpers.splitlines()
+               if re.search(r"\b(\w+) and \(?\1\[", l)]
+        self.assertEqual(bad, [])
+
+    def test_b47_bold_decision_is_not_escaped_and_cuts_at_a_word(self):
+        self.write("specs/FWD-060/spec.md", "# FWD-060\n")
+        self.write("specs/FWD-060/acceptance.md", "date: 2026-08-09\n")
+        self.write("promotions/FWD-060/decision.md",
+                   "decision: **promovido condicionado** — o endpoint está no ar\n")
+        self.write("specs/FWD-061/spec.md", "# FWD-061\n")
+        self.write("specs/FWD-061/acceptance.md", "date: 2026-08-09\n")
+        self.write("promotions/FWD-061/decision.md", "decision: **em dois estágios, "
+                   "decididos separadamente porque carregam risco diferente.**\n")
+        self.write("specs/FWD-062-x/spec.md", "# FWD-062\n\ncycle: C-3 · layer: back\n")
+        dm = {l.split(" · ")[0]: l for l in section(panel(self.root), "Demands")}
+        self.assertTrue(dm["- FWD-060"].endswith("· promotion **promovido condicionado**"),
+                        dm["- FWD-060"])
+        self.assertTrue(dm["- FWD-061"].endswith(
+            "· promotion **em dois estágios, decididos…**"), dm["- FWD-061"])
+        self.assertNotIn("\\*", "\n".join(dm.values()))
+        # the cycle table keeps bold unescaped too
+        self.write("cycles/C-3/promotion.md", "cycle: C-3\ndecision: **promote**\n\n"
+                   "## Criteria\n\n- A1 — ok — met\n")
+        cy = section(panel(self.root), "Cycles")
+        self.assertIn("| FWD-030 | back | 1 finding recorded, none blocking | **promote** |", cy)
+        # plain-text drill-down: same cell
+        self.assertIn("promotion **promote**", run(self.root, "--cycle", "C-3").stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -85,14 +85,14 @@ def _read(path: Path) -> str:
         return ""
 
 
-def _clip(text: str) -> str:
-    """One line of at most WIDTH characters, cut at a word boundary."""
+def _clip(text: str, width: int = WIDTH) -> str:
+    """One line of at most `width` characters, cut at a word boundary."""
     text = " ".join(text.split())
-    if len(text) <= WIDTH:
+    if len(text) <= width:
         return text
-    cut = text[:WIDTH - 1]
+    cut = text[:width - 1]
     space = cut.rfind(" ")
-    if space >= WIDTH // 2:
+    if space >= width // 2:
         cut = cut[:space]
     return cut.rstrip(" ,;:·—–-") + "…"
 
@@ -742,10 +742,12 @@ def _promotion(root: Path, did: str, cycle: Cycle | None):
     return {"path": _rel(root, p), "decision": _clip(_decision(p))}
 
 
-def load_demands(root: Path, cycles: list[Cycle], problems: list[str]) -> list[dict]:
+def load_demands(root: Path, cycles: list[Cycle], problems: list[str],
+                 findings: dict[str, list[dict]] | None = None) -> list[dict]:
     """Every `specs/<id>/` (bare or `<id>-<slug>`), in id order, with its
     cycle link, review summary and promotion. Old layout: the directory
-    holds acceptance.md (before kernel ADR-0019)."""
+    holds acceptance.md (before kernel ADR-0019). Each demand's findings
+    go to `findings` by id when given, so no caller parses them again."""
     d = root / "specs"
     try:
         entries = sorted(p for p in d.iterdir() if p.is_dir()
@@ -784,7 +786,9 @@ def load_demands(root: Path, cycles: list[Cycle], problems: list[str]) -> list[d
                 dangling = cm.group(1).upper()
                 problems.append(f"specs/{p.name}/spec.md links {dangling}, which is not "
                                 f"in cycles/ — {did} is listed as loose")
-        review, _ = load_findings(root, did)
+        review, rows = load_findings(root, did)
+        if findings is not None:
+            findings[did] = rows
         follows = []
         for n in ADR_REF.findall(fields.get("follows", "")):
             if f"ADR-{n}" not in follows:
@@ -889,13 +893,17 @@ BLOCK_START = re.compile(r"^(?:[#>\-+*=<`~_]|\d+[.)])")
 DISCARD = re.compile(r"\s*[—–-]*\s*discarded\s*:\s*", re.IGNORECASE)
 
 
-def _md(text, full: bool = False) -> str:
+def _md(text, full: bool = False, inline: bool = False) -> str:
     """File text made safe for one markdown line: whitespace collapsed,
     clipped (unless `full`), table pipes escaped, a leading block marker
-    (heading, quote, list, fence, html) escaped (FM1)."""
+    (heading, quote, list, fence, html) escaped (FM1) — unless `inline`:
+    text that never starts a line keeps its first character, so a bold
+    `**decision**` stays bold."""
     t = " ".join(str(text or "").split()) if full else _clip(str(text or ""))
     t = t.replace("\\|", "|").replace("|", "\\|")
-    return "\\" + t if BLOCK_START.match(t) else t
+    if inline or not BLOCK_START.match(t):
+        return t
+    return "\\" + t
 
 
 def _discarded(heading: str) -> bool:
@@ -927,12 +935,22 @@ def _n(k: int, word: str) -> str:
     return f"{k} {word}{'' if k == 1 else 's'}"
 
 
+PROMOTION_CELL = 40
+
+
 def _promotion_cell(d: dict | None) -> str:
-    pro = d and d["promotion"]
-    if not pro:
+    """The decision up to its first dash, cut at a word; a bold the cut
+    leaves open is closed after the ellipsis."""
+    if d is None or not d["promotion"]:
         return "—"
-    first = re.split(r"\s[—–]\s", pro["decision"] or "")[0].strip()
-    return first[:40] or "(no decision: line)"
+    decision = d["promotion"]["decision"] or ""
+    first = re.split(r"\s[—–]\s", decision)[0].strip()
+    if not first:
+        return "(no decision: line)"
+    cell = _clip(first, PROMOTION_CELL)
+    if cell.count("**") % 2:
+        cell += "**"
+    return cell
 
 
 def panel_counts(data: dict) -> dict:
@@ -1020,8 +1038,10 @@ def _cycle_full(c: dict, by_id: dict[str, dict]) -> list[str]:
                 "| id | layer | review | promotion |", "|---|---|---|---|"]
         for did, layer in rows:
             d = by_id.get(did.upper())
-            out.append(f"| {_md(did)} | {_md(layer or (d and d['layer'])) or '—'} | "
-                       f"{_review_cell(d)} | {_md(_promotion_cell(d))} |")
+            if not layer and d is not None:
+                layer = d["layer"]
+            out.append(f"| {_md(did)} | {_md(layer) or '—'} | "
+                       f"{_review_cell(d)} | {_md(_promotion_cell(d), inline=True)} |")
         out.append("")
     out.append(f"- artifacts: {_md(', '.join(c['artifact_paths'])) or '—'}")
     return out + [""]
@@ -1094,7 +1114,7 @@ def render_panel(data: dict) -> list[str]:
     out.append("")
     for d in loose:
         out.append(f"- {_md(d['id'])} · {_md(_loose_label(d))} · {_review_cell(d)} · "
-                   f"promotion {_md(_promotion_cell(d))}")
+                   f"promotion {_md(_promotion_cell(d), inline=True)}")
 
     out += ["", f"## Discarded ({k['discarded']})", ""]
     for s in (backlog or {}).get("sections", []):
@@ -1141,7 +1161,8 @@ def main(argv=None) -> int:
     cycles = load_cycles(root, problems)
     backlog = load_backlog(root, problems)
     nxt = next_ids(root, cycles)
-    demands = load_demands(root, cycles, problems)
+    found: dict[str, list[dict]] = {}
+    demands = load_demands(root, cycles, problems, found)
 
     if args.cycle is not None:  # an empty id is a bad argument, not no argument
         match = [c for c in cycles if c.id.lower() == args.cycle.strip().lower()]
@@ -1160,7 +1181,7 @@ def main(argv=None) -> int:
         if not match:
             print(f"status: no demand {args.demand!r} in specs/", file=sys.stderr)
             return 2
-        _, findings = load_findings(root, match[0]["id"])
+        findings = found.get(match[0]["id"], [])
         if args.format == "json":
             return emit_json({"warnings": warnings(cycles, backlog, problems),
                               "demand": dict(match[0], findings=findings)})
