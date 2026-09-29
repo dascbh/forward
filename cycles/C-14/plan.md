@@ -1,37 +1,128 @@
-# C-14
-
-state: draft
+cycle: C-14
+state: planned
+date: 2026-09-29
+size: L
 objective: clear the backlog — every item still needed after 0.21.0, starting with AGENTS.md as a skeleton and the detailed rules in skills
+signed-off:
+
+<!-- Triage: surfaces 3 (instruction layer, runtime/gate, client install)
+· public · reversible · ~900 production lines across six demands →
+3 + 0 + 0 + 2 = 5 → M by score. Taken as L: 30 items, 6 demands, and
+the instruction rewrite touches every client (tie → larger). Plan
+review (adversarial, kernel ADR-0021) before sign-off; each demand is
+code-reviewed, except FWD-037 (the rewrite of every instruction file,
+over ~300 lines), which gets adversarial review (the risk rule); cycle
+review full + delta. -->
 
 ## Items
 
-- B-53 owner decision — AGENTS.md keeps only the loop's skeleton and a pointer per step; detailed rules (sizing table, RULE lane, review modes, cycle states, blocker path, deploy order, backlog format) move into their skills (fde-triage, fde-review, fde-backlog, fde-scrum), with their verbatim pins moving with them; target: AGENTS.md well under the cap so a new rule never forces trims (resolves B-51; owner, 2026-09-29)
-- B-21 C-2#3 usage-data — the ## Cycle section cites MNT-9 by bare id; a client reading AGENTS.md alone cannot resolve it (review note)
-- B-25 (C-5) usage-data — at XS/S the walkthrough's intended model is compiled by the architecture role, which those sizes do not otherwise plan in (RECON-TEXT note)
-- B-29 (C-5) usage-data — a cycle review's blocker at budget spent goes to the owner (AGENTS.md, fde-review) while kernel ADR-0019 rules 1/7 say only a replan reaches the user; state that this IS a replan (reviews/C-5 delta F1)
-- B-11 Resync before proposing
-- B-48 (C-12) usage-data — prove a reader against a real client (headlabs) before the cycle review, not only against this repo's layout (C-12 F1 was invisible here)
-- B-49 (C-12) usage-data — commit the demand reviews before the cycle review starts, so the cycle reviewer sees them (C-12 F2 was stale)
-- B-40 (C-5) usage-data — the cycle plan template should give a range revert from the last pushed SHA as the rollback of a multi-commit release (reviews/C-5 F4)
-- B-1 Per-demand `sensitive`/`irreversible` in triage
-- B-30 (C-5) usage-data — the promotion template and fde-promotion say met / not met; status.py also settles `declined` and `limit` — align the template and the agent (reviews/C-5 delta F2)
-- B-31 (C-5) usage-data — a blocker fixed inside its demand has no closing record: findings.toml keeps `blocking = true`; add a `fixed_in` / status field so "no blocking finding open" has evidence (reviews/C-5 delta F3)
-- B-39 (C-5) usage-data — a demand can merge without its review; the board's merge line should require the review record (FWD-031 merged unreviewed, caught at promotion)
-- B-50 (C-13) usage-data — the I2 gate reads only files named `findings.toml` (`gate_adversarial`, `rglob("findings.toml")`), so a plan review recorded in `reviews/C-<n>/findings-plan.toml` (kernel ADR-0021) is never checked for `context_policy = "artifact_only"` (FWD-036)
-- B-13 C-1#3 usage-data — gate_scrum crashes when [scrum] is not a table
-- B-34 (C-5) usage-data — `--gate scrum` accepts `goal: not set` and Goal/Date lines under a `##` section; read the header only, as fde_lib.header_lines does (reviews/FWD-031 F1)
-- B-36 (C-5) usage-data — no test stops sprint instructions from returning in agents/ or other skills; widen the retirement pin to every instruction file (reviews/FWD-031 F3)
-- B-37 (C-5) opinion — the `[scrum]` key, the fde-scrum skill and the gate ids no longer match what they do (backlog goal); rename to backlog (reviews/FWD-031 F4)
-- B-32 (C-5) usage-data — clients read "kernel ADR-00NN" but never receive the kernel ADRs; ship them read-only or link them (reviews/C-5 F3 partial)
-- B-38 (C-5) usage-data — clients keep the old config comment "backlog + sprints" across syncs (headlabs fde.config.toml:196) (reviews/FWD-031 F5)
-- B-42 usage-data — under Claude Code auto mode, the classifier blocks the sync's permission merge (SETUP §8.4) and the sync stops half way (kernel_version and permissions left undone); fde-sync should say up front that it writes permissions and tell the user to leave auto mode if blocked (owner report, 2026-09-29)
-- B-12 C-1#2 usage-data — I1's changed() lists files with git diff-tree --name-only without -z, so git-quoted paths (non-ASCII, tab) may miss behavior_paths
-- B-14 C-1#6 usage-data — erosion.py:242 emits a DeprecationWarning (re.split maxsplit positional) during the suite
-- B-15 C-1#14 usage-data — a workflow merge-base for new-branch pushes, so one red commit already on main does not keep full-history runs red (touches ADR-0016's pinned run line)
-- B-16 C-1#15 usage-data — validate() rejecting non-list [gate] paths for every client
-- B-20 C-2#2 usage-data — erosion counts cycles/ churn in clients that declare no [gate] roots (review note)
-- B-27 (C-5) usage-data — I1-REQS reads journey R# tokens only from per-demand acceptance.md; a front demand in the cycle layout (A# criteria in plan.md) is not traced to evals/journeys/ — needs a follow-up in verify.py (FWD-032 note)
-- B-28 (C-5) usage-data — runtime messages still cite bare kernel ADR ids a client cannot resolve: guard.py LEGACY_NOTE "only for a cycle opened before ADR-0019" (pinned by tests/test_coherence.py); instruction texts now say "kernel ADR-00NN" (RECON-C5-TEXT, reviews/C-5 F3)
-- B-45 (C-12) usage-data — `--demand` parses findings.toml twice (code review FWD-034 F3)
-- B-46 (C-12) usage-data — nested `d and d[...]` expressions in status.py's panel helpers are hard to read (code review FWD-035 F2)
-- B-47 (C-12) usage-data — the panel's promotion cell shows a bold decision as `\**promovido**` (the leading `*` escaped as a list marker) and cuts it at 40 characters mid-word (`--panel --root headlabs-platform`, DEM-002, DEM-013)
+- B-53 AGENTS.md keeps the loop's skeleton; detailed rules move into their skills
+- B-21 MNT-9 cited by bare id in `## Cycle`
+- B-25 walkthrough's intended model at XS/S is compiled by a role those sizes do not plan in
+- B-29 a cycle review blocker at budget spent is the owner's call — state it as a replan
+- B-11 resync (fetch, read the log) before proposing a plan for a paused demand
+- B-48 prove a reader against a real client before the cycle review
+- B-49 commit demand reviews before the cycle review starts
+- B-40 the plan template's rollback is a range revert from the last pushed SHA
+- B-1 cycle sizing in sensitive/irreversible projects floors every cycle at M
+- B-30 promotion template and agent know met / declined / limit / not met
+- B-31 a blocker fixed inside its demand leaves a closing record
+- B-39 a demand merges only with its review record
+- B-50 I2 reads every review record, not only files named findings.toml
+- B-13 gate_scrum crashes when [scrum] is not a table
+- B-34 the scrum gate accepts `goal: not set` and Goal/Date outside the header
+- B-36 no test stops sprint instructions from returning
+- B-37 `[scrum]` / fde-scrum renamed to what they are: the backlog
+- B-32 clients receive the kernel ADRs they are pointed to
+- B-38 sync fixes the old "backlog + sprints" config comment
+- B-42 sync says up front it writes permissions; auto mode may block it
+- B-12 I1 file lists with `-z` (git-quoted paths)
+- B-14 erosion DeprecationWarning (re.split maxsplit)
+- B-15 CI merge-base for new-branch pushes
+- B-16 validate() rejects non-list [gate] paths
+- B-20 erosion excludes cycles/ churn when no [gate] roots
+- B-27 I1-REQS traces a front demand's plan criteria to evals/journeys/
+- B-28 runtime messages say "kernel ADR-…"
+- B-45 `--demand` parses findings.toml once
+- B-46 panel helpers readable
+- B-47 panel promotion cell: no escaped bold, cut at a word
+
+## Threat model
+
+Contained: cooperative agents and clients syncing a kernel whose
+instructions and gates change under them. Old layouts, open cycles and
+cycles run under 0.17–0.21 must stay green. Out of scope: hostile input
+beyond what status.py and verify.py already tolerate.
+
+## Acceptance criteria
+
+- **A1 — AGENTS.md is a skeleton.** At most 900 words. It holds one step
+  per stage of backlog → cycle → demand and a pointer to the skill that
+  owns each rule. Every rule removed from it lives verbatim in its skill,
+  and the pins move with it. The loaded text per session shrinks.
+- **A2 — Instructions settle the open wording.** One text each for:
+  - budget spent with a blocker open is a replan (B-29);
+  - resync before proposing (B-11);
+  - prove a reader on a real client, and commit demand reviews before
+    the cycle review (B-48, B-49);
+  - range-revert rollback in the plan template (B-40);
+  - MNT-9 resolvable (B-21);
+  - the walkthrough model's author at every size (B-25).
+- **A3 — Sizing without double counting (B-1).** `sensitive` and
+  `irreversible` stop raising the cycle's size. They act per demand, and
+  only through the risk rule (adversarial review) and the deploy plan's
+  irreversible marks. The owner decides this at the sign-off of this
+  plan.
+- **A4 — Review records close.**
+  - Promotion knows met, declined, limit and not met (B-30).
+  - A fixed blocker records where it was fixed (B-31).
+  - A merge line on the board names the demand's review record (B-39).
+  - I2 checks every review record in reviews/ (B-50).
+- **A5 — The backlog switch is named and strict.** `[backlog]` replaces
+  `[scrum]`, and `[scrum]` is still read as an alias for old clients
+  (B-37). The gate reads the header only, rejects `goal: not set` when
+  the switch is on (B-34), and never crashes on a non-table (B-13). A
+  test stops sprint wording in any instruction file (B-36).
+- **A6 — Sync without surprises.**
+  - Clients get the kernel ADRs read-only at `.fde/adr/` (B-32).
+  - Sync rewrites the old config comment (B-38).
+  - Sync states it writes permissions and tells the user to leave auto
+    mode if blocked (B-42).
+- **A7 — Gates hardened.** Covers B-12, B-14, B-15, B-16, B-20, B-27 and
+  B-28, each with a red-before test. headlabs-platform stays green,
+  read-only.
+- **A8 — Panel polish.** Covers B-45, B-46 and B-47.
+- **A9 — Backlog clear.** Every item above is done or declined in
+  promotion.md. The backlog holds only what this cycle's reviews add.
+- **A10 — Ships.** The suite and `verify.py --all` are green, the
+  version is 0.22.0, and the change is pushed.
+
+## Failure modes
+
+- **FM1:** the skeleton rewrite drops a rule. Detected by the pins
+  moving with their rule (FWD-033's lesson) and by a test that every
+  kernel ADR-0019/0021 key term is reachable from AGENTS.md through its
+  pointer. Meets A1.
+- **FM2:** renaming `[scrum]` turns an old client red. Detected by an
+  alias fixture. Meets A5.
+- **FM3:** shipping ADRs to clients collides with a client's own
+  docs/adr. Detected by a fixture: `.fde/adr/` only. Meets A6.
+- **FM4:** a gate change turns headlabs red. Detected by a read-only run
+  in every gate demand's review. Meets A7.
+- **FM5:** parallel demands edit the same skill. Detected by claims on
+  the board, and by FWD-037 merging first. Meets A1, A2.
+
+## Demands
+
+| id | layer | depends on | what | meets | follows |
+|---|---|---|---|---|---|
+| FWD-037 | back | — | AGENTS.md skeleton (≤ 900 words) with the rules moved verbatim into fde-triage, fde-review, fde-backlog, fde-scrum and fde-spec, pins moved; B-29, B-11, B-48, B-49, B-40, B-21, B-25 wording; B-1 sizing rule — **adversarial review** (risk rule: rewrite of every instruction file) | A1, A2, A3 | ADR-0019, ADR-0021 |
+| FWD-038 | back | FWD-037 | review records: promotion template and agent (met/declined/limit/not met), `fixed_in` in findings, board merge line names the review, I2 reads every reviews/ record | A4 | ADR-0021 |
+| FWD-039 | back | FWD-037 | `[backlog]` switch with the `[scrum]` alias, strict header-only goal check, no crash on a non-table, sprint-wording test over every instruction file | A5 | ADR-0019 |
+| FWD-040 | back | FWD-037 | sync: kernel ADRs to `.fde/adr/`, config comment rewrite, permissions notice and auto-mode advice | A6 | ADR-0019 |
+| FWD-041 | back | — | gates: `-z` file lists, erosion warning and cycles/ exclusion, CI merge-base, non-list [gate] validation, I1-REQS on plan criteria, "kernel ADR" in runtime messages | A7 | ADR-0019 |
+| FWD-042 | back | — | panel: single findings parse, readable helpers, promotion cell | A8 | ADR-0020 |
+
+FWD-037, FWD-041 and FWD-042 start at sign-off, in parallel. FWD-038,
+039 and 040 start when FWD-037 merges, because they edit the skills it
+restructures.
