@@ -25,3 +25,4 @@
 - 2026-09-29 C-14 claim reconcile (FWD-038 F1+F2, FWD-043 F1): agents/fde-adversarial.md, skills/fde-review (fixed_in and budget-spent sentences), AGENTS.md + templates/AGENTS.md.template (## Cycle budget line) (+ copies), tests/test_review_records.py, tests/test_instructions.py, tests/test_coherence.py
 - 2026-09-29 FWD-040 claim widened: SETUP §8 step 5 and skills/fde-sync (+ copy) remove installed `fde-` skills the kernel no longer has (FWD-039 review F1)
 - 2026-09-29 FWD-040 decided merged 6b55ec0; code review 2 low, none blocking (→ B-67, B-68); all eight demands merged — cycle review running
+- 2026-09-29 C-14 decided cycle review full round: F1 stale (reviews/FWD-040 committed in 99852cc, after the review's base — the parallel start broke B-49, orchestrator's fault), F4 fixed (plan step points to fde-design and fde-survey), F3 fixed (B-1 declined in backlog), F2 in promotion's release list; delta round next

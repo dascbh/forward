@@ -10,7 +10,6 @@ Items ordered by value against the goal. Evidence ladder:
 
 | id | item | hypothesis | evidence | size (est.) |
 |---|---|---|---|---|
-| B-1 | Per-demand `sensitive`/`irreversible` in triage → C-14 | in sensitive+irreversible projects every demand floors at M, inflating ceremony for changes that touch neither (a one-line UI flip sized M in the field); per-demand judgment with strict tiebreaks would restore proportionality without relaxing criteria | usage-data (AGROMETA, DEM-reforma-prefetch) | M |
 
 ## Status
 
@@ -124,3 +123,4 @@ Reviewed against 0.19.0 with the owner; ids stay retired.
 - B-44 owner direction — review by weight: a coding demand (back, front or infra) inside a signed-off plan gets a cod… — discarded (2026-09-29, review against 0.21.0): done in C-13 (0.21.0)
 - B-51 (C-13) usage-data — AGENTS.md is at 1,599 of 1,600 words after FWD-036; almost every sentence is pinned verbat… — discarded (2026-09-29, review against 0.21.0): merged into B-53
 - B-52 (C-13) opinion — AGENTS.md step 1 says "Size sets only the planner's depth and the cycle review rounds", while… — discarded (2026-09-29, review against 0.21.0): fixed in the C-13 reconcile (fb453df)
+- B-1 Per-demand `sensitive`/`irreversible` in triage — declined in C-14 (plan review F2): the risk rule (kernel ADR-0021) carries sensitivity per demand; the cycle score keeps it so a sensitive cycle keeps its plan review

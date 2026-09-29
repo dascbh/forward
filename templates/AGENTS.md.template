@@ -52,14 +52,14 @@ isolated: artifact + spec only, never the builder's thread.
 ## Demand loop
 
 Code starts only inside a signed-off cycle (kernel ADR-0019) or in the
-direct lane (`fde-triage`). Three levels: backlog → cycle → demand,
-each derived from the one above. A demand (e.g. `DEM-042`) is one page derived from
+direct lane (`fde-triage`). Three levels: backlog → cycle → demand. A demand (e.g. `DEM-042`) is one page derived from
 the plan; it decides nothing new.
 
 1. **Triage** the cycle (`fde-triage`). Size is set on the cycle, never
    on a demand. Announce the size in one line, commit `plan.md`, and
    stop at the sign-off.
-2. **Plan** the cycle (`fde-spec`). A demand is at most about 300
+2. **Plan** the cycle (`fde-spec`; UI: `fde-design`; inherited system:
+   `fde-survey`). A demand is at most about 300
    production lines and has exactly one layer: `front`, `back` or
    `infra`. A change that spans layers is always split, however small.
 3. **Sign-off**: Approval happens once, at plan sign-off, and is

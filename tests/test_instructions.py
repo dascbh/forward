@@ -1213,5 +1213,16 @@ class TestOpenWording(unittest.TestCase):
         self.assertNotIn(model, roles["architecture"]["outputs"])
 
 
+class TestSkeletonPointsToDesignAndSurvey(unittest.TestCase):
+    """reviews/C-14 F4: a front or inherited-system cycle still finds its
+    skill from the loop in AGENTS.md."""
+
+    def test_plan_step_points_to_design_and_survey(self):
+        for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
+            flat = " ".join(read(rel).split())
+            self.assertIn("2. **Plan** the cycle (`fde-spec`; UI: `fde-design`; "
+                          "inherited system: `fde-survey`).", flat, rel)
+
+
 if __name__ == "__main__":
     unittest.main()
