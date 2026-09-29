@@ -106,13 +106,18 @@ Rules:
    The only thing that returns to the user is a replan, triggered by a
    fact that invalidates the plan.
 8. **The sign-off is the permission.** While a cycle runs, no tool call
-   waits for a prompt. There is no allowlist and no "destructive"
-   exception: a harness judgment of what is destructive is opaque to the
-   user, and it blocks work that the plan already assessed.
+   waits for a prompt, and there is no "destructive" exception. A harness
+   judgment of what is destructive is opaque to the user and blocks work
+   that the plan already assessed.
 
-   The owner sets the harness permission mode for the project. The
-   kernel assumes that setting and never changes it by itself (owner,
-   2026-09-29).
+   Install and sync open every built-in tool in `permissions.allow`
+   (SETUP §8.4, FWD-025; owner, 2026-09-29):
+   - a project keeps the prompts with `[tooling] open_permissions = false`;
+   - the user's `ask` and `deny` entries are never touched;
+   - the kernel never changes the permission mode at runtime.
+
+   An auto-mode classifier sits outside those settings and can still
+   block. Working outside auto mode is the path that is not blocked.
 
    An agent that leaves the plan is contained by deterministic checks
    instead:

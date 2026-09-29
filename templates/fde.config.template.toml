@@ -68,6 +68,7 @@ ai_agents = {{D_AI}}
 
 [tooling]
 tools = {{TOOLS}}   # e.g.: ["claude-code"] - which native layers step 8 emitted
+open_permissions = true   # claude-code: step 8 opens every built-in tool (ADR-0019); false keeps the prompts
 
 # [scrum]
 # enabled = true   # optional cadence layer: backlog + sprints (fde-scrum skill)

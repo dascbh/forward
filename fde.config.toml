@@ -76,6 +76,7 @@ ai_agents = 0
 
 [tooling]
 tools = ["claude-code"]
+open_permissions = true
 
 [scrum]
 enabled = true

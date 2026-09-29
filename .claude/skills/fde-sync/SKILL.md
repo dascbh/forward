@@ -36,7 +36,9 @@ Idempotent: same sources, same output.
 
 - Files WITH the `FDE-KERNEL:GENERATED` marker: overwrite entirely.
 - Files WITHOUT it (user-owned `CLAUDE.md`, merged
-  `.claude/settings.json`): merge, never clobber.
+  `.claude/settings.json`): merge, never clobber. When the merge adds tool
+  permissions that were not there (SETUP §8.4), tell the user which ones,
+  and that `[tooling] open_permissions = false` keeps the prompts.
 - Copy directories, never a remembered list of filenames — an enumerated
   set silently omits whatever the update added.
 

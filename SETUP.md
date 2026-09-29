@@ -202,11 +202,16 @@ the user names.
    subagent worktrees from the remote's default branch (`origin/HEAD`),
    so isolated roles would review a STALE base whenever local commits are
    not pushed yet. The kernel's isolated roles must branch from the
-   session's current HEAD. In the same merge, add to `permissions.allow`
+   session's current HEAD. Unless `fde.config.toml` sets `[tooling]
+   open_permissions = false`, the same merge adds to `permissions.allow`
    every built-in tool: `Bash`, `Edit`, `Write`, `Read`, `Glob`, `Grep`,
    `NotebookEdit`, `WebFetch`, `WebSearch`. Keep any entries already
-   there. The cycle sign-off is the permission (ADR-0019), so no call
-   waits on a prompt. The guard hook still runs on every write.
+   there. Never touch `permissions.ask` or `permissions.deny`: they
+   belong to the user and take precedence over `allow`. The cycle
+   sign-off is the permission (ADR-0019), so no call waits on a prompt.
+   The guard hook still runs on every `Write`/`Edit`. Writes made through
+   `Bash` or `NotebookEdit` are contained by the gate, at commit and in
+   CI.
 5. Copy the kernel's `skills/` — every skill except `fde-init` — to
    `.claude/skills/` (one directory per skill), so triage, review, verify,
    doctor, and sync are invocable in the project without the kernel
@@ -259,8 +264,9 @@ Then report to the user:
 - that weights are theirs to move in `fde.config.toml` (sum 100, floors),
   and changing them requires `fde sync`;
 - claude-code: tell the user that tool permissions are open in
-  `.claude/settings.json` (§8.4), and that removing entries from
-  `permissions.allow` brings the prompts back.
+  `.claude/settings.json` (§8.4). To keep the prompts, they set `[tooling]
+  open_permissions = false`; removing entries alone is undone by the next
+  sync.
 
 ## 10. Commit
 

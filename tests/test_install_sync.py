@@ -137,6 +137,31 @@ class TestNativeLayerShape(unittest.TestCase):
         for tool in self.TOOLS:
             self.assertIn(f"`{tool}`", setup, tool)
         self.assertIn("tell the user that tool permissions are open", setup)
+        # reviews/FWD-025 F2, F4, F5: opt-out survives sync, the merge keeps
+        # the user's entries, and the guard's reach is stated as it is
+        for rule in ("Unless `fde.config.toml` sets `[tooling] "
+                     "open_permissions = false`",
+                     "Keep any entries already there.",
+                     "Never touch `permissions.ask` or `permissions.deny`",
+                     "The guard hook still runs on every `Write`/`Edit`. "
+                     "Writes made through `Bash` or `NotebookEdit` are "
+                     "contained by the gate",
+                     "removing entries alone is undone by the next sync"):
+            self.assertIn(rule, setup, rule)
+        self.assertNotIn("still runs on every write.", setup)
+
+    def test_sync_tells_the_user_and_config_carries_the_switch(self):
+        # reviews/FWD-025 F3: an update that opens permissions says so
+        for rel in ("skills/fde-sync/SKILL.md", ".claude/skills/fde-sync/SKILL.md"):
+            self.assertIn("tell the user which ones", " ".join(read(ROOT / rel).split()), rel)
+        self.assertIn("open_permissions = true",
+                      read(ROOT / "templates" / "fde.config.template.toml"))
+
+    def test_adr_states_the_install_allow_list(self):
+        # reviews/FWD-025 F1
+        adr = " ".join(read(ROOT / "docs/adr/0019-backlog-cycle-demand.md").split())
+        self.assertIn("Install and sync open every built-in tool", adr)
+        self.assertNotIn("There is no allowlist", adr)
 
 
 class TestGeneratedSurfaces(unittest.TestCase):
