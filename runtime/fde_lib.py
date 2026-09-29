@@ -337,19 +337,35 @@ def is_ci() -> bool:
 # says `cycle: C-<n>` in its header. The old per-demand layout
 # (specs/<id>/acceptance.md, promotions/<id>/decision.md) stays readable:
 # repositories that used it must stay green (C-5 FM1).
-DEMAND_RE = re.compile(r"\b((?:FWD|DEM)-\d+)")
-CANON_RE = re.compile(r"^((?:FWD|DEM)-\d+)", re.IGNORECASE)
+# A demand id is <PREFIX>-<n>, with a prefix the project picks (FWD, DEM,
+# ACME…): whatever the plan's ## Demands first cell and the spec
+# directory declare. The kernel's own id families are never demands.
+_ID = r"[A-Za-z][A-Za-z0-9]*-\d+(?![A-Za-z0-9])"
+RESERVED_PREFIXES = frozenset({"C", "B", "S", "ADR"})
+DEMAND_RE = re.compile(r"(?<![\w-])(" + _ID + ")")
+CANON_RE = re.compile(r"^(" + _ID + ")")
+# retired sprints (ADR-0019 rule 13) are read as history, in the grammar
+# they were written in
+LEGACY_DEMAND_RE = re.compile(r"\b((?:FWD|DEM)-\d+)")
 CYCLE_ID_RE = re.compile(r"C-\d+")
 _CYCLE_LINE_RE = re.compile(r"^cycle\s*:\s*(C-\d+)\b", re.IGNORECASE)
 _HEADER_LINES = 30
 
 
+def demand_id(raw: str) -> str | None:
+    """The canonical <PREFIX>-<n> a name starts with, upper-cased, or None
+    when the name is no demand id."""
+    m = CANON_RE.match(raw)
+    if not m or m.group(1).split("-")[0].upper() in RESERVED_PREFIXES:
+        return None
+    return m.group(1).upper()
+
+
 def canon_demand(raw: str) -> str:
-    """Join key: the bare FWD-<n>/DEM-<n> prefix, so a slugged directory
+    """Join key: the bare <PREFIX>-<n>, so a slugged directory
     (specs/FWD-001-self-install) and a bare one (reviews/FWD-001) resolve
     to the same demand."""
-    m = CANON_RE.match(raw)
-    return m.group(1).upper() if m else raw
+    return demand_id(raw) or raw
 
 
 def read_text(p: Path) -> str:
@@ -405,10 +421,17 @@ def plan_demands(plan_text: str) -> list[str]:
         if not s.startswith("|"):
             continue
         cells = [c.strip() for c in s.strip("|").split("|")]
-        m = DEMAND_RE.match(cells[0]) if cells else None
-        if m and canon_demand(m.group(1)) not in ids:
-            ids.append(canon_demand(m.group(1)))
+        did = demand_id(_plain(cells[0])) if cells else None
+        if did and did not in ids:
+            ids.append(did)
     return ids
+
+
+def _plain(cell: str) -> str:
+    """A table cell without its markdown: `[FWD-2](…)` reads FWD-2, and
+    bold, italics and backticks are dropped."""
+    cell = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", cell)
+    return cell.strip().strip("`*_ ").strip()
 
 
 def spec_cycle(spec_text: str) -> str | None:
@@ -420,18 +443,61 @@ def spec_cycle(spec_text: str) -> str | None:
     return None
 
 
+_DATE_LINE_RE = re.compile(r"date\s*:\s*(\S+)", re.IGNORECASE)
+_CRITERION_RE = re.compile(r"^\s*[-*+]\s+[`*_]*([A-Z]+\d+)\b")
+# what templates/cycle/plan.md ships in place of a criterion
+_PLACEHOLDERS = ("<name>", "<observable result")
+
+
+def criteria_section(text: str) -> list[str]:
+    """Lines under the first `## Acceptance…` or `## …criteria…` heading,
+    up to the next `## ` heading."""
+    out, inside = [], False
+    for line in text.splitlines():
+        if line.startswith("## "):
+            if inside:
+                break
+            title = line[3:].strip().lower()
+            inside = title.startswith("acceptance") or "criteria" in title
+            continue
+        if inside:
+            out.append(line)
+    return out
+
+
+def _iso_date(value: str) -> bool:
+    import datetime
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        return False
+    try:
+        datetime.date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
 def plan_problem(plan: Path) -> str | None:
     """Why a cycle plan does not carry dated criteria, or None when it
-    does: the file exists, has a non-empty `date:` header line, and a
-    `## …criteria…` section with content."""
+    does: the file exists, its header has `date:` with a real ISO date
+    (YYYY-MM-DD), and its `## Acceptance [criteria]` section has at least
+    one criterion with an id (`- **A1 — …**`) that is not the template's
+    placeholder. Whether the date precedes the first demand commit is not
+    checked (a declared limit, fde-verify)."""
     if not plan.is_file():
         return "no plan.md"
     text = read_text(plan)
-    if not any(re.match(r"date\s*:\s*\S", line, re.IGNORECASE)
-               for line in header_lines(text)):
+    dates = [m.group(1) for line in header_lines(text)
+             for m in [_DATE_LINE_RE.match(line)] if m]
+    if not dates:
         return "plan.md has no 'date:' header line"
-    if not any(line.strip() for line in section(text, "criteria")):
-        return "plan.md has no '## … criteria' section with content"
+    if not any(_iso_date(d) for d in dates):
+        return f"plan.md 'date: {dates[0]}' is not a date (YYYY-MM-DD)"
+    if not any(_CRITERION_RE.match(line)
+               and not any(ph in line for ph in _PLACEHOLDERS)
+               for line in criteria_section(text)):
+        return ("plan.md has no criterion with an id (`- **A1 — …**`) under "
+                "'## Acceptance criteria' — the template's placeholder does "
+                "not count")
     return None
 
 

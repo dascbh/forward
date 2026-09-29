@@ -62,7 +62,7 @@ now, not deferred.
 | I1 | behavior change without an eval entry | write the failure mode and the evaluator |
 | I2 | adversarial review did not run isolated, or a demand was promoted without one | run `fde-review` isolated; findings.toml declares `artifact_only`; every demand promoted by `cycles/C-<n>/promotion.md` (or the old `promotions/<id>/decision.md`) has `reviews/<id>/findings.toml` |
 | I3 | adversarial role touched code | revert; the finding goes in `reviews/`, fixing belongs to another role |
-| I4 | acceptance criteria missing or undated | declare before building: dated criteria in `cycles/C-<n>/plan.md` (a `date:` header line and a `## … criteria` section), which every demand of the cycle inherits — through the plan's `## Demands` table or its spec's `cycle: C-<n>` line; the old `specs/<id>/acceptance.md` with a `date:` line still counts |
+| I4 | acceptance criteria missing or undated | declare before building: dated criteria in `cycles/C-<n>/plan.md` (a `date: YYYY-MM-DD` header line and a `## Acceptance [criteria]` section with at least one criterion id, `- **A1 — …**`, that is not the template's placeholder), which every demand of the cycle inherits — through the plan's `## Demands` table (first cell: any `<PREFIX>-<n>` id) or its spec's `cycle: C-<n>` line; the old `specs/<id>/acceptance.md` with a `date:` line still counts. Declared limit: the gate does not check that the date precedes the first demand commit |
 | I5 | declared attribute without a signal | instrument it or reduce what was declared |
 | I6 | gate does not run without the FDE | `fde-sync` re-copies the runtime |
 | I7 | handoff without an artifact on disk | create the structure; do not pass context by conversation |

@@ -440,7 +440,7 @@ class TestJson(StatusCase):
 
     def test_round_trip(self):
         data = self.load()
-        self.assertEqual(set(data), {"warnings", "cycles", "backlog"})
+        self.assertEqual(set(data), {"warnings", "next", "cycles", "backlog"})
         by_id = {c["id"]: c for c in data["cycles"]}
         self.assertEqual([c["id"] for c in data["cycles"]], ["C-1", "C-2", "C-5", "C-6"])
         self.assertEqual(by_id["C-1"]["state"], "closed")
@@ -462,8 +462,10 @@ class TestJson(StatusCase):
         self.assertEqual(c5["done"]["source"], "criteria")
         self.assertIn("B-3 per-demand triage (C-5)", c5["backlog_lines"])
         items = [i for s in data["backlog"]["sections"] for i in s["items"]]
-        self.assertIn({"id": "B-4", "text": "timebox report", "cells": None}, items)
-        self.assertIn({"id": None, "text": "plain idea", "cells": None}, items)
+        self.assertIn({"id": "B-4", "text": "timebox report", "cells": None,
+                       "cycle": None}, items)
+        self.assertIn({"id": None, "text": "plain idea", "cells": None,
+                       "cycle": None}, items)
         self.assertEqual(data["backlog"]["sections"][1]["heading"], "Ideas")
 
     def test_same_warnings_as_text(self):
@@ -482,8 +484,8 @@ class TestJson(StatusCase):
         self.assertEqual(c2["artifacts"], [])
 
     def test_selectors_narrow_json(self):
-        self.assertEqual(set(self.load("--backlog")), {"warnings", "backlog"})
-        self.assertEqual(set(self.load("--cycles")), {"warnings", "cycles"})
+        self.assertEqual(set(self.load("--backlog")), {"warnings", "next", "backlog"})
+        self.assertEqual(set(self.load("--cycles")), {"warnings", "next", "cycles"})
         one = self.load("--cycle", "C-5")
         self.assertEqual([c["id"] for c in one["cycles"]], ["C-5"])
 
@@ -536,10 +538,12 @@ class TestReviewRoundOne(StatusCase):
         data = json.loads(run(self.root, "--backlog", "--format", "json").stdout)
         [top, ideas] = data["backlog"]["sections"]
         self.assertEqual(top["items"][0], {"id": "B-1", "text": LONG,
-                                           "cells": ["B-1", LONG, "usage-data (C-3)"]})
+                                           "cells": ["B-1", LONG, "usage-data (C-3)"],
+                                           "cycle": None})
         self.assertEqual(top["items"][1]["text"], "x")
         self.assertEqual(top["items"][1]["cells"], ["2", "x", "opinion"])
-        self.assertEqual(ideas["items"][0], {"id": "B-4", "text": LONG, "cells": None})
+        self.assertEqual(ideas["items"][0], {"id": "B-4", "text": LONG, "cells": None,
+                                             "cycle": None})
         self.write("cycles/C-3.md", "objective: o\n")
         data = json.loads(run(self.root, "--format", "json").stdout)
         self.assertEqual(data["cycles"][0]["backlog_lines"], [f"B-1 {LONG}"])
@@ -587,6 +591,100 @@ class TestReviewRoundOne(StatusCase):
         out = run(self.root, "--cycles").stdout
         self.assertNotIn("every criterion met", out)
         self.assertIn("C-5  closed 2026-10-02  2/2 met", out)
+
+
+PANEL_BACKLOG = """# Backlog
+
+| id | item | evidence |
+|---|---|---|
+| B-1 | one | opinion |
+| B-2 | two → C-6 | opinion |
+
+- B-3 three
+"""
+
+GROUPED = """# C-{n}
+
+state: draft
+objective: {objective}
+
+## Items
+
+{items}
+"""
+
+
+class TestPanelFindings(StatusCase):
+    """FWD-030 review F1–F4: what the panel writes is what status reads."""
+
+    def draft(self, n, items, objective="grouped"):
+        self.write(f"cycles/C-{n}/plan.md", GROUPED.format(
+            n=n, objective=objective, items="\n".join(items)))
+
+    def load(self):
+        r = run(self.root, "--format", "json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)
+
+    def test_f1_draft_items_in_json_and_text(self):
+        self.write("backlog.md", PANEL_BACKLOG)
+        self.draft(6, ["- B-2 two"])
+        data = self.load()
+        [c6] = data["cycles"]
+        self.assertEqual(c6["items"], [{"id": "B-2", "text": "two"}])
+        out = run(self.root, "--cycles").stdout
+        self.assertIn("C-6  draft  grouped", out)
+        self.assertIn("    - B-2 two", out)
+        out = run(self.root, "--cycle", "C-6").stdout
+        self.assertIn("items:     1", out)
+        self.assertIn("    - B-2 two", out)
+
+    def test_f2_grouping_mark_is_read(self):
+        self.write("backlog.md", PANEL_BACKLOG)
+        self.draft(6, ["- B-2 two"])
+        data = self.load()
+        self.assertEqual(data["warnings"], [])
+        items = {i["id"]: i for s in data["backlog"]["sections"] for i in s["items"]}
+        self.assertEqual(items["B-2"]["cycle"], "C-6")
+        self.assertEqual(items["B-2"]["text"], "two")
+        self.assertIsNone(items["B-1"]["cycle"])
+        # the grouping mark is not an origin: C-6 produced no backlog line
+        self.assertEqual(data["cycles"][0]["backlog_lines"], [])
+
+    def test_f2_one_item_in_two_drafts_warns(self):
+        self.write("backlog.md", PANEL_BACKLOG)
+        self.draft(6, ["- B-2 two"])
+        self.draft(7, ["- B-2 two", "- B-3 three"])
+        ws = self.load()["warnings"]
+        self.assertTrue(any(w.startswith("B-2 is grouped into C-6, C-7") for w in ws), ws)
+        self.assertFalse(any(w.startswith("B-3") for w in ws), ws)
+
+    def test_f2_mark_disagreeing_with_the_draft_warns(self):
+        self.write("backlog.md", PANEL_BACKLOG.replace("- B-3 three", "- B-3 three → C-6"))
+        self.draft(7, ["- B-3 three"])
+        ws = self.load()["warnings"]
+        self.assertTrue(any(w.startswith("B-3 is grouped into C-6, C-7") for w in ws), ws)
+
+    def test_f3_next_backlog_id_counts_ids_held_only_by_a_cycle(self):
+        self.write("backlog.md", PANEL_BACKLOG)
+        self.assertEqual(self.load()["next"]["backlog_id"], "B-4")
+        self.draft(6, ["- B-9 taken out of backlog.md"])
+        self.assertEqual(self.load()["next"]["backlog_id"], "B-10")
+        self.write("cycles/C-2.md", "objective: old\nclosed: 2026-09-01\n\n- B-12 cited\n")
+        self.assertEqual(self.load()["next"]["backlog_id"], "B-13")
+        self.assertIn("next id B-13", run(self.root, "--backlog").stdout)
+
+    def test_f4_next_cycle_id_counts_files_and_directories(self):
+        self.write("cycles/C-1.md", CLOSED)
+        self.write("cycles/C-2.md", CLOSED.replace("C-1", "C-2"))
+        self.assertEqual(self.load()["next"]["cycle_id"], "C-3")
+        self.draft(3, ["- B-1 one"])
+        self.assertEqual(self.load()["next"]["cycle_id"], "C-4")
+        self.assertIn("next cycle id: C-4", run(self.root, "--cycles").stdout)
+
+    def test_next_ids_with_nothing_on_disk(self):
+        data = self.load()
+        self.assertEqual(data["next"], {"backlog_id": "B-1", "cycle_id": "C-1"})
 
 
 if __name__ == "__main__":

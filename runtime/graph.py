@@ -31,8 +31,10 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from fde_lib import (  # noqa: E402
     CANON_RE,  # noqa: F401 — re-exported: callers read graph.CANON_RE
-    DEMAND_RE,
+    DEMAND_RE,  # noqa: F401 — re-exported: callers read graph.DEMAND_RE
+    LEGACY_DEMAND_RE,
     canon_demand,
+    demand_id,  # noqa: F401 — re-exported: callers read graph.demand_id
     cycle_dirs,
     demand_cycles,
     header_lines,
@@ -269,7 +271,7 @@ def build_graph(project: Path) -> Graph:
             # not from prose — a demand mentioned in "Closes when…" is not
             # selected, and a negated mention never counts as planned
             for row in (l for l in _read(gm).splitlines() if l.lstrip().startswith("|")):
-                for did in dict.fromkeys(DEMAND_RE.findall(row)):
+                for did in dict.fromkeys(LEGACY_DEMAND_RE.findall(row)):
                     g.add_edge(snode, "selects", g.add_node("demand", did))
 
     # demands: canonical id -> actual directory, per artifact kind (dir

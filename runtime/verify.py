@@ -327,8 +327,8 @@ class Gate:
             scoped = staged and not all_
             touched_ids = None
             if scoped:
-                touched_ids = {graph.canon_demand(m.group(1))
-                               for f in files for m in [graph.DEMAND_RE.search(f)] if m}
+                touched_ids = {did for f in files for part in Path(f).parts
+                               for did in [graph.demand_id(part)] if did}
 
             checked, r_missing, errored = 0, [], []
             for d in demand_dirs:

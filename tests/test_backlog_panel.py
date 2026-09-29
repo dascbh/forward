@@ -45,6 +45,16 @@ class TestSkillRules(unittest.TestCase):
         "Grouping never writes a spec and never commits to anything.",
         "Only one cycle may be running; drafts may be many.",
         "After every edit, re-run status.py. The result must still parse (FM4)",
+        # FWD-030 review F1–F4
+        "a draft with its `items` (B-ids and text)",
+        "next free `n`: `next.cycle_id`, which counts both `cycles/C-<n>/` "
+        "and old `cycles/C-<n>.md`",
+        "An item already grouped (its `cycle` is set, or another cycle lists "
+        "it) is not grouped again.",
+        "mark each grouped item in backlog.md: append ` → C-<n>` to its text",
+        "Next free = `next.backlog_id`: one more than the highest `B-<n>` "
+        "anywhere in backlog.md or in any cycle",
+        "no warning that an item is grouped into two cycles",
     )
 
     def test_skill_states_each_rule(self):
@@ -150,6 +160,34 @@ class TestRoundTrip(unittest.TestCase):
             body = plan.read_text(encoding="utf-8")
             self.assertIn("- B-8 first idea", body)
             self.assertIn("- B-10 a bullet without one", body)
+            # FWD-030 F1: the draft's items are read back
+            self.assertEqual(c["items"], [{"id": "B-8", "text": "first idea"},
+                                          {"id": "B-10", "text": "a bullet without one"}])
+
+            # FWD-030 F2: grouping marks the backlog items with the cycle
+            bl = root / "backlog.md"
+            marked = bl.read_text(encoding="utf-8") \
+                .replace("| first idea |", "| first idea → C-1 |") \
+                .replace("- B-10 a bullet without one", "- B-10 a bullet without one → C-1")
+            bl.write_text(marked, encoding="utf-8")
+            data = status_json(root)
+            self.assertEqual(data["warnings"], [])
+            items = {it["id"]: it for s in data["backlog"]["sections"] for it in s["items"]}
+            self.assertEqual((items["B-8"]["cycle"], items["B-8"]["text"]),
+                             ("C-1", "first idea"))
+            self.assertEqual(items["B-10"]["cycle"], "C-1")
+            self.assertIsNone(items["B-9"]["cycle"])
+
+            # F2: the same item grouped into a second draft is a warning
+            other = root / "cycles" / "C-2" / "plan.md"
+            other.parent.mkdir(parents=True)
+            other.write_text(head.replace("C-1", "C-2") + "\n- B-8 first idea\n",
+                             encoding="utf-8")
+            data = status_json(root)
+            self.assertTrue(any(w.startswith("B-8 is grouped into C-1, C-2")
+                                for w in data["warnings"]), data["warnings"])
+            # F3/F4: the next free ids
+            self.assertEqual(data["next"], {"backlog_id": "B-11", "cycle_id": "C-3"})
 
 
 if __name__ == "__main__":

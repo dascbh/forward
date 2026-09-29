@@ -1531,5 +1531,125 @@ class TestBothLayoutsStayGreen(unittest.TestCase):
             self.assertEqual(r.returncode, 0, f"{gate}: {r.stdout}{r.stderr}")
 
 
+class TestClientDemandPrefix(unittest.TestCase):
+    """FWD-029 F1: a demand id is <PREFIX>-<n>, whatever prefix the plan's
+    ## Demands first cell and the spec directory declare (ACME-1)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_plan_row_links_a_client_prefixed_slugged_spec(self):
+        cycle_plan(self.p, 1, ["| ACME-1 | back | — | x | A1 |"])
+        cycle_spec(self.p, "ACME-1-thing")
+        r = verify(self.p, "--gate", "promotion-criteria")
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_promoted_client_demand_meets_its_bare_review(self):
+        d = cycle_plan(self.p, 1, ["| ACME-1 | back | — | x | A1 |"])
+        (d / "promotion.md").write_text("decision: promote\n")
+        cycle_spec(self.p, "ACME-1-thing", cycle="C-1")
+        review_of(self.p, "ACME-1")
+        for gate in ("promotion-criteria", "adversarial-isolation",
+                     "traceability"):
+            r = verify(self.p, "--gate", gate)
+            self.assertEqual(r.returncode, 0, gate + r.stdout)
+
+    def test_unreviewed_promoted_client_demand_still_fails(self):
+        d = cycle_plan(self.p, 1, ["| ACME-2 | back | — | x | A1 |"])
+        (d / "promotion.md").write_text("decision: promote\n")
+        cycle_spec(self.p, "ACME-2-thing", cycle="C-1")
+        review_of(self.p, "ACME-3")  # a review exists, not this demand's
+        for gate in ("adversarial-isolation", "traceability"):
+            r = verify(self.p, "--gate", gate)
+            self.assertEqual(r.returncode, 1, gate + r.stdout)
+            self.assertIn("ACME-2", r.stdout)
+
+    def test_kernel_id_families_are_not_demands(self):
+        import fde_lib
+        for name in ("C-1", "B-4", "S-2", "ADR-0019", "login-2fa", "notes"):
+            self.assertIsNone(fde_lib.demand_id(name), name)
+        self.assertEqual(fde_lib.demand_id("acme-12-slug"), "ACME-12")
+
+
+class TestPlanCriteriaAreDeclared(unittest.TestCase):
+    """FWD-029 F2/F3: I4 wants a real ISO date and a criterion id that is
+    not the template's placeholder; ordinary markdown in the plan is read."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def gate(self):
+        return verify(self.p, "--gate", "promotion-criteria")
+
+    def write_plan(self, text):
+        d = Path(self.p) / "cycles" / "C-1"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "plan.md").write_text(text)
+
+    def test_unedited_template_does_not_declare_criteria(self):
+        tpl = (ROOT / "templates" / "cycle" / "plan.md").read_text()
+        self.write_plan(tpl.replace("DEM-<n>", "DEM-1"))
+        cycle_spec(self.p, "DEM-1")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("YYYY-MM-DD", r.stdout)
+
+    def test_template_placeholder_criterion_does_not_count(self):
+        tpl = (ROOT / "templates" / "cycle" / "plan.md").read_text()
+        self.write_plan(tpl.replace("DEM-<n>", "DEM-1")
+                        .replace("date: YYYY-MM-DD", "date: 2026-09-29"))
+        cycle_spec(self.p, "DEM-1")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("placeholder", r.stdout)
+
+    def test_impossible_date_is_not_a_date(self):
+        self.write_plan(CYCLE_PLAN.format(n=1, rows="| DEM-1 | back | — | x | A1 |")
+                        .replace("2026-09-29", "2026-13-45"))
+        cycle_spec(self.p, "DEM-1")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("not a date", r.stdout)
+
+    def test_criteria_section_without_an_id_does_not_count(self):
+        self.write_plan(CYCLE_PLAN.format(n=1, rows="| DEM-1 | back | — | x | A1 |")
+                        .replace("- **A1 — works.** It works.", "- it works"))
+        cycle_spec(self.p, "DEM-1")
+        r = self.gate()
+        self.assertEqual(r.returncode, 1, r.stdout)
+
+    def test_bold_link_and_lowercase_first_cells_link(self):
+        cycle_plan(self.p, 1, ["| **FWD-1** | back | — | x | A1 |",
+                               "| [FWD-2](specs/FWD-2) | back | — | x | A1 |",
+                               "| fwd-3 | back | — | x | A1 |"])
+        for did in ("FWD-1", "FWD-2", "FWD-3"):
+            cycle_spec(self.p, did)
+        r = self.gate()
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_verify_skill_declares_the_ordering_limit(self):
+        for rel in ("skills/fde-verify/SKILL.md",
+                    ".claude/skills/fde-verify/SKILL.md"):
+            text = (ROOT / rel).read_text()
+            self.assertIn("`date: YYYY-MM-DD`", text, rel)
+            self.assertIn("Declared limit: the gate does not check that the "
+                          "date precedes the first demand commit", text, rel)
+
+    def test_acceptance_heading_without_the_word_criteria(self):
+        self.write_plan(CYCLE_PLAN.format(n=1, rows="| DEM-1 | back | — | x | A1 |")
+                        .replace("## Acceptance criteria", "## Acceptance"))
+        cycle_spec(self.p, "DEM-1")
+        r = self.gate()
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

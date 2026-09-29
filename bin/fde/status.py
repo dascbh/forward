@@ -16,6 +16,12 @@ More than one running cycle is a warning; drafts may be many. A directory
 cycle's progress is plan.md's acceptance criteria against promotion.md
 (`- A1 — <evidence> — met`).
 
+A draft's `## Items` (the B-ids fde-backlog grouped) are read; a backlog
+item marked `→ C-<n>` is grouped into that cycle, and one B-id in two
+cycles warns. `next` gives the next free ids: B-<n> one more than the
+highest seen in backlog.md or any cycle, C-<n> one more than the highest
+directory or old file.
+
 A report, never a gate (ADR-0018): exit 0 on any content, exit 2 only for
 a bad argument. Read-only, stdlib only, no git.
 
@@ -48,6 +54,9 @@ CHECKBOX = re.compile(r"^\[[^\]]{0,3}\]\s*")
 LOOSE_ID = re.compile(r"^(?:#+|\d+[.)])\s*(?:\[[^\]]{0,3}\]\s*)?[`*]*(B-\d+)")
 CRITERION = re.compile(r"^[-*+]\s+[`*]*([A-Z]+\d+)\b")
 DEMAND_ID = re.compile(r"\b[A-Z][A-Z0-9]*-\d+\b")
+# grouping marks a backlog item with the cycle it went into: `→ C-<n>`
+GROUP_MARK = re.compile(r"(?:\u2192|->)\s*(C-\d+)(?!\d)")
+ANY_B_ID = re.compile(r"(?<![\w-])B-(\d+)(?!\d)")
 NONE_CELL = {"", "-", "\u2014", "\u2013", "none", "n/a"}
 WIDTH = 110
 
@@ -144,6 +153,7 @@ class Cycle:
         self.artifacts = [a for a in ARTIFACTS
                           if directory and (directory / a).is_file()]
         text = _read(path)
+        self.text = text
         sections = _sections(text)
         self.header: dict[str, str] = {}
         for line in sections[0][1]:
@@ -155,6 +165,7 @@ class Cycle:
         self.legacy_next: list[str] = []
         self.misplaced_end: list[str] = []
         self.demand_rows: list[dict] = []
+        self.items: list[dict] = []
         for heading, lines in sections[1:]:
             h = heading.lower()
             for line in lines:
@@ -182,6 +193,15 @@ class Cycle:
                         wrapping = False  # the criterion's first paragraph ends
             elif h.startswith("demands"):
                 self.demand_rows += _demands_table(lines)
+            elif h == "items":
+                for line in lines:
+                    m = BULLET.match(line)
+                    if m:
+                        rest = CHECKBOX.sub("", m.group(1).strip(), count=1)
+                        idm = BACKLOG_ID.match(rest)
+                        self.items.append(
+                            {"id": idm.group(1), "text": idm.group(2).strip()} if idm
+                            else {"id": None, "text": rest})
             elif h.startswith("next cycle"):
                 for line in lines:
                     m = BULLET.match(line)
@@ -316,8 +336,10 @@ def _item(line: str, full: str, bid: str | None, text: str,
     """One backlog item: `line` the display (clipped when shown), `full` the
     whole row (a cycle named in any cell counts), `text` the item's own
     text, unclipped, `cells` a table row's cells."""
+    marks = GROUP_MARK.findall(full)
     return {"line": line, "shown": _clip(line), "full": full, "id": bid,
-            "text": text, "cells": cells}
+            "text": GROUP_MARK.sub("", text).strip() if marks else text,
+            "cells": cells, "cycle": marks[-1].upper() if marks else None}
 
 
 def load_backlog(root: Path, problems: list[str] | None = None):
@@ -429,13 +451,49 @@ def warnings(cycles: list[Cycle], backlog, problems: list[str]) -> list[str]:
     for bid, k in ids.items():
         if k > 1:
             out.append(f"{bid} is used by {k} backlog items — an id names one item")
+    grouped: dict[str, set[str]] = {}
+    for c in cycles:
+        for it in c.items:
+            if it["id"]:
+                grouped.setdefault(it["id"], set()).add(c.id)
+    for _, items in backlog or []:
+        for it in items:
+            if it["id"] and it["cycle"]:
+                grouped.setdefault(it["id"], set()).add(it["cycle"])
+    for bid, cids in sorted(grouped.items(), key=lambda kv: _num(kv[0])):
+        if len(cids) > 1:
+            out.append(f"{bid} is grouped into "
+                       f"{', '.join(sorted(cids, key=_num))} — an item belongs "
+                       "to one cycle")
     return out
 
 
+def _num(tag: str) -> int:
+    return int(tag.rsplit("-", 1)[1])
+
+
+def next_ids(root: Path, cycles: list[Cycle]) -> dict:
+    """The next free ids: one more than the highest `B-<n>` seen anywhere —
+    backlog.md or any cycle — and than the highest cycle number, directory
+    or old single file. Ids are never reused."""
+    texts = [_read(root / "backlog.md")] + [c.text for c in cycles]
+    b = max((int(n) for t in texts for n in ANY_B_ID.findall(t)), default=0)
+    n = max((c.n for c in cycles), default=0)
+    return {"backlog_id": f"B-{b + 1}", "cycle_id": f"C-{n + 1}"}
+
+
 def owned_lines(cid: str, backlog, key: str = "shown") -> list[str]:
+    """Backlog lines that came from the cycle (origin `(C-<n>)`); the
+    grouping mark `→ C-<n>` is not an origin."""
     tok = cycle_token(cid)
     return [it[key] for heading, items in backlog or []
-            for it in items if tok.search(heading) or tok.search(it["full"])]
+            for it in items
+            if tok.search(heading) or tok.search(GROUP_MARK.sub("", it["full"]))]
+
+
+def _item_lines(c: Cycle) -> list[str]:
+    return [f"    - {_clip((it['id'] or '(no id)') + ' ' + it['text'])}"
+            for it in c.items]
 
 
 def show_cycle(c: Cycle, backlog, title: str) -> list[str]:
@@ -452,6 +510,9 @@ def show_cycle(c: Cycle, backlog, title: str) -> list[str]:
             if d["depends_on"]:
                 line += f"  depends on {_clip(', '.join(d['depends_on']))}"
             out.append(line)
+    if c.items:
+        out.append(f"  items:     {len(c.items)}")
+        out += _item_lines(c)
     label = "criteria: " if c.done_source == "criteria" else "done when:"
     out.append(f"  {label} {c.progress}")
     out += [f"    [{m}] {_clip(t)}" for m, t in c.done]
@@ -465,7 +526,7 @@ def show_cycle(c: Cycle, backlog, title: str) -> list[str]:
     return out
 
 
-def show_cycles(cycles: list[Cycle], backlog) -> list[str]:
+def show_cycles(cycles: list[Cycle], backlog, nxt: dict) -> list[str]:
     open_ = [c for c in cycles if c.state == "running"]
     out = []
     for c in open_:
@@ -475,7 +536,9 @@ def show_cycles(cycles: list[Cycle], backlog) -> list[str]:
     waiting = [c for c in cycles if c.state in ("draft", "planned")]
     if waiting:
         out.append("DRAFT AND PLANNED")
-        out += [f"  {c.id}  {c.state}  {_clip(c.objective)}".rstrip() for c in waiting]
+        for c in waiting:
+            out.append(f"  {c.id}  {c.state}  {_clip(c.objective)}".rstrip())
+            out += _item_lines(c)
         out.append("")
     ended = [c for c in cycles if c.ended]
     if ended:
@@ -483,27 +546,28 @@ def show_cycles(cycles: list[Cycle], backlog) -> list[str]:
         out += [f"  {c.id}  {c.ended}  {c.progress}  {_clip(c.objective)}"
                 for c in reversed(ended)]
         out.append("")
-    return out
+    return out + [f"next cycle id: {nxt['cycle_id']}", ""]
 
 
-def show_backlog(backlog) -> list[str]:
+def show_backlog(backlog, nxt: dict) -> list[str]:
     if backlog is None:
         return ["BACKLOG", "  (no backlog.md)", ""]
     total = sum(len(items) for _, items in backlog)
-    out = [f"BACKLOG ({total} items)"]
+    out = [f"BACKLOG ({total} items, next id {nxt['backlog_id']})"]
     for heading, items in backlog:
         out.append(f"  {heading}")
         out += [f"    - {it['shown']}" for it in items]
     return out + [""]
 
 
-def as_json(cycles: list[Cycle], backlog, warns: list[str], parts) -> dict:
+def as_json(cycles: list[Cycle], backlog, warns: list[str], parts,
+            nxt: dict) -> dict:
     """The text view's content; `parts` names which of cycles/backlog."""
-    data: dict = {"warnings": warns}
+    data: dict = {"warnings": warns, "next": nxt}
     if "cycles" in parts:
         data["cycles"] = [{
             "id": c.id, "state": c.state, "ended": c.ended, "layout": c.layout,
-            "objective": c.objective, "demands": c.demands,
+            "objective": c.objective, "demands": c.demands, "items": c.items,
             "done": dict(c.counts, source=c.done_source,
                          items=[{"mark": m, "text": t} for m, t in c.done]),
             "artifacts": c.artifacts,
@@ -513,7 +577,8 @@ def as_json(cycles: list[Cycle], backlog, warns: list[str], parts) -> dict:
     if "backlog" in parts:
         data["backlog"] = None if backlog is None else {"sections": [
             {"heading": heading, "items": [
-                {"id": it["id"], "text": it["text"], "cells": it["cells"]} for it in items]}
+                {"id": it["id"], "text": it["text"], "cells": it["cells"],
+                 "cycle": it["cycle"]} for it in items]}
             for heading, items in backlog]}
     return data
 
@@ -545,6 +610,7 @@ def main(argv=None) -> int:
     problems: list[str] = []
     cycles = load_cycles(root, problems)
     backlog = load_backlog(root, problems)
+    nxt = next_ids(root, cycles)
 
     if args.cycle:
         match = [c for c in cycles if c.id.lower() == args.cycle.strip().lower()]
@@ -553,7 +619,7 @@ def main(argv=None) -> int:
             return 2
         if args.format == "json":
             return emit_json(as_json(match, backlog, warnings(cycles, backlog, problems),
-                                     ("cycles",)))
+                                     ("cycles",), nxt))
         print("\n".join(show_cycle(match[0], backlog, "CYCLE")))
         return 0
 
@@ -561,14 +627,14 @@ def main(argv=None) -> int:
     if args.format == "json":
         parts = [p for p, off in (("cycles", args.backlog), ("backlog", args.cycles))
                  if not off]
-        return emit_json(as_json(cycles, backlog, warns, parts))
+        return emit_json(as_json(cycles, backlog, warns, parts, nxt))
     out = [f"WARNING {w}" for w in warns]
     if out:
         out.append("")
     if not args.backlog:
-        out += show_cycles(cycles, backlog)
+        out += show_cycles(cycles, backlog, nxt)
     if not args.cycles:
-        out += show_backlog(backlog)
+        out += show_backlog(backlog, nxt)
     sys.stdout.write("\n".join(out).rstrip() + "\n")
     return 0
 
