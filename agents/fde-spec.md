@@ -52,12 +52,15 @@ it by id; a demand never amends it.
   with a baseline; an unmeasurable one is a finding, not a vibe.
 - `## Threat model`: who or what the cycle must contain, and what is out
   of scope. Review blocks only inside it.
-- The demand list: id, layer (`front`/`back`/`infra`), dependencies (a
+- The demand list: id, the layers it touches (`front`/`back`/`infra`,
+  one or more), dependencies (a
   contract, a file, a migration — not a sequence), the criteria it meets,
   the ADRs it follows, and the files it will touch (paths or globs, the
   `files` column): `status.py --waves C-<n>` computes from them which
-  demands run in parallel. A change that spans layers is split. A demand over
-  ~300 production lines is split here, not at review.
+  demands run in parallel. A demand is one goal (kernel ADR-0022): two
+  goals that could each merge alone are two demands; a goal over ~300
+  production lines (`[lanes] demand_max_loc`) splits here into smaller
+  goals, never into layers, and never at review.
 - `deploy.md`: steps ordered infra (expand) → back → front → infra
   (contract), each with its verification and rollback; an irreversible
   step is marked and never bundled with a reversible one. A failed step

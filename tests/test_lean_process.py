@@ -167,3 +167,30 @@ class TestTriageAndVerificationGap(unittest.TestCase):
         self.assertIn("Investigate before asking", text)
         self.assertIn("at most three questions, all at once, each with its "
                       "options and a recommended answer", text)
+
+
+class TestOneGoalPerDemand(unittest.TestCase):
+    """kernel ADR-0022 (owner, 2026-09-29): a demand is one goal; the
+    layer marks files, not demands."""
+
+    def test_the_adr_supersedes_the_split_clause(self):
+        adr = read("docs/adr/0022-a-demand-is-one-goal.md")
+        self.assertIn("amends: ADR-0019 rule 5, its split clause", adr)
+        self.assertIn("superseded in part: rule 5's split clause, by ADR-0022",
+                      read("docs/adr/0019-backlog-cycle-demand.md"))
+
+    def test_planner_and_template_split_by_goal_not_layer(self):
+        text = read("agents/fde-spec.md")
+        self.assertIn("A demand is one goal (kernel ADR-0022)", text)
+        self.assertIn("splits here into smaller goals, never into layers", text)
+        self.assertNotIn("A change that spans layers is split.", text)
+        self.assertIn("| DEM-<n> | back, front |", read("templates/cycle/plan.md"))
+        for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
+            self.assertNotIn("exactly one layer", read(rel), rel)
+
+    def test_review_limits_cite_their_config_keys(self):
+        text = read("skills/fde-review/SKILL.md")
+        self.assertIn("`[review] cycle_rounds_small` (default 1)", text)
+        self.assertIn("`[review] max_findings` (default 5)", text)
+        self.assertIn("`[review] max_findings` (default 5)",
+                      read("agents/fde-adversarial.md"))

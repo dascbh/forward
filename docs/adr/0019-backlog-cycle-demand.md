@@ -2,6 +2,7 @@
 
 date: 2026-09-29
 status: accepted (owner, 2026-09-29)
+superseded in part: rule 5's split clause, by ADR-0022 (a demand is one goal; the layer marks files)
 amended: 2026-09-29 — rule 9 states named by meaning and writer: planned is specified and awaiting sign-off (written by fde-spec), running is signed off (reviews/C-5 F2)
 
 ## Context

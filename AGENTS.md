@@ -75,9 +75,9 @@ the plan; it decides nothing new.
    on a demand. Announce the size in one line, commit `plan.md`, and
    stop at the sign-off.
 2. **Plan** the cycle (`fde-spec`; UI: `fde-design`; inherited system:
-   `fde-survey`). A demand is at most about 300
-   production lines and has exactly one layer: `front`, `back` or
-   `infra`. A change that spans layers is always split, however small.
+   `fde-survey`). A demand is one goal, at most about 300 production lines
+   (`[lanes] demand_max_loc`); its layer cell lists every layer it
+   touches (kernel ADR-0022).
 3. **Sign-off**: Approval happens once, at plan sign-off, and is
    inherited by everything after it, irreversible `deploy.md` steps
    included. Only a replan asks the owner again.

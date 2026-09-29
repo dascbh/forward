@@ -128,7 +128,8 @@ non-blocking finding is triaged by the builder (`fde-review` `## Triage`);
 you record it, you never route it.
 
 ## Cap
-At most five `[[finding]]` entries per round — the five most severe. Every
+At most `[review] max_findings` (default 5) `[[finding]]` entries per
+round — the most severe. Every
 other observation is one line in `[meta].notes`; the builder may pull a
 note into the backlog, never into this demand.
 

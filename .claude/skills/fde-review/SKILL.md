@@ -68,8 +68,8 @@ record satisfies the promotion gate like any review.
 
 | size | rounds | kinds |
 |---|---|---|
-| XS, S | 1 | full |
-| M, L | 2 | full, delta |
+| XS, S | `[review] cycle_rounds_small` (default 1) | full |
+| M, L | `[review] cycle_rounds_large` (default 2) | full, delta |
 
 A demand review is always 1 round. A demand review's blocking finding
 is fixed inside that demand and proven by its regression test; the owner
@@ -153,7 +153,8 @@ threat model in the plan → that is the first finding.
 
 ## Cap
 
-At most five `[[finding]]` entries per round, the five most severe. Every
+At most `[review] max_findings` (default 5) `[[finding]]` entries per
+round, the most severe. Every
 other observation is one line in `[meta].notes`.
 
 ## How to run it

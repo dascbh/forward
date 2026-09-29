@@ -35,4 +35,4 @@ Out of scope: <what the review may not block on>.
 
 | id | layer | depends on | files | what | meets | follows |
 |---|---|---|---|---|---|---|
-| DEM-<n> | front / back / infra | — | <paths or globs it will touch> | <at most ~300 production lines, one layer> | A1 | ADR-<n> |
+| DEM-<n> | back, front | — | <paths or globs it will touch> | <one goal, at most ~300 production lines> | A1 | ADR-<n> |

@@ -178,7 +178,8 @@ class TestBoundedReview(ProseTestCase):
 
     def test_review_budget_is_sized_and_never_extended(self):
         budget = section(read("skills/fde-review/SKILL.md"), "Budget")
-        for needle in ("| XS, S | 1 | full |", "| M, L | 2 | full, delta |",
+        for needle in ("| XS, S | `[review] cycle_rounds_small` (default 1) | full |",
+                       "| M, L | `[review] cycle_rounds_large` (default 2) | full, delta |",
                        "A demand review is always 1 round.", "No extension",
                        "*narrow*", "*declare*", "*pause*",
                        "never reopens the"):
@@ -192,7 +193,8 @@ class TestBoundedReview(ProseTestCase):
             for needle in ("critical", "threat model", "acceptance criterion",
                            "failure mode"):
                 self.assertIn(needle, block.lower(), f"{rel}: {needle}")
-            self.assertIn("five", section(read(rel), "Cap"), rel)
+            self.assertIn("`[review] max_findings` (default 5)",
+                          section(read(rel), "Cap"), rel)
 
     def test_spec_carries_a_threat_model_within_a_page(self):
         for rel in ("agents/fde-spec.md", "skills/fde-triage/SKILL.md"):
@@ -256,10 +258,11 @@ class TestDeclaredCycle(ProseTestCase):
         "owns": ("The cycle owns its declared criteria and its blocking "
                  "findings."),
         "size": "Size is set on the cycle, never on a demand.",
-        "ceiling": ("A demand is at most about 300 production lines and has "
-                    "exactly one layer: `front`, `back` or `infra`."),
-        "split": ("A change that spans layers is always split, however "
-                  "small."),
+        # kernel ADR-0022 superseded "exactly one layer" and the layer split
+        "ceiling": ("A demand is one goal, at most about 300 production "
+                    "lines (`[lanes] demand_max_loc`)"),
+        "split": ("its layer cell lists every layer it touches (kernel "
+                  "ADR-0022)."),
         "merge": ("Merge happens per demand; promotion and deploy happen per "
                   "cycle."),
         "approval": ("Approval happens once, at plan sign-off, and is "
@@ -767,7 +770,7 @@ class TestReconcileC5(ProseTestCase):
         2: "The cycle owns its declared criteria and its blocking findings",
         3: "Size is set on the cycle",
         4: "Merge happens per demand",
-        5: "exactly one layer",
+        5: "its layer cell lists every layer it touches",   # ADR-0022
         6: ("An ADR is the only home of a decision", "agents/fde-spec.md"),
         7: ("not asked beforehand", "agents/fde-spec.md"),
         8: "Approval happens once, at plan sign-off",
@@ -795,9 +798,11 @@ class TestReconcileC5(ProseTestCase):
     DEMAND_BLOCKER = ("A demand review's blocking finding is fixed inside "
                       "that demand and proven by its regression test; the "
                       "owner is asked only when the fix changes a criterion "
-                      "or an ADR, which is a replan. A non-blocking finding "
-                      "goes to `backlog.md` unless it shows a plan criterion "
-                      "unmet; then the cycle fixes it.")
+                      "or an ADR, which is a replan. A non-blocking finding is "
+                      "triaged by the builder (`## Triage`): fixed in the "
+                      "demand as a patch, deferred to `backlog.md`, or "
+                      "dropped; one that shows a plan criterion unmet is "
+                      "fixed by the cycle.")
 
     def test_demand_blocker_is_fixed_inside_the_demand(self):
         # FWD-037: AGENTS.md's copy of the demand blocker path was a
@@ -1134,10 +1139,14 @@ class TestInventory(ProseTestCase):
                                  "new fact to backlog", "one layer per demand",
                                  "never --no-verify",
                                  "review sizing sentence"})
+        # kernel ADR-0022 superseded this C-14 row; the closed cycle's
+        # inventory stays as it was, its replacement is pinned instead
+        superseded = {"one layer per demand": "A demand is one goal"}
         for rel in self.SURFACES:
             text = self.flat(read(rel))
             for name, anchor in rules:
-                self.assertIn(anchor, text, f"{rel}: {name}")
+                self.assertIn(superseded.get(name, anchor), text,
+                              f"{rel}: {name}")
 
     def test_the_review_sizing_sentence_is_the_pinned_rule(self):
         anchor = dict(self.must_stay())["review sizing sentence"]
