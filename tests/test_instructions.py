@@ -168,10 +168,10 @@ class TestBoundedReview(unittest.TestCase):
                        "split, not\nreviewed", "timebox"):
             self.assertIn(needle, resize, needle)
         self.assertIn("instruction", section(skill, "Smallest mechanism first"))
-        agents = read("AGENTS.md")
+        agents = " ".join(read("AGENTS.md").split())
         for needle in ("Budgets, not minimums", "never extended",
                        "Timebox: XS 30 min", "instruction first",
-                       "never one more\n   round"):
+                       "never one more round"):
             self.assertIn(needle, agents, needle)
 
     def test_architecture_revises_only_when_a_decision_changes(self):
@@ -208,31 +208,46 @@ class TestDeclaredCycle(unittest.TestCase):
                       "project deploys or publishes. A RULE commit "
                       "(`fde-triage`) needs no cycle."),
         "one-open": ("One cycle is open at a time, and it runs to the end: no "
-                     "other cycle opens until every done item is `[x]`. A new "
-                     "request that arrives mid-cycle goes to `backlog.md`, not "
-                     "to a new cycle."),
+                     "other cycle opens while any done item is `[ ]`. Each "
+                     "item ends `[x]` (met) or `[-]` (declined by the user, "
+                     "with the date and reason). A new request that arrives "
+                     "mid-cycle goes to `backlog.md`, not to a new cycle — "
+                     "\"fix it NOW\" included: it starts when the open cycle "
+                     "closes, or at once if the user abandons the open "
+                     "cycle."),
         "abandon": ("The only way out before the end is the user abandoning "
-                    "the cycle in so many words: add `abandoned:` with the "
-                    "date and the user's reason and mark unmet items `[-]`. "
-                    "The agent never proposes it to start other work."),
+                    "the cycle in so many words: add `abandoned:` to its "
+                    "header lines with the date and the user's reason and "
+                    "mark unmet items `[-]`. The agent never proposes it to "
+                    "start other work; it names it only as one of the user's "
+                    "options when a review budget is spent with a blocker "
+                    "open (step 5)."),
         "conclude": ("What belongs to the cycle's request is concluded in the "
                      "cycle: a review finding on its changes, a residual of "
                      "its demands, a defect its objective owns. Concluded "
-                     "means fixed, or declined by the user as a declared "
-                     "limit — never deferred to a later cycle."),
+                     "means fixed, or declined by the user — a declared "
+                     "limit, a narrowed cut, or a paused demand (step 5, "
+                     "`fde-review`), its done line marked `[-]` — never "
+                     "deferred by the agent to a later cycle; a cut or a "
+                     "paused demand enters `backlog.md` as a new idea."),
         "backlog": ("Anything else found during the cycle goes to `backlog.md` "
                     "as one line carrying `(C-<n>)` and its evidence, and is "
                     "never fixed in-band (MNT-9) — the one exception is a "
                     "defect that blocks a declared task, fixed and noted as "
                     "such. The backlog holds ideas and discoveries, not "
-                    "commitments; create it on the first capture."),
+                    "commitments; create it on the first capture with a "
+                    "`goal:` line (the user's product goal, or `goal: not "
+                    "set`) and a `date:` line, so `[scrum]` adopts it "
+                    "unchanged; evidence follows `opinion < usage-data < "
+                    "user-test < production`."),
         "frozen": ("The declaration is frozen after the first behavior commit "
                    "except for marking done items. Ask the user before "
                    "widening `## Tasks`; the answer is a backlog line, not an "
                    "edit."),
-        "close": ("At close every done item is `[x]`: add `closed:` and show "
-                  "the user the backlog lines this cycle added — the next "
-                  "request is chosen from the backlog."),
+        "close": ("At close no done item is `[ ]`: add `closed:` to the "
+                  "header lines and show the user the backlog lines this "
+                  "cycle added — the user chooses the next request from the "
+                  "backlog."),
         "view": ("`python3 bin/fde/status.py` shows the open cycle and the "
                  "backlog (`fde-status`)."),
     }
@@ -249,10 +264,34 @@ class TestDeclaredCycle(unittest.TestCase):
     def test_no_next_cycle_list_and_no_switching(self):
         # FWD-023: the list that grew into a second backlog is gone, and so
         # is "the open cycle closes as it stands" to start a new request
+        # (reviews/FWD-023 note: section() stops at a heading, so the heading
+        # check reads the whole file)
         for rel in self.SURFACES:
-            text = self.cycle(rel)
-            self.assertNotIn("## Next cycle", text, rel)
-            self.assertNotIn("closes as it stands", text, rel)
+            self.assertNotIn("## Next cycle", read(rel), rel)
+            self.assertNotIn("closes as it stands", self.cycle(rel), rel)
+
+    def test_budget_and_fix_it_now_agree_with_the_cycle(self):
+        # reviews/FWD-023 F1, F3, F4: the rules that route findings and new
+        # requests elsewhere say the same thing as ## Cycle
+        for rel in self.SURFACES:
+            flat = " ".join(read(rel).split())
+            self.assertIn("Budget spent with a blocker open → the user narrows, "
+                          "declares the limit, or pauses (`## Cycle`); never "
+                          "one more round (`fde-review`).", flat, rel)
+            self.assertIn("\"Fix it NOW\" skips the backlog order, never the "
+                          "open cycle (`## Cycle`), and is recorded as "
+                          "unplanned; it surfaces at the retro.", flat, rel)
+            self.assertNotIn("bypasses the backlog", flat, rel)
+        for rel in ("skills/fde-review/SKILL.md", ".claude/skills/fde-review/SKILL.md"):
+            flat = " ".join(read(rel).split())
+            self.assertIn("the user picks one (AGENTS.md `## Cycle`: nothing is "
+                          "declined without the user)", flat, rel)
+            self.assertNotIn("the builder picks one", flat, rel)
+        for rel in ("skills/fde-scrum/SKILL.md", ".claude/skills/fde-scrum/SKILL.md"):
+            flat = " ".join(read(rel).split())
+            self.assertIn("\"fix it NOW\" skips the backlog order, never the "
+                          "open cycle", flat, rel)
+            self.assertNotIn("runs immediately", flat, rel)
 
     def test_no_in_band_loophole(self):
         # FWD-022 FM-3's own trigger: a "small adjacent fix" allowance
@@ -269,7 +308,9 @@ class TestDeclaredCycle(unittest.TestCase):
     def test_skills_point_to_the_section(self):
         for rel in ("skills/fde-triage/SKILL.md", "skills/fde-scrum/SKILL.md",
                     ".claude/skills/fde-triage/SKILL.md",
-                    ".claude/skills/fde-scrum/SKILL.md"):
+                    ".claude/skills/fde-scrum/SKILL.md",
+                    "skills/fde-status/SKILL.md",
+                    ".claude/skills/fde-status/SKILL.md"):
             self.assertIn("AGENTS.md `## Cycle`", read(rel), rel)
 
     def test_scrum_captures_discoveries_as_found(self):

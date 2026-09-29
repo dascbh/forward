@@ -33,7 +33,8 @@ description: Runs the adversarial review in an isolated context, with attack ord
   backlog (`blocking = false`, `backlog = true`) — it never reopens the
   demand.
 - **No extension.** When the budget is spent with a blocking finding
-  open, the builder picks one, and records it in the promotion or the
+  open, the user picks one (AGENTS.md `## Cycle`: nothing is declined
+  without the user), and the builder records it in the promotion or the
   closing commit:
   1. *narrow* — cut the part the finding lives in, ship the rest, the cut
      goes to the backlog as its own demand;

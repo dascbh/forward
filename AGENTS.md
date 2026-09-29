@@ -158,8 +158,8 @@ writing code on request; start by sizing. Pick a short demand id first
    `.fde/spec/` — finding cites the principle, I8). Blocking = critical/
    high, reachable inside the threat model, breaks a declared criterion —
    never weight alone. At most five findings per round. Budget spent with
-   a blocker open → narrow, declare the limit, or pause; never one more
-   round (`fde-review`).
+   a blocker open → the user narrows, declares the limit, or pauses
+   (`## Cycle`); never one more round (`fde-review`).
 6. **Promotion** (M/L): `promotions/<demand-id>/decision.md` against the
    declared acceptance criteria.
 7. **Gate**: `python3 bin/fde/verify.py --all` — the same one CI runs.
@@ -185,29 +185,39 @@ M/L, and deploy or publish only when the project deploys or publishes. A
 RULE commit (`fde-triage`) needs no cycle.
 
 One cycle is open at a time, and it runs to the end: no other cycle opens
-until every done item is `[x]`. A new request that arrives mid-cycle goes
-to `backlog.md`, not to a new cycle. The only way out before the end is
-the user abandoning the cycle in so many words: add `abandoned:` with the
-date and the user's reason and mark unmet items `[-]`. The agent never
-proposes it to start other work.
+while any done item is `[ ]`. Each item ends `[x]` (met) or `[-]`
+(declined by the user, with the date and reason). A new request that
+arrives mid-cycle goes to `backlog.md`, not to a new cycle — "fix it NOW"
+included: it starts when the open cycle closes, or at once if the user
+abandons the open cycle. The only way out before the end is the user
+abandoning the cycle in so many words: add `abandoned:` to its header
+lines with the date and the user's reason and mark unmet items `[-]`.
+The agent never proposes it to start other work; it names it only as one
+of the user's options when a review budget is spent with a blocker open
+(step 5).
 
 What belongs to the cycle's request is concluded in the cycle: a review
 finding on its changes, a residual of its demands, a defect its objective
-owns. Concluded means fixed, or declined by the user as a declared limit
-— never deferred to a later cycle. Anything else found during the cycle
+owns. Concluded means fixed, or declined by the user — a declared limit, a
+narrowed cut, or a paused demand (step 5, `fde-review`), its done line
+marked `[-]` — never deferred by the agent to a later cycle; a cut or a
+paused demand enters `backlog.md` as a new idea. Anything else found during the cycle
 goes to `backlog.md` as one line carrying `(C-<n>)` and its evidence, and
 is never fixed in-band (MNT-9) — the one exception is a defect that
 blocks a declared task, fixed and noted as such. The backlog holds ideas
-and discoveries, not commitments; create it on the first capture.
+and discoveries, not commitments; create it on the first capture with a
+`goal:` line (the user's product goal, or `goal: not set`) and a `date:`
+line, so `[scrum]` adopts it unchanged; evidence follows `opinion <
+usage-data < user-test < production`.
 
 The declaration is frozen after the first behavior commit except for
 marking done items. Ask the user before widening `## Tasks`; the answer
 is a backlog line, not an edit. Under `[scrum]`, a sprint holds several
 cycles, one after another.
 
-At close every done item is `[x]`: add `closed:` and show the user the
-backlog lines this cycle added — the next request is chosen from the
-backlog. `python3 bin/fde/status.py` shows the open cycle and the backlog
+At close no done item is `[ ]`: add `closed:` to the header lines and
+show the user the backlog lines this cycle added — the user chooses the
+next request from the backlog. `python3 bin/fde/status.py` shows the open cycle and the backlog
 (`fde-status`). This is an instruction, not a gate (ADR-0018): it assumes
 a cooperative agent.
 
@@ -220,8 +230,8 @@ demand. The user's attention is spent in two sittings — planning (dated
 sprint goal + selection in `sprints/S-N/goal.md`) and review + retro
 (increment inspected, backlog reordered, process findings recorded).
 Between them, demands run the loop without interruptions. "Fix it NOW"
-bypasses the backlog but is recorded as unplanned and surfaces at the
-retro. No dated goal, no sprint; no retro, no next sprint (`--gate
+skips the backlog order, never the open cycle (`## Cycle`), and is
+recorded as unplanned; it surfaces at the retro. No dated goal, no sprint; no retro, no next sprint (`--gate
 scrum`). Detail: `fde-scrum` skill.
 
 ## Voice — the kernel is infrastructure
@@ -240,6 +250,8 @@ subject of your reports.
 - The kernel earns more than one line in chat only when: the gate blocked
   something (say which invariant and the fix), or a decision is genuinely
   the user's to make.
+- The backlog lines a closing cycle added are domain content, not process:
+  show them in full (`## Cycle`).
 
 ## Detail
 

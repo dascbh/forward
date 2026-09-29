@@ -68,8 +68,10 @@ delegable.
 Run each demand through the demand loop without consulting the user,
 except for decisions that are genuinely theirs. A demand added mid-sprint
 must justify itself against the goal or wait. **Exception route**: "fix
-it NOW" bypasses the backlog, runs immediately, and is recorded in
-goal.md under `## Unplanned` — it surfaces at the retro, uncommented.
+it NOW" skips the backlog order, never the open cycle: it starts when the
+open cycle closes, or at once if the user abandons it (AGENTS.md
+`## Cycle`), and is recorded in goal.md under `## Unplanned` — it
+surfaces at the retro, uncommented.
 Each request runs as a declared cycle (AGENTS.md `## Cycle`), one after
 another; discoveries outside it enter `backlog.md` as they are found,
 with origin `(C-<n>)` and evidence `usage-data`.
