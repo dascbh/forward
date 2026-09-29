@@ -77,6 +77,9 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 - B-46 (C-12) usage-data — nested `d and d[...]` expressions in status.py's panel helpers are hard to read (code review FWD-035 F2)
 - B-47 (C-12) usage-data — the panel's promotion cell shows a bold decision as `\**promovido**` (the leading `*` escaped as a list marker) and cuts it at 40 characters mid-word (`--panel --root headlabs-platform`, DEM-002, DEM-013)
 
+- B-48 (C-12) usage-data — prove a reader against a real client (headlabs) before the cycle review, not only against this repo's layout (C-12 F1 was invisible here)
+- B-49 (C-12) usage-data — commit the demand reviews before the cycle review starts, so the cycle reviewer sees them (C-12 F2 was stale)
+
 ## Discarded (2026-09-29)
 
 Reviewed against 0.19.0 with the owner; ids stay retired.
