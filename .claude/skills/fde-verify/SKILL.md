@@ -29,6 +29,8 @@ checked). Gates added in 0.29 (owner direction, from a client cycle's lessons):
 - `DOCS` — a cycle closed from 2026-10-01 needs `docs:` in promotion.md.
 - `CYCLES` — running cycles touching the same files without `depends:`
   fail (kernel ADR-0024); one that declares no `files` warns.
+- `MAP` ⚠ (0.30) — with `docs/map/conventions.toml`, a product map that
+  no longer matches the code. Warns only, until usage shows it reliable.
 
 ## When explaining a failure
 

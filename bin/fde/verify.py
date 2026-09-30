@@ -59,7 +59,7 @@ KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "portability", "artifact-handoff", "backlog", "scrum", "traceability",
                "erosion", "divergence", "survey", "walkthrough", "rule-lane",
                "untracked", "backlog-length", "process-dup", "doc-refs", "docs",
-               "cycles")
+               "cycles", "map")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -1321,6 +1321,34 @@ class Gate:
         if not msgs and explicit:
             self.add("CYCLES", True, "running cycles touch disjoint files")
 
+    # -- the product map still matches the code (fde-map) --------------------
+    # First version: it warns and never fails. It fails only once usage
+    # shows the warning is reliable (owner rule: evidence before a gate).
+    def gate_map(self, explicit: bool = False) -> None:
+        conv_path = self.project / "docs" / "map" / "conventions.toml"
+        if not conv_path.is_file():
+            if explicit:
+                self.add("MAP", True, "no docs/map/conventions.toml — no product map")
+            return
+        try:
+            import productmap
+            conv = productmap.load_conventions(self.project)
+            stale = []
+            for feature in conv.get("feature", []):
+                _, md = productmap.generate(self.project, conv, feature)
+                target = self.project / "docs" / "map" / f"{feature['slug']}.md"
+                old = target.read_text(encoding="utf-8") if target.is_file() else ""
+                if productmap.comparable(old) != productmap.comparable(md):
+                    stale.append(str(target.relative_to(self.project)))
+        except (Exception, SystemExit) as e:  # a map that cannot build is a warning
+            self.warn("MAP", f"the product map could not be built: {e}")
+            return
+        if stale:
+            self.warn("MAP", f"{len(stale)} product map(s) out of date — "
+                      f"`python3 bin/fde/productmap.py --write`: {', '.join(stale[:4])}")
+        elif explicit:
+            self.add("MAP", True, "every product map matches the code")
+
     def report(self, fmt: str) -> int:
         failed = [r for r in self.results if not r[1]]
         if fmt == "json":
@@ -1713,6 +1741,8 @@ def main() -> int:
             g.gate_docs_line(explicit=(only == "docs"))
         if want("cycles"):
             g.gate_cycles(explicit=(only == "cycles"))
+        if want("map"):
+            g.gate_map(explicit=(only == "map"))
         if want("divergence"):
             g.gate_divergence()
         if want("survey"):

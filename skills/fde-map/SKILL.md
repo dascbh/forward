@@ -58,3 +58,16 @@ regeneration; everything else is rewritten.
 - Before planning slices (kernel ADR-0024), two slices that write the
   same table or handler share a seam.
 - A review of a diff that touches a column reads which screens reach it.
+
+## Exporting it
+
+```bash
+python3 bin/fde/mapexport.py --export mermaid [--feature <slug>]   # one flowchart per screen
+python3 bin/fde/mapexport.py --export mermaid --screen /billing     # one screen
+python3 bin/fde/mapexport.py --export jgf|graphml|dot > map.<ext>   # JSON Graph Format, Gephi/yEd/Cytoscape, Graphviz
+```
+
+The whole graph in one Mermaid chart is unreadable, so Mermaid is split
+by screen. `--input <file>` (or `-`) reads a `productmap.py --format json`
+instead of building the map again. The `MAP` gate warns when a map no
+longer matches the code; it never fails yet.

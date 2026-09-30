@@ -98,6 +98,9 @@ the version.
    `python3 bin/fde/verify.py --all`, `python3 bin/fde/status.py --waves
    C-<n>` for each live cycle, and `python3 bin/fde/verify.py --gate
    backlog-length` (every open item, not only new ones).
+   With `docs/map/conventions.toml`, also `python3 bin/fde/productmap.py
+   --check`: list the product maps out of date for the owner, and never
+   regenerate them on your own (`--write` runs when the owner asks).
 2. **Backlog** — reread each open item against the new kernel:
    - an item the new kernel resolves moves to discarded with
      `resolved by kernel <version>`;
