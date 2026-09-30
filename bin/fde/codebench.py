@@ -5,35 +5,44 @@ request, 2026-09-29). It reports; it never gates: `fde-erosion` is the
 gate, and both read the same measures from erosion.py so they cannot
 disagree.
 
-For HEAD and a few earlier commits spread over the history (plus the
-commit that installed FORWARD, when there is one), over the project's own
-code (the `[gate]` roots minus `[erosion] generated_paths`, tests out):
+Population: the project's own source — the `[gate]` roots minus
+`[erosion] generated_paths`, tests out, byte-identical copies once.
 
-- size: files and non-blank lines of code;
-- Python functions: cyclomatic complexity (mean, p90, max), how many
-  exceed CC 10, and structural erosion — the share of complexity mass
-  (CC × √SLOC) held by those functions (SlopCodeBench v2 §2.3);
-- the clone ratio, byte-identical copies counted once.
+1. HEAD against published references:
+   - size: lines of code per language;
+   - Python functions: cyclomatic complexity and its Radon rank (A 1-5,
+     B 6-10, C 11-20, D 21-30, E 31-40, F 41+); over CC 10 (McCabe 1976,
+     NIST SP 500-235); Pylint's defaults for statements (50), arguments
+     (5), nested blocks (5) and branches (12); files over 1000 lines;
+   - structural erosion (SlopCodeBench v2 §2.3; 473 human Python
+     repositories average about 0.34);
+   - clone ratio (SonarQube's default quality gate: 3% on new code);
+   - SQL: statements embedded in source, and lines in .sql files;
+   - layers: controllers doing the model's work — SQL or direct data
+     calls in a controller (MVC; the kernel's MNT-2). Controllers are the
+     paths declared in `[codebench] controller_paths`; undeclared, common
+     names are detected and the report says so.
+2. The trend over snapshots spread over the history, the FORWARD install
+   commit and HEAD.
+3. The hotspots at HEAD: the functions with the most complexity mass,
+   their complexity then and now, and whether their file is a controller
+   that touches data.
 
-Then the hotspots at HEAD: the functions with the most mass, with their
-complexity then and now, so growth by patching is visible.
-
-Reference (SlopCodeBench v2, 473 human Python repositories): structural
-erosion averages about 0.34. The paper's verbosity adds lint-rule hits to
-clones, so the clone ratio here is not directly comparable to its 0.19.
-
-Complexity is measured for Python only; other languages count in size
-and clones. stdlib only (I6).
+Complexity is measured for Python only; other languages count in size,
+clones, SQL and layers. stdlib only (I6).
 """
 from __future__ import annotations
 
 import argparse
 import ast
+import fnmatch
 import hashlib
 import json
 import math
+import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -41,14 +50,54 @@ sys.path.insert(0, str(HERE))
 import erosion  # noqa: E402
 from fde_lib import project_root  # noqa: E402
 
-SOURCE_SUFFIXES = erosion.CODE_SUFFIXES - {".md", ".toml"}
+SOURCE_SUFFIXES = (erosion.CODE_SUFFIXES - {".md", ".toml"}) | {".sql"}
+LANGUAGES = {".py": "Python", ".ts": "TypeScript", ".tsx": "TypeScript",
+             ".js": "JavaScript", ".jsx": "JavaScript", ".sql": "SQL",
+             ".sh": "Shell", ".go": "Go", ".rs": "Rust", ".java": "Java",
+             ".rb": "Ruby", ".php": "PHP", ".cs": "C#", ".kt": "Kotlin",
+             ".swift": "Swift", ".scala": "Scala", ".c": "C", ".h": "C",
+             ".cpp": "C++"}
+
+# published references (see the module docstring)
 HUMAN_EROSION = 0.34
+MCCABE = 10
+PYLINT = {"statements": 50, "args": 5, "nesting": 5, "branches": 12,
+          "module_lines": 1000}
+SONAR_DUP = 3.0
+RADON = ((5, "A"), (10, "B"), (20, "C"), (30, "D"), (40, "E"))
+
+SQL = re.compile(r"\b(?:SELECT\s[^;]{0,400}?\sFROM\s|INSERT\s+INTO\s|UPDATE\s+[\w.\"]+\s+SET\s|"
+                 r"DELETE\s+FROM\s|CREATE\s+(?:TABLE|INDEX|VIEW)\s|ALTER\s+TABLE\s)",
+                 re.IGNORECASE)
+DATA_CALL = re.compile(
+    r"\bcursor\s*\(|\.execute\s*\(|\bpsycopg2?\b|\bsqlalchemy\b|"
+    r"boto3\.(?:client|resource)\(\s*['\"](?:dynamodb|s3|rds-data)|"
+    r"\.(?:put_item|get_item|update_item|delete_item|batch_write_item|"
+    r"batch_get_item|query|scan)\s*\(|\bprisma\.\w+\.|\bknex\s*\(")
+DETECTED_CONTROLLERS = re.compile(
+    r"(^|/)(handler|handlers|views|controller|controllers|routes?|routers?)"
+    r"(/|\.[a-z]+$)|(_handler|_controller|_view|_routes?)\.[a-z]+$|"
+    r"(^|/)(pages/api|app/api)/")
 
 
-def _git(root: Path, *args: str, stdin: str | None = None) -> str:
-    r = subprocess.run(["git", "-C", str(root), *args], input=stdin,
-                       capture_output=True, text=True, errors="replace")
+def _git(root: Path, *args: str) -> str:
+    r = subprocess.run(["git", "-C", str(root), *args], capture_output=True,
+                       text=True, errors="replace")
     return r.stdout if r.returncode == 0 else ""
+
+
+def controller_rule(root: Path):
+    """(matcher, declared?) from `[codebench] controller_paths`; common
+    names are detected when the project declared none."""
+    try:
+        raw = tomllib.loads((root / "fde.config.toml").read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        raw = {}
+    paths = (raw.get("codebench") or {}).get("controller_paths")
+    if isinstance(paths, list) and paths and all(isinstance(p, str) for p in paths):
+        return (lambda n: any(n.startswith(p) or fnmatch.fnmatch(n, p)
+                              for p in paths)), True
+    return (lambda n: bool(DETECTED_CONTROLLERS.search(n))), False
 
 
 def snapshot_files(root: Path, sha: str) -> dict[str, str]:
@@ -78,8 +127,49 @@ def snapshot_files(root: Path, sha: str) -> dict[str, str]:
     return out
 
 
+# -- Python function measures -------------------------------------------------
+
+_BLOCKS = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.Try, ast.With,
+           ast.AsyncWith) + ((ast.Match,) if hasattr(ast, "Match") else ())
+_OWN = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)
+
+
+def _shape(fn) -> tuple[int, int, int]:
+    """(statements, branches, deepest nesting) of one function, nested
+    scopes excluded. Branches follow Pylint: each if/elif, loop, except,
+    match case, and an if's else."""
+    statements = branches = deepest = 0
+    todo = [(c, 0) for c in ast.iter_child_nodes(fn)]
+    while todo:
+        node, depth = todo.pop()
+        if isinstance(node, _OWN):
+            continue
+        if isinstance(node, ast.stmt):
+            statements += 1
+        if isinstance(node, (ast.If, ast.For, ast.AsyncFor, ast.While)):
+            branches += 1
+            if isinstance(node, ast.If) and node.orelse and not (
+                    len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If)):
+                branches += 1
+        elif isinstance(node, ast.ExceptHandler) or (
+                hasattr(ast, "match_case") and isinstance(node, ast.match_case)):
+            branches += 1
+        inner = depth + 1 if isinstance(node, _BLOCKS) else depth
+        deepest = max(deepest, inner)
+        todo.extend((c, inner) for c in ast.iter_child_nodes(node))
+    return statements, branches, deepest
+
+
+def _args(fn) -> int:
+    a = fn.args
+    names = [x.arg for x in a.posonlyargs + a.args + a.kwonlyargs]
+    return len([n for n in names if n not in ("self", "cls")]) + \
+        (1 if a.vararg else 0) + (1 if a.kwarg else 0)
+
+
 def functions(name: str, text: str):
-    """(qualified name, line, CC, SLOC) of every Python function."""
+    """One dict per Python function: qualified name, line, CC, SLOC,
+    statements, branches, nesting, arguments, body hash."""
     try:
         tree = ast.parse(text)
     except (SyntaxError, ValueError):
@@ -90,47 +180,93 @@ def functions(name: str, text: str):
         for child in ast.iter_child_nodes(node):
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 q = f"{prefix}{child.name}"
-                yield (q, child.lineno, erosion.cyclomatic(child),
-                       erosion._sloc(child, lines), child)
+                yield q, child
                 yield from walk(child, q + ".")
             elif isinstance(child, ast.ClassDef):
                 yield from walk(child, f"{prefix}{child.name}.")
             else:
                 yield from walk(child, prefix)
-    for q, line, cc, sloc, node in walk(tree, ""):
-        body = "\n".join(lines[node.lineno - 1:(node.end_lineno or node.lineno)])
-        yield q, line, cc, sloc, hashlib.blake2b(body.strip().encode(),
-                                                 digest_size=16).hexdigest()
+    for q, fn in walk(tree, ""):
+        body = "\n".join(lines[fn.lineno - 1:(fn.end_lineno or fn.lineno)])
+        st, br, nest = _shape(fn)
+        yield {"q": q, "line": fn.lineno, "cc": erosion.cyclomatic(fn),
+               "sloc": erosion._sloc(fn, lines), "statements": st,
+               "branches": br, "nesting": nest, "args": _args(fn),
+               "key": hashlib.blake2b(body.strip().encode(),
+                                      digest_size=16).hexdigest()}
 
 
-def measure_snapshot(files: dict[str, str]) -> dict:
+def radon_rank(cc: int) -> str:
+    return next((r for limit, r in RADON if cc <= limit), "F")
+
+
+# -- one snapshot ---------------------------------------------------------------
+
+def measure_snapshot(files: dict[str, str], is_controller) -> dict:
     kept, copy_groups = erosion.dedupe_copies(files)
-    loc = sum(1 for t in kept.values() for l in t.splitlines() if l.strip())
-    seen, ccs, total, high = set(), [], 0.0, 0.0
-    per_fn: dict[str, tuple[int, int, int]] = {}
+    by_lang: dict[str, int] = {}
+    long_files, sql_embedded, sql_file_loc = 0, 0, 0
+    ctrl = {"files": 0, "loc": 0, "with_sql": 0, "with_data": 0, "names": []}
+    loc = 0
+    for name, text in kept.items():
+        n = sum(1 for l in text.splitlines() if l.strip())
+        loc += n
+        suffix = Path(name).suffix.lower()
+        lang = LANGUAGES.get(suffix, suffix.lstrip(".") or "other")
+        by_lang[lang] = by_lang.get(lang, 0) + n
+        if len(text.splitlines()) > PYLINT["module_lines"]:
+            long_files += 1
+        if suffix == ".sql":
+            sql_file_loc += n
+            continue
+        hits = len(SQL.findall(text))
+        sql_embedded += hits
+        if is_controller(name):
+            data = bool(DATA_CALL.search(text))
+            ctrl["files"] += 1
+            ctrl["loc"] += n
+            ctrl["with_sql"] += bool(hits)
+            ctrl["with_data"] += bool(hits) or data
+            if hits or data:
+                ctrl["names"].append(name)
+
+    seen, fns, total, high = set(), [], 0.0, 0.0
+    per_fn: dict[str, dict] = {}
     for name, text in kept.items():
         if not name.endswith(".py"):
             continue
-        for q, line, cc, sloc, key in functions(name, text):
-            per_fn[f"{name}::{q}"] = (cc, sloc, line)
-            if key in seen:
+        for f in functions(name, text):
+            per_fn[f"{name}::{f['q']}"] = f
+            if f["key"] in seen:
                 continue
-            seen.add(key)
-            ccs.append(cc)
-            mass = cc * math.sqrt(max(sloc, 1))
+            seen.add(f["key"])
+            fns.append(f)
+            mass = f["cc"] * math.sqrt(max(f["sloc"], 1))
             total += mass
-            if cc > erosion.HIGH_CC:
+            if f["cc"] > MCCABE:
                 high += mass
-    ccs.sort()
+    ccs = sorted(f["cc"] for f in fns)
+    ranks = {r: 0 for r in "ABCDEF"}
+    for c in ccs:
+        ranks[radon_rank(c)] += 1
     return {
         "files": len(kept), "loc": loc, "copy_groups": copy_groups,
+        "loc_by_language": dict(sorted(by_lang.items(), key=lambda kv: -kv[1])),
         "functions": len(ccs),
         "cc_mean": round(sum(ccs) / len(ccs), 2) if ccs else None,
         "cc_p90": ccs[min(len(ccs) - 1, int(0.9 * len(ccs)))] if ccs else None,
         "cc_max": ccs[-1] if ccs else None,
-        "complex": sum(1 for c in ccs if c > erosion.HIGH_CC),
+        "complex": sum(1 for c in ccs if c > MCCABE),
+        "radon_ranks": ranks,
+        "over_statements": sum(1 for f in fns if f["statements"] > PYLINT["statements"]),
+        "over_args": sum(1 for f in fns if f["args"] > PYLINT["args"]),
+        "over_nesting": sum(1 for f in fns if f["nesting"] > PYLINT["nesting"]),
+        "over_branches": sum(1 for f in fns if f["branches"] > PYLINT["branches"]),
+        "long_files": long_files,
         "structural_erosion": round(high / total, 3) if total else None,
         "clone_pct": erosion.duplicate_block_pct(kept) if kept else None,
+        "sql_embedded": sql_embedded, "sql_file_loc": sql_file_loc,
+        "controllers": ctrl,
         "_per_fn": per_fn,
     }
 
@@ -153,59 +289,111 @@ def pick_points(root: Path, n: int) -> list[tuple[str, str]]:
 
 
 def bench(root: Path, points: int = 6, top: int = 10) -> dict:
+    is_controller, declared = controller_rule(root)
     rows = []
     for sha, label in pick_points(root, points):
         date = _git(root, "log", "-1", "--format=%ad", "--date=short", sha).strip()
-        m = measure_snapshot(snapshot_files(root, sha))
+        m = measure_snapshot(snapshot_files(root, sha), is_controller)
         rows.append({"sha": sha[:8], "date": date, "label": label, **m})
     if not rows:
-        return {"snapshots": [], "hotspots": []}
-    head = rows[-1]["_per_fn"]
+        return {"snapshots": [], "hotspots": [], "controllers_declared": declared}
+    head_row = rows[-1]
     base_row = next((r for r in rows if r["label"] == "FORWARD installed"), rows[0])
-    ranked = sorted(head.items(),
-                    key=lambda kv: -kv[1][0] * math.sqrt(max(kv[1][1], 1)))[:top]
+    touching = set(head_row["controllers"]["names"])
+    ranked = sorted(head_row["_per_fn"].items(),
+                    key=lambda kv: -kv[1]["cc"] * math.sqrt(max(kv[1]["sloc"], 1)))[:top]
     hotspots = []
-    for key, (cc, sloc, line) in ranked:
+    for key, f in ranked:
         then = base_row["_per_fn"].get(key)
-        path, q = key.split("::", 1)
-        hotspots.append({"path": path, "function": q, "line": line, "cc": cc,
-                         "sloc": sloc, "cc_then": then[0] if then else None,
-                         "since": base_row["date"]})
+        path = key.split("::", 1)[0]
+        hotspots.append({"path": path, "function": f["q"], "line": f["line"],
+                         "cc": f["cc"], "sloc": f["sloc"],
+                         "cc_then": then["cc"] if then else None,
+                         "since": base_row["date"],
+                         "controller_with_data": path in touching})
     for r in rows:
         del r["_per_fn"]
     return {"snapshots": rows, "hotspots": hotspots,
-            "reference": {"human_structural_erosion": HUMAN_EROSION}}
+            "controllers_declared": declared,
+            "reference": {"human_structural_erosion": HUMAN_EROSION,
+                          "mccabe": MCCABE, "pylint": PYLINT,
+                          "sonar_duplication_pct": SONAR_DUP}}
+
+
+# -- text ---------------------------------------------------------------------------
+
+def _f(v, w=0):
+    return ("—" if v is None else str(v)).rjust(w)
 
 
 def render(data: dict) -> list[str]:
-    def f(v, w):
-        return ("—" if v is None else str(v)).rjust(w)
-    out = ["", "codebench — code quality over the history (report only; the gate is fde-erosion)", ""]
-    out.append(f"  {'date':10} {'commit':8} {'files':>6} {'LOC':>7} {'fns':>6} "
-               f"{'CC avg':>6} {'p90':>4} {'max':>4} {'CC>10':>6} {'erosion':>8} "
-               f"{'clones%':>7}")
+    out = ["", "codebench — code quality over the history "
+           "(report only; the gate is fde-erosion)"]
+    if not data["snapshots"]:
+        return out + ["", "  no committed history to measure"]
+    h = data["snapshots"][-1]
+    c = h["controllers"]
+    pct = lambda a, b: f"{round(100 * a / b)}%" if b else "—"  # noqa: E731
+    langs = ", ".join(f"{k} {v}" for k, v in list(h["loc_by_language"].items())[:5])
+    ranks = " ".join(f"{k}:{v}" for k, v in h["radon_ranks"].items())
+    fn = h["functions"] or 0
+    rows = [
+        ("lines of code", f"{h['loc']} in {h['files']} files", langs),
+        ("files over 1000 lines", h["long_files"], "Pylint too-many-lines"),
+        ("Python functions", fn, "identical bodies once"),
+        ("CC avg / p90 / max", f"{_f(h['cc_mean'])} / {_f(h['cc_p90'])} / {_f(h['cc_max'])}", ""),
+        ("Radon ranks", ranks, "A 1-5 · B 6-10 · C 11-20 · D-F above"),
+        ("functions over CC 10", f"{h['complex']} ({pct(h['complex'], fn)})",
+         "McCabe 1976, NIST SP 500-235: ≤ 10"),
+        ("over 50 statements", h["over_statements"], "Pylint too-many-statements"),
+        ("over 5 arguments", h["over_args"], "Pylint too-many-arguments"),
+        ("over 12 branches", h["over_branches"], "Pylint too-many-branches"),
+        ("nesting over 5", h["over_nesting"], "Pylint too-many-nested-blocks"),
+        ("structural erosion", _f(h["structural_erosion"]),
+         f"SlopCodeBench v2: human repos ≈ {HUMAN_EROSION}"),
+        ("clones", f"{_f(h['clone_pct'])}%", f"SonarQube gate: ≤ {SONAR_DUP}% on new code"),
+        ("SQL in source", f"{h['sql_embedded']} statements",
+         f"plus {h['sql_file_loc']} lines in .sql files"),
+        ("controllers", f"{c['files']} files, {c['loc']} lines",
+         "declared in [codebench]" if data["controllers_declared"]
+         else "detected by name — declare [codebench] controller_paths"),
+        ("  with SQL", f"{c['with_sql']} ({pct(c['with_sql'], c['files'])})", "MVC: data access belongs to the model"),
+        ("  touching data", f"{c['with_data']} ({pct(c['with_data'], c['files'])})",
+         "SQL or direct DB/storage calls (MNT-2)"),
+    ]
+    out += ["", f"  now — HEAD {h['sha']} ({h['date']})", ""]
+    out += [f"  {a:24} {str(b):28} {r}" for a, b, r in rows]
+
+    out += ["", "  trend", "",
+            f"  {'date':10} {'commit':8} {'LOC':>7} {'fns':>6} {'CC avg':>6} {'max':>4} "
+            f"{'CC>10':>6} {'erosion':>8} {'clones%':>7} {'SQL':>5} {'ctrl+data':>9}"]
     for r in data["snapshots"]:
-        out.append(f"  {r['date']:10} {r['sha']:8} {f(r['files'], 6)} {f(r['loc'], 7)} "
-                   f"{f(r['functions'], 6)} {f(r['cc_mean'], 6)} {f(r['cc_p90'], 4)} "
-                   f"{f(r['cc_max'], 4)} {f(r['complex'], 6)} "
-                   f"{f(r['structural_erosion'], 8)} {f(r['clone_pct'], 7)}"
+        cc_ = r["controllers"]
+        out.append(f"  {r['date']:10} {r['sha']:8} {_f(r['loc'], 7)} {_f(r['functions'], 6)} "
+                   f"{_f(r['cc_mean'], 6)} {_f(r['cc_max'], 4)} {_f(r['complex'], 6)} "
+                   f"{_f(r['structural_erosion'], 8)} {_f(r['clone_pct'], 7)} "
+                   f"{_f(r['sql_embedded'], 5)} "
+                   f"{(str(cc_['with_data']) + '/' + str(cc_['files'])):>9}"
                    + (f"  ← {r['label']}" if r["label"] else ""))
-    out.append(f"  {'human ref.':10} {'':8} {'':>6} {'':>7} {'':>6} {'':>6} {'':>4} "
-               f"{'':>4} {'':>6} {HUMAN_EROSION:>8} {'':>7}  ← 473 Python repositories")
+
     if data["hotspots"]:
         since = data["hotspots"][0]["since"]
-        out += ["", f"  hotspots at HEAD — most complexity mass (CC then = at {since})", ""]
-        for h in data["hotspots"]:
-            grew = "" if h["cc_then"] is None else (
-                f"   CC {h['cc_then']} → {h['cc']}" if h["cc_then"] != h["cc"]
-                else "   unchanged")
-            new = "   new" if h["cc_then"] is None else ""
-            out.append(f"  CC {h['cc']:>3}  {h['sloc']:>4} lines  "
-                       f"{h['path']}:{h['line']} {h['function']}{grew}{new}")
-    out += ["", "  erosion = share of complexity mass (CC × √SLOC) in functions with "
-            "CC > 10; read it with CC>10 — a share falls when simple code lands.",
-            "  Complexity is Python only; other languages count in size and clones. "
-            "Byte-identical copies count once."]
+        out += ["", f"  hotspots at HEAD — most complexity mass (CC then = at {since}; "
+                "◆ = controller touching data)", ""]
+        for x in data["hotspots"]:
+            if x["cc_then"] is None:
+                grew = "   new"
+            elif x["cc_then"] != x["cc"]:
+                grew = f"   CC {x['cc_then']} → {x['cc']}"
+            else:
+                grew = "   unchanged"
+            mark = "◆" if x["controller_with_data"] else " "
+            out.append(f"  {mark} CC {x['cc']:>3} ({radon_rank(x['cc'])})  {x['sloc']:>4} lines  "
+                       f"{x['path']}:{x['line']} {x['function']}{grew}")
+    out += ["", "  Complexity and function measures are Python only; other languages count "
+            "in size, clones, SQL and layers.",
+            "  Tests are out; byte-identical copies count once; erosion falls when simple "
+            "code lands — read it with CC>10."]
     return out
 
 

@@ -19,22 +19,41 @@ between the FORWARD install and HEAD, and name the top hotspot that grew.
 Do not turn a hotspot into a fix unasked: a refactor is a demand like any
 other; offer it as a backlog item.
 
-## What each column means
+## What it shows
 
-- **files, LOC** — the project's own source: `[gate]` roots minus
-  `[erosion] generated_paths`, tests out, byte-identical copies once.
-- **fns, CC avg, p90, max** — Python functions (identical bodies once)
-  and their cyclomatic complexity, counted as Radon does.
-- **CC>10** — functions over the complexity cutoff.
-- **erosion** — the share of complexity mass (CC × √SLOC) in those
-  functions. Read it with CC>10: the share falls when a lot of simple code
-  lands even while complex functions keep growing.
-- **clones%** — the clone ratio (6-line windows that recur).
-- **human ref.** — 473 open-source Python repositories average about
-  0.34 structural erosion.
-- **hotspots** — the functions with the most mass at HEAD, with their CC
-  at the FORWARD install (or the first snapshot): `CC a → b` grew,
-  `new` appeared since.
+**Now (HEAD), each with the reference it is read against:**
+- lines of code per language; files over 1000 lines (Pylint);
+- Python functions: CC average, p90 and max, Radon ranks (A 1-5 … F
+  41+), functions over CC 10 (McCabe; NIST SP 500-235), and Pylint's
+  limits for statements (50), arguments (5), branches (12), nesting (5);
+- structural erosion: the share of complexity mass (CC × √SLOC) in the
+  functions over CC 10 — human repositories average about 0.34. Read it
+  with the count over CC 10: the share falls when a lot of simple code
+  lands even while complex functions keep growing;
+- clones: recurring 6-line windows (SonarQube's gate is 3% on new code);
+- SQL: statements embedded in source, and lines in .sql files;
+- controllers: how many hold SQL or call the database or storage
+  directly — the model's work done in the controller (MVC; MNT-2).
+  Declare which paths are controllers:
 
-Limits: complexity is Python only; other languages count in size and
+  ```toml
+  [codebench]
+  controller_paths = ["backend/lambdas/", "api/routers/"]
+  ```
+
+  Undeclared, common names (handler, routers, views, controllers) are
+  detected and the report says so.
+
+**Trend:** snapshots spread over the history, the FORWARD install commit
+and HEAD: LOC, functions, CC, over CC 10, erosion, clones, SQL, and
+controllers touching data.
+
+**Hotspots:** the functions with the most complexity mass at HEAD, their
+CC at the install (`a → b` grew, `new` appeared since), marked ◆ when
+their file is a controller touching data.
+
+The population is the project's own source: `[gate]` roots minus
+`[erosion] generated_paths`, tests out, byte-identical copies once.
+
+Limits: complexity and function measures are Python only; other languages count in size, SQL, layers and
 clones. Snapshots are committed trees, not the working copy.

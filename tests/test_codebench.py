@@ -88,3 +88,56 @@ class TestBench(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestIndicators(unittest.TestCase):
+    """The HEAD indicators and their published references."""
+
+    def test_function_shape_follows_pylint_and_radon(self):
+        import ast
+        src = ("def f(self, a, b, c, d, e, f, *rest, **kw):\n"
+               "    if a:\n        for x in b:\n            while c:\n"
+               "                with d:\n                    try:\n"
+               "                        if e:\n                            pass\n"
+               "                    except ValueError:\n                        pass\n"
+               "    else:\n        return 1\n")
+        fn = ast.parse(src).body[0]
+        statements, branches, nesting = codebench._shape(fn)
+        self.assertEqual(nesting, 6)            # if/for/while/with/try/if
+        self.assertEqual(branches, 6)           # if+else, for, while, except, if
+        self.assertGreater(statements, 5)
+        self.assertEqual(codebench._args(fn), 8)   # self out; *rest, **kw count
+        self.assertEqual([codebench.radon_rank(c) for c in (5, 6, 11, 21, 31, 41)],
+                         list("ABCDEF"))
+
+    def test_controllers_sql_and_languages(self):
+        files = {
+            "api/routers/items.py": 'def get():\n    return db.execute("SELECT id FROM items WHERE x = 1")\n',
+            "api/routers/health.py": "def ok():\n    return {'ok': True}\n",
+            "app/service.py": 'Q = "INSERT INTO items (a) VALUES (1)"\n',
+            "web/src/App.tsx": "export const A = () => null\n",
+            "db/schema.sql": "CREATE TABLE items (id int);\n",
+        }
+        is_ctrl = lambda n: n.startswith("api/routers/")   # noqa: E731
+        m = codebench.measure_snapshot(files, is_ctrl)
+        self.assertEqual(m["sql_embedded"], 2)
+        self.assertEqual(m["sql_file_loc"], 1)
+        c = m["controllers"]
+        self.assertEqual((c["files"], c["with_sql"], c["with_data"]), (2, 1, 1))
+        self.assertEqual(c["names"], ["api/routers/items.py"])
+        self.assertEqual(set(m["loc_by_language"]), {"Python", "TypeScript", "SQL"})
+
+    def test_controller_paths_are_declared_or_detected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            match, declared = codebench.controller_rule(root)
+            self.assertFalse(declared)
+            self.assertTrue(match("backend/lambdas/itens/handler.py"))
+            self.assertTrue(match("api/routers/loops.py"))
+            self.assertFalse(match("app/service.py"))
+            (root / "fde.config.toml").write_text(
+                '[codebench]\ncontroller_paths = ["app/http/"]\n')
+            match, declared = codebench.controller_rule(root)
+            self.assertTrue(declared)
+            self.assertTrue(match("app/http/items.py"))
+            self.assertFalse(match("api/routers/loops.py"))
