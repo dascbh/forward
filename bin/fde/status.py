@@ -74,7 +74,6 @@ ID_LIKE = re.compile(r"(?<![\w-])B-\d+")
 CHECKBOX = re.compile(r"^\[[^\]]{0,3}\]\s*")
 LOOSE_ID = re.compile(r"^(?:#+|\d+[.)])\s*(?:\[[^\]]{0,3}\]\s*)?[`*]*(B-\d+)")
 CRITERION = re.compile(r"^[-*+]\s+[`*]*([A-Z]+\d+)\b")
-DEMAND_ID = re.compile(r"\b[A-Z][A-Z0-9]*-\d+\b")
 # grouping marks a backlog item with the cycle it went into: `→ C-<n>`
 GROUP_MARK = re.compile(r"(?:\u2192|->)\s*(C-\d+)(?!\d)")
 ANY_B_ID = re.compile(r"(?<![\w-])B-(\d+)(?!\d)")
@@ -136,41 +135,16 @@ def _cells(row: str) -> list[str]:
             for c in re.split(r"(?<!\\)\|", row.strip().strip("|"))]
 
 
-def _is_separator(row: str) -> bool:
-    return set(row.strip()) <= set("|-: ")
-
-
 def _demands_table(lines: list[str]) -> list[dict]:
-    """Rows of the plan's `## Demands` table: id, layer, depends on. Columns
-    are found by their header names; without a header the first cell is the
-    id."""
-    rows = [line.strip() for line in lines if line.strip().startswith("|")]
-    cols: dict[str, int | None] = {"id": 0, "layer": None, "depends": None}
-    if len(rows) > 1 and _is_separator(rows[1]):
-        for i, name in enumerate(c.lower() for c in _cells(rows[0])):
-            if name == "id":
-                cols["id"] = i
-            elif name == "layer":
-                cols["layer"] = i
-            elif name.startswith("depends"):
-                cols["depends"] = i
-        rows = rows[2:]
+    """Rows of the plan's `## Demands` table (fde_lib.plan_demand_rows):
+    id, layer, depends on."""
+    rows = fde_lib.plan_demand_rows("## Demands\n" + "\n".join(lines))
     out = []
-    for row in rows:
-        if _is_separator(row):
-            continue
-        cells = _cells(row)
-
-        def cell(key):
-            i = cols[key]
-            return cells[i].strip("`* ") if i is not None and i < len(cells) else ""
-        did = cell("id")
-        if not did:
-            continue
-        dep = cell("depends")
+    for did, row in rows.items():
+        dep = next((v for k, v in row.items() if k.startswith("depends")), "")
         deps = [] if dep.lower() in NONE_CELL else \
             [d.strip("`* ") for d in re.split(r"[,;]", dep) if d.strip("`* ")]
-        out.append({"id": did, "layer": cell("layer"), "depends_on": deps})
+        out.append({"id": did, "layer": row.get("layer", ""), "depends_on": deps})
     return out
 
 
@@ -285,7 +259,7 @@ class Cycle:
         if self.demand_rows:
             return self.demand_rows
         ids: list[str] = []
-        for did in DEMAND_ID.findall(self.header.get("demands", "")):
+        for did in fde_lib.DEMAND_RE.findall(self.header.get("demands", "")):
             if did not in ids:
                 ids.append(did)
         return [{"id": d, "layer": "", "depends_on": []} for d in ids]
@@ -650,19 +624,6 @@ def cycle_paths(root: Path, c: Cycle) -> list[str]:
     return out
 
 
-def _spec_fields(text: str) -> dict[str, str]:
-    """`key: value` pairs of the spec's lines before its first `##`, a line
-    split on `·` (`cycle: C-12 · layer: back · follows: ADR-0020`); the
-    first of each key wins."""
-    out: dict[str, str] = {}
-    for line in _sections(text)[0][1]:
-        for part in line.split("·"):
-            m = HEADER.match(part.strip())
-            if m:
-                out.setdefault(m.group(1).lower(), m.group(2).strip())
-    return out
-
-
 def _decision(path: Path) -> str:
     """The `decision:` line of a promotion file, among its first lines."""
     for line in _read(path).splitlines()[:30]:
@@ -792,7 +753,7 @@ def load_demands(root: Path, cycles: list[Cycle], problems: list[str],
             continue
         seen[did] = p.name
         spec = p / "spec.md"
-        fields = _spec_fields(_read(spec)) if spec.is_file() else {}
+        fields = fde_lib.spec_fields(_read(spec)) if spec.is_file() else {}
         cid, cycle, source, layer, dangling = None, None, None, "", None
         if did in linked:
             cycle, row = linked[did]

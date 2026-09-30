@@ -1467,3 +1467,16 @@ class TestParallelCycles(unittest.TestCase):
         text = "\n".join(self.status.show_program(cs))
         self.assertIn("wave 1: C-1 (running)", text)
         self.assertIn("wave 2: C-2 (planned)", text)
+
+
+class TestOneParserPerFormat(unittest.TestCase):
+    """B-57: status.py read spec headers, the Demands table and demand ids
+    with its own parsers beside fde_lib's; one definition each now."""
+
+    def test_status_uses_the_kernel_parsers(self):
+        src = (Path(__file__).resolve().parent.parent / "runtime" / "status.py").read_text()
+        for gone in ("def _spec_fields", "def _is_separator", "DEMAND_ID = re.compile",
+                     "SPEC_DIR = re.compile"):
+            self.assertNotIn(gone, src)
+        for used in ("fde_lib.spec_fields(", "fde_lib.plan_demand_rows(", "fde_lib.demand_id("):
+            self.assertIn(used, src)

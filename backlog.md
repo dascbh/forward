@@ -49,7 +49,6 @@ Evidence for every line: usage-data (FWD-022 implementation and its isolated rev
 
 - B-55 (C-14) usage-data — the promotion cell's 40-char cut can split a closing `**` (stray `*`), and inline mode repairs only `**`, not backticks or `_` (code review FWD-042 F1, F2)
 - B-56 (C-14) usage-data — FWD-035 (closed C-12, layer `front`, meets A1–A6) is a terminal panel with no evals/journeys/; FWD-041's I1-REQS skips ended cycles, so it stays green, but a running cycle with a terminal-only `front` demand would need a journey manifest for text output — decide whether `front` means a UI surface only (FWD-041 build)
-- B-57 (C-14) opinion — status.py parses the spec header `key: value · …` fields on its own (line ~644) while fde_lib.spec_fields now does the same for verify.py; one definition would do (MNT-11; FWD-041 build, status.py claimed by FWD-042)
 
 - B-58 (C-14) usage-data — I1-REQS criterion regex accepts FM# ids in a `meets` cell, which would demand a journey for a failure mode (code review FWD-041 F2)
 - B-59 (C-14) opinion — erosion excludes a top-level cycles/ even when it holds real code and no [gate] roots are declared; no opt-back-in (code review FWD-041 F3)
@@ -124,3 +123,4 @@ Reviewed against 0.19.0 with the owner; ids stay retired.
 - B-50 (C-13) usage-data — the I2 gate reads only files named `findings.toml` (`gate_adversarial`, `rglob("findings.t… — discarded: done in C-14 (0.22.0)
 - B-53 owner decision — AGENTS.md keeps only the loop's skeleton and a pointer per step; detailed rules (sizing table… — discarded: done in C-14 (0.22.0)
 - B-60 (C-14) usage-data — AGENTS.md no longer names fde-survey ("undocumented system: survey first") or fde-design; … — discarded: done in C-14 (cycle review F4, efb1839)
+- B-57 (C-14) opinion — status.py parses the spec header `key: value · …` fields on its own (line ~644) while fde_lib.spec_fields now does the same for verify.py; one definition would do (MNT-11; FWD-041 build, status.py claimed by FWD-042) — discarded: done — status.py uses fde_lib's spec, table and id parsers (owner direction 2026-09-30, erosion budget)
