@@ -232,3 +232,53 @@ class TestTerminalSession(Fixture):
         self.assertIn("- B-1 first item", plan)
         self.assertIn("- B-2 second item", plan)
         self.assertIn("- B-2 second item opinion → C-1", self.text())
+
+
+class TestPanelKeys(Fixture):
+    """The keys, without a terminal: Panel.handle with a scripted prompt."""
+
+    def panel(self, answers=()):
+        from backlog import Panel
+        answers = list(answers)
+        return Panel(self.board, lambda label, initial="": answers.pop(0) if answers else None)
+
+    def test_move_select_and_group(self):
+        p = self.panel(["from keys"])
+        p.handle("j")                       # section → B-1
+        p.handle(" ")                       # select B-1, cursor to B-2
+        p.handle(" ")                       # select B-2
+        self.assertEqual(p.selected, {"B-1", "B-2"})
+        p.handle("g")
+        self.assertEqual(p.msg, "2 item(s) → C-1")
+        self.assertEqual(p.selected, set())
+
+    def test_discard_reorder_and_errors_go_to_the_status_line(self):
+        p = self.panel(["obsolete"])
+        p.handle("j")
+        p.handle("J")                       # B-1 down
+        self.assertIn("moved down", p.msg)
+        p.handle("d")                       # cursor followed B-1
+        self.assertEqual(p.msg, "B-1 discarded")
+        p.handle("m")                       # nothing selected
+        self.assertIn("two or more", p.msg)
+
+    def test_views_search_and_quit(self):
+        p = self.panel(["later"])
+        p.handle("?")
+        self.assertIsNotNone(p.view)
+        self.assertTrue(p.handle("q"))      # q closes the view first
+        self.assertIsNone(p.view)
+        p.handle("/")
+        self.assertEqual([r.key for r in p.rows if r.kind == "item"], ["B-7"])
+        self.assertFalse(p.handle("q"))     # then quits
+
+
+class TestPanelStaysSimple(unittest.TestCase):
+    def test_no_panel_function_is_a_hotspot(self):
+        # the loop was the kernel's worst hotspot (CC 85); keys now dispatch
+        import ast
+        import erosion
+        tree = ast.parse((ROOT / "runtime" / "backlog.py").read_text())
+        worst = max(erosion.cyclomatic(n) for n in ast.walk(tree)
+                    if isinstance(n, ast.FunctionDef) and n.name in ("_loop", "_draw", "handle"))
+        self.assertLessEqual(worst, 20)

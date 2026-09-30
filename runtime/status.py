@@ -76,7 +76,6 @@ LOOSE_ID = re.compile(r"^(?:#+|\d+[.)])\s*(?:\[[^\]]{0,3}\]\s*)?[`*]*(B-\d+)")
 CRITERION = re.compile(r"^[-*+]\s+[`*]*([A-Z]+\d+)\b")
 # grouping marks a backlog item with the cycle it went into: `→ C-<n>`
 GROUP_MARK = re.compile(r"(?:\u2192|->)\s*(C-\d+)(?!\d)")
-ANY_B_ID = re.compile(r"(?<![\w-])B-(\d+)(?!\d)")
 NONE_CELL = {"", "-", "\u2014", "\u2013", "none", "n/a"}
 WIDTH = 110
 UNSECTIONED = "Unsectioned"  # backlog items above the first `##`
@@ -498,11 +497,9 @@ def next_ids(root: Path, cycles: list[Cycle]) -> dict:
     """The next free ids: one more than the highest `B-<n>` seen anywhere —
     backlog.md or any cycle — and than the highest cycle number, directory
     or old single file. Ids are never reused."""
-    texts = [_read(root / "backlog.md")] + [c.text for c in cycles]
-    b = max((int(n) for t in texts for n in ANY_B_ID.findall(t)), default=0)
-    # Parallel worktrees and main count too: a demand's new line is not on
-    # this checkout yet when the next id is chosen (fde_lib.used_backlog_ids).
-    b = max([b] + [int(k[2:]) for k in fde_lib.used_backlog_ids(root)])
+    # this checkout, every other worktree and main (fde_lib.used_backlog_ids):
+    # a parallel demand's new line is not here yet when the next id is chosen
+    b = max((int(k[2:]) for k in fde_lib.used_backlog_ids(root)), default=0)
     n = max((c.n for c in cycles), default=0)
     return {"backlog_id": f"B-{b + 1}", "cycle_id": f"C-{n + 1}"}
 

@@ -418,6 +418,146 @@ def run(root: Path) -> int:  # pragma: no cover — needs a terminal
     return curses.wrapper(lambda scr: _loop(scr, board))
 
 
+class Panel:
+    """The panel's state and its keys. Drawing needs curses; the keys do
+    not, so `handle` is tested with a scripted prompt."""
+
+    def __init__(self, board: Board, prompt, keys: dict | None = None):
+        self.board, self.prompt = board, prompt
+        self.collapsed: set[str] = set()
+        self.selected: set[str] = set()
+        self.cur, self.top, self.query, self.msg = 0, 0, "", "? for help"
+        self.view: list[str] | None = None
+        self.vtop, self.page = 0, 20
+        k = keys or {}
+        self.actions = {
+            "j": self.down, k.get("down"): self.down, "k": self.up, k.get("up"): self.up,
+            k.get("npage"): lambda r: self.move_cursor(self.page),
+            k.get("ppage"): lambda r: self.move_cursor(-self.page),
+            k.get("home"): lambda r: self.move_cursor(-10 ** 6),
+            k.get("end"): lambda r: self.move_cursor(10 ** 6),
+            "?": self.help, " ": self.toggle_select, "\x1b": self.clear,
+            "\n": self.open, "\r": self.open, k.get("enter"): self.open,
+            "/": self.search, "R": self.reload, "u": self.undo, "g": self.group,
+            "m": self.merge, "d": self.discard, "r": self.restore,
+            "J": lambda r: self.reorder(r, 1), "K": lambda r: self.reorder(r, -1),
+            "e": self.edit, "s": self.specify,
+        }
+        self.actions.pop(None, None)
+
+    @property
+    def rows(self) -> list[Row]:
+        return build_rows(self.board, self.collapsed, self.query)
+
+    def handle(self, ch) -> bool:
+        """Apply one key; False when the panel should close."""
+        self.msg = ""
+        if self.view is not None:
+            if ch in ("q", "\x1b", "\n", "\r"):
+                self.view = None
+            elif ch in ("j", "k") or ch in self.actions and self.actions[ch] in (self.down, self.up):
+                step = 1 if ch == "j" or self.actions.get(ch) == self.down else -1
+                self.vtop = max(0, min(self.vtop + step, len(self.view) - 1))
+            return True
+        if ch == "q":
+            return False
+        rows = self.rows
+        self.cur = max(0, min(self.cur, len(rows) - 1))
+        action = self.actions.get(ch)
+        if action:
+            try:
+                action(rows[self.cur] if rows else None)
+            except BoardError as e:
+                self.msg = str(e)
+        return True
+
+    @staticmethod
+    def item_id(row: Row | None) -> str | None:
+        return row.item.bid if row and row.kind == "item" and row.item else None
+
+    def move_cursor(self, n):
+        self.cur = max(0, min(self.cur + n, len(self.rows) - 1))
+
+    def down(self, row):
+        self.move_cursor(1)
+
+    def up(self, row):
+        self.move_cursor(-1)
+
+    def help(self, row):
+        self.view, self.vtop = HELP.split("\n"), 0
+
+    def toggle_select(self, row):
+        if row and row.kind == "item":
+            self.selected ^= {row.key}
+            self.move_cursor(1)
+
+    def clear(self, row):
+        self.selected.clear()
+        self.query = ""
+
+    def open(self, row):
+        if row and row.kind in ("section", "cycles"):
+            discarded = row.kind == "section" and self.board.sections[int(row.key[1:])].discarded
+            self.collapsed ^= {f"+{row.key}" if discarded else row.key}
+        elif row:
+            self.view, self.vtop = detail(self.board, row), 0
+
+    def search(self, row):
+        q = self.prompt("/")
+        if q is not None:
+            self.query, self.cur = q, 0
+
+    def reload(self, row):
+        self.board.reload()
+        self.msg = "reloaded"
+
+    def undo(self, row):
+        self.msg = self.board.undo()
+
+    def group(self, row):
+        ids = sorted(self.selected) or ([row.key] if row and row.kind == "item" else [])
+        drafts = [c.id for c in self.board.cycles()
+                  if c.header.get("state", "").lower() == "draft"]
+        hint = f" (or a draft: {', '.join(drafts)})" if drafts else ""
+        ans = self.prompt(f"objective for {self.board.next_cycle_id()}{hint}: ")
+        if ans is not None:
+            into = ans.strip() if ans.strip() in drafts else None
+            self.msg = self.board.group(ids, "" if into else ans, into)
+            self.selected.clear()
+
+    def merge(self, row):
+        self.msg = self.board.merge(sorted(self.selected))
+        self.selected.clear()
+
+    def discard(self, row):
+        bid = self.item_id(row)
+        reason = self.prompt(f"discard {bid} — reason: ") if bid else None
+        if reason is not None:
+            self.msg = self.board.discard(bid, reason)
+
+    def restore(self, row):
+        if self.item_id(row):
+            self.msg = self.board.restore(self.item_id(row))
+
+    def reorder(self, row, step):
+        if self.item_id(row):
+            self.msg = self.board.move(self.item_id(row), step)
+            self.move_cursor(step)
+
+    def edit(self, row):
+        bid = self.item_id(row)
+        text = self.prompt(f"{bid} ", row.item.text) if bid else None
+        if text is not None:
+            self.msg = self.board.edit(bid, text)
+
+    def specify(self, row):
+        if row and row.kind == "cycle":
+            cmd = f"/fde-backlog specify {row.key}"
+            self.msg = (f"copied: {cmd} — paste it to the agent" if clipboard(cmd)
+                        else f"paste to the agent: {cmd}")
+
+
 def _loop(scr, board: Board) -> int:  # pragma: no cover — needs a terminal
     import curses
     curses.curs_set(0)
@@ -428,11 +568,6 @@ def _loop(scr, board: Board) -> int:  # pragma: no cover — needs a terminal
         curses.init_pair(3, 8 if curses.COLORS > 8 else curses.COLOR_WHITE, -1)
     except curses.error:
         pass
-    collapsed: set[str] = set()
-    selected: set[str] = set()
-    cur, top, query, msg = 0, 0, "", "? for help"
-    view: list[str] | None = None
-    vtop = 0
 
     def prompt(label: str, initial: str = "") -> str | None:
         curses.curs_set(1)
@@ -441,150 +576,58 @@ def _loop(scr, board: Board) -> int:  # pragma: no cover — needs a terminal
             h, w = scr.getmaxyx()
             scr.move(h - 1, 0)
             scr.clrtoeol()
-            line = f"{label}{''.join(buf)}"
-            scr.addnstr(h - 1, 0, line[-(w - 1):], w - 1)
+            scr.addnstr(h - 1, 0, f"{label}{''.join(buf)}"[-(w - 1):], w - 1)
             scr.refresh()
             ch = scr.get_wch()
-            if ch in ("\n", "\r", curses.KEY_ENTER):
+            if ch in ("\n", "\r", curses.KEY_ENTER, "\x1b"):
                 curses.curs_set(0)
-                return "".join(buf)
-            if ch == "\x1b":
-                curses.curs_set(0)
-                return None
+                return None if ch == "\x1b" else "".join(buf)
             if ch in (curses.KEY_BACKSPACE, "\x7f", "\b"):
-                if buf:
-                    buf.pop()
+                buf = buf[:-1]
             elif isinstance(ch, str) and ch.isprintable():
                 buf.append(ch)
 
+    panel = Panel(board, prompt, {"down": curses.KEY_DOWN, "up": curses.KEY_UP,
+                                  "npage": curses.KEY_NPAGE, "ppage": curses.KEY_PPAGE,
+                                  "home": curses.KEY_HOME, "end": curses.KEY_END,
+                                  "enter": curses.KEY_ENTER})
     while True:
-        h, w = scr.getmaxyx()
-        scr.erase()
-        rows = build_rows(board, collapsed, query)
-        cur = max(0, min(cur, len(rows) - 1))
-        n_back = len(board.items(False))
-        n_disc = len(board.items(True))
-        head = (f" FORWARD · backlog {n_back} · discarded {n_disc} · "
-                f"next {board.next_cycle_id()}"
-                + (" · read-only (table)" if board.table else "")
-                + (f" · /{query}" if query else ""))
-        scr.addnstr(0, 0, head.ljust(w - 1), w - 1, curses.A_REVERSE)
-        if view is not None:
-            body = view[vtop:vtop + h - 3]
-            for y, line in enumerate(body, 1):
-                scr.addnstr(y, 1, line, w - 2)
-            scr.addnstr(h - 2, 0, " j/k scroll · q/esc back".ljust(w - 1), w - 1,
-                        curses.color_pair(3))
-        else:
-            span = h - 3
-            if cur < top:
-                top = cur
-            if cur >= top + span:
-                top = cur - span + 1
-            for y, r in enumerate(rows[top:top + span], 1):
-                i = top + y - 1
-                attr = curses.A_BOLD if r.kind in ("section", "cycles") else 0
-                if r.item and r.item.discarded:
-                    attr |= curses.color_pair(3)
-                if r.item and r.item.grouped:
-                    attr |= curses.color_pair(1)
-                sel = "[x]" if r.key in selected else "[ ]" if r.kind == "item" else "   "
-                text = ("  " * r.depth) + (sel + " " if r.kind == "item" else "") + r.text
-                if i == cur:
-                    attr |= curses.A_REVERSE
-                scr.addnstr(y, 0, ("> " if i == cur else "  ") + text, w - 1, attr)
-            foot = (f" {len(selected)} selected · g group · m merge · d discard · "
-                    "r restore · J/K reorder · e edit · u undo · / search · ? help · q quit")
-            scr.addnstr(h - 2, 0, foot.ljust(w - 1), w - 1, curses.color_pair(3))
-        scr.addnstr(h - 1, 0, msg[: w - 1], w - 1, curses.color_pair(2))
-        scr.refresh()
+        _draw(scr, panel, curses)
+        if not panel.handle(scr.get_wch()):
+            return 0
 
-        ch = scr.get_wch()
-        msg = ""
-        if view is not None:
-            if ch in ("q", "\x1b", "\n", "\r"):
-                view = None
-            elif ch in ("j", curses.KEY_DOWN):
-                vtop = min(vtop + 1, max(0, len(view) - 1))
-            elif ch in ("k", curses.KEY_UP):
-                vtop = max(0, vtop - 1)
-            continue
-        row = rows[cur] if rows else None
-        try:
-            if ch == "q":
-                return 0
-            elif ch in ("j", curses.KEY_DOWN):
-                cur += 1
-            elif ch in ("k", curses.KEY_UP):
-                cur -= 1
-            elif ch == curses.KEY_NPAGE:
-                cur += h - 4
-            elif ch == curses.KEY_PPAGE:
-                cur -= h - 4
-            elif ch == curses.KEY_HOME:
-                cur = 0
-            elif ch == curses.KEY_END:
-                cur = len(rows) - 1
-            elif ch == curses.KEY_RESIZE:
-                pass
-            elif ch == "?":
-                view, vtop = HELP.split("\n"), 0
-            elif ch == " " and row and row.kind == "item":
-                selected ^= {row.key}
-                cur += 1
-            elif ch == "\x1b":
-                selected.clear()
-                query = ""
-            elif ch in ("\n", "\r", curses.KEY_ENTER):
-                if row and row.kind in ("section", "cycles"):
-                    k = row.key
-                    sec_disc = row.kind == "section" and \
-                        board.sections[int(k[1:])].discarded
-                    flag = f"+{k}" if sec_disc else k
-                    collapsed ^= {flag}
-                elif row:
-                    view, vtop = detail(board, row), 0
-            elif ch == "/":
-                q = prompt("/")
-                if q is not None:
-                    query, cur = q, 0
-            elif ch == "R":
-                board.reload()
-                msg = "reloaded"
-            elif ch == "u":
-                msg = board.undo()
-            elif ch == "g":
-                ids = sorted(selected) or ([row.key] if row and row.kind == "item" else [])
-                drafts = [c.id for c in board.cycles()
-                          if c.header.get("state", "").lower() == "draft"]
-                hint = f" (or a draft: {', '.join(drafts)})" if drafts else ""
-                ans = prompt(f"objective for {board.next_cycle_id()}{hint}: ")
-                if ans is not None:
-                    into = ans.strip() if ans.strip() in drafts else None
-                    msg = board.group(ids, "" if into else ans, into)
-                    selected.clear()
-            elif ch == "m":
-                msg = board.merge(sorted(selected))
-                selected.clear()
-            elif ch == "d" and row and row.kind == "item" and row.item.bid:
-                reason = prompt(f"discard {row.item.bid} — reason: ")
-                if reason is not None:
-                    msg = board.discard(row.item.bid, reason)
-            elif ch == "r" and row and row.kind == "item" and row.item.bid:
-                msg = board.restore(row.item.bid)
-            elif ch in ("J", "K") and row and row.kind == "item" and row.item.bid:
-                msg = board.move(row.item.bid, 1 if ch == "J" else -1)
-                cur += 1 if ch == "J" else -1
-            elif ch == "e" and row and row.kind == "item" and row.item.bid:
-                text = prompt(f"{row.item.bid} ", row.item.text)
-                if text is not None:
-                    msg = board.edit(row.item.bid, text)
-            elif ch == "s" and row and row.kind == "cycle":
-                cmd = f"/fde-backlog specify {row.key}"
-                msg = (f"copied: {cmd} — paste it to the agent" if clipboard(cmd)
-                       else f"paste to the agent: {cmd}")
-        except BoardError as e:
-            msg = str(e)
+
+def _draw(scr, p: Panel, curses) -> None:  # pragma: no cover — needs a terminal
+    h, w = scr.getmaxyx()
+    p.page = max(1, h - 4)
+    scr.erase()
+    rows = p.rows
+    p.cur = max(0, min(p.cur, len(rows) - 1))
+    b = p.board
+    head = (f" FORWARD · backlog {len(b.items(False))} · discarded {len(b.items(True))} · "
+            f"next {b.next_cycle_id()}" + (" · read-only (table)" if b.table else "")
+            + (f" · /{p.query}" if p.query else ""))
+    scr.addnstr(0, 0, head.ljust(w - 1), w - 1, curses.A_REVERSE)
+    if p.view is not None:
+        for y, line in enumerate(p.view[p.vtop:p.vtop + h - 3], 1):
+            scr.addnstr(y, 1, line, w - 2)
+        foot = " j/k scroll · q/esc back"
+    else:
+        span = h - 3
+        p.top = min(max(p.top, p.cur - span + 1), p.cur)
+        for y, r in enumerate(rows[p.top:p.top + span], 1):
+            here = p.top + y - 1 == p.cur
+            attr = (curses.A_BOLD if r.kind in ("section", "cycles") else 0) \
+                | (curses.color_pair(3) if r.item and r.item.discarded else 0) \
+                | (curses.color_pair(1) if r.item and r.item.grouped else 0) \
+                | (curses.A_REVERSE if here else 0)
+            sel = ("[x] " if r.key in p.selected else "[ ] ") if r.kind == "item" else ""
+            scr.addnstr(y, 0, ("> " if here else "  ") + "  " * r.depth + sel + r.text, w - 1, attr)
+        foot = (f" {len(p.selected)} selected · g group · m merge · d discard · "
+                "r restore · J/K reorder · e edit · u undo · / search · ? help · q quit")
+    scr.addnstr(h - 2, 0, foot.ljust(w - 1), w - 1, curses.color_pair(3))
+    scr.addnstr(h - 1, 0, p.msg[: w - 1], w - 1, curses.color_pair(2))
+    scr.refresh()
 
 
 def main(argv=None) -> int:

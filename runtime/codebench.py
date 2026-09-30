@@ -48,6 +48,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import erosion  # noqa: E402
+import fde_lib  # noqa: E402
 from fde_lib import project_root  # noqa: E402
 
 SOURCE_SUFFIXES = (erosion.CODE_SUFFIXES - {".md", ".toml"}) | {".sql"}
@@ -80,12 +81,6 @@ DETECTED_CONTROLLERS = re.compile(
     r"(^|/)(pages/api|app/api)/")
 
 
-def _git(root: Path, *args: str) -> str:
-    r = subprocess.run(["git", "-C", str(root), *args], capture_output=True,
-                       text=True, errors="replace")
-    return r.stdout if r.returncode == 0 else ""
-
-
 def controller_rule(root: Path):
     """(matcher, declared?) from `[codebench] controller_paths`; common
     names are detected when the project declared none."""
@@ -105,7 +100,7 @@ def snapshot_files(root: Path, sha: str) -> dict[str, str]:
     `git cat-file --batch` pass."""
     scope = erosion.churn_scope(root)
     gen = erosion.generated_paths(root)
-    names = [n for n in _git(root, "ls-tree", "-r", "--name-only", sha).splitlines()
+    names = [n for n in (fde_lib._git(root, "ls-tree", "-r", "--name-only", sha) or "").splitlines()
              if Path(n).suffix.lower() in SOURCE_SUFFIXES
              and erosion.in_churn_scope(n, scope, gen)
              and not erosion._is_test_path(n)]
@@ -274,14 +269,14 @@ def measure_snapshot(files: dict[str, str], is_controller) -> dict:
 def pick_points(root: Path, n: int) -> list[tuple[str, str]]:
     """(sha, label): n commits spread over the first-parent history, the
     FORWARD install commit, and HEAD — oldest first."""
-    shas = _git(root, "rev-list", "--first-parent", "--reverse", "HEAD").split()
+    shas = (fde_lib._git(root, "rev-list", "--first-parent", "--reverse", "HEAD") or "").split()
     if not shas:
         return []
     idx = sorted({round(i * (len(shas) - 1) / max(n - 1, 1)) for i in range(n)})
     points = {shas[i]: "" for i in idx}
     points[shas[-1]] = "HEAD"
-    added = _git(root, "log", "--diff-filter=A", "--format=%H", "--",
-                 "fde.config.toml").split()
+    added = (fde_lib._git(root, "log", "--diff-filter=A", "--format=%H", "--",
+                          "fde.config.toml") or "").split()
     if added and added[-1] in shas:
         points[added[-1]] = "FORWARD installed"
     order = {s: i for i, s in enumerate(shas)}
@@ -292,7 +287,7 @@ def bench(root: Path, points: int = 6, top: int = 10) -> dict:
     is_controller, declared = controller_rule(root)
     rows = []
     for sha, label in pick_points(root, points):
-        date = _git(root, "log", "-1", "--format=%ad", "--date=short", sha).strip()
+        date = (fde_lib._git(root, "log", "-1", "--format=%ad", "--date=short", sha) or "").strip()
         m = measure_snapshot(snapshot_files(root, sha), is_controller)
         rows.append({"sha": sha[:8], "date": date, "label": label, **m})
     if not rows:
