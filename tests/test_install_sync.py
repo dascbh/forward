@@ -677,9 +677,9 @@ class TestErosionRatchetAtInstallAndSync(unittest.TestCase):
                              {v.code for v in validate(c, Spec.load())})
 
 
-class TestReconcileReadsAnAurisShapedProject(unittest.TestCase):
+class TestReconcileReadsAClientShapedProject(unittest.TestCase):
     """The sync's step 4 reads what the new rules flag. On a project shaped
-    like auris at 0.22 — an unsigned L cycle of 14 demands with no `files`,
+    like a client project at 0.22 — an unsigned L cycle of 14 demands with no `files`,
     a draft cycle, long backlog items — every tool it names runs and names
     the work."""
 
@@ -703,7 +703,7 @@ class TestReconcileReadsAnAurisShapedProject(unittest.TestCase):
                 "goal: x\ndate: 2026-09-30\n\n## Backlog\n\n"
                 "- B-57 short item with a pointer to docs/vision.md\n"
                 "- B-58 " + " ".join(["design detail"] * 40) + "\n")
-            commit_all(p, "auris-shaped")
+            commit_all(p, "client-shaped")
             run = lambda *a: subprocess.run([sys.executable, *a], cwd=p,
                                             capture_output=True, text=True)
             panel = run("bin/fde/status.py", "--panel")

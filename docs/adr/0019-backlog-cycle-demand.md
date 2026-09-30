@@ -212,7 +212,7 @@ Rules:
     This moves existing checks. It adds no new gate (ADR-0018).
 15. **Migration.** A cycle open before this ADR finishes under the rules
     it opened with. Replanning it mid-flight costs more than it saves:
-    headlabs C-2 completes DEM-036..038 under 0.17.0. At the first sync
+    a client cycle opened under 0.17.0 completed under it. At the first sync
     after this ADR ships:
     - each `## Next cycle` list moves into `backlog.md` with `B-<n>` ids;
     - the next cycle is the first one planned under this ADR.

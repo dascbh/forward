@@ -510,8 +510,8 @@ def is_ci() -> bool:
 # A demand id is <PREFIX>-<n>, with a prefix the project picks (FWD, DEM,
 # ACME…): whatever the plan's ## Demands first cell and the spec
 # directory declare. The kernel's own id families are never demands.
-# A project may also name demands by slug, <PREFIX>-<slug> (DEM-dd-card-
-# portal): an upper-case prefix and a lower-case slug. The slug form is
+# A project may also name demands by slug, <PREFIX>-<slug> (DEM-invoice-
+# export): an upper-case prefix and a lower-case slug. The slug form is
 # read only where the position already says "this is an id" — a plan's
 # first cell, a directory name, a depends-on cell — never scanned out of
 # prose, where "API-first" would read as a demand.

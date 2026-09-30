@@ -1143,8 +1143,8 @@ class Gate:
                  f"triage raises the floor and weight does not lower it")
 
     # -- records the kernel's decisions live in are tracked (I7) -----------
-    # A decision on disk but outside git is no record: the auris spec,
-    # review and promotion of DEM-contratos-ux sat untracked from 09-24.
+    # A decision on disk but outside git is no record: in one client a
+    # demand's spec, review and promotion decision sat untracked for days.
     # Decision records fail; drafts (specs, plan/board/deploy) only warn.
     RECORD_FAIL = (r"^reviews/", r"^promotions/", r"^docs/adr/",
                    r"^cycles/[^/]+/review\.md$", r"^cycles/[^/]+/promotion\.md$")
@@ -1171,7 +1171,7 @@ class Gate:
             self.add("UNTRACKED", True, "every decision record is tracked")
 
     # -- a backlog item is one line with a pointer, not a mini-spec --------
-    # Calibrated on 2026-09-30: auris and headlabs backlog lines have a
+    # Calibrated on 2026-09-30 on two client backlogs: their lines have a
     # median of 38-40 words, so the default ceiling is 60 (p90 55-71; the
     # forward's own maximum is 56). Only NEW lines are held to it; the
     # explicit run (`--gate backlog-length`, used by the sync's reconcile)
@@ -1283,8 +1283,8 @@ class Gate:
     # -- the cycle close reconciles the docs agents load --------------------
     # From 2026-10-01 a promotion.md carries `docs: <files reconciled> | none`,
     # so the risks and priorities CLAUDE.md lists are reread at every close
-    # (auris CLAUDE.md listed two P0s already solved). A close before the
-    # rule shipped (auris C-3, 2026-09-30) is not failed after the fact.
+    # (a client's CLAUDE.md listed two P0s already solved). A close before
+    # the rule shipped is not failed after the fact.
     DOCS_LINE_SINCE = "2026-10-01"
 
     def gate_docs_line(self, explicit: bool = False) -> None:

@@ -2252,8 +2252,8 @@ class TestRunRecordCarriesItsInstructions(unittest.TestCase):
 
 
 class TestC4Gates(unittest.TestCase):
-    """0.29 gates from the auris C-4 exercise (owner direction 2026-09-30),
-    each calibrated on auris, headlabs-platform and the forward before it
+    """0.29 gates from a client cycle's lessons (owner direction 2026-09-30),
+    each calibrated on two client projects and the forward before it
     was armed: records outside git, long backlog lines, stale doc paths,
     the close's docs line, and running cycles on the same files."""
 

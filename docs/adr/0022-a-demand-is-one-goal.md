@@ -12,8 +12,8 @@ that spans layers, with no size exception. In use, a user-facing change
 becomes two or three demands with dependencies between them: an API
 field and its screen label are a `back` demand, a `front` demand and a
 `depends on`. Each demand pays its own spec, review, board lines and
-merge. On 2026-09-29 the process-only share of commits was 76% in
-headlabs-platform, 38% in auris and 56% in this repository.
+merge. On 2026-09-29 the process-only share of commits was 76% and 38% in
+two client projects and 56% in this repository.
 
 Two independent frameworks studied the same day slice work the other way:
 - spec-kit: one independently testable user story per slice;

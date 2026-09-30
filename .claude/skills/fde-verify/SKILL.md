@@ -17,7 +17,7 @@ python3 bin/fde/verify.py --format json      # machine-readable
 
 A ⚠ line never blocks: it names what to look at (a draft outside git, a
 stale doc path, a spec repeating its plan, a cycle that cannot be
-checked). Gates added in 0.29 (owner direction, from auris C-4):
+checked). Gates added in 0.29 (owner direction, from a client cycle's lessons):
 
 - `UNTRACKED` — a review, promotion, cycle review or ADR outside git
   fails (I7); a spec or plan/board/deploy outside git warns.

@@ -8,8 +8,8 @@ amends: ADR-0019 rule 9, "only one cycle runs"
 
 A cycle is where the owner signs, and deploy happens per cycle
 (ADR-0019 rule 4). With one running cycle at a time, the only way to run
-work in parallel was to put it all in one cycle. In auris (2026-09-30),
-a product vision split into four slices, each meant to be "a demo live
+work in parallel was to put it all in one cycle. In a client project
+(2026-09-30), a product vision split into four slices, each meant to be "a demo live
 fast". To run them in parallel, the planner packed them into one L cycle
 with 14 demands and 11 migrations, deploying only at the end.
 
