@@ -408,3 +408,12 @@ class TestBacklogItemWords(unittest.TestCase):
         for bad in (5, "60", True, 900):
             c = cfg(backlog={"max_item_words": bad})
             self.assertIn("BACKLOG-LEN", codes(validate(c, Spec.load())), bad)
+
+
+class TestIdScanToleratesLoad(unittest.TestCase):
+    def test_the_git_scan_waits_long_enough_under_load(self):
+        # a 10 s cap dropped worktrees in silence on a loaded machine
+        # (2026-09-30), which is the id collision the scan guards
+        import inspect
+        import fde_lib
+        self.assertIn("timeout=60", inspect.getsource(fde_lib._git))

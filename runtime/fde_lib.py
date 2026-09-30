@@ -840,10 +840,12 @@ ID_REFS = ("main", "origin/main")
 
 
 def _git(root: Path, *args: str) -> str | None:
+    # 60 s: under load a 10 s cap dropped the worktree scan in silence,
+    # and a missed worktree is exactly the id collision this guards
     import subprocess
     try:
         r = subprocess.run(["git", "-C", str(root), *args], capture_output=True,
-                           text=True, timeout=10)
+                           text=True, timeout=60)
     except (OSError, subprocess.SubprocessError):
         return None
     return r.stdout if r.returncode == 0 else None
