@@ -326,3 +326,12 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertTrue((ROOT / "spec/migrations/0.28-0.29-decision-records-tracked.toml").exists())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 29, 0))
+
+    def test_kernel_version_ships_the_product_map(self):
+        # fde-map (owner request, 2026-09-30): generator, export, MAP gate
+        # and sync check reach clients only through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "runtime/productmap.py").exists())
+        self.assertTrue((ROOT / "runtime/mapexport.py").exists())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 30, 0))
