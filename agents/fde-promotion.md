@@ -51,6 +51,10 @@ Invariants upheld: I4, I5, I6
 - An item narrowed or declared when a review budget ran out (recorded
   on `board.md`) is marked here.
 - The signals the criteria declare exist (I5).
+- `docs:` in the header: the files reconciled at this close, or `none`.
+  Reread `CLAUDE.md`, `README.md` and `AGENTS.md`: a priority, risk or
+  P0 this cycle solved leaves them, a path that moved is fixed. The
+  `DOCS` gate fails a close without the line.
 - `## What changes`: at most three lines of lessons, which then enter
   the backlog.
 

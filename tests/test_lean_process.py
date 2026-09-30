@@ -93,12 +93,40 @@ class TestBacklogIdsOnMain(ProseTestCase):
         self.assertIn("`cycles/*/board.md merge=union`", setup)
 
 
-class TestNoSyncUnderARunningCycle(ProseTestCase):
-    def test_sync_waits_for_the_cycle_to_end(self):
+class TestSyncAlwaysRunsAndReconciles(ProseTestCase):
+    """Owner direction 2026-09-30: a sync never waits for a cycle to close
+    (0.22's rule removed); it runs and then brings the project's records
+    up to the new kernel, applying to a running cycle only what changes no
+    criterion and no ADR."""
+
+    def test_sync_never_waits_for_a_cycle(self):
         text = read("skills/fde-sync/SKILL.md")
-        self.assertIn("## 0. When — between cycles", text)
-        self.assertIn("a cycle is `running`", text)
-        self.assertIn("never changes the rules under a running cycle", text)
+        self.assertNotIn("## 0. When — between cycles", text)
+        self.assertNotIn("do not sync", text)
+        self.assertIn("A sync never waits for a cycle to close", text)
+
+    def test_the_reconcile_step_covers_backlog_cycles_record_report(self):
+        text = read("skills/fde-sync/SKILL.md")
+        self.assertIn("## 4. Reconcile the project to the new kernel", text)
+        for rule in ("`closed` and `abandoned` are history: never touched",
+                     "apply only what changes no criterion and no ADR",
+                     "is a replan proposal for the owner, never applied",
+                     "only when its detail already lives in a doc",
+                     "moves to discarded with `resolved by kernel <version>`",
+                     "decided kernel sync <from>→<to>: <what changed>",
+                     "and asks for the signature it did not have yet"):
+            self.assertIn(rule, text)
+
+
+class TestCloseReconcilesTheDocs(ProseTestCase):
+    def test_promotion_carries_the_docs_line(self):
+        self.assertIn("docs: <files reconciled: CLAUDE.md, README.md, AGENTS.md> | none",
+                      read("templates/cycle/promotion.md"))
+        self.assertIn("The `DOCS` gate fails a close without the line.",
+                      read("agents/fde-promotion.md"))
+        self.assertIn("(`DOC-REFS`)", read("skills/fde-review/SKILL.md"))
+        self.assertIn("a new longer line fails `BL-LEN`",
+                      read("skills/fde-backlog-format/SKILL.md"))
 
 
 if __name__ == "__main__":

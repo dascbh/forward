@@ -15,6 +15,21 @@ python3 bin/fde/verify.py --gate eval        # a single gate
 python3 bin/fde/verify.py --format json      # machine-readable
 ```
 
+A ⚠ line never blocks: it names what to look at (a draft outside git, a
+stale doc path, a spec repeating its plan, a cycle that cannot be
+checked). Gates added in 0.29 (owner direction, from auris C-4):
+
+- `UNTRACKED` — a review, promotion, cycle review or ADR outside git
+  fails (I7); a spec or plan/board/deploy outside git warns.
+- `BL-LEN` — a NEW backlog line over `[backlog] max_item_words`
+  (default 60) fails; `--gate backlog-length` lists every open one.
+- `PROC-DUP` ⚠ — a demand spec repeating 6+ lines of its plan or ADRs.
+- `DOC-REFS` ⚠ — a repo path named in CLAUDE.md, README.md or AGENTS.md
+  that no longer exists.
+- `DOCS` — a cycle closed from 2026-10-01 needs `docs:` in promotion.md.
+- `CYCLES` — running cycles touching the same files without `depends:`
+  fail (kernel ADR-0024); one that declares no `files` warns.
+
 ## When explaining a failure
 
 Say which invariant, why it exists, and what the fix is. Do not suggest

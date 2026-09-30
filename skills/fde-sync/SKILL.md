@@ -10,13 +10,11 @@ re-emit the project from it.** Updating without re-emitting leaves the
 project on the old artifacts; re-emitting without updating just rewrites
 what it already had.
 
-## 0. When — between cycles
+## 0. It always runs
 
-Before anything, read the cycle states (`python3 bin/fde/status.py`).
-When a cycle is `running`, do not sync: tell the owner which cycle is
-running and that the sync runs once it closes or is abandoned. A sync
-never changes the rules under a running cycle; demands and reviews
-finish under the rules they were planned with.
+A sync never waits for a cycle to close: a project left on old rules
+drifts further every day (owner direction, 2026-09-30). It runs, then
+step 4 brings the project's own records up to the new kernel.
 
 **Say this to the user before starting:** the sync writes tool
 permissions into `.claude/settings.json` (SETUP §8.4), besides the
@@ -93,6 +91,38 @@ Both are data in the kernel, copied to `.fde/spec/`:
 Close by running `python3 bin/fde/verify.py --all`. A red `CFG-VER` means
 the update landed half way: the config and the installed spec disagree on
 the version.
+
+## 4. Reconcile the project to the new kernel
+
+1. Read what the new rules flag: `python3 bin/fde/status.py --panel`,
+   `python3 bin/fde/verify.py --all`, `python3 bin/fde/status.py --waves
+   C-<n>` for each live cycle, and `python3 bin/fde/verify.py --gate
+   backlog-length` (every open item, not only new ones).
+2. **Backlog** — reread each open item against the new kernel:
+   - an item the new kernel resolves moves to discarded with
+     `resolved by kernel <version>`;
+   - an item over `[backlog] max_item_words` becomes one line with a
+     pointer, only when its detail already lives in a doc (vision, spec,
+     ADR); otherwise it stays as it is and goes on the owner's list;
+   - ids: only main assigns them.
+3. **Cycles** — by state:
+   - `closed` and `abandoned` are history: never touched;
+   - `draft`: its items are checked to be still open;
+   - `planned` (not signed): the planner revises it against the new
+     rules (the split of kernel ADR-0024, `files`, `depends:`, ids by
+     slug) and asks for the signature it did not have yet;
+   - `running`: apply only what changes no criterion and no ADR — the
+     `depends:` header, the `files` column, config keys, an id rename, the
+     `docs:` line. A change to a criterion or an ADR is a replan proposal
+     for the owner, never applied. A new gate red on a demand in progress
+     is fixed inside the demand (a triaged `patch`) or recorded on the
+     board.
+4. **Record** — one commit per kind (the kernel re-emit; the backlog;
+   each cycle), and one line on each running cycle's board: `<date>
+   C-<n> decided kernel sync <from>→<to>: <what changed>`.
+5. **Report** to the owner in one message: what was applied on its own,
+   and what needs a decision (replans, long items with no doc to point
+   to).
 
 ## Drift
 

@@ -57,7 +57,9 @@ GATE_ALIASES = {"scrum": "backlog"}
 KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "finding-discipline", "promotion-criteria", "observability",
                "portability", "artifact-handoff", "backlog", "scrum", "traceability",
-               "erosion", "divergence", "survey", "walkthrough", "rule-lane")
+               "erosion", "divergence", "survey", "walkthrough", "rule-lane",
+               "untracked", "backlog-length", "process-dup", "doc-refs", "docs",
+               "cycles")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -182,9 +184,17 @@ class Gate:
         self.behavior_paths = behavior_paths
         self.eval_paths = eval_paths
         self.results: list[tuple[str, bool, str]] = []
+        self.warned: set[int] = set()
 
     def add(self, gid: str, passed: bool, msg: str) -> None:
         self.results.append((gid, passed, msg))
+
+    def warn(self, gid: str, msg: str) -> None:
+        """A finding that never blocks: recorded as passed, shown as ⚠ and
+        marked `warning` in JSON. For checks whose false positives are too
+        common to fail on (a draft spec, a stale doc path)."""
+        self.warned.add(len(self.results))
+        self.results.append((gid, True, msg))
 
     # -- helpers ----------------------------------------------------------
     def _run_git(self, *args: str) -> subprocess.CompletedProcess:
@@ -1132,17 +1142,199 @@ class Gate:
                  f"security {w} < floor {floor} escalated by the data class — "
                  f"triage raises the floor and weight does not lower it")
 
+    # -- records the kernel's decisions live in are tracked (I7) -----------
+    # A decision on disk but outside git is no record: the auris spec,
+    # review and promotion of DEM-contratos-ux sat untracked from 09-24.
+    # Decision records fail; drafts (specs, plan/board/deploy) only warn.
+    RECORD_FAIL = (r"^reviews/", r"^promotions/", r"^docs/adr/",
+                   r"^cycles/[^/]+/review\.md$", r"^cycles/[^/]+/promotion\.md$")
+    RECORD_WARN = (r"^specs/", r"^cycles/[^/]+/(plan|board|deploy)\.md$")
+
+    def gate_untracked_records(self, explicit: bool = False) -> None:
+        out = self._run_git("status", "--porcelain", "-z", "--untracked-files=all")
+        if out.returncode != 0:
+            if explicit:
+                self.add("UNTRACKED", True, "not a git checkout — nothing to check")
+            return
+        untracked = [e[3:] for e in out.stdout.split("\0") if e.startswith("?? ")]
+        fail = [p for p in untracked if any(re.search(r, p) for r in self.RECORD_FAIL)]
+        draft = [p for p in untracked if p not in fail
+                 and any(re.search(r, p) for r in self.RECORD_WARN)]
+        if fail:
+            self.add("UNTRACKED", False,
+                     f"{len(fail)} decision record(s) outside git — commit them "
+                     f"(I7): {', '.join(fail[:4])}{' …' if len(fail) > 4 else ''}")
+        if draft:
+            self.warn("UNTRACKED", f"{len(draft)} draft(s) outside git: "
+                      f"{', '.join(draft[:4])}{' …' if len(draft) > 4 else ''}")
+        if not fail and not draft and explicit:
+            self.add("UNTRACKED", True, "every decision record is tracked")
+
+    # -- a backlog item is one line with a pointer, not a mini-spec --------
+    # Calibrated on 2026-09-30: auris and headlabs backlog lines have a
+    # median of 38-40 words, so the default ceiling is 60 (p90 55-71; the
+    # forward's own maximum is 56). Only NEW lines are held to it; the
+    # explicit run (`--gate backlog-length`, used by the sync's reconcile)
+    # lists every open item over it.
+    ITEM_LINE = re.compile(r"^\s*(?:[-*]\s+|\|\s*)(?!\s*[-:]+\s*\|)")
+
+    @staticmethod
+    def _item_words(line: str) -> int:
+        text = re.split(r"\s[—-]\s*discarded\b", line, maxsplit=1)[0]
+        return len(text.replace("|", " ").split())
+
+    def gate_backlog_length(self, cfg: Config, staged: bool, since: str | None = None,
+                            explicit: bool = False) -> None:
+        from fde_lib import backlog_max_item_words
+        limit = backlog_max_item_words(cfg.raw)
+        path = self.project / "backlog.md"
+        if not path.is_file():
+            return
+        if explicit:
+            lines = [l for l in path.read_text(encoding="utf-8", errors="ignore").splitlines()
+                     if self.ITEM_LINE.match(l) and "discarded" not in l.lower()]
+            scope = "open item(s)"
+        else:
+            if staged:
+                diff = self._run_git("diff", "--cached", "-U0", "--", "backlog.md")
+            else:
+                rng = self._resolve_range(since)
+                if rng is None:
+                    return
+                diff = self._run_git("diff", "-U0", rng, "--", "backlog.md")
+            if diff.returncode != 0:
+                return
+            lines = [l[1:] for l in diff.stdout.splitlines()
+                     if l.startswith("+") and not l.startswith("+++")
+                     and self.ITEM_LINE.match(l[1:])]
+            scope = "new line(s)"
+        long = [l for l in lines if self._item_words(l) > limit]
+        if long:
+            ids = [re.search(r"B-\d+", l).group(0) if re.search(r"B-\d+", l)
+                   else l.strip()[:30] for l in long]
+            self.add("BL-LEN", False,
+                     f"{len(long)} backlog {scope} over [backlog] max_item_words "
+                     f"({limit}): {', '.join(ids[:5])} — one line with a pointer "
+                     f"to the doc that holds the detail")
+        elif explicit or lines:
+            self.add("BL-LEN", True, f"{len(lines)} backlog {scope} within {limit} words")
+
+    # -- a demand spec cites the plan and the ADRs, it does not rewrite them
+    def gate_process_duplication(self, explicit: bool = False) -> None:
+        import erosion
+        from fde_lib import plan_demands
+        k = erosion.CLONE_K
+
+        def windows(text: str) -> set:
+            lines = [erosion._normalize(l) for l in text.splitlines()]
+            lines = [l for l in lines if len(l) > 3 and not l.startswith(("#", "|---", "```"))]
+            return {"\n".join(lines[i:i + k]) for i in range(len(lines) - k + 1)}
+
+        found = []
+        for cid, cdir in sorted(cycle_dirs(self.project).items()):
+            plan = cdir / "plan.md"
+            if not plan.is_file() or _cycle_closed(plan):
+                continue
+            ptext = plan.read_text(encoding="utf-8", errors="ignore")
+            refs = [ptext]
+            for adr in sorted(set(re.findall(r"ADR[- ]0*(\d+)", ptext))):
+                for f in (self.project / "docs" / "adr").glob(f"{int(adr):04d}*.md"):
+                    refs.append(f.read_text(encoding="utf-8", errors="ignore"))
+            ref_w = set().union(*(windows(t) for t in refs))
+            for did in plan_demands(ptext):
+                for spec in (self.project / "specs").glob(f"{did}*/spec.md"):
+                    shared = windows(spec.read_text(encoding="utf-8", errors="ignore")) & ref_w
+                    if shared:
+                        found.append(f"{spec.parent.name} ({len(shared)} block(s))")
+        if found:
+            self.warn("PROC-DUP", f"spec text repeated from its plan or ADRs, "
+                      f"{erosion.CLONE_K}+ lines: {', '.join(found[:4])} — cite the "
+                      f"id instead of rewriting it")
+        elif explicit:
+            self.add("PROC-DUP", True, "no demand spec repeats its plan or ADRs")
+
+    # -- paths the instructions name still exist ----------------------------
+    DOC_FILES = ("CLAUDE.md", "README.md", "AGENTS.md")
+    DOC_PATH = re.compile(r"`([A-Za-z0-9_.\-/]+)`")
+
+    def gate_doc_refs(self, explicit: bool = False) -> None:
+        stale = []
+        for name in self.DOC_FILES:
+            f = self.project / name
+            if not f.is_file():
+                continue
+            for tok in sorted(set(self.DOC_PATH.findall(f.read_text(encoding="utf-8",
+                                                                    errors="ignore")))):
+                # a repo path: it has a `/` and starts at a real top-level
+                # directory — a bare `plan.md` names a concept and a
+                # `owner/repo` slug names a remote, neither is checked
+                if tok.startswith(("-", ".", "/", "http")) or "//" in tok or "/" not in tok:
+                    continue
+                if not (self.project / tok.split("/", 1)[0]).is_dir():
+                    continue
+                if not (self.project / tok.rstrip("/")).exists():
+                    stale.append(f"{name}: {tok}")
+        if stale:
+            self.warn("DOC-REFS", f"{len(stale)} path(s) named in the docs no longer "
+                      f"exist: {', '.join(stale[:5])}{' …' if len(stale) > 5 else ''}")
+        elif explicit:
+            self.add("DOC-REFS", True, "every path the docs name exists")
+
+    # -- the cycle close reconciles the docs agents load --------------------
+    # From 2026-10-01 a promotion.md carries `docs: <files reconciled> | none`,
+    # so the risks and priorities CLAUDE.md lists are reread at every close
+    # (auris CLAUDE.md listed two P0s already solved). A close before the
+    # rule shipped (auris C-3, 2026-09-30) is not failed after the fact.
+    DOCS_LINE_SINCE = "2026-10-01"
+
+    def gate_docs_line(self, explicit: bool = False) -> None:
+        missing = []
+        for cid, cdir in sorted(cycle_dirs(self.project).items()):
+            promo = cdir / "promotion.md"
+            if not promo.is_file() or not _cycle_closed(cdir / "plan.md"):
+                continue
+            text = promo.read_text(encoding="utf-8", errors="ignore")
+            m = re.search(r"^date:\s*(\d{4}-\d\d-\d\d)", text, re.M)
+            if not m or m.group(1) < self.DOCS_LINE_SINCE:
+                continue
+            if not re.search(r"^docs:\s*\S", text, re.M):
+                missing.append(cid)
+        if missing:
+            self.add("DOCS", False, f"closed without a `docs:` line in promotion.md "
+                     f"(the files reconciled, or `none`): {', '.join(missing[:4])}")
+        elif explicit:
+            self.add("DOCS", True, "every recent close names the docs it reconciled")
+
+    # -- cycles running at once do not edit the same files (ADR-0024) -------
+    def gate_cycles(self, explicit: bool = False) -> None:
+        from fde_lib import running_cycle_conflicts
+        plans = {cid: (cdir / "plan.md").read_text(encoding="utf-8", errors="ignore")
+                 for cid, cdir in cycle_dirs(self.project).items()
+                 if (cdir / "plan.md").is_file()}
+        msgs = running_cycle_conflicts(plans)
+        clash = [m for m in msgs if "declares no `files`" not in m]
+        blind = [m for m in msgs if m not in clash]
+        for m in clash[:3]:
+            self.add("CYCLES", False, m)
+        for m in blind[:3]:
+            self.warn("CYCLES", m)
+        if not msgs and explicit:
+            self.add("CYCLES", True, "running cycles touch disjoint files")
+
     def report(self, fmt: str) -> int:
         failed = [r for r in self.results if not r[1]]
         if fmt == "json":
             print(json.dumps(
                 {"passed": not failed,
-                 "gates": [{"id": g, "passed": p, "detail": m} for g, p, m in self.results]},
+                 "gates": [dict({"id": g, "passed": p, "detail": m},
+                                **({"warning": True} if i in self.warned else {}))
+                           for i, (g, p, m) in enumerate(self.results)]},
                 indent=2, ensure_ascii=False))
         else:
             print()
-            for gid, passed, msg in self.results:
-                mark = "\033[32m✓\033[0m" if passed else "\033[31m✗\033[0m"
+            for i, (gid, passed, msg) in enumerate(self.results):
+                mark = ("\033[33m⚠\033[0m" if i in self.warned else
+                        "\033[32m✓\033[0m" if passed else "\033[31m✗\033[0m")
                 print(f" {mark} {gid:8} {msg}")
             print()
             if failed:
@@ -1408,7 +1600,8 @@ def main() -> int:
         print(f"\033[31m✗\033[0m unknown gate '{args.gate}'. "
               f"Valid: {', '.join(KNOWN_GATES)}", file=sys.stderr)
         return 2
-    if args.staged and args.gate and args.gate not in ("config", "eval", "eval-coverage"):
+    if args.staged and args.gate and args.gate not in ("config", "eval", "eval-coverage",
+                                                       "untracked", "backlog-length"):
         print(f"\033[31m✗\033[0m gate '{args.gate}' runs at the commit/CI tier and is "
               f"skipped under --staged — drop --staged to run it", file=sys.stderr)
         return 2
@@ -1484,6 +1677,14 @@ def main() -> int:
     if want("eval-coverage") or want("eval"):
         run_gate(g.gate_eval_coverage, staged=args.staged, since=args.since,
                  all_=args.all, gid="I1", on_git_failure=_eval_coverage_git_failure)
+    # cheap and only visible before the commit (CI checks out clean), so
+    # they run at the commit tier too: a record left out of git, a long
+    # new backlog line
+    if want("untracked"):
+        g.gate_untracked_records(explicit=(only == "untracked"))
+    if want("backlog-length"):
+        run_gate(g.gate_backlog_length, cfg, args.staged, since=args.since,
+                 explicit=(only == "backlog-length"), gid="BL-LEN")
     if not args.staged:  # pre-commit stays fast; the rest is CI
         if want("adversarial-isolation"):
             g.gate_adversarial()
@@ -1504,6 +1705,14 @@ def main() -> int:
             g.gate_traceability()
         if want("erosion"):
             g.gate_erosion(explicit=(only == "erosion"))
+        if want("process-dup"):
+            g.gate_process_duplication(explicit=(only == "process-dup"))
+        if want("doc-refs"):
+            g.gate_doc_refs(explicit=(only == "doc-refs"))
+        if want("docs"):
+            g.gate_docs_line(explicit=(only == "docs"))
+        if want("cycles"):
+            g.gate_cycles(explicit=(only == "cycles"))
         if want("divergence"):
             g.gate_divergence()
         if want("survey"):

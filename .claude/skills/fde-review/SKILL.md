@@ -61,7 +61,8 @@ record satisfies the promotion gate like any review.
   usability for front, live checks for infra).
   *Readiness*: `deploy.md` complete with each step's verification and
   rollback exercised where the project allows, the signals the criteria
-  declare (I5), runbook and README current. `fde-walkthrough` runs here,
+  declare (I5), runbook and README current, and no path the docs name
+  gone stale (`DOC-REFS`). `fde-walkthrough` runs here,
   only when the cycle has a `front` demand. Rounds: the budget below.
 
 ## Budget — cycle rounds come from the cycle's size, and they end

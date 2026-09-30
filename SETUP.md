@@ -320,4 +320,5 @@ source, never in the generated file. After re-emitting, set
 `fde.config.toml` `kernel_version` to the installed kernel's version, and
 move any `## Next cycle` list in a cycle file to `backlog.md` with
 `B-<n>` ids and a `(C-<n>)` origin (kernel ADR-0019 rule 15; the
-fde-sync skill).
+fde-sync skill). A sync runs whatever the cycle states are, then reconciles the
+project's backlog and cycles to the new kernel (fde-sync step 4).

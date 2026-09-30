@@ -675,3 +675,45 @@ class TestErosionRatchetAtInstallAndSync(unittest.TestCase):
                        weights={}, depths={})
             self.assertNotIn("EROSION-BUDGET",
                              {v.code for v in validate(c, Spec.load())})
+
+
+class TestReconcileReadsAnAurisShapedProject(unittest.TestCase):
+    """The sync's step 4 reads what the new rules flag. On a project shaped
+    like auris at 0.22 — an unsigned L cycle of 14 demands with no `files`,
+    a draft cycle, long backlog items — every tool it names runs and names
+    the work."""
+
+    def test_the_reconcile_tools_name_the_work(self):
+        import sys
+        import tempfile
+        from support import commit_all, make_project
+        with tempfile.TemporaryDirectory() as tmp:
+            p = make_project(tmp)
+            rows = "".join(f"| CTR-{i} | back | — | — | slice {i} | A1 | — |\n"
+                           for i in range(1, 15))
+            (p / "cycles" / "C-4").mkdir(parents=True)
+            (p / "cycles" / "C-4" / "plan.md").write_text(
+                "cycle: C-4\nstate: planned\ndate: 2026-09-30\nsize: L\n\n"
+                "## Acceptance criteria\n\n- A1 (2026-09-30) contracts ship\n\n"
+                "## Demands\n\n| id | layer | depends on | files | what | meets | follows |\n"
+                "|---|---|---|---|---|---|---|\n" + rows)
+            (p / "cycles" / "C-5").mkdir()
+            (p / "cycles" / "C-5" / "plan.md").write_text("cycle: C-5\nstate: draft\n")
+            (p / "backlog.md").write_text(
+                "goal: x\ndate: 2026-09-30\n\n## Backlog\n\n"
+                "- B-57 short item with a pointer to docs/vision.md\n"
+                "- B-58 " + " ".join(["design detail"] * 40) + "\n")
+            commit_all(p, "auris-shaped")
+            run = lambda *a: subprocess.run([sys.executable, *a], cwd=p,
+                                            capture_output=True, text=True)
+            panel = run("bin/fde/status.py", "--panel")
+            self.assertEqual(panel.returncode, 0, panel.stderr)
+            self.assertIn("C-4", panel.stdout)
+            waves = run("bin/fde/status.py", "--waves", "C-4")
+            self.assertEqual(waves.returncode, 0, waves.stderr)
+            self.assertIn("no `files` declared", waves.stdout)
+            length = run("bin/fde/verify.py", "--gate", "backlog-length")
+            self.assertIn("B-58", length.stdout)
+            self.assertNotIn("B-57", length.stdout)
+            full = run("bin/fde/verify.py", "--all")
+            self.assertNotIn("Traceback", full.stderr)

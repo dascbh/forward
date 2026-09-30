@@ -139,6 +139,22 @@ def backlog_switch(raw: dict) -> tuple[str, object]:
     return "backlog", {}
 
 
+# A backlog item is one line with a pointer (BL-LEN). Calibrated on
+# 2026-09-30: client backlog lines have a median of 38-40 words, so 60.
+BACKLOG_MAX_ITEM_WORDS = 60
+
+
+def backlog_max_item_words(raw: dict) -> int:
+    """[backlog] max_item_words, or its old [scrum] table's, else 60."""
+    for name in ("backlog", "scrum"):
+        table = raw.get(name)
+        if isinstance(table, dict):
+            w = table.get("max_item_words")
+            if isinstance(w, int) and not isinstance(w, bool) and 10 <= w <= 500:
+                return w
+    return BACKLOG_MAX_ITEM_WORDS
+
+
 def backlog_enabled(raw: dict) -> bool:
     """On only for a table whose enabled is the boolean true."""
     _, table = backlog_switch(raw)
@@ -252,6 +268,16 @@ def validate(cfg: Config, spec: Spec) -> list[Violation]:
                     f"{type(table['enabled']).__name__}.",
                 )
             )
+        if isinstance(table, dict) and "max_item_words" in table:
+            w = table["max_item_words"]
+            if isinstance(w, bool) or not isinstance(w, int) or not 10 <= w <= 500:
+                v.append(
+                    Violation(
+                        "BACKLOG-LEN",
+                        f"[{name}] max_item_words is an integer from 10 to 500, "
+                        f"got {w!r}.",
+                    )
+                )
     if all(name in cfg.raw for name in BACKLOG_SWITCH_KEYS):
         v.append(
             Violation(
@@ -911,3 +937,89 @@ def erosion_ratchet_toml(metrics: dict) -> str:
     for k, v in erosion_ratchet(metrics).items():
         lines.append(f"{k} = {v}")
     return "\n".join(lines) + "\n"
+
+
+# -- files a plan declares, shared by the panel (status.py) and the gate ------
+# Kernel ADR-0024: cycles run in parallel only on disjoint files. The gate
+# must not import the tolerant panel (FWD-024), so the rule lives here once.
+
+FILE_TOKEN = re.compile(r"[^\s,;`]+")
+
+
+def demand_files(cell: str) -> list[str]:
+    """Path patterns of a `files` cell: comma/space separated, backticks and
+    parenthesised notes (`(+ copies)`) dropped; `—`/`-` means none."""
+    cell = re.sub(r"\([^)]*\)", " ", cell or "")
+    return [t.rstrip("/") + ("/" if t.endswith("/") else "")
+            for t in FILE_TOKEN.findall(cell) if t not in ("—", "-", "–")]
+
+
+def files_overlap(a: str, b: str) -> bool:
+    import fnmatch
+    a2, b2 = a.rstrip("/*"), b.rstrip("/*")
+    if a2 == b2 or a2.startswith(b2 + "/") or b2.startswith(a2 + "/"):
+        return True
+    return fnmatch.fnmatch(a, b) or fnmatch.fnmatch(b, a)
+
+
+def shared_files(fa: list[str], fb: list[str]) -> list[str]:
+    return sorted({x for x in fa for y in fb if files_overlap(x, y)})
+
+
+def plan_header(plan_text: str, key: str) -> str:
+    for line in header_lines(plan_text):
+        m = re.match(rf"{key}\s*:\s*(.*)$", line, re.I)
+        if m:
+            return m.group(1).strip()
+    return ""
+
+
+def plan_depends(plan_text: str) -> list[str]:
+    return sorted(set(CYCLE_ID_RE.findall(plan_header(plan_text, "depends"))),
+                  key=lambda x: int(x[2:]))
+
+
+def plan_files(plan_text: str) -> list[str] | None:
+    """The union of the `files` a plan's demands declare; None when a
+    demand declares none (the cycle cannot be checked against another)."""
+    rows = plan_demand_rows(plan_text)
+    out: list[str] = []
+    for row in rows.values():
+        f = demand_files(row.get("files", ""))
+        if not f:
+            return None
+        out += f
+    return sorted(set(out)) if rows else None
+
+
+def running_cycle_conflicts(plans: dict[str, str],
+                            running_ids: set | None = None) -> list[str]:
+    """{cycle id: plan text} → messages: running cycles whose files overlap
+    with no `depends:` between them, and running cycles that cannot be
+    checked because a demand declares no files while another cycle runs.
+    `running_ids` lets a caller that already read the states (the panel,
+    old layouts included) say which cycles run; else `state: running`."""
+    running = {cid: t for cid, t in plans.items()
+               if (cid in running_ids if running_ids is not None
+                   else plan_header(t, "state").lower().startswith("running"))}
+    if len(running) < 2:
+        return []
+    ids = sorted(running, key=lambda x: int(x[2:]) if x[2:].isdigit() else 0)
+    out, files = [], {cid: plan_files(running[cid]) for cid in ids}
+    for cid in ids:
+        if files[cid] is None:
+            out.append(f"{cid} runs beside {len(ids) - 1} other cycle(s) but a "
+                       "demand declares no `files` — it cannot be checked (kernel ADR-0024)")
+    for i, a in enumerate(ids):
+        for b in ids[i + 1:]:
+            if files[a] is None or files[b] is None:
+                continue
+            if b in plan_depends(running[a]) or a in plan_depends(running[b]):
+                continue
+            shared = shared_files(files[a], files[b])
+            if shared:
+                out.append(f"{a} and {b} run at once and both touch "
+                           f"{', '.join(shared[:3])}{' …' if len(shared) > 3 else ''}"
+                           " — declare `depends:` or move the seam to a "
+                           "foundation cycle (kernel ADR-0024)")
+    return out

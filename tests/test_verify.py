@@ -2249,3 +2249,119 @@ class TestRunRecordCarriesItsInstructions(unittest.TestCase):
             self.assertNotEqual(with_plugin["sha256"], self._fp()["sha256"])
             (Path(plugin) / "skills" / "fde-x" / "SKILL.md").write_text("b\n")
             self.assertNotEqual(self._fp(plugin)["sha256"], with_plugin["sha256"])
+
+
+class TestC4Gates(unittest.TestCase):
+    """0.29 gates from the auris C-4 exercise (owner direction 2026-09-30),
+    each calibrated on auris, headlabs-platform and the forward before it
+    was armed: records outside git, long backlog lines, stale doc paths,
+    the close's docs line, and running cycles on the same files."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.p = make_project(self._tmp.name)
+        commit_all(self.p, "init")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def gate(self, name, *extra):
+        r = verify(self.p, "--gate", name, "--format", "json", *extra)
+        return r.returncode, json.loads(r.stdout)["gates"]
+
+    def test_an_untracked_review_fails_and_an_untracked_spec_warns(self):
+        (self.p / "reviews" / "D-1").mkdir(parents=True)
+        (self.p / "reviews" / "D-1" / "findings.toml").write_text("x = 1\n")
+        (self.p / "specs" / "D-2").mkdir(parents=True)
+        (self.p / "specs" / "D-2" / "spec.md").write_text("draft\n")
+        code, gates = self.gate("untracked")
+        self.assertEqual(code, 1)
+        fail = [g for g in gates if not g["passed"]]
+        warn = [g for g in gates if g.get("warning")]
+        self.assertIn("reviews/D-1/findings.toml", fail[0]["detail"])
+        self.assertIn("specs/D-2/spec.md", warn[0]["detail"])
+        run_git(self.p, "add", "-A")
+        commit_all(self.p, "records")
+        self.assertEqual(self.gate("untracked")[0], 0)
+
+    def _backlog(self, *items):
+        (self.p / "backlog.md").write_text(
+            "goal: x\ndate: 2026-09-30\n\n## Backlog\n\n" + "".join(f"{i}\n" for i in items))
+
+    def test_a_new_long_backlog_line_fails_an_old_one_does_not(self):
+        long = "- B-9 " + " ".join(["word"] * 70)
+        self._backlog(long)
+        commit_all(self.p, "old long line")
+        self._backlog(long, "- B-10 a short line with a pointer to docs/vision.md")
+        run_git(self.p, "add", "-A")
+        r = verify(self.p, "--staged")
+        self.assertNotIn("BL-LEN", [l for l in r.stdout.splitlines() if "✗" in l][0:1] or [""])
+        self._backlog(long, "- B-11 " + " ".join(["detail"] * 61))
+        run_git(self.p, "add", "-A")
+        r = verify(self.p, "--staged")
+        self.assertIn("B-11", r.stdout)
+        self.assertNotEqual(r.returncode, 0)
+        code, gates = self.gate("backlog-length")
+        self.assertEqual(code, 1)
+        self.assertIn("B-9", gates[0]["detail"])
+
+    def test_the_word_ceiling_is_configurable(self):
+        cfg = self.p / "fde.config.toml"
+        cfg.write_text(cfg.read_text() + "\n[backlog]\nmax_item_words = 100\n")
+        self._backlog("- B-11 " + " ".join(["detail"] * 80))
+        run_git(self.p, "add", "-A")
+        self.assertEqual(self.gate("backlog-length")[0], 0)
+
+    def test_a_stale_doc_path_warns_and_concepts_and_routes_do_not(self):
+        (self.p / "src").mkdir(exist_ok=True)
+        (self.p / "src" / "a.py").write_text("x = 1\n")
+        (self.p / "CLAUDE.md").write_text(
+            "See `src/a.py`, `src/gone.py`, `plan.md`, `owner/repo`, the `/login` route.\n")
+        code, gates = self.gate("doc-refs")
+        self.assertEqual(code, 0)
+        self.assertTrue(gates[0].get("warning"))
+        self.assertIn("src/gone.py", gates[0]["detail"])
+        for fp in ("src/a.py", "plan.md", "owner/repo", "/login"):
+            self.assertNotIn(fp + ",", gates[0]["detail"] + ",".replace(fp, ""))
+
+    def _closed_cycle(self, date, docs):
+        d = self.p / "cycles" / "C-1"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "plan.md").write_text("cycle: C-1\nstate: closed\ndate: 2026-09-20\n")
+        (d / "promotion.md").write_text(
+            f"cycle: C-1\ndate: {date}\ndecision: promote\n" + (f"docs: {docs}\n" if docs else ""))
+
+    def test_a_close_from_the_rule_date_needs_its_docs_line(self):
+        self._closed_cycle("2026-10-02", None)
+        self.assertEqual(self.gate("docs")[0], 1)
+        self._closed_cycle("2026-10-02", "none")
+        self.assertEqual(self.gate("docs")[0], 0)
+        self._closed_cycle("2026-09-30", None)
+        self.assertEqual(self.gate("docs")[0], 0)
+
+    def _running(self, cid, files, depends=""):
+        d = self.p / "cycles" / cid
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "plan.md").write_text(
+            f"cycle: {cid}\nstate: running\ndate: 2026-09-30\n{depends}"
+            "signed-off: 2026-09-30\n\n## Demands\n\n"
+            "| id | layer | depends on | files | what | meets | follows |\n"
+            "|---|---|---|---|---|---|---|\n"
+            f"| {cid.replace('C-', 'D-')}01 | back | — | {files} | x | A1 | — |\n")
+
+    def test_running_cycles_on_the_same_files_fail_unless_one_depends(self):
+        self._running("C-1", "src/a.py")
+        self._running("C-2", "src/a.py")
+        code, gates = self.gate("cycles")
+        self.assertEqual(code, 1)
+        self.assertIn("src/a.py", gates[0]["detail"])
+        self._running("C-2", "src/a.py", depends="depends: C-1\n")
+        self.assertEqual(self.gate("cycles")[0], 0)
+        self._running("C-2", "src/b.py")
+        self.assertEqual(self.gate("cycles")[0], 0)
+
+    def test_the_new_gates_are_known_names(self):
+        for name in ("untracked", "backlog-length", "process-dup", "doc-refs",
+                     "docs", "cycles"):
+            r = verify(self.p, "--gate", name)
+            self.assertNotIn("unknown gate", r.stdout + r.stderr, name)

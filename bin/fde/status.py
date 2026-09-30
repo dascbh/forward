@@ -1161,28 +1161,9 @@ def emit_json(data: dict) -> int:
 # A demand with no `files` cell is treated as touching everything (stricter
 # reading), so it runs alone and is warned.
 
-import fnmatch  # noqa: E402
-
-FILE_TOKEN = re.compile(r"[^\s,;`]+")
-
-
-def demand_files(cell: str) -> list[str]:
-    """Path patterns of a `files` cell: comma/space separated, backticks and
-    parenthesised notes (`(+ copies)`) dropped; `—`/`-` means none."""
-    cell = re.sub(r"\([^)]*\)", " ", cell or "")
-    return [t.rstrip("/") + ("/" if t.endswith("/") else "")
-            for t in FILE_TOKEN.findall(cell) if t not in ("—", "-", "–")]
-
-
-def _overlap(a: str, b: str) -> bool:
-    a2, b2 = a.rstrip("/*"), b.rstrip("/*")
-    if a2 == b2 or a2.startswith(b2 + "/") or b2.startswith(a2 + "/"):
-        return True
-    return fnmatch.fnmatch(a, b) or fnmatch.fnmatch(b, a)
-
-
-def shared_files(fa: list[str], fb: list[str]) -> list[str]:
-    return sorted({x for x in fa for y in fb if _overlap(x, y)})
+# the file rules live in fde_lib, shared with the gate (kernel ADR-0024)
+demand_files = fde_lib.demand_files
+shared_files = fde_lib.shared_files
 
 
 def plan_waves(plan_text: str) -> dict:
@@ -1247,48 +1228,20 @@ def show_waves(cycle: "Cycle") -> list[str]:
 # that cycle merged what it needs).
 
 def cycle_depends(c: "Cycle") -> list[str]:
-    return sorted(set(fde_lib.CYCLE_ID_RE.findall(c.header.get("depends", ""))),
-                  key=lambda x: int(x[2:]))
+    return fde_lib.plan_depends(c.text)
 
 
 def cycle_files(c: "Cycle") -> list[str] | None:
-    """The union of the `files` its demands declare; None when a demand
-    declares none (the cycle cannot be checked against another)."""
-    rows = fde_lib.plan_demand_rows(c.text)
-    out: list[str] = []
-    for row in rows.values():
-        f = demand_files(row.get("files", ""))
-        if not f:
-            return None
-        out += f
-    return sorted(set(out)) if rows else None
+    return fde_lib.plan_files(c.text)
 
 
 def cycle_conflicts(cycles: list["Cycle"]) -> list[str]:
-    """Running cycles whose demands touch the same files with no
-    `depends:` between them, and running cycles that cannot be checked
-    because a demand declares no files while another cycle runs."""
-    running = [c for c in cycles if c.state == "running"]
-    if len(running) < 2:
-        return []
-    out, files = [], {c.id: cycle_files(c) for c in running}
-    for c in running:
-        if files[c.id] is None:
-            out.append(f"{c.id} runs beside {len(running) - 1} other cycle(s) but a "
-                       "demand declares no `files` — it cannot be checked (kernel ADR-0024)")
-    for i, a in enumerate(running):
-        for b in running[i + 1:]:
-            if files[a.id] is None or files[b.id] is None:
-                continue
-            if b.id in cycle_depends(a) or a.id in cycle_depends(b):
-                continue
-            shared = shared_files(files[a.id], files[b.id])
-            if shared:
-                out.append(f"{a.id} and {b.id} run at once and both touch "
-                           f"{', '.join(shared[:3])}{' …' if len(shared) > 3 else ''}"
-                           " — declare `depends:` or move the seam to a "
-                           "foundation cycle (kernel ADR-0024)")
-    return out
+    """Running cycles on the same files with no `depends:` between them, or
+    that cannot be checked (fde_lib.running_cycle_conflicts, the gate's
+    rule too)."""
+    running = {c.id for c in cycles if c.state == "running"}
+    return fde_lib.running_cycle_conflicts(
+        {c.id: c.text for c in cycles if c.id in running}, running)
 
 
 def program_waves(cycles: list["Cycle"]) -> dict:

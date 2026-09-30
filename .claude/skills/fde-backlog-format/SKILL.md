@@ -29,6 +29,9 @@ usage-data < user-test < production`).
   in backlog.md, or between this checkout and another worktree or main.
   Fix: give the later item the next free id.
 - The text states the item and its hypothesis: what value, for whom.
+- One line with a pointer, not a mini-spec: at most `[backlog]
+  max_item_words` (default 60). The detail lives in the doc the line
+  points to; a new longer line fails `BL-LEN`.
 
 The owner orders it. The label makes a bet visible; it never blocks one.
 

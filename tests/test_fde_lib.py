@@ -397,3 +397,14 @@ class TestSlugDemandIds(unittest.TestCase):
                          ["DEM-contratos-familia", "DEM-contratos-radar"])
         self.assertEqual(status.plan_waves(plan)["waves"],
                          [["DEM-contratos-familia"], ["DEM-contratos-radar"]])
+
+
+class TestBacklogItemWords(unittest.TestCase):
+    def test_default_and_override_and_bad_values(self):
+        from fde_lib import backlog_max_item_words
+        self.assertEqual(backlog_max_item_words({}), 60)
+        self.assertEqual(backlog_max_item_words({"backlog": {"max_item_words": 90}}), 90)
+        self.assertEqual(backlog_max_item_words({"scrum": {"max_item_words": 45}}), 45)
+        for bad in (5, "60", True, 900):
+            c = cfg(backlog={"max_item_words": bad})
+            self.assertIn("BACKLOG-LEN", codes(validate(c, Spec.load())), bad)
