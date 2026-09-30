@@ -300,3 +300,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
                       (ROOT / "runtime/erosion.py").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 26, 0))
+
+    def test_kernel_version_ships_codebench(self):
+        # fde-codebench (owner request, 2026-09-29) reaches clients only
+        # through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "runtime/codebench.py").exists())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 27, 0))
