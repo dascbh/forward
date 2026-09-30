@@ -1,0 +1,22 @@
+[migration]
+id = "decision-records-tracked"
+from = "0.28.0"
+to = "0.29.0"
+title = "Decision records left outside git are committed"
+summary = "The UNTRACKED gate fails a review, promotion, cycle review or ADR that exists on disk but not in git (I7); drafts only warn."
+detect = """
+- `git status --porcelain --untracked-files=all` lists a file under `reviews/`, `promotions/` or `docs/adr/`.
+- It lists `cycles/C-<n>/review.md` or `cycles/C-<n>/promotion.md`.
+"""
+guide = """
+Commit each untracked decision record with the demand or cycle it
+belongs to (`<id>: record <what> left untracked since <date>`), one
+commit per demand or cycle. Read each first: a record that is a stale
+draft of a record already committed is deleted, not committed, and the
+deletion is reported. Specs and plan/board/deploy drafts are listed to
+the owner, not committed on their own.
+"""
+checklist = [
+  "`python3 bin/fde/verify.py --gate untracked` has no failing line.",
+  "Every record committed was read first; every deletion is in the report.",
+]

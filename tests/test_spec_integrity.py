@@ -316,3 +316,13 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("controller_rule", (ROOT / "runtime/codebench.py").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 28, 0))
+
+    def test_kernel_version_ships_parallel_cycles_and_reconciling_sync(self):
+        # slug ids, ADR-0024 small cycles in parallel, the C-4 gates and a
+        # sync that always runs and reconciles (owner, 2026-09-30) reach
+        # clients only through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "docs/adr/0024-small-cycles-run-in-parallel.md").exists())
+        self.assertTrue((ROOT / "spec/migrations/0.28-0.29-decision-records-tracked.toml").exists())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 29, 0))
