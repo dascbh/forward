@@ -2,6 +2,7 @@ cycle: C-<n>
 state: draft
 date: YYYY-MM-DD
 size: XS | S | M | L
+depends: —            # C-<n> this slice starts after (kernel ADR-0024)
 objective: <one line: what is true when this cycle closes>
 signed-off: <date and the owner's words; empty until sign-off>
 

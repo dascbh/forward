@@ -11,6 +11,10 @@ take the larger. Rationale: kernel ADR-0019 rule 3.
 
 ## What gets sized
 
+An objective with more than one goal the owner would see working on
+its own is several cycles, one per slice (`fde-spec`, kernel ADR-0024);
+size each slice.
+
 Size is set on the cycle, never on a demand. The size sets the depth of
 the planner and the number of cycle review rounds.
 

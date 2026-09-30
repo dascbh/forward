@@ -33,6 +33,31 @@ Invariants upheld: I1, I4
 
 ## Cycle plan — `cycles/C-<n>/plan.md`
 
+### A large objective is several cycles (kernel ADR-0024)
+
+When the objective has more than one goal the owner would see working
+on its own, plan one cycle per slice, all in one pass, and stop at one
+sign-off for the set:
+
+1. **Seams first.** List the files each slice would touch. A file two
+   slices share (migrations and their numbering, a route or handler
+   registry, shared vocabulary, a shared module, the infra stack) goes
+   to a small **foundation** cycle. Where you can, turn the seam into an
+   extension point — a registry each slice adds its own file to — so
+   later slices stop sharing it. Reserve migration numbers per slice.
+2. **Vertical slices.** One goal each (kernel ADR-0022), disjoint `files`, its
+   own criteria, review and deploy, and `depends: C-<foundation>` in the
+   header.
+3. **Hot files have one owner.** A file every slice must edit is split
+   by the foundation, or owned by one slice that the others depend on.
+4. Check it: `python3 bin/fde/status.py --waves` shows which cycles run
+   together and warns on an overlap. Twelve demands or more in one
+   cycle signal a missed split.
+
+Write once, cite everywhere: the vision or the plan holds the text; a
+backlog item from it is one line pointing to its section; a demand spec
+cites criterion and ADR ids instead of restating them.
+
 A cycle is `cycles/C-<n>/` (next free `n`), from
 `.fde/templates/cycle/`: `plan.md`, `deploy.md`, `board.md`, `review.md`
 and `promotion.md` (its `## What changes`: three lines at most, each

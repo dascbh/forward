@@ -91,7 +91,8 @@ A cycle is `cycles/C-<n>/`, laid out by `fde-spec`. A demand is
 `specs/<id>/spec.md` plus `reviews/<id>/findings.toml`, nothing more. A
 cycle moves `draft` (grouped) → `planned` (specified, awaiting
 sign-off) → `running` (signed off) → `closed` or `abandoned`; several
-drafts may exist, one runs at a time. Who writes each state, and when a
+drafts may exist; several cycles run at once when their files
+are disjoint (kernel ADR-0024, `status.py --waves`). Who writes each state, and when a
 cycle closes: `fde-backlog`.
 
 A new fact always goes to the backlog — never a fix, an amendment or a

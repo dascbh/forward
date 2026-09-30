@@ -1144,7 +1144,10 @@ class TestInventory(ProseTestCase):
                                  "review sizing sentence"})
         # kernel ADR-0022 superseded this C-14 row; the closed cycle's
         # inventory stays as it was, its replacement is pinned instead
-        superseded = {"one layer per demand": "A demand is one goal"}
+        superseded = {"one layer per demand": "A demand is one goal",
+                      # kernel ADR-0024: small cycles run in parallel
+                      "one cycle running": "several cycles run at once when "
+                                           "their files are disjoint"}
         for rel in self.SURFACES:
             text = self.flat(read(rel))
             for name, anchor in rules:

@@ -106,7 +106,9 @@ first token of a bullet. Do it in one commit, before grouping.
   (`fde-status`). A cycle opened before kernel ADR-0019 finishes under
   its own rules.
 - Grouping never writes a spec and never commits to anything.
-- Only one cycle may be running; drafts may be many.
+- Several cycles may be running when their files are disjoint or one
+  depends on the other (kernel ADR-0024, `status.py --waves`); drafts
+  may be many.
 - A draft is organization only: no demand ids, no criteria, no specs
   until **specify**.
 

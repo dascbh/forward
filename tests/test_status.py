@@ -142,7 +142,10 @@ class TestWarnings(StatusCase):
         r = run(self.root)
         self.assertEqual(r.returncode, 0)
         self.assertTrue(r.stdout.startswith("WARNING"), r.stdout)
-        self.assertIn("2 cycles open: C-1, C-2", r.stdout)
+        # kernel ADR-0024: two running cycles are fine when their files can
+        # be checked; these old files declare none, so each is warned
+        self.assertIn("C-1 runs beside 1 other cycle(s) but a demand declares "
+                      "no `files`", r.stdout)
 
     def test_missing_objective_and_backlog_warn(self):
         self.write("cycles/C-1.md", "opened: 2026-09-28\n")
@@ -342,7 +345,10 @@ class TestCycleStates(StatusCase):
         self.write("cycles/C-5/plan.md", PLAN)
         out = run(self.root).stdout
         self.assertTrue(out.startswith("WARNING"), out)
-        self.assertIn("2 cycles open: C-4, C-5", out)
+        # kernel ADR-0024: two running cycles are allowed when their files
+        # can be checked; these declare none, so each is warned
+        self.assertIn("C-5 runs beside 1 other cycle(s) but a demand declares "
+                      "no `files`", out)
 
     def test_mixed_layouts_are_all_read(self):
         self.write("cycles/C-1.md", CLOSED)
@@ -1404,3 +1410,60 @@ state: running
                 capture_output=True, text=True)
             self.assertIn("wave 1: FWD-1, FWD-2, FWD-5", out.stdout, out.stderr)
             self.assertIn("wave 2: FWD-3, FWD-4", out.stdout)
+
+
+class TestParallelCycles(unittest.TestCase):
+    """kernel ADR-0024: small cycles run at once when their files are
+    disjoint or one depends on the other."""
+
+    def plan(self, cid, state, files, depends=""):
+        return (f"cycle: {cid}\nstate: {state}\nobjective: slice {cid}\n"
+                + (f"depends: {depends}\n" if depends else "")
+                + "\n## Demands\n\n| id | layer | depends on | files | what |\n"
+                  "|---|---|---|---|---|\n"
+                + "".join(f"| DEM-{cid[2:]}{i} | back | — | {f} | x |\n"
+                          for i, f in enumerate(files)))
+
+    def cycles(self, plans):
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "runtime"))
+        import status
+        self.status = status
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        for cid, text in plans.items():
+            (root / "cycles" / cid).mkdir(parents=True)
+            (root / "cycles" / cid / "plan.md").write_text(text)
+        return status.load_cycles(root, [])
+
+    def test_disjoint_running_cycles_do_not_conflict(self):
+        cs = self.cycles({"C-1": self.plan("C-1", "running", ["api/a.py"]),
+                          "C-2": self.plan("C-2", "running", ["web/src/b/"])})
+        self.assertEqual(self.status.cycle_conflicts(cs), [])
+
+    def test_overlap_without_depends_is_a_conflict_and_depends_clears_it(self):
+        cs = self.cycles({"C-1": self.plan("C-1", "running", ["api/shared.py"]),
+                          "C-2": self.plan("C-2", "running", ["api/"])})
+        [msg] = self.status.cycle_conflicts(cs)
+        self.assertIn("C-1 and C-2 run at once and both touch", msg)
+        cs = self.cycles({"C-1": self.plan("C-1", "running", ["api/shared.py"]),
+                          "C-2": self.plan("C-2", "running", ["api/"], "C-1")})
+        self.assertEqual(self.status.cycle_conflicts(cs), [])
+
+    def test_program_waves_put_the_foundation_first(self):
+        cs = self.cycles({
+            "C-1": self.plan("C-1", "planned", ["db/migrations/", "api/registry.py"]),
+            "C-2": self.plan("C-2", "planned", ["api/familia.py"], "C-1"),
+            "C-3": self.plan("C-3", "planned", ["web/src/assinatura/"], "C-1"),
+            "C-4": self.plan("C-4", "planned", ["web/src/assinatura/x.tsx"], "C-1"),
+        })
+        w = self.status.program_waves(cs)
+        self.assertEqual(w["waves"], [["C-1"], ["C-2", "C-3"], ["C-4"]])
+        self.assertEqual(w["why"]["C-4"], "shares files with C-3")
+
+    def test_the_cli_prints_the_program(self):
+        cs = self.cycles({"C-1": self.plan("C-1", "running", ["a/"]),
+                          "C-2": self.plan("C-2", "planned", ["b/"], "C-1")})
+        text = "\n".join(self.status.show_program(cs))
+        self.assertIn("wave 1: C-1 (running)", text)
+        self.assertIn("wave 2: C-2 (planned)", text)

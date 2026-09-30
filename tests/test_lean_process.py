@@ -201,3 +201,30 @@ class TestBacklogPanelIsDocumented(unittest.TestCase):
         text = read("skills/fde-backlog/SKILL.md")
         self.assertIn("`python3 bin/fde/backlog.py`", text)
         self.assertIn("copies\n`/fde-backlog specify C-<n>`".replace("\n", " "), text)
+
+
+class TestSmallCyclesInParallel(unittest.TestCase):
+    """kernel ADR-0024 (owner, 2026-09-30): the most parallelism with
+    smaller slices; the planner splits by seams."""
+
+    def test_the_rule_and_its_adr(self):
+        adr = read("docs/adr/0024-small-cycles-run-in-parallel.md")
+        self.assertIn("amends: ADR-0019 rule 9", adr)
+        self.assertIn("A cycle is one slice.", adr)
+        for rel in ("AGENTS.md", "templates/AGENTS.md.template"):
+            self.assertIn("several cycles run at once when their files are "
+                          "disjoint (kernel ADR-0024", read(rel), rel)
+        self.assertIn('rule 9\'s "only one cycle runs", by ADR-0024',
+                      read("docs/adr/0019-backlog-cycle-demand.md"))
+
+    def test_the_planner_splits_by_seams_and_writes_once(self):
+        text = read("agents/fde-spec.md")
+        self.assertIn("### A large objective is several cycles (kernel ADR-0024)",
+                      read("agents/fde-spec.md").replace("  ", " "))
+        for step in ("Seams first.", "Vertical slices.", "Hot files have one owner.",
+                     "Twelve demands or more in one cycle signal a missed split."):
+            self.assertIn(step, text)
+        self.assertIn("a backlog item from it is one line pointing to its section",
+                      text)
+        self.assertIn("depends: —", read("templates/cycle/plan.md"))
+        self.assertIn("size each slice.", read("skills/fde-triage/SKILL.md"))

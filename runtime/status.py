@@ -12,7 +12,9 @@ backlog by section with its `B-<n>` ids. Warnings come first.
 A cycle's state (ADR-0019 rule 9): a `closed:` or `abandoned:` header line
 with a value ends it, whatever `state:` says (a disagreement warns);
 otherwise the first word of `state:` decides; otherwise it is running.
-More than one running cycle is a warning; drafts may be many. A directory
+Several cycles may run at once when their demands' files are disjoint
+or one declares `depends: C-<n>` on the other (kernel ADR-0024); an
+overlap without that is a warning. Drafts may be many. A directory
 cycle's progress is plan.md's acceptance criteria against promotion.md
 (`- A1 — <evidence> — met`; `— declined` or `— limit` settles a criterion
 on the budget-spent path). A closed directory cycle without promotion.md,
@@ -448,10 +450,7 @@ def load_backlog(root: Path, problems: list[str] | None = None):
 
 def warnings(cycles: list[Cycle], backlog, problems: list[str]) -> list[str]:
     out = list(problems)
-    open_ = [c for c in cycles if c.state == "running"]
-    if len(open_) > 1:
-        out.append(f"{len(open_)} cycles open: {', '.join(c.id for c in open_)}"
-                   " — one runs to the end before another opens")
+    out += cycle_conflicts(cycles)
     for c in cycles:
         if not c.objective:
             out.append(f"{c.id} has no objective: line")
@@ -1241,6 +1240,106 @@ def show_waves(cycle: "Cycle") -> list[str]:
     return out
 
 
+# -- cycles in parallel (kernel ADR-0024) --------------------------------------
+# A cycle is one slice: the smallest change the owner sees working and that
+# deploys on its own. Several run at once when their demands touch disjoint
+# files, or when one declares `depends: C-<n>` on the other (it starts once
+# that cycle merged what it needs).
+
+def cycle_depends(c: "Cycle") -> list[str]:
+    return sorted(set(fde_lib.CYCLE_ID_RE.findall(c.header.get("depends", ""))),
+                  key=lambda x: int(x[2:]))
+
+
+def cycle_files(c: "Cycle") -> list[str] | None:
+    """The union of the `files` its demands declare; None when a demand
+    declares none (the cycle cannot be checked against another)."""
+    rows = fde_lib.plan_demand_rows(c.text)
+    out: list[str] = []
+    for row in rows.values():
+        f = demand_files(row.get("files", ""))
+        if not f:
+            return None
+        out += f
+    return sorted(set(out)) if rows else None
+
+
+def cycle_conflicts(cycles: list["Cycle"]) -> list[str]:
+    """Running cycles whose demands touch the same files with no
+    `depends:` between them, and running cycles that cannot be checked
+    because a demand declares no files while another cycle runs."""
+    running = [c for c in cycles if c.state == "running"]
+    if len(running) < 2:
+        return []
+    out, files = [], {c.id: cycle_files(c) for c in running}
+    for c in running:
+        if files[c.id] is None:
+            out.append(f"{c.id} runs beside {len(running) - 1} other cycle(s) but a "
+                       "demand declares no `files` — it cannot be checked (kernel ADR-0024)")
+    for i, a in enumerate(running):
+        for b in running[i + 1:]:
+            if files[a.id] is None or files[b.id] is None:
+                continue
+            if b.id in cycle_depends(a) or a.id in cycle_depends(b):
+                continue
+            shared = shared_files(files[a.id], files[b.id])
+            if shared:
+                out.append(f"{a.id} and {b.id} run at once and both touch "
+                           f"{', '.join(shared[:3])}{' …' if len(shared) > 3 else ''}"
+                           " — declare `depends:` or move the seam to a "
+                           "foundation cycle (kernel ADR-0024)")
+    return out
+
+
+def program_waves(cycles: list["Cycle"]) -> dict:
+    """Running and planned cycles in waves: a cycle joins a wave once every
+    `depends:` cycle is in an earlier wave (or ended), and its files are
+    disjoint from the others in the wave."""
+    live = [c for c in cycles if c.state in ("running", "planned")]
+    ended = {c.id for c in cycles if c.state in END_KEYS}
+    files = {c.id: cycle_files(c) for c in live}
+    waves, done, left, why = [], set(ended), [c.id for c in live], {}
+    by_id = {c.id: c for c in live}
+    while left:
+        wave, taken = [], []
+        for cid in left:
+            waiting = [d for d in cycle_depends(by_id[cid]) if d not in done]
+            if waiting:
+                why[cid] = f"after {', '.join(waiting)}"
+                continue
+            clash = [o for o in taken if files[cid] is None or files[o] is None
+                     or shared_files(files[cid], files[o])]
+            if clash:
+                why[cid] = f"shares files with {clash[0]}"
+                continue
+            wave.append(cid)
+            taken.append(cid)
+        if not wave:
+            break
+        waves.append(wave)
+        done.update(wave)
+        left = [c for c in left if c not in done]
+    return {"waves": waves, "why": why, "unscheduled": left,
+            "states": {c.id: c.state for c in live}}
+
+
+def show_program(cycles: list["Cycle"]) -> list[str]:
+    data = program_waves(cycles)
+    out = ["cycles in parallel (plan.md `files` + `depends:`; kernel ADR-0024)"]
+    if not data["waves"] and not data["unscheduled"]:
+        return out + ["  no running or planned cycle"]
+    for i, wave in enumerate(data["waves"], 1):
+        cells = [f"{cid} ({data['states'][cid]})" for cid in wave]
+        notes = [f"{cid}: {data['why'][cid]}" for cid in wave if cid in data["why"]]
+        out.append(f"  wave {i}: {', '.join(cells)}"
+                   + (f"   ({'; '.join(notes)})" if notes else ""))
+    if data["unscheduled"]:
+        out.append("  unscheduled (cycle dependency loop or unknown id): "
+                   + ", ".join(data["unscheduled"]))
+    out += [f"  WARNING {w}" for w in cycle_conflicts(cycles)]
+    return out
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="cycle and backlog view")
     ap.add_argument("--root", default=".", help="project root (default: cwd)")
@@ -1252,9 +1351,9 @@ def main(argv=None) -> int:
                       help="one demand: spec, findings, promotion, ADRs")
     part.add_argument("--panel", action="store_true",
                       help="the whole panel as markdown sections")
-    part.add_argument("--waves", metavar="C-N",
-                      help="which demands run in parallel, from plan.md "
-                           "`files` and `depends on`")
+    part.add_argument("--waves", metavar="C-N", nargs="?", const="all",
+                      help="which demands of C-N run in parallel; without C-N, "
+                           "which cycles run in parallel (kernel ADR-0024)")
     ap.add_argument("--format", choices=("text", "json"), default="text",
                     help="text (default) or json with the same content")
     args = ap.parse_args(argv)
@@ -1284,6 +1383,13 @@ def main(argv=None) -> int:
                                      ("cycles",), nxt, root,
                                      [d for d in demands if d["cycle"] == match[0].id]))
         print("\n".join(show_cycle(match[0], backlog, "CYCLE", demands)))
+        return 0
+
+    if args.waves == "all":
+        if args.format == "json":
+            return emit_json(dict(program_waves(cycles),
+                                  conflicts=cycle_conflicts(cycles)))
+        sys.stdout.write("\n".join(show_program(cycles)) + "\n")
         return 0
 
     if args.waves is not None:

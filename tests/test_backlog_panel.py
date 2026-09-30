@@ -48,7 +48,7 @@ class TestSkillRules(unittest.TestCase):
         "to each item that has none, as the first cell of a table row or as "
         "the first token of a bullet. Do it in one commit, before grouping.",
         "Grouping never writes a spec and never commits to anything.",
-        "Only one cycle may be running; drafts may be many.",
+        "Several cycles may be running when their files are disjoint",
         "After every edit, re-run status.py. The result must still parse (FM4)",
         # FWD-030 review F1–F4
         "Drafts show with their items.",
