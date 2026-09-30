@@ -484,7 +484,13 @@ def is_ci() -> bool:
 # A demand id is <PREFIX>-<n>, with a prefix the project picks (FWD, DEM,
 # ACME…): whatever the plan's ## Demands first cell and the spec
 # directory declare. The kernel's own id families are never demands.
+# A project may also name demands by slug, <PREFIX>-<slug> (DEM-dd-card-
+# portal): an upper-case prefix and a lower-case slug. The slug form is
+# read only where the position already says "this is an id" — a plan's
+# first cell, a directory name, a depends-on cell — never scanned out of
+# prose, where "API-first" would read as a demand.
 _ID = r"[A-Za-z][A-Za-z0-9]*-\d+(?![A-Za-z0-9])"
+_SLUG_ID = re.compile(r"^([A-Z][A-Z0-9]*)-([a-z][a-z0-9]*(?:-[a-z0-9]+)*)$")
 RESERVED_PREFIXES = frozenset({"C", "B", "S", "ADR"})
 DEMAND_RE = re.compile(r"(?<![\w-])(" + _ID + ")")
 CANON_RE = re.compile(r"^(" + _ID + ")")
@@ -497,12 +503,19 @@ _HEADER_LINES = 30
 
 
 def demand_id(raw: str) -> str | None:
-    """The canonical <PREFIX>-<n> a name starts with, upper-cased, or None
-    when the name is no demand id."""
+    """The canonical id a name starts with, or None when the name is no
+    demand id: <PREFIX>-<n> upper-cased (a trailing slug dropped), or a
+    whole <PREFIX>-<slug> as written."""
+    raw = raw.strip().strip("`*")
     m = CANON_RE.match(raw)
-    if not m or m.group(1).split("-")[0].upper() in RESERVED_PREFIXES:
-        return None
-    return m.group(1).upper()
+    if m:
+        if m.group(1).split("-")[0].upper() in RESERVED_PREFIXES:
+            return None
+        return m.group(1).upper()
+    m = _SLUG_ID.match(raw)
+    if m and m.group(1) not in RESERVED_PREFIXES:
+        return f"{m.group(1)}-{m.group(2)}"
+    return None
 
 
 def canon_demand(raw: str) -> str:

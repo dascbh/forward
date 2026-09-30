@@ -357,3 +357,43 @@ class TestErosionRatchet(unittest.TestCase):
     def test_structural_erosion_is_a_share(self):
         c = cfg(erosion={"max_structural_erosion": 45})
         self.assertIn("EROSION-BUDGET", codes(validate(c, Spec.load())))
+
+
+class TestSlugDemandIds(unittest.TestCase):
+    """A project may name demands by slug (auris: DEM-dd-card-portal); the
+    kernel read them as no id and skipped them silently (2026-09-30)."""
+
+    def test_slug_ids_are_ids_where_an_id_is_expected(self):
+        from fde_lib import canon_demand, demand_id
+        self.assertEqual(demand_id("DEM-contratos-familia"), "DEM-contratos-familia")
+        self.assertEqual(demand_id("DEM-dd-card-portal"), "DEM-dd-card-portal")
+        self.assertEqual(demand_id("`DEM-contratos`"), "DEM-contratos")
+        self.assertEqual(canon_demand("DEM-dd-checklist"), "DEM-dd-checklist")
+
+    def test_numbered_ids_keep_their_grammar(self):
+        from fde_lib import demand_id
+        self.assertEqual(demand_id("FWD-042"), "FWD-042")
+        self.assertEqual(demand_id("FWD-001-self-install"), "FWD-001")
+        self.assertEqual(demand_id("ctr-3"), "CTR-3")
+
+    def test_prose_and_kernel_families_are_not_demands(self):
+        from fde_lib import DEMAND_RE, demand_id
+        for word in ("Pre-commit", "e-mail", "DEM-Contratos",
+                     "C-14", "B-3", "ADR-0019", "S-005"):
+            self.assertIsNone(demand_id(word), word)
+        # "API-first" reads as a slug id where an id is expected; it joins
+        # nothing (no demand has that name), and prose is never scanned for
+        # slugs — the assertion below
+        self.assertEqual(DEMAND_RE.findall("see API-first and DEM-dd-x"), [])
+
+    def test_a_plan_table_reads_slug_rows_and_waves_schedule_them(self):
+        import status
+        from fde_lib import plan_demand_rows
+        plan = ("## Demands\n\n| id | layer | depends on | files | what |\n"
+                "|---|---|---|---|---|\n"
+                "| DEM-contratos-familia | back | — | a/ | x |\n"
+                "| DEM-contratos-radar | back | DEM-contratos-familia | b/ | y |\n")
+        self.assertEqual(list(plan_demand_rows(plan)),
+                         ["DEM-contratos-familia", "DEM-contratos-radar"])
+        self.assertEqual(status.plan_waves(plan)["waves"],
+                         [["DEM-contratos-familia"], ["DEM-contratos-radar"]])

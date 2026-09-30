@@ -510,6 +510,13 @@ def warnings(cycles: list[Cycle], backlog, problems: list[str]) -> list[str]:
     return out
 
 
+def _demand_order(did: str) -> tuple:
+    """Numbered ids by number within their prefix, slug ids after them by
+    name (kernel grammar: fde_lib.demand_id)."""
+    prefix, _, rest = did.partition("-")
+    return (prefix, 0, int(rest), "") if rest.isdigit() else (prefix, 1, 0, rest)
+
+
 def _num(tag: str) -> int:
     return int(tag.rsplit("-", 1)[1])
 
@@ -618,7 +625,6 @@ def show_backlog(backlog, nxt: dict) -> list[str]:
 
 # --- demands (FWD-034) -------------------------------------------------------
 
-SPEC_DIR = re.compile(r"^([A-Za-z][A-Za-z0-9]*-\d+)(?![0-9])(?:-.*)?$")
 ADR_REF = re.compile(r"\bADR-(\d+)\b")
 ADR_FILE = re.compile(r"^(\d+)-.*\.md$")
 
@@ -686,8 +692,7 @@ def demand_dir(root: Path, kind: str, did: str) -> Path | None:
     except OSError:
         return None
     for p in entries:
-        m = SPEC_DIR.match(p.name)
-        if m and m.group(1).upper() == did.upper():
+        if fde_lib.demand_id(p.name) == (fde_lib.demand_id(did) or did):
             return p
     return None
 
@@ -779,10 +784,9 @@ def load_demands(root: Path, cycles: list[Cycle], problems: list[str],
     out: list[dict] = []
     seen: dict[str, str] = {}
     for p in entries:
-        m = SPEC_DIR.match(p.name)
-        if not m:
+        did = fde_lib.demand_id(p.name)
+        if not did:
             continue
-        did = m.group(1).upper()
         if did in seen:
             problems.append(f"specs/{seen[did]} and specs/{p.name} both read as "
                             f"{did}; the first is used")
@@ -820,7 +824,7 @@ def load_demands(root: Path, cycles: list[Cycle], problems: list[str],
             "follows": follows, "review": review,
             "promotion": _promotion(root, did, cycle),
         })
-    return sorted(out, key=lambda x: (x["id"].rsplit("-", 1)[0], _num(x["id"])))
+    return sorted(out, key=lambda x: _demand_order(x["id"]))
 
 
 def adr_files(root: Path) -> dict[int, Path]:
@@ -1293,7 +1297,8 @@ def main(argv=None) -> int:
         return 0
 
     if args.demand is not None:
-        match = [d for d in demands if d["id"] == args.demand.strip().upper()]
+        want = fde_lib.demand_id(args.demand) or args.demand.strip()
+        match = [d for d in demands if d["id"] == want]
         if not match:
             print(f"status: no demand {args.demand!r} in specs/", file=sys.stderr)
             return 2
