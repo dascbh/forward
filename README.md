@@ -311,6 +311,9 @@ tools; installed into the project for Claude Code):
 - `fde-codebench` — the code-quality view over the history: size, cyclomatic
   complexity, functions over CC 10, structural erosion, clone ratio, and
   the hotspots that grew (`python3 bin/fde/codebench.py`); a report, never a gate
+- `fde-map` — the product map of a feature from its code (`docs/map/<slug>.md`):
+  screens, API calls, handlers, business rules with their messages, events,
+  columns written and tables read (`python3 bin/fde/productmap.py`)
 - `fde-survey` — architectural reconnaissance of a system nobody
   documented: the map a team needs when it takes over, evidence-labeled
 - `fde-status` — where the project stands: the open cycle with its done
