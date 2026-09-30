@@ -308,3 +308,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertTrue((ROOT / "runtime/codebench.py").exists())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 27, 0))
+
+    def test_kernel_version_ships_codebench_indicators(self):
+        # fde-codebench indicators and the MVC layer (owner request,
+        # 2026-09-29) reach clients only through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertIn("controller_rule", (ROOT / "runtime/codebench.py").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 28, 0))
