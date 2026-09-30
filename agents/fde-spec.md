@@ -111,3 +111,12 @@ model (`fde-walkthrough`).
 
 A fact that invalidates the plan's criteria or an ADR stops the demand:
 the cycle replans. Any other new fact goes to `backlog.md`.
+
+## Unified product entries
+
+fde-build and fde-inspect route into this role; read
+`.fde/spec/product-pipeline.md`. Use existing discovery/spec/cycle artifacts
+for augmentation, hypotheses, product requirements, domain/data contracts
+and pre-UI UX blueprint. Declare UI/UX criteria and separate design-system
+adherence before construction. Architecture decisions remain client ADRs;
+role scopes, size, sign-off and frozen plans remain authoritative.

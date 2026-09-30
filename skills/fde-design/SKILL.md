@@ -309,3 +309,11 @@ wrong model or structure reopens flow/IA/wireframe — a string patch on
 the screen is treating the symptom. Conclusions are labeled by evidence:
 [observed] / [expert-inferred] / [human evidence] — simulation is never
 promoted to human evidence.
+
+## Unified product contract
+
+Read `.fde/spec/product-pipeline.md` for the pre-UI UX blueprint, post-UI
+validation, five UI dimensions, equivalent UX dimensions and separate DS
+adherence verdict. Use fde-design-system for foundation discovery/evolution.
+These extend this chain through existing evals and I8 findings, not new
+verifier flags; phase depth still scales by the table above.

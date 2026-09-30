@@ -378,3 +378,14 @@ is guaranteed loss on the next `sync`; the fix belongs at the source.
 ## License
 
 Apache-2.0.
+
+## Unified product pipeline
+
+Use `/fde-build` for a product outcome or new feature and `/fde-inspect` for
+an existing product improvement. Both reuse survey, Product Map, design,
+roles and signed vertical cycles through deployment. `/fde-design-system`
+discovers and evolves the product foundation incrementally. The complete
+[stage and quality contract](spec/product-pipeline.md) defines pre-UI UX,
+post-UI validation, five UI dimensions, UX measures, separate DS adherence,
+provenance and internal criticism. These are agent skills and review
+contracts; no new shell commands or automated verifier flags are introduced.

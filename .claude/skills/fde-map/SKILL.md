@@ -71,3 +71,9 @@ The whole graph in one Mermaid chart is unreadable, so Mermaid is split
 by screen. `--input <file>` (or `-`) reads a `productmap.py --format json`
 instead of building the map again. The `MAP` gate warns when a map no
 longer matches the code; it never fails yet.
+
+## Unified pipeline
+
+The map is transversal infrastructure for fde-build and fde-inspect, not a
+discarded discovery stage. Follow `.fde/spec/product-pipeline.md` for source
+revision, coverage limits, planning impact and post-change regeneration.
