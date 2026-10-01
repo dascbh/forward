@@ -446,4 +446,4 @@ class TestTemplatesAndVersions(unittest.TestCase):
         spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
         self.assertIn("--progress", (ROOT / "runtime/status.py").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
-                                (0, 43, 0))
+                                (0, 43, 1))
