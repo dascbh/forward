@@ -78,3 +78,23 @@ The format comes from AGENTS.md `## Cycle`.
   for the user, not a block.
 - A writer: it changes no file. The fixes a warning points to go through
   AGENTS.md `## Cycle`.
+
+## Progress — what each agent is doing, and for how long
+
+```bash
+python3 bin/fde/status.py --progress        # running cycles as a tree
+```
+
+Each running cycle shows its phases (plan · sign-off · build · cycle
+review · deploy: ✓ done, ▸ now, · to come) and one line per demand: its
+current phase, how long that phase has run, and which of build · suite ·
+review · merge are done. A demand that waits on another says which. The
+times are the commit times of the board lines (`git blame`), read from
+every worktree, so a demand building in its own worktree shows before it
+merges. The same tree sits under each running cycle at the top of
+`--panel`.
+
+Name every agent you launch `C-<n> › <demand> › <phase>` (for example
+`C-6 › CTR-10 › review`), so a notification says which cycle, demand and
+phase finished. The tree is the place to read how long a phase has run.
+

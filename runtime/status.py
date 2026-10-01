@@ -856,6 +856,9 @@ def as_json(cycles: list[Cycle], backlog, warns: list[str], parts,
         } for c in cycles]
         if demands is not None:
             data["demands"] = demands
+        if root is not None:
+            data["progress"] = [cycle_progress(root, c) for c in cycles
+                                if c.state == "running"]
     if "backlog" in parts:
         data["backlog"] = None if backlog is None else {"sections": [
             {"heading": heading, "items": [
@@ -1039,8 +1042,13 @@ def render_panel(data: dict) -> list[str]:
     ended = [c for c in cycles if c["ended"]]
     warns = data.get("warnings", [])
     out = ["## Overview", ""]
-    out += [f"- running: {c['id']} — {_md(c['objective'], full=True) or '—'} — "
-            f"{_progress(c)}" for c in running] or ["- running: none"]
+    tree = {p["id"]: p for p in data.get("progress", [])}
+    for c in running:
+        out.append(f"- running: {c['id']} — {_md(c['objective'], full=True) or '—'} — "
+                   f"{_progress(c)}")
+        out += [f"  {line}" for line in progress_lines(tree.get(c["id"]))]
+    if not running:
+        out.append("- running: none")
     out.append("- planned: " + (", ".join(c["id"] for c in planned) or "none"))
     out.append("- drafts: " + (", ".join(c["id"] for c in drafts) or "none"))
     out.append(f"- warnings: {len(warns) or 'none'}")
@@ -1251,6 +1259,189 @@ def show_program(cycles: list["Cycle"]) -> list[str]:
     return out
 
 
+# -- progress: cycle → demand → phase, with time (owner request 2026-10-01) --
+# The board is the record (I7): its lines say when a demand was claimed,
+# when its suite was recorded, when it was reviewed and when it merged.
+# `git blame` gives each line's commit time, so the elapsed times are read,
+# never estimated. A phase with no evidence yet is shown as still to come.
+
+BOARD_LINE = re.compile(r"^\s*(?:[-*]\s+)?(\d{4}-\d\d-\d\d)\s+(\S+)\s+(\S+)(.*)$")
+DEMAND_PHASES = ("build", "suite", "review", "merge")
+CYCLE_PHASES = ("plan", "sign-off", "build", "cycle review", "deploy")
+
+
+def _blame_times(root: Path, rel: str) -> list[int]:
+    """Commit time of each line of `rel` (now for an uncommitted line)."""
+    import subprocess
+    import time
+    now = int(time.time())
+    try:
+        out = subprocess.run(["git", "-C", str(root), "blame", "--line-porcelain", "--", rel],
+                             capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if out.returncode != 0:
+        return []
+    times, cur = [], now
+    for line in out.stdout.splitlines():
+        if line.startswith("author-time "):
+            cur = int(line.split()[1])
+        elif line.startswith("\t"):
+            times.append(cur if cur else now)
+    return times
+
+
+def _worktrees(root: Path) -> list[Path]:
+    import subprocess
+    try:
+        out = subprocess.run(["git", "-C", str(root), "worktree", "list", "--porcelain"],
+                             capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return [root]
+    paths = [Path(l[len("worktree "):]) for l in out.stdout.splitlines()
+             if l.startswith("worktree ")]
+    return [root.resolve()] + [p for p in paths if p.resolve() != root.resolve() and p.is_dir()]
+
+
+def board_events(root: Path, c: "Cycle") -> list[dict]:
+    """[{who, verb, text, at}] from the cycle's board in this checkout AND
+    every other worktree: a demand writes its board lines in its own
+    worktree, and they reach main only at its merge. `at` is the line's
+    commit time (git blame), epoch seconds."""
+    if c.layout != "directory":
+        return []
+    rel = str((c.path / "board.md").resolve().relative_to(root.resolve()))
+    seen, out = set(), []
+    for wt in _worktrees(root):
+        board = wt / rel
+        if not board.is_file():
+            continue
+        lines = _read(board).splitlines()
+        times = _blame_times(wt, rel)
+        for i, line in enumerate(lines):
+            m = BOARD_LINE.match(line)
+            if not m or line.strip() in seen:
+                continue
+            seen.add(line.strip())
+            out.append({"who": fde_lib.demand_id(m.group(2)) or m.group(2),
+                        "verb": m.group(3).lower(), "text": (m.group(3) + m.group(4)).lower(),
+                        "at": times[i] if i < len(times) else None})
+    return sorted(out, key=lambda e: e["at"] or 0)
+
+
+def demand_progress(did: str, events: list[dict], reviewed: bool) -> dict:
+    """Phases done, the current one and when it started, from board evidence."""
+    mine = [e for e in events if e["who"] == did]
+    at = [e["at"] for e in mine if e["at"]]
+    done = set()
+    if any(e["verb"] in ("claim", "done") for e in mine):
+        done.add("build") if any(e["verb"] == "done" for e in mine) else None
+    if any(e["verb"] == "done" and re.search(r"record-suite|suite exit 0|su[ií]te exit 0", e["text"])
+           for e in mine):
+        done |= {"build", "suite"}
+    if reviewed or any(e["verb"] == "decided" and re.search(r"triag|review|revis", e["text"])
+                       for e in mine):
+        done |= {"build", "suite", "review"} if "suite" in done else {"build", "review"}
+    merged = any(e["verb"] == "decided" and re.search(r"\bmerged?\b|merge em|merge into",
+                                                      e["text"]) for e in mine)
+    if merged:
+        done = set(DEMAND_PHASES)
+    started = bool(mine)
+    current = next((ph for ph in DEMAND_PHASES if ph not in done), None) if started else None
+    blocked = bool(mine) and mine[-1]["verb"] == "blocked-on"
+    return {"id": did, "done": [p for p in DEMAND_PHASES if p in done], "current": current,
+            "started": min(at) if at else None, "last": max(at) if at else None,
+            "merged": merged, "blocked": blocked, "begun": started}
+
+
+def cycle_progress(root: Path, c: "Cycle") -> dict:
+    events = board_events(root, c)
+    rows = fde_lib.plan_demand_rows(c.text)
+    demands = []
+    for did, row in rows.items():
+        reviewed = any((root / "reviews").glob(f"{did}*/findings*.toml"))
+        d = demand_progress(did, events, reviewed)
+        waits = [x for x in (fde_lib.demand_id(t) for t in
+                             re.split(r"[\s,;]+", row.get("depends on", ""))) if x and x in rows]
+        d["waits"] = waits
+        demands.append(d)
+    merged = {d["id"] for d in demands if d["merged"]}
+    for d in demands:
+        d["waits"] = [w for w in d["waits"] if w not in merged and not d["begun"]]
+    files = {a for a in getattr(c, "artifacts", [])}
+    phase_done = {"plan"} if c.state in ("planned", "running") or c.state in END_KEYS else set()
+    if c.state == "running" or fde_lib.plan_header(c.text, "signed-off"):
+        phase_done.add("sign-off")
+    if demands and all(d["merged"] for d in demands):
+        phase_done.add("build")
+    if "promotion.md" in files:
+        phase_done |= {"build", "cycle review"}
+    if c.state == "closed":
+        phase_done = set(CYCLE_PHASES)
+    current = next((ph for ph in CYCLE_PHASES if ph not in phase_done), None)
+    if current == "cycle review" and "review.md" not in files:
+        current = "cycle review"
+    starts = [e["at"] for e in events if e["at"]]
+    return {"id": c.id, "title": c.objective, "state": c.state,
+            "phases_done": [p for p in CYCLE_PHASES if p in phase_done], "current": current,
+            "began": min(starts) if starts else None, "demands": demands}
+
+
+def _dur(seconds: int | None) -> str:
+    if seconds is None:
+        return ""
+    m = max(0, seconds) // 60
+    return f"{m // 60}h{m % 60:02d}m" if m >= 60 else f"{m}m"
+
+
+def show_progress(root: Path, cycles: list["Cycle"]) -> list[str]:
+    import time
+    live = [c for c in cycles if c.state == "running"]
+    if not live:
+        return ["no running cycle"]
+    out = []
+    for c in live:
+        p = cycle_progress(root, c)
+        title = p["title"] if len(p["title"]) <= 46 else p["title"][:45].rstrip() + "…"
+        out.append(f"{p['id']} {title}".ljust(52) + f" {p['state']}"
+                   + (f" · {_dur(int(time.time()) - p['began'])}" if p["began"] else ""))
+        out += progress_lines(p)
+        out.append("")
+    return out
+
+
+def progress_lines(p: dict | None) -> list[str]:
+    """The phase line and one line per demand: what each does, how long its
+    current phase has run, which phases are done and which come next."""
+    import time
+    if not p:
+        return []
+    now = int(time.time())
+    marks = [f"{ph} " + ("✓" if ph in p["phases_done"] else "▸" if ph == p["current"] else "·")
+             for ph in CYCLE_PHASES]
+    out = ["  " + "  ".join(marks)]
+    ds = p["demands"]
+    for i, d in enumerate(ds):
+        branch = "└─" if i == len(ds) - 1 else "├─"
+        if d["merged"]:
+            state, took = "✓ merged", _dur(d["last"] - d["started"]) if d["started"] and d["last"] else ""
+        elif d["waits"]:
+            state, took = f"· waits {', '.join(d['waits'])}", ""
+        elif not d["begun"]:
+            state, took = "· not started", ""
+        else:
+            cur = d["current"] or "merge"
+            label = {"build": "building", "suite": "suite pending", "review": "in review",
+                     "merge": "to merge"}[cur]
+            state = ("▸ blocked-on " if d["blocked"] else "▸ ") + (label if not d["blocked"] else "")
+            took = _dur(now - d["last"]) if d["last"] else ""
+            steps = " · ".join(f"{ph} " + ("✓" if ph in d["done"] else "▸" if ph == cur else "·")
+                               for ph in DEMAND_PHASES)
+            took = f"{took}  ({steps})" if took else f"({steps})"
+        out.append(f"  {branch} {d['id']:<12} {state:<22} {took}".rstrip())
+    return out
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="cycle and backlog view")
     ap.add_argument("--root", default=".", help="project root (default: cwd)")
@@ -1265,6 +1456,8 @@ def main(argv=None) -> int:
     part.add_argument("--waves", metavar="C-N", nargs="?", const="all",
                       help="which demands of C-N run in parallel; without C-N, "
                            "which cycles run in parallel (kernel ADR-0024)")
+    part.add_argument("--progress", action="store_true",
+                      help="running cycles as a tree: demands, phases, elapsed time")
     part.add_argument("--flow", action="store_true",
                       help="cycle time, lead time and the wait for sign-off, from git")
     ap.add_argument("--format", choices=("text", "json"), default="text",
@@ -1303,6 +1496,13 @@ def main(argv=None) -> int:
                                      ("cycles",), nxt, root,
                                      [d for d in demands if d["cycle"] == match[0].id]))
         print("\n".join(show_cycle(match[0], backlog, "CYCLE", demands)))
+        return 0
+
+    if args.progress:
+        if args.format == "json":
+            return emit_json({"progress": [cycle_progress(root, c) for c in cycles
+                                           if c.state == "running"]})
+        sys.stdout.write("\n".join(show_progress(root, cycles)).rstrip() + "\n")
         return 0
 
     if args.waves == "all":

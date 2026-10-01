@@ -448,7 +448,8 @@ class TestJson(StatusCase):
     def test_round_trip(self):
         data = self.load()
         self.assertEqual(set(data), {"warnings", "next", "cycles", "backlog",
-                                     "demands"})
+                                     "demands", "progress"})
+        self.assertEqual([p["id"] for p in data["progress"]], ["C-5"])
         by_id = {c["id"]: c for c in data["cycles"]}
         self.assertEqual([c["id"] for c in data["cycles"]], ["C-1", "C-2", "C-5", "C-6"])
         self.assertEqual(by_id["C-1"]["state"], "closed")
@@ -494,7 +495,7 @@ class TestJson(StatusCase):
     def test_selectors_narrow_json(self):
         self.assertEqual(set(self.load("--backlog")), {"warnings", "next", "backlog"})
         self.assertEqual(set(self.load("--cycles")),
-                         {"warnings", "next", "cycles", "demands"})
+                         {"warnings", "next", "cycles", "demands", "progress"})
         one = self.load("--cycle", "C-5")
         self.assertEqual([c["id"] for c in one["cycles"]], ["C-5"])
 

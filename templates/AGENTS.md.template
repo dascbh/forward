@@ -44,7 +44,7 @@ Override is upward-only.
 - **Walkthrough evaluator** (`fde-walkthrough-evaluator`) — writes nothing
 
 Inside `cycles/C-<n>/` each role writes only its own file; `board.md`
-and `backlog.md` are open to all; `promotions/**` is legacy. "All five
+and `backlog.md` are open to all. "All five
 roles" means the five working roles; the walkthrough evaluator is a
 sixth role that writes nothing. The adversarial and promotion roles run
 isolated: artifact + spec only, never the builder's thread.
@@ -66,7 +66,8 @@ the plan; it decides nothing new.
    inherited by everything after it, irreversible `deploy.md` steps
    included. Only a replan asks the owner again.
 4. **Build**: Demands run in parallel by default, coordinated on
-   `cycles/C-<n>/board.md`. Each runs in its own worktree once its
+   `cycles/C-<n>/board.md`; agent names: `C-<n> › <id> › <phase>`
+   (`fde-status`). Each runs in its own worktree once its
    dependencies merge. A root with no suite gets a minimal one (I1).
    Tests run once per SHA (`fde-review`).
    Never `--no-verify`. README and runbook change with how the system
@@ -82,8 +83,7 @@ the plan; it decides nothing new.
    cycle. When a demand may merge: `fde-review`.
 7. **Review the cycle** (`fde-review`, cycle mode).
 8. **Promote and deploy**: promotion, at every size, is
-   `fde-promotion`'s decision against the plan's criteria. The deploy plan:
-   `fde-spec`.
+   `fde-promotion`'s decision against the plan's criteria.
 
 ## Cycle
 
