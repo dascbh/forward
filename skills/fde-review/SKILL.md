@@ -156,6 +156,13 @@ SHA.
 CI runs the full suite on every push; locally, a suite already green at
 the same SHA is not run again.
 
+## Closing is a rail
+
+After the last demand merges, the cycle review runs within its budget,
+then the preflight, one promotion decision, the deploy and the close —
+each once (`fde-backlog`). What the cycle review finds that does not
+block is a backlog line, not a new round.
+
 ## Before the cycle review
 
 The demand reviews are committed before the cycle review starts, so the

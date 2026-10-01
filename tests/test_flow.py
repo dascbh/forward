@@ -164,6 +164,22 @@ class Flow(unittest.TestCase):
         self.assertEqual(r["first_pass_pct"], 33)       # D-1 only
         self.assertEqual(r["by_kind"], {"adversarial": 1, "code": 2})
 
+    def test_closing_runs_from_the_last_merge_and_counts_deploy_stops(self):
+        demands = "\n## Demands\n\n| id | layer | depends on |\n|---|---|---|\n| D-1 | back | — |\n"
+        self.write("cycles/C-1/plan.md", plan("running") + demands)
+        commit(self.p, 1, "signed")
+        self.write("cycles/C-1/board.md", "- 2026-10-01 D-1 decided merged\n")
+        commit(self.p, 5, "merge")
+        self.write("cycles/C-1/board.md", "- 2026-10-01 D-1 decided merged\n"
+                   "- 2026-10-01 C-1 deploy step B stopped before the apply\n")
+        commit(self.p, 7, "stop")
+        self.write("cycles/C-1/plan.md", plan("closed") + demands)
+        commit(self.p, 9, "close")
+        [r] = flow.measure(self.p)["cycles"]
+        self.assertEqual(r["closing_h"], 4.0)    # merge at 5h, closed at 9h
+        self.assertEqual(r["closing_pct"], 50)   # of 8h signed → closed
+        self.assertEqual(r["deploy_stops"], 1)
+
     def test_state_reads_like_the_status_view(self):
         self.assertEqual(flow.state_of("state: planned (signed off later)\n"), "planned")
         self.assertEqual(flow.state_of("state: running\nclosed: 2026-09-30\n"), "closed")

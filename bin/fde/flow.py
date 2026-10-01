@@ -13,6 +13,8 @@ often fits in one; the commits carry the minute. For each cycle:
 - closed: the first commit where it reads closed (or abandoned).
 
 Cycle time is signed → closed; the owner's wait is planned → signed;
+closing is the last demand merged → closed (or now), and its share of
+the cycle; deploy stops are the board's lines of a deploy that stopped;
 lead time is request → closed. Cycles linked by `depends:` are one
 objective (kernel ADR-0024: a large objective is several small cycles,
 the fde-build/fde-inspect pipeline); its lead time runs from its first
@@ -100,6 +102,31 @@ def _h(a: int | None, b: int | None) -> float | None:
     return round((b - a) / 3600, 1) if a is not None and b is not None and b >= a else None
 
 
+MERGED = re.compile(r"\bmerged?\b|mergiad|mesclad")
+DEPLOY_STOP = re.compile(r"deploy.*(parad|stopp|halt|blocked|bloquead|não iniciad|not started|falh|failed)"
+                         r"|(parad|stopped|halted).*deploy", re.I)
+
+
+def closing(root: Path, c: status.Cycle, end: int | None) -> tuple[float | None, int]:
+    """(hours from the last demand merged to the close — or to now —, deploy
+    stops on the board). A merge line written later than its merge reads
+    late: the close then looks shorter, never longer."""
+    try:
+        events = status.board_events(root, c)
+    except Exception:  # noqa: BLE001 — a measure, never a crash
+        return None, 0
+    ids = {d.get("id") for d in c.demands if d.get("id")}
+    merged = {}
+    for e in events:
+        if e["who"] in ids and e["at"] and MERGED.search(e["text"]):
+            merged.setdefault(e["who"], e["at"])
+    stops = sum(1 for e in events if DEPLOY_STOP.search(e["text"]))
+    if not ids or len(merged) < len(ids):
+        return None, stops
+    last = max(merged.values())
+    return _h(last, end or int(time.time())), stops
+
+
 def measure(root: Path) -> dict:
     cycles = status.load_cycles(root, [])
     now = int(time.time())
@@ -119,9 +146,17 @@ def measure(root: Path) -> dict:
             "lead_time_h": _h(req, end) if c.state == "closed" else None,
             "running_for_h": _h(signed, now) if c.state == "running" else None,
         })
+        if c.state in ("running", "closed"):
+            close_h, stops = closing(root, c, end if c.state == "closed" else None)
+            rows[-1]["closing_h"], rows[-1]["deploy_stops"] = close_h, stops
+            total = _h(signed, end if c.state == "closed" else now)
+            rows[-1]["closing_pct"] = (round(100 * close_h / total) if close_h is not None
+                                       and total else None)
+        else:
+            rows[-1]["closing_h"], rows[-1]["deploy_stops"], rows[-1]["closing_pct"] = None, 0, None
     return {"cycles": rows, "objectives": objectives(rows, now),
             "median": {k: _median(rows, k) for k in
-                       ("wait_signoff_h", "cycle_time_h", "lead_time_h")}}
+                       ("wait_signoff_h", "cycle_time_h", "lead_time_h", "closing_pct")}}
 
 
 def _median(rows: list[dict], key: str) -> float | None:
@@ -251,13 +286,17 @@ def render(d: dict) -> list[str]:
     f = lambda v: f"{v:.1f}h" if v is not None else "-"
     out = ["Flow (from git: request → plan → sign-off → closed)", "",
            f"  {'cycle':7}{'state':10}{'items':>6}{'wait sign-off':>15}"
-           f"{'cycle time':>12}{'lead time':>11}{'running for':>13}"]
+           f"{'cycle time':>12}{'lead time':>11}{'running for':>13}{'closing':>14}{'deploy stops':>14}"]
     for r in d["cycles"]:
         out.append(f"  {r['cycle']:7}{r['state']:10}{r['items']:>6}{f(r['wait_signoff_h']):>15}"
-                   f"{f(r['cycle_time_h']):>12}{f(r['lead_time_h']):>11}{f(r['running_for_h']):>13}")
+                   f"{f(r['cycle_time_h']):>12}{f(r['lead_time_h']):>11}{f(r['running_for_h']):>13}"
+                   f"{(f(r.get('closing_h')) + (' ' + str(r['closing_pct']) + '%' if r.get('closing_pct') is not None else '')):>14}"
+                   f"{r.get('deploy_stops', 0):>14}")
     m = d["median"]
     out += ["", f"  median over closed cycles: wait sign-off {f(m['wait_signoff_h'])} · "
-                f"cycle time {f(m['cycle_time_h'])} · lead time {f(m['lead_time_h'])}"]
+                f"cycle time {f(m['cycle_time_h'])} · lead time {f(m['lead_time_h'])} · "
+                f"closing {m['closing_pct'] if m['closing_pct'] is not None else '-'}% of the cycle "
+                "(target under 20%; deploy stops caused by the plan: 0)"]
     if d["objectives"]:
         out += ["", "  objectives (cycles joined by depends:)"]
         for o in d["objectives"]:

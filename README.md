@@ -337,6 +337,9 @@ tools; installed into the project for Claude Code):
 - `fde-walkthrough` — two blind runs explore the running interface cold;
   where they disagree, the interface does not explain itself
 - `fde-verify` — the gate: `python3 bin/fde/verify.py --all` (same as CI)
+- `preflight.py C-<n>` — every defect of a cycle's deploy plan at once,
+  before the promotion: programs, scripts, directories, chained steps,
+  allow rules, addresses that do not answer
 - `fde-doctor` — what is actually enforced vs. merely suggested
 - `fde-sync` — update the kernel and re-emit the project, then reconcile it:
   backlog and cycles reviewed against the new rules (mechanical changes

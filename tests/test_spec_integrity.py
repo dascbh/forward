@@ -468,3 +468,14 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("progress", (ROOT / "runtime/backlog.py").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 45, 0))
+
+    def test_kernel_version_ships_the_closing_rail(self):
+        # preflight, one decision, closing on a rail, one closing message,
+        # closing time measured (owner, 2026-10-01)
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "runtime/preflight.py").exists())
+        backlog = " ".join((ROOT / "skills/fde-backlog/SKILL.md").read_text().split())
+        self.assertIn("Closing runs on a rail", backlog)
+        self.assertIn("which are not this cycle's debt", backlog)
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 46, 0))

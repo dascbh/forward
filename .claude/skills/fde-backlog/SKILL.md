@@ -103,6 +103,17 @@ first token of a bullet. Do it in one commit, before grouping.
   `state: planned`; the orchestrating agent writes `running` with
   `signed-off:` at sign-off, then `closed` or `abandoned`. The plan is
   frozen at sign-off; these header lines are the only edits it takes.
+- **Closing runs on a rail**, once each, in this order, after the last
+  demand merges: the cycle review (within its budget), the preflight
+  (`preflight.py C-<n>`) with every defect fixed in one pass, one
+  promotion decision, the deploy, the close. A finding of this phase is
+  a backlog line and never reopens an earlier step; only a blocker does,
+  as a replan. A deploy repeats only for an external failure (network,
+  provider), never for a defect of its own plan.
+- **The closing message is one**, in two parts: "Delivered" — the
+  criteria met and what is live — and "New backlog" — N items, named,
+  which are not this cycle's debt. No suggestion of a new combination
+  or next cycle in it; the owner asks for that.
 - A cycle closes when its criteria are met with integration evidence
   and it is deployed or published; show the user its backlog lines
   (`fde-status`) and one line with its cycle time and lead time

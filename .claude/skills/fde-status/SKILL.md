@@ -25,7 +25,10 @@ to fill in: request is the first commit that put one of the cycle's
 cycle time running → closed, lead time request → closed; cycles joined
 by `depends:` are one objective, whose lead time ends at its last cycle
 closed. Wall-clock hours. A cycle that never read `running` in git has
-no cycle time.
+no cycle time. Closing is the last demand merged → closed (or now) and
+its share of the cycle, target under 20%; deploy stops are the board's
+lines of a deploy that stopped, target 0 for defects of the plan itself
+(`preflight.py` before the promotion).
 
 Run it and show the user the output as it is. Do not summarize it or
 reword it. Add at most one line after it, and only when a warning calls
