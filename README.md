@@ -375,10 +375,6 @@ is guaranteed loss on the next `sync`; the fix belongs at the source.
   means process-level adversarial review. Worth disambiguating on first
   mention to anyone coming from ML.
 
-## License
-
-Apache-2.0.
-
 ## Unified product pipeline
 
 Use `/fde-build` for a product outcome or new feature and `/fde-inspect` for
@@ -389,3 +385,7 @@ discovers and evolves the product foundation incrementally. The complete
 post-UI validation, five UI dimensions, UX measures, separate DS adherence,
 provenance and internal criticism. These are agent skills and review
 contracts; no new shell commands or automated verifier flags are introduced.
+
+## License
+
+Apache-2.0.

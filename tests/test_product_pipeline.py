@@ -31,3 +31,21 @@ class ProductPipelineContract(unittest.TestCase):
         ):
             self.assertIn(obligation, text)
         self.assertEqual(text, (ROOT / '.fde/spec/product-pipeline.md').read_text())
+
+
+class EntriesPointNotCopy(unittest.TestCase):
+    def test_the_entry_skills_share_no_paragraph(self):
+        # written once in the spec, cited by each entry (MNT-1): the three
+        # skills once repeated four paragraphs verbatim
+        def paragraphs(name):
+            text = (ROOT / 'skills' / name / 'SKILL.md').read_text().split('---', 2)[2]
+            return {' '.join(p.split()) for p in text.split('\n\n') if len(p.split()) >= 20}
+        a, b, c = (paragraphs(n) for n in ('fde-build', 'fde-inspect', 'fde-design-system'))
+        self.assertEqual(a & b, set())
+        self.assertEqual(a & c, set())
+        self.assertEqual(b & c, set())
+
+    def test_each_entry_says_when_to_use_it(self):
+        for name in ('fde-build', 'fde-inspect', 'fde-design-system'):
+            head = (ROOT / 'skills' / name / 'SKILL.md').read_text().split('---', 2)[1]
+            self.assertIn('Use when', head, name)
