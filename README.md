@@ -326,7 +326,8 @@ tools; installed into the project for Claude Code):
 - `fde-status` — where the project stands: the open cycle with its done
   progress, closed cycles, and the backlog (`python3 bin/fde/status.py`);
   `--waves` shows which demands, or cycles, run in parallel; `--flow`, the
-  cycle time, lead time and wait for sign-off, read from git
+  cycle time, lead time and wait for sign-off, read from git; `--forecast`,
+  when each running cycle likely ends, from the project's own history
 - `fde-backlog` — the panel printed in the terminal
   (`python3 bin/fde/status.py --panel`): overview, backlog with `B-<n>`
   ids, cycles with their demands, loose demands, discarded; group items

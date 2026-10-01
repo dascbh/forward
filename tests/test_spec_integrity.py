@@ -533,3 +533,12 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("A rehearsal creates nothing it cannot delete", promo)
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 50, 0))
+
+    def test_kernel_version_ships_the_forecast(self):
+        # status.py --forecast, shown unasked with every status (owner,
+        # 2026-10-01: "no idea how long a cycle will take")
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "runtime/forecast.py").exists())
+        self.assertIn("--forecast", (ROOT / "skills/fde-status/SKILL.md").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 51, 0))

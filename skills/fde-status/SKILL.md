@@ -16,6 +16,7 @@ python3 bin/fde/status.py --format json  # same content: warnings, cycles, deman
 python3 bin/fde/status.py --panel      # markdown: overview, backlog, cycles, demands, discarded
 python3 bin/fde/status.py --demand FWD-7  # one demand: spec, findings, promotion, ADRs
 python3 bin/fde/status.py --flow       # cycle time, lead time, wait for sign-off
+python3 bin/fde/status.py --forecast   # when each running cycle likely ends
 ```
 
 `--flow` reads the minutes from git, not the plan's dates, with nothing
@@ -25,7 +26,15 @@ to fill in: request is the first commit that put one of the cycle's
 cycle time running → closed, lead time request → closed; cycles joined
 by `depends:` are one objective, whose lead time ends at its last cycle
 closed. Wall-clock hours. A cycle that never read `running` in git has
-no cycle time. Closing is the last demand merged → closed (or now) and
+no cycle time.
+
+**When will it end** — every time the status is shown with a cycle
+running, add the `--forecast` lines, unasked: each running cycle's likely
+end (p50) and its worst (p85), as clock times, from this project's own
+history — how long its demands took to merge and its closings to close.
+Nobody estimates; the past does. Demands run in parallel unless one
+depends on another; a cycle that waits for another starts when that
+one's build ends. Too little history says so instead of a number. Closing is the last demand merged → closed (or now) and
 its share of the cycle, target under 20%; deploy stops are the board's
 lines of a deploy that stopped, target 0 for defects of the plan itself
 (`preflight.py` before the promotion).

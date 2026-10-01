@@ -1691,6 +1691,8 @@ def main(argv=None) -> int:
                            "which cycles run in parallel (kernel ADR-0024)")
     part.add_argument("--progress", action="store_true",
                       help="running cycles as a tree: demands, phases, elapsed time")
+    part.add_argument("--forecast", action="store_true",
+                      help="when each running cycle likely ends, from the project's history")
     part.add_argument("--flow", action="store_true",
                       help="cycle time, lead time and the wait for sign-off, from git")
     ap.add_argument("--format", choices=("text", "json"), default="text",
@@ -1705,6 +1707,13 @@ def main(argv=None) -> int:
     if not root.is_dir():
         print(f"status: --root {args.root} is not a directory", file=sys.stderr)
         return 2
+    if args.forecast:
+        import forecast
+        data = forecast.forecast(root.resolve())
+        if args.format == "json":
+            return emit_json(data)
+        print("\n".join(forecast.render(data)))
+        return 0
     if args.flow:
         import flow
         data = flow.measure(root.resolve())
