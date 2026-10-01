@@ -45,6 +45,15 @@ class EntriesPointNotCopy(unittest.TestCase):
         self.assertEqual(a & c, set())
         self.assertEqual(b & c, set())
 
+    def test_inspect_hands_its_stages_to_their_owners(self):
+        # without this paragraph two DD inspections in a client (2026-10-01)
+        # ran every stage solo: no research, no confronted hypotheses
+        text = ' '.join((ROOT / 'skills/fde-inspect/SKILL.md').read_text().split())
+        for owner in ('fde-spec for discovery, hypotheses', 'fde-design for flow/IA/wireframe',
+                      'fde-architecture for domain/data'):
+            self.assertIn(owner, text)
+        self.assertIn('→ deploy contract', text)
+
     def test_each_entry_says_when_to_use_it(self):
         for name in ('fde-build', 'fde-inspect', 'fde-design-system'):
             head = (ROOT / 'skills' / name / 'SKILL.md').read_text().split('---', 2)[1]
