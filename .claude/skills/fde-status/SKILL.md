@@ -15,7 +15,17 @@ python3 bin/fde/status.py --backlog    # backlog only
 python3 bin/fde/status.py --format json  # same content: warnings, cycles, demands, backlog
 python3 bin/fde/status.py --panel      # markdown: overview, backlog, cycles, demands, discarded
 python3 bin/fde/status.py --demand FWD-7  # one demand: spec, findings, promotion, ADRs
+python3 bin/fde/status.py --flow       # cycle time, lead time, wait for sign-off
 ```
+
+`--flow` reads the minutes from git, not the plan's dates, with nothing
+to fill in: request is the first commit that put one of the cycle's
+`## Items` in backlog.md; then the plan's first commit, its first
+`running`, its first `closed`. Wait for sign-off is plan → running,
+cycle time running → closed, lead time request → closed; cycles joined
+by `depends:` are one objective, whose lead time ends at its last cycle
+closed. Wall-clock hours. A cycle that never read `running` in git has
+no cycle time.
 
 Run it and show the user the output as it is. Do not summarize it or
 reword it. Add at most one line after it, and only when a warning calls

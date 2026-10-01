@@ -1265,6 +1265,8 @@ def main(argv=None) -> int:
     part.add_argument("--waves", metavar="C-N", nargs="?", const="all",
                       help="which demands of C-N run in parallel; without C-N, "
                            "which cycles run in parallel (kernel ADR-0024)")
+    part.add_argument("--flow", action="store_true",
+                      help="cycle time, lead time and the wait for sign-off, from git")
     ap.add_argument("--format", choices=("text", "json"), default="text",
                     help="text (default) or json with the same content")
     args = ap.parse_args(argv)
@@ -1277,6 +1279,13 @@ def main(argv=None) -> int:
     if not root.is_dir():
         print(f"status: --root {args.root} is not a directory", file=sys.stderr)
         return 2
+    if args.flow:
+        import flow
+        data = flow.measure(root.resolve())
+        if args.format == "json":
+            return emit_json(data)
+        print("\n".join(flow.render(data)))
+        return 0
     problems: list[str] = []
     cycles = load_cycles(root, problems)
     backlog = load_backlog(root, problems)

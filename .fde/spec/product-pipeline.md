@@ -48,7 +48,7 @@ records UI/UX as not applicable with a reason, not a simulated UI review.
 | Architecture | Client ADRs: options, seams, contracts, dependencies, failure modes, security, observability, rollout and portability; map impact checked | fde-architecture |
 | Backlog | One-line items pointing to the source; vertical cycles with disjoint files, foundation seams and depends; demand specs cite criteria and ADRs | fde-backlog, fde-spec, status --waves |
 | Implementation | Signed plan; evals before changed behavior; implement within contracts; refresh evidence and affected maps | fde-implementation, fde-design |
-| Deploy | Demand/cycle review, promotion against declared criteria, ordered rollout, verification and rollback; production outcomes feed backlog | fde-review, fde-promotion; cycle deploy.md |
+| Deploy | Demand/cycle review, promotion against declared criteria, ordered rollout, verification and rollback; production outcomes feed backlog; the objective's lead time, request → last cycle closed, reported unasked (`status.py --flow`) | fde-review, fde-promotion; cycle deploy.md |
 
 UX blueprint is authored with product requirements, before UI construction,
 and reconciled with domain/architecture before sign-off. It describes actors,

@@ -351,3 +351,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("--changed-since", (ROOT / "skills/fde-review/SKILL.md").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 34, 0))
+
+    def test_kernel_version_ships_cycle_and_lead_time(self):
+        # status.py --flow (owner request, 2026-09-30) reaches clients only
+        # through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "runtime/flow.py").exists())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 35, 0))
