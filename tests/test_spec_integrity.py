@@ -385,3 +385,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertTrue(list((ROOT / "docs/adr").glob("0026-*.md")))
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 38, 0))
+
+    def test_kernel_version_ships_the_reconcile_that_does(self):
+        # fde-sync's reconcile applies instead of listing (owner,
+        # 2026-09-30) reaching clients only through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertIn("Reconcile **does**", (ROOT / "skills/fde-sync/SKILL.md").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 38, 1))
