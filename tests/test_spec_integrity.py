@@ -343,3 +343,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertTrue((ROOT / "runtime/mutation.py").exists())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 33, 0))
+
+    def test_kernel_version_ships_the_unasked_suite_measure(self):
+        # codebench --tests run by the cycle review with nothing chosen by
+        # hand (owner, 2026-09-30) reaches clients only through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertIn("--changed-since", (ROOT / "skills/fde-review/SKILL.md").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 34, 0))

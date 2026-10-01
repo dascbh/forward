@@ -130,8 +130,15 @@ SHA.
 - **Promotion**: `verify.py --all` once at the promoted commit; the
   evidence per criterion is the review record and the builder's run,
   not a red→green reproduction per criterion.
-- **Mutation testing** runs only where `plan.md` declares it for a
-  criterion.
+- **Mutation testing** as evidence runs only where `plan.md` declares it
+  for a criterion. Apart from that, the cycle review measures the suite's
+  effectiveness on what the cycle changed, unasked:
+  `codebench.py --tests --changed-since <the commit before the cycle's
+  first merge>` (10-minute budget, report only). A surviving `if`,
+  comparison or `and`/`or` in a changed module is one backlog line;
+  `--format json` keeps the numbers for the next cycle. No module with
+  tests found, or no runner found: say so in one line and declare
+  `[codebench] test_file_command` yourself — never ask the owner.
 
 CI runs the full suite on every push; locally, a suite already green at
 the same SHA is not run again.

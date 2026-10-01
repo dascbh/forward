@@ -9,7 +9,7 @@ description: Code-quality view over the history: complexity, functions over CC 1
 python3 bin/fde/codebench.py                 # 6 snapshots + install + HEAD
 python3 bin/fde/codebench.py --points 10 --top 20
 python3 bin/fde/codebench.py --format json
-python3 bin/fde/codebench.py --mutants 10    # the suite's effectiveness instead
+python3 bin/fde/codebench.py --tests        # the suite's effectiveness instead
 ```
 
 It reports; it never gates. The gate with a budget is `fde-erosion`, and
@@ -59,26 +59,38 @@ The population is the project's own source: `[gate]` roots minus
 Limits: complexity and function measures are Python only; other languages count in size, SQL, layers and
 clones. Snapshots are committed trees, not the working copy.
 
-## The suite's effectiveness (`--mutants N`)
+## The suite's effectiveness (`--tests`)
 
 Time says what a suite costs and coverage what ran; a mutation score
-says what the tests would catch. For each Python module with a test file
-named after it (`test_<stem>.py`, `<stem>_test.py`), its tests run once
-unchanged (the baseline and its seconds), then on N sampled mutants — a
-comparison flipped, `and`/`or` swapped, an `if` negated, an integer + 1,
-a returned boolean inverted. Killed is caught; a survivor is a defect
-every test of its module lets through, listed with its line. Also shown:
-test lines against production lines.
+says what the tests would catch. The cycle review runs it unasked
+(`fde-review`); run it by hand the same way:
 
-It runs in a temporary worktree at HEAD, never the working copy; a
-module whose tests fail unchanged is skipped, not scored. The runner is
-pytest when `[stack] test_command` is pytest, unittest when it is
-unittest or unset; anything else: `--test-cmd '<cmd> {test}'`.
-`--modules K` (default 8, largest logic first), `--module <path>`,
-`--seed S` (same seed, same mutants). Each mutant reruns one module's
-tests: start small on a large suite.
+```bash
+python3 bin/fde/codebench.py --tests                       # 10-minute budget
+python3 bin/fde/codebench.py --tests --changed-since <ref> # what changed since
+```
 
-Read it with the survivors, not the score alone: an integer + 1 on a
-default or a limit is often harmless; a surviving `if` or comparison is
-logic no test pins. High score with a large suite: consolidation is safe
-there. Low score: the tests to strengthen, as a backlog item.
+Nothing to choose. Modules: the project's own Python modules with tests
+— named after them (`test_<stem>.py`) or importing them. Runner: pytest
+when `[stack] test_command` names it or a conftest.py exists, unittest
+when it names unittest or nothing; otherwise, or when the project's
+command is a CI script, find the one-file command yourself and declare
+it once (`[codebench] test_file_command = "<cmd> {test}"`) — never ask
+the owner. Size: the budget is split across modules by their baseline
+time; `--minutes M`, or `--mutants N` per module.
+
+Each module's tests run once unchanged (the baseline and its seconds; a
+failing baseline is skipped, not scored), then on the sampled mutants —
+a comparison flipped, `and`/`or` swapped, an `if` negated, an integer
++ 1, a returned boolean inverted. Killed is caught; a survivor is a
+defect every test of the module lets through, listed with its line.
+Also shown: test lines against production lines.
+
+It runs in a temporary worktree at HEAD and never writes the working
+copy (other sessions may be committing there); what the tests need and
+git ignores — build output, node_modules, a venv — is linked in.
+
+Read the survivors, not the score alone: an integer + 1 on a default or
+a limit is often harmless; a surviving `if` or comparison is logic no
+test pins. High score with a large suite: consolidation is safe there.
+Low score: the tests to strengthen, as a backlog item.

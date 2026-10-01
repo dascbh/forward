@@ -3,6 +3,7 @@ owner request 2026-09-30): what the tests would catch, not what they cost."""
 from __future__ import annotations
 
 import ast
+import json
 import subprocess
 import sys
 import tempfile
@@ -80,7 +81,7 @@ class Sampling(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = project(d, test_command="make test")
             r = mutation.sample(p, n=3)
-            self.assertIn("--test-cmd", r["modules"][0]["skipped"])
+            self.assertIn("test_file_command", r["modules"][0]["skipped"])
             r = mutation.sample(p, n=3, template=f"cd src && {sys.executable} "
                                 "-m unittest test_calc")
             self.assertIsNone(r["modules"][0]["skipped"])
@@ -99,6 +100,77 @@ class Sampling(unittest.TestCase):
             r = mutation.suite_size(p)
             self.assertEqual(r["production_loc"], 4)
             self.assertEqual(r["test_loc"], 8)
+
+
+def git(p, *args):
+    return subprocess.run(["git", *args], cwd=p, check=True, capture_output=True, text=True).stdout
+
+
+class NoHandChoices(unittest.TestCase):
+    """The agent runs it at cycle close; nothing is chosen by hand."""
+
+    def test_a_test_that_imports_the_module_counts_as_its_test(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = project(d)
+            (p / "src" / "test_calc.py").rename(p / "src" / "test_rules.py")
+            git(p, "add", "-A"); git(p, "commit", "-q", "-m", "rename")
+            [row] = mutation.sample(p, n=3)["modules"]
+            self.assertEqual(row["tests"], ["src/test_rules.py"])
+            self.assertEqual(row["mutants"], 3)
+
+    def test_ignored_build_output_is_linked_and_the_working_copy_never_written(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = project(d, tests=TESTS.replace(
+                "import unittest\n",
+                "import unittest, pathlib\n"
+                "assert (pathlib.Path(__file__).parent / 'built.txt').exists()\n"))
+            (p / ".gitignore").write_text("src/built.txt\n")
+            git(p, "add", "-A"); git(p, "commit", "-q", "-m", "needs a build output")
+            (p / "src" / "built.txt").write_text("x")
+            r = mutation.sample(p, n=50)
+            [row] = r["modules"]
+            self.assertIsNone(row["skipped"])
+            self.assertGreater(row["killed"], 0)
+            self.assertEqual((p / "src" / "calc.py").read_text(), CALC)
+            self.assertEqual(git(p, "status", "--porcelain"), "")
+            self.assertEqual((p / "src" / "built.txt").read_text(), "x")
+
+    def test_the_working_copy_is_measured_at_head_not_its_uncommitted_edits(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = project(d)
+            edited = CALC + "# wip\n"
+            (p / "src" / "calc.py").write_text(edited)
+            [row] = mutation.sample(p, n=3)["modules"]
+            self.assertEqual(row["mutants"], 3)
+            self.assertEqual((p / "src" / "calc.py").read_text(), edited)
+
+    def test_without_n_the_time_budget_sizes_the_sample(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = project(d)
+            [row] = mutation.sample(p, minutes=0)["modules"]
+            self.assertEqual(row["skipped"], "time budget spent")
+            [row] = mutation.sample(p, minutes=5)["modules"]
+            self.assertGreaterEqual(row["mutants"], 3)
+
+    def test_a_declared_file_command_is_used(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = project(d, test_command="make test")
+            with open(p / "fde.config.toml", "a") as f:
+                f.write(f'[codebench]\ntest_file_command = "cd src && {sys.executable} -m unittest test_calc"\n')
+            git(p, "commit", "-qam", "declare")
+            [row] = mutation.sample(p, n=2)["modules"]
+            self.assertIsNone(row["skipped"])
+            self.assertEqual(row["mutants"], 2)
+
+    def test_changed_since_keeps_the_modules_the_cycle_touched(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = project(d)
+            base = git(p, "rev-parse", "HEAD").strip()
+            self.assertEqual(mutation.sample(p, n=1, since=base)["modules"], [])
+            (p / "src" / "calc.py").write_text(CALC + "\n\ndef zero():\n    return 0\n")
+            git(p, "commit", "-qam", "touch")
+            [row] = mutation.sample(p, n=1, since=base)["modules"]
+            self.assertEqual(row["module"], "src/calc.py")
 
 
 class Mutants(unittest.TestCase):

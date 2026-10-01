@@ -405,12 +405,17 @@ def main(argv=None) -> int:
     ap.add_argument("--module", action="append", default=[], help="with --mutants: this module only")
     ap.add_argument("--test-cmd", default=None, help="with --mutants: runs one test file, '{test}' replaced")
     ap.add_argument("--seed", type=int, default=0, help="with --mutants: sampling seed (default 0)")
+    ap.add_argument("--tests", action="store_true",
+                    help="instead: the suite's effectiveness, sized by --minutes")
+    ap.add_argument("--minutes", type=float, default=10, help="with --tests: time budget (default 10)")
+    ap.add_argument("--changed-since", default=None, metavar="REF",
+                    help="with --tests/--mutants: modules changed since REF only")
     args = ap.parse_args(argv)
     root = Path(args.root).resolve() if args.root else project_root()
-    if args.mutants > 0:
+    if args.mutants > 0 or args.tests:
         import mutation
-        data = mutation.sample(root, args.mutants, args.modules, args.module,
-                               args.test_cmd, args.seed)
+        data = mutation.sample(root, args.mutants or None, args.modules, args.module,
+                               args.test_cmd, args.seed, args.minutes, args.changed_since)
         print(json.dumps(data, indent=2) if args.format == "json"
               else "\n".join(mutation.render(data)))
         return 0
