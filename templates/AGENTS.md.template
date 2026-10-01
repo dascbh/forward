@@ -67,11 +67,10 @@ the plan; it decides nothing new.
    included. Only a replan asks the owner again.
 4. **Build**: Demands run in parallel by default, coordinated on
    `cycles/C-<n>/board.md`; agent names: `C-<n> › <id> › <phase>`
-   (`fde-status`). Each runs in its own worktree once its
+   (`fde-status`). Owner questions pause one demand, never the session. Each runs in its own worktree once its
    dependencies merge. A root with no suite gets a minimal one (I1).
    Tests run once per SHA (`fde-review`).
-   Never `--no-verify`. README and runbook change with how the system
-   runs (MNT-10).
+   Never `--no-verify`. README and runbook follow (MNT-10).
 5. **Review the demand** (`fde-review`, kernel ADR-0021). A coding
    demand inside a signed-off plan: isolated code review (diff × demand
    spec, ADR conformance, tests, the layer's check; `kind = "code"`; ~10

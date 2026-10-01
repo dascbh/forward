@@ -60,7 +60,7 @@ KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "erosion", "divergence", "survey", "walkthrough", "rule-lane",
                "untracked", "backlog-length", "process-dup", "doc-refs", "docs",
                "cycles", "map", "deploy-allow", "migration", "promotion",
-               "backlog-cycle", "suite", "scope")
+               "backlog-cycle", "suite", "scope", "review-rounds")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -1520,6 +1520,32 @@ class Gate:
         elif explicit:
             self.add("SCOPE", True, "all source sits under the gate's roots")
 
+    # -- a demand review is one round (fde-review, 2026-10-01) -------------
+    def gate_review_rounds(self, explicit: bool = False) -> None:
+        from fde_lib import plan_demand_rows, plan_header
+        live = set()
+        for cid, cdir in cycle_dirs(self.project).items():
+            plan = cdir / "plan.md"
+            if plan.is_file():
+                text = plan.read_text(encoding="utf-8", errors="ignore")
+                if plan_header(text, "state").lower().startswith("running"):
+                    live |= set(plan_demand_rows(text))
+        extra = []
+        for did in sorted(live):
+            f = self.project / "reviews" / did / "findings.toml"
+            if not f.is_file():
+                continue
+            n = max([int(m) for m in re.findall(r'^\s*id\s*=\s*"R(\d+)-',
+                                                 f.read_text(encoding="utf-8", errors="ignore"),
+                                                 re.M)] or [1])
+            if n > 1:
+                extra.append(f"{did} ({n} rounds)")
+        if extra:
+            self.warn("REVIEW-ROUNDS", "a demand review is one round; its blocker's "
+                      f"regression test is the re-check (fde-review): {', '.join(extra[:5])}")
+        elif explicit:
+            self.add("REVIEW-ROUNDS", True, "every running demand was reviewed in one round")
+
     def report(self, fmt: str) -> int:
         failed = [r for r in self.results if not r[1]]
         if fmt == "json":
@@ -1951,6 +1977,8 @@ def main() -> int:
         if want("scope"):
             g.cfg_raw = cfg.raw
             g.gate_scope(explicit=(only == "scope"))
+        if want("review-rounds"):
+            g.gate_review_rounds(explicit=(only == "review-rounds"))
         if want("divergence"):
             g.gate_divergence()
         if want("survey"):

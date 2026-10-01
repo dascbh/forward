@@ -14,7 +14,12 @@ description: Runs the isolated review sized by risk: code, adversarial, plan or 
 2. Probes per attribute come from
    `.fde/spec/dimensions/quality-attributes.toml` (`adversarial_probes`).
 3. Read `plan.md`'s `## Threat model`: who the cycle must contain, and
-   what is declared out of scope. It bounds every probe.
+   what is declared out of scope. It bounds every probe. A demand review
+   attacks first what the plan already names as risk — its failure
+   modes, the threat model, an irreversible or `[prod]` step the demand
+   touches — and only then the probe list. The deploy plan itself is
+   judged by the plan review, `preflight.py` and the cycle review, never
+   by a demand review.
 4. Code or adversarial mode: create `reviews/<demand-id>/findings.toml`
    from `.fde/templates/findings.template.toml`, with its `kind`. Plan
    mode: `reviews/C-<n>/findings-plan.toml`, `kind = "plan"`. Cycle
@@ -72,8 +77,12 @@ record satisfies the promotion gate like any review.
 | XS, S | `[review] cycle_rounds_small` (default 1) | full |
 | M, L | `[review] cycle_rounds_large` (default 2) | full, delta |
 
-A demand review is always 1 round. A demand review's blocking finding
-is fixed inside that demand and proven by its regression test; the owner
+A demand review is always 1 round: no second or third round is ever
+launched on a demand. Its blocking finding is fixed inside that demand
+and proven by its regression test, which is the re-check; the reviewer
+confirms it (`fixed_in`) at the cycle review. Two client demands ran
+three rounds each and took 7–9 h against a 1.1 h median (2026-10-01;
+`REVIEW-ROUNDS` ⚠ names a demand file with `R2-` ids). The owner
 is asked only when the fix changes a criterion or an ADR, which is a
 replan. A non-blocking finding is triaged by the builder (`## Triage`):
 fixed in the demand as a patch, deferred to `backlog.md`, or dropped; one
@@ -246,16 +255,24 @@ Recall belongs to the reviewer, precision to the triage.
    this claim; a true fact about nearby code does not), or `unsure`
    (write what would settle it).
 2. **Route each real finding by where the defect lives:**
-   - `intent` — the plan does not say what the owner wants: stop and ask
-     the owner one question with a recommended answer. An answer that
+   - `intent` — the plan does not say what the owner wants: this demand
+     stops and the owner gets one question with a recommended answer, as
+     a plain message and a board line (`<demand> asks …`), never a
+     blocking question box while other agents run. Only this demand
+     waits; the orchestrator keeps dispatching the rest. A question box
+     once held a client's five fronts for 6 hours over one demand's
+     question (2026-10-01). An answer that
      changes a criterion is the replan; any other answer is one board
      line and the demand continues.
    - `plan` — the demand spec was unclear or wrong: revert the demand's
      code, fix the spec, rebuild from it. No patch on patch.
-   - `patch` — the smallest fix is trivial, adds no public surface and no
-     new guard: fixed inside the demand now, with a regression test when
-     behavior changes. This is the one in-band fix MNT-9 allows besides a
-     blocker.
+   - `patch` — a **high** finding whose smallest fix is trivial, adds no
+     public surface and no new guard: fixed inside the demand now, with a
+     regression test when behavior changes. This is the one in-band fix
+     MNT-9 allows besides a blocker. A medium or low finding is never
+     patched in the demand: it is `defer`. Patching non-blocking findings
+     (and the scope they widened) made the slow tail of two client
+     projects, where 79–84% of findings were medium or low.
    - `defer` — the finding stays where it is, in `findings.toml`: that
      file is its record (I7), and `fde-graph` surfaces the ones that
      recur. It becomes a backlog line only when it is worth a piece of
