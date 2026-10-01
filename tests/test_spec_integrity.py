@@ -521,3 +521,15 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("`[kernel]`", (ROOT / "skills/fde-backlog-format/SKILL.md").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 49, 0))
+
+    def test_kernel_version_ships_records_keyed_by_code(self):
+        # a process commit no longer sends the suite to run again; red
+        # records name their failures; deploy steps say what touches
+        # production (owner, 2026-10-01)
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertIn("RECORD_SKIP", (ROOT / "runtime/verify.py").read_text())
+        promo = " ".join((ROOT / "agents/fde-promotion.md").read_text().split())
+        self.assertIn('"production unchanged"', promo)
+        self.assertIn("A rehearsal creates nothing it cannot delete", promo)
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 50, 0))

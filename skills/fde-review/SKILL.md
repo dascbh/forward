@@ -142,7 +142,9 @@ SHA.
   rebased tree when main moved before the merge. Its command, result
   and SHA go on the demand's board line. `verify.py --all --record-suite`
   runs the gate and the configured `test_command` once and records both
-  in `.fde/runs/<tree>.json` (the tree is `git write-tree`; the
+  in `.fde/runs/<key>.json` (the key is the index's code — every path but
+  `reviews/`, `cycles/`, `promotions/`, `backlog.md`, `specs/`,
+  `discovery/` — so a board or promotion commit keeps the record; the
   directory is gitignored).
 - **Code review**: reads that record and the tests in the diff; never
   reruns the suite. `verify.py --status` prints the record for the current
@@ -151,6 +153,12 @@ SHA.
   prove a suspected finding.
 - **Adversarial review**: probes are targeted executions, never a
   full-suite rerun.
+- **Deploy**: the recorded suite of the code being deployed stands —
+  a promotion or board commit does not change its key. The suite is
+  recorded in a checkout where nothing else runs: a client's deploy saw
+  a red that two other jobs writing in the same directory caused, and
+  ran the suite three times. A red record lists its failing tests
+  (`--status`); no rerun just to find them.
 - **Promotion**: `verify.py --all` once at the promoted commit; the
   evidence per criterion is the review record and the builder's run,
   not a red→green reproduction per criterion.

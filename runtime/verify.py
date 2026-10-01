@@ -1556,14 +1556,27 @@ class Gate:
 RUNS_DIR = Path(".fde") / "runs"
 
 
+# The record's key is the CODE in the index, not the whole tree: a board
+# line, a review or a promotion changes no test result, and on one client
+# two commits in three touched only those — each one sent a full suite
+# (npm ci, builds, a database, ~4,800 tests) to run again before a deploy.
+RECORD_SKIP = ("reviews/", "cycles/", "promotions/", "backlog.md", "specs/", "discovery/")
+
+
 def current_tree(project: Path) -> str | None:
+    """The key of the index's code: its entries minus the process files,
+    hashed. Same code, same key, whatever the board says."""
+    import hashlib
     try:
-        out = subprocess.run(["git", "write-tree"], cwd=project,
-                             capture_output=True, text=True, check=False)
+        out = subprocess.run(["git", "ls-files", "-s", "-z"], cwd=project,
+                             capture_output=True, check=False)
     except OSError:
         return None
-    tree = out.stdout.strip()
-    return tree if out.returncode == 0 and re.fullmatch(r"[0-9a-f]{40,64}", tree) else None
+    if out.returncode != 0:
+        return None
+    kept = [e for e in out.stdout.split(b"\0") if e and not
+            e.split(b"\t", 1)[-1].decode("utf-8", "replace").startswith(RECORD_SKIP)]
+    return hashlib.sha1(b"\n".join(kept)).hexdigest()
 
 
 def dirty_paths(project: Path, roots: tuple) -> list[str] | None:
@@ -1722,7 +1735,10 @@ def run_suite(project: Path, command: str) -> dict:
         code, text = 127, str(e)
     # the last lines that say something (a runner's `----` rule says nothing)
     lines = [l.strip() for l in text.splitlines() if re.search(r"\w", l)]
-    return {"command": command, "exit_code": code,
+    # and which tests failed, so a red record never needs a rerun to say so
+    fails = list(dict.fromkeys(l[:200] for l in lines if re.search(
+        r"^(FAILED|FAIL:|ERROR:|ERROR |✗|×)|\bFAILED\b|AssertionError|Traceback", l)))[:15]
+    return {"command": command, "exit_code": code, "failures": fails if code else [],
             "summary": " · ".join(lines[-3:]), "recorded_at": _now(),
             "seconds": round(time.monotonic() - t0, 1)}
 
@@ -1757,6 +1773,8 @@ def print_status(project: Path, fmt: str) -> int:
         took = f" · {suite['seconds']}s" if suite.get("seconds") is not None else ""
         print(f"  suite: exit {suite.get('exit_code')}{took} · {suite.get('summary')} · "
               f"{suite.get('recorded_at')} · {suite.get('command')}")
+        for line in suite.get("failures") or []:
+            print(f"    ✗ {line}")
     else:
         print("  suite: not recorded (verify.py --all --record-suite)")
     ins = rec.get("instructions")

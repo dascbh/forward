@@ -88,6 +88,14 @@ only for a cycle opened before kernel ADR-0019 (rule 15).
   What turns up after it is a backlog line, never a new decision; a
   blocker narrows the cycle without asking (`fde-review`) — the owner is
   asked only to take a larger path.
+- The deploy reports in its steps, each one marked as touching
+  production or not, and every message says "production unchanged"
+  until the first step that changes it: an owner asked "what do you mean
+  it has not started?" after hours of preparation reported as deploy.
+- A rehearsal creates nothing it cannot delete: the teardown permission
+  is checked (read-only) before a clone or a stack is created — a
+  client's rehearsal clone could not be deleted under an organization
+  policy and was left to the owner.
 - Before step 1: `python3 bin/fde/deployallow.py --check`. A missing rule
   is written with `--write` (the sign-off covers it, kernel ADR-0025)
   before any step runs. A deploy never starts in order to stop half way.

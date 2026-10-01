@@ -1897,12 +1897,28 @@ class TestRunRecordPerTree(unittest.TestCase):
         self._tmp.cleanup()
 
     def tree(self) -> str:
-        return git_out(self.p, "write-tree")
+        sys.path.insert(0, str(ROOT / "runtime"))
+        import verify as runtime_verify
+        return runtime_verify.current_tree(self.p)
 
     def record(self) -> dict:
         path = self.p / ".fde" / "runs" / f"{self.tree()}.json"
         self.assertTrue(path.is_file(), path)
         return json.loads(path.read_text(encoding="utf-8"))
+
+    def test_a_process_commit_keeps_the_record_a_code_commit_does_not(self):
+        # a board line changes no test result: one client re-ran its whole
+        # suite after every promotion commit (owner, 2026-10-01)
+        before = self.tree()
+        (self.p / "cycles").mkdir(exist_ok=True)
+        (self.p / "cycles" / "board.md").write_text("- 2026-10-01 C-1 decided x\n")
+        (self.p / "backlog.md").write_text("# Backlog\n")
+        commit_all(self.p, "process only")
+        self.assertEqual(self.tree(), before)
+        (self.p / "src").mkdir(exist_ok=True)
+        (self.p / "src" / "new.py").write_text("x = 1\n")
+        commit_all(self.p, "code")
+        self.assertNotEqual(self.tree(), before)
 
     def test_all_records_gates_timestamp_and_command(self):
         self.assertFalse((self.p / ".fde" / "runs").exists())

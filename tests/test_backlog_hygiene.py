@@ -54,6 +54,16 @@ class Hygiene(unittest.TestCase):
         self.assertTrue(g.get("warning"))
         self.assertIn("exits 2", g["detail"])
 
+    def test_a_red_suite_record_names_its_failing_tests(self):
+        sys.path.insert(0, str(ROOT / "runtime"))
+        import verify
+        cmd = (f"{sys.executable} -c \"print('ok a'); print('FAILED tests/test_x.py::test_b - "
+               f"AssertionError'); print('1 failed'); raise SystemExit(1)\"")
+        r = verify.run_suite(self.p, cmd)
+        self.assertEqual(r["exit_code"], 1)
+        self.assertIn("FAILED tests/test_x.py::test_b - AssertionError", r["failures"])
+        self.assertEqual(verify.run_suite(self.p, f"{sys.executable} -c pass")["failures"], [])
+
     def test_source_outside_the_roots_warns_vendored_does_not(self):
         (self.p / "scripts").mkdir()
         (self.p / "scripts" / "reconcile.py").write_text("x = 1\n")
