@@ -591,5 +591,8 @@ class TestTemplatesAndVersions(unittest.TestCase):
         for section in ("## UI — the five measures", "## UX — journeys",
                         "## Design-system adherence (a separate verdict)", "## Product map"):
             self.assertIn(section, tpl)
+        pipe = " ".join((ROOT / "spec/product-pipeline.md").read_text().split())
+        self.assertIn("Every inspection collects fresh evidence", pipe)
+        self.assertIn("It writes only its own backlog lines", pipe)
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
-                                (0, 53, 1))
+                                (0, 53, 2))

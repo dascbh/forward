@@ -186,11 +186,17 @@ with one report, `discovery/<objective>-inspect.md`
 — baseline, the five UI metrics, the UX journey measures and the
 separate DS adherence verdict, each with its evidence and coverage
 limits — and its findings as backlog lines (worth work of their own,
-`fde-backlog-format`). When the feature has no product map, it generates one first (`fde-map`,
+`fde-backlog-format`). Every inspection collects fresh evidence: a previous report is cited as
+prior, never reused or patched into the new one. When the feature has no
+product map, it generates one first (`fde-map`,
 `docs/map/<slug>.md`). It reads the suite's recorded run for the code it
 inspects (`verify.py --status`) and runs a test only to prove a finding —
-a fresh full run in a bare copy measures the copy, not the product. It
-opens no cycle and builds nothing: a draft
+a fresh full run in a bare copy measures the copy, not the product. Accessibility is measured with axe loaded in its own tab where the
+page allows it (`fde-design`), a hand calculation only as a declared
+fallback. It writes only its own backlog lines: an item it finds
+misplaced, duplicated or resolved goes in the report, for `fde-sync`'s
+sanitization — another session may be writing that file. It opens no
+cycle and builds nothing: a draft
 cycle is grouped only when the owner asks, and signed like any other.
 
 ## Agent autonomy and internal criticism
