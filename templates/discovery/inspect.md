@@ -49,7 +49,11 @@ calls, handlers, rules, events, columns. Its coverage limits. -->
 ## Findings
 
 <!-- ordered by impact on the user's job; each cites the measure above or
-the named principle (I8) it breaks, with severity -->
+the named principle (I8) it breaks, with severity, and — for a UI
+finding — where to see it: `See: <address> · <steps to the state> ·
+<viewport> · <theme>`, and the GIF of a failing journey when recorded
+(`discovery/<objective>-inspect/<name>.gif`). Asked "show me", the agent
+opens one tab per finding in that state. -->
 
 ## Contracts to preserve
 

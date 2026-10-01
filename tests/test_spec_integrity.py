@@ -594,5 +594,7 @@ class TestTemplatesAndVersions(unittest.TestCase):
         pipe = " ".join((ROOT / "spec/product-pipeline.md").read_text().split())
         self.assertIn("Every inspection collects fresh evidence", pipe)
         self.assertIn("It writes only its own backlog lines", pipe)
+        self.assertIn("A UI finding is something to see, not only to read", pipe)
+        self.assertIn("`See: <address>", (ROOT / "templates/discovery/inspect.md").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
-                                (0, 53, 2))
+                                (0, 53, 3))

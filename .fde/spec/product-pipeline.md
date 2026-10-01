@@ -191,7 +191,13 @@ prior, never reused or patched into the new one. When the feature has no
 product map, it generates one first (`fde-map`,
 `docs/map/<slug>.md`). It reads the suite's recorded run for the code it
 inspects (`verify.py --status`) and runs a test only to prove a finding —
-a fresh full run in a bare copy measures the copy, not the product. Accessibility is measured with axe loaded in its own tab where the
+a fresh full run in a bare copy measures the copy, not the product. A UI finding is something to see, not only to read: each records where
+it shows — the address, the steps to the state, the viewport and theme
+— so anyone reopens exactly it, and a failing journey is recorded as a
+GIF with the browser extension (`gif_creator`) beside the report. When
+the owner asks to see the findings, the agent opens one tab per finding
+in that state, the element highlighted, and says in one line what is
+wrong there. Accessibility is measured with axe loaded in its own tab where the
 page allows it (`fde-design`), a hand calculation only as a declared
 fallback. It writes only its own backlog lines: an item it finds
 misplaced, duplicated or resolved goes in the report, for `fde-sync`'s
