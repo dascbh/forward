@@ -136,24 +136,11 @@ Cycle review summarizes both contracts, their evidence and limitations.
 
 ## Design system lifecycle
 
-`fde-design-system` discovers whether the DS is absent, implicit, fragmented
-or explicit from tokens, kit, styles, reference screens, documentation and
-actual usage. A library dependency alone is not a product DS.
-
-Discover → consolidate → establish or revise incrementally → validate.
-Use `design/product.md`, `foundation.md` and `patterns.md` as canonical
-client artifacts. Preserve existing foundations where fit; create missing
-foundations under fde-design's bootstrap rule. Consolidate duplicate tokens
-and primitives through a migration proposal with compatibility and rollback.
-Never replace the whole DS to solve one screen. Pin the foundation revision
-in consuming plans. Meaning-changing evolution is an ADR; demands implement
-approved migrations; reviewers only write findings. The skill delegates
-writes to the owning existing roles and introduces no extra role permission.
-
-A revision records evidence, affected components/screens/map nodes, semantic
-intent, alternatives, adoption path and drift/debt. Revisit when new patterns
-recur, a task gate exposes a foundation defect, dependency changes break a
-contract, or observed accessibility/usage demands it. Avoid speculative kits.
+`fde-design-system` follows `.fde/spec/design-system-lifecycle.md` for state
+discovery, consolidation, canonical client artifacts, component semantics,
+incremental revision/adoption and a separate adherence verdict. This shared
+pipeline supplies its stage ownership, sign-off and provenance contracts;
+fde-design supplies bootstrap minimums, token/pattern rules and design QA.
 
 ## Artifacts, provenance and versioning
 
