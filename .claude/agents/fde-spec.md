@@ -92,6 +92,10 @@ it by id; a demand never amends it.
   `## Commands` block lists every command the steps run, one per line,
   exactly as the deploy agent will run it (`<placeholder>` for what
   varies): the sign-off turns them into allow rules (kernel ADR-0025).
+  A schema change is expand/contract (kernel ADR-0026): this cycle only
+  adds what the code it replaces still runs on; drop, rename, type change
+  and key swap are a later cycle's contract. Each migration step declares
+  `Migration:`, `Checkpoint:`, `Rehearsal:` and `Rollback:`.
   A failed step
   rolls back and the cycle stops; the user is told the outcome, not
   asked beforehand.

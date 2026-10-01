@@ -64,6 +64,9 @@ only for a cycle opened before kernel ADR-0019 (rule 15).
 
 ## Production rollout — what the decision demands
 
+- A migration step: its `Rehearsal:` evidence (applied on a clone,
+  rolled back, previous code ran) is cited in `## Evidence`. Missing
+  evidence is written as a limit, never a hold (kernel ADR-0026).
 - Before step 1: `python3 bin/fde/deployallow.py --check`. A missing rule
   is written with `--write` (the sign-off covers it, kernel ADR-0025)
   before any step runs. A deploy never starts in order to stop half way.

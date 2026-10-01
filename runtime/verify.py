@@ -59,7 +59,7 @@ KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "portability", "artifact-handoff", "backlog", "scrum", "traceability",
                "erosion", "divergence", "survey", "walkthrough", "rule-lane",
                "untracked", "backlog-length", "process-dup", "doc-refs", "docs",
-               "cycles", "map", "deploy-allow")
+               "cycles", "map", "deploy-allow", "migration")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -1369,6 +1369,35 @@ class Gate:
         elif explicit:
             self.add("DEPLOY-ALLOW", True, "every signed deploy carries its allow rules")
 
+    # -- a migration is reversible by construction (kernel ADR-0026) -------
+    MIGRATION_MENTION = re.compile(r"\.sql\b|\bmigrations?\b", re.I)
+    MIGRATION_FIELDS = ("Migration:", "Checkpoint:", "Rehearsal:", "Rollback:")
+
+    def gate_migration(self, explicit: bool = False) -> None:
+        from fde_lib import plan_header
+        notes = []
+        for cid, cdir in sorted(cycle_dirs(self.project).items()):
+            plan, deploy = cdir / "plan.md", cdir / "deploy.md"
+            if not plan.is_file() or not deploy.is_file():
+                continue
+            state = plan_header(plan.read_text(encoding="utf-8", errors="ignore"), "state").lower()
+            if not state.startswith(("running", "planned")):
+                continue
+            text = deploy.read_text(encoding="utf-8", errors="ignore")
+            body = re.split(r"^## Commands\s*$", text, maxsplit=1, flags=re.M)[0]
+            body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
+            if not self.MIGRATION_MENTION.search(body):
+                continue
+            missing = [f for f in self.MIGRATION_FIELDS if f not in body]
+            if missing:
+                notes.append(f"{cid} ({', '.join(m.rstrip(':') for m in missing)})")
+        if notes:
+            self.warn("MIGRATION", "deploy touches the database without declaring "
+                      f"{', '.join(notes[:4])} — expand/contract, a checkpoint, a "
+                      "rehearsal on a clone and the rollback (kernel ADR-0026)")
+        elif explicit:
+            self.add("MIGRATION", True, "every live migration declares its protection")
+
     def report(self, fmt: str) -> int:
         failed = [r for r in self.results if not r[1]]
         if fmt == "json":
@@ -1769,6 +1798,8 @@ def main() -> int:
             g.gate_map(explicit=(only == "map"))
         if want("deploy-allow"):
             g.gate_deploy_allow(explicit=(only == "deploy-allow"))
+        if want("migration"):
+            g.gate_migration(explicit=(only == "migration"))
         if want("divergence"):
             g.gate_divergence()
         if want("survey"):

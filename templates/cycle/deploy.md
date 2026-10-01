@@ -24,6 +24,17 @@ commit, never a range: a range would revert the cycle's own records. -->
    - Rollback: <how>
    - Irreversible: <yes: why | no>
 
+<!-- kernel ADR-0026. A step that changes the database declares, in place of
+the plain Rollback line:
+   - Migration: expand | contract | data
+   - Checkpoint: <command: restore point right before it>
+   - Rehearsal: <command: apply on a clone of production, check, roll back,
+     confirm the previous code runs> — evidence <path>
+   - Rollback: code | down <file> (rehearsed) | forward-fix
+A contract (drop, rename, type change, key swap) belongs to a later cycle
+than the expand it closes. Checkpoint and Rehearsal commands also go
+under ## Commands. -->
+
 ## Commands
 
 <!-- kernel ADR-0025. Every command a step runs, one per line, exactly as

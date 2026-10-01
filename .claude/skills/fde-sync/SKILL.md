@@ -116,7 +116,9 @@ the version.
      slug) and asks for the signature it did not have yet;
    - `running`: apply only what changes no criterion and no ADR — the
      `depends:` header, the `files` column, config keys, an id rename, the
-     `docs:` line, the deploy's `## Commands` block (kernel ADR-0025).
+     `docs:` line, the deploy's `## Commands` block (kernel ADR-0025),
+     the fields of a migration step (kernel ADR-0026: what is missing is
+     listed for the owner, never invented).
      A change to a criterion or an ADR is a replan proposal
      for the owner, never applied. A new gate red on a demand in progress
      is fixed inside the demand (a triaged `patch`) or recorded on the
