@@ -91,6 +91,13 @@ class Forecast(unittest.TestCase):
             f = forecast.forecast(Path("."), now=NOW)
         self.assertEqual(f["cycles"][0]["p50"], NOW + 1 * H)  # 2h review→merge, 1h in
 
+    def test_thin_history_is_marked_low_confidence(self):
+        p = {"C-1": {"title": "x", "waits": [], "demands": [demand("A")]}}
+        self.assertTrue(run(p, [2, 2, 2], [1, 1, 1])["cycles"][0]["low_confidence"])
+        f = run(p, [2] * 10, [1] * 10)
+        self.assertFalse(f["cycles"][0]["low_confidence"])
+        self.assertNotIn("low confidence", "\n".join(forecast.render(f)))
+
     def test_too_little_history_says_so(self):
         p = {"C-1": {"title": "x", "waits": [], "demands": [demand("A")]}}
         f = run(p, [2, 2], [1, 1, 1])

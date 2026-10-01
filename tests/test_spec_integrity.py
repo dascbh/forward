@@ -542,4 +542,4 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("--forecast", (ROOT / "skills/fde-status/SKILL.md").read_text())
         self.assertIn("RUNS = 2000", (ROOT / "runtime/forecast.py").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
-                                (0, 51, 1))
+                                (0, 51, 2))

@@ -28,8 +28,10 @@ by `depends:` are one objective, whose lead time ends at its last cycle
 closed. Wall-clock hours. A cycle that never read `running` in git has
 no cycle time.
 
-**When will it end** — every time the status is shown with a cycle
-running, add the `--forecast` lines, unasked: each running cycle's likely
+**When will it end** — on request, `--forecast` (the owner, 2026-10-01:
+only there until it is calibrated). Once no line is marked low
+confidence, add its lines to every status with a cycle running,
+unasked: each running cycle's likely
 end (p50) and its worst (p85), as clock times, from this project's own
 history — how long its demands took to merge and its closings to close.
 Nobody estimates; the past does. Demands run in parallel unless one

@@ -17,7 +17,10 @@ it is near its merge whatever its build took — a cycle that waits for another 
 build ends, and a closing is drawn the same way. The likely end (p50) and
 the pessimistic one (p85) are read from the 2,000 totals — never a sum of
 pessimistic pieces, which no run would ever see (a first version summed
-them and read a day for a half-day's work). Fewer than 3 past demands: no forecast —
+them and read a day for a half-day's work). A cycle whose draws ran out
+of history — fewer than 3 past values longer than what it has run — or a
+project with fewer than 8 past demands or closings is marked low
+confidence: the numbers move a lot as history grows. Fewer than 3 past demands: no forecast —
 a number from nothing is a guess; fewer than 3 closings: the forecast
 stops at the last merge and says so. Wall-clock hours.
 stdlib only (I6).
@@ -35,6 +38,7 @@ import status
 
 MIN_SAMPLES = 3
 RUNS = 2000  # Monte Carlo simulations of the remaining work
+CONFIDENT = 8  # past demands and closings below this: the forecast says it is thin
 WEEK = 7 * 86400
 
 
@@ -99,10 +103,11 @@ def forecast(root: Path, now: int | None = None) -> dict:
               and c.layout == "directory"]
     progress = {c.id: status.cycle_progress(root, c) for c in cycles}
     rng = random.Random(7)  # the same history gives the same forecast
+    thin: set = set()  # cycles whose draws ran out of history
 
     tails = h.get("tails") or []
 
-    def draw_left(d: dict | None) -> float:
+    def draw_left(d: dict | None, cid: str = "") -> float:
         """A demand's remaining time, drawn from the past. In review or
         later: from the past review → merge times longer than its time in
         review (a demand in review is near its merge, whatever its build
@@ -116,6 +121,8 @@ def forecast(root: Path, now: int | None = None) -> dict:
         else:
             pool, elapsed = h["demands"], now - d["started"]
         longer = [x - elapsed for x in pool if x > elapsed]
+        if len(longer) < MIN_SAMPLES:
+            thin.add(cid)  # past almost all of this project's history
         return rng.choice(longer) if longer else _pct(pool, 0.5) / 10
 
     def simulate() -> dict:
@@ -141,9 +148,9 @@ def forecast(root: Path, now: int | None = None) -> dict:
                 after = max([start] + [done_at(w, chain + (did,)) for w in d.get("waits", [])
                                        if w in ds and w not in chain])
                 if d["begun"] and d["started"]:
-                    fin[did] = max(after, now) + draw_left(d)
+                    fin[did] = max(after, now) + draw_left(d, cid)
                 else:
-                    fin[did] = after + draw_left(None)
+                    fin[did] = after + draw_left(None, cid)
                 return fin[did]
             ends = [done_at(i) for i in ds]
             memo[cid] = max(ends) if ends else now
@@ -158,6 +165,8 @@ def forecast(root: Path, now: int | None = None) -> dict:
                 all_merged = bool(p["demands"]) and all(d["merged"] for d in p["demands"])
                 ran = (now - b) if all_merged and b <= now else 0
                 longer = [x - ran for x in h["closings"] if x > ran]
+                if len(longer) < MIN_SAMPLES:
+                    thin.add(c.id)
                 closing = rng.choice(longer) if longer else clo["p50"] / 10
             out[c.id] = max(b, now) + closing
         return out
@@ -169,7 +178,9 @@ def forecast(root: Path, now: int | None = None) -> dict:
         ends = [r[c.id] for r in runs]
         rows.append({"cycle": c.id, "title": p["title"],
                      "remaining": sum(not d["merged"] for d in p["demands"]),
-                     "p50": int(_pct(ends, 0.5)), "p85": int(_pct(ends, 0.85))})
+                     "p50": int(_pct(ends, 0.5)), "p85": int(_pct(ends, 0.85)),
+                     "low_confidence": c.id in thin or len(h["closings"]) < CONFIDENT
+                     or len(h["demands"]) < CONFIDENT})
     return {"enough": True, "with_closing": with_close, "now": now, "runs": RUNS,
             "demands": len(h["demands"]), "closings": len(h["closings"]),
             "demand_h": {k: round(v / 3600, 1) for k, v in dem.items()},
@@ -197,5 +208,7 @@ def render(f: dict) -> list[str]:
            f"(median {f['demand_h']['p50']}h, p85 {f['demand_h']['p85']}h), {closing}", ""]
     for r in f["cycles"]:
         out.append(f"  {r['cycle']:5} likely {_when(r['p50'], f['now'])} · at worst "
-                   f"{_when(r['p85'], f['now'])} · {r['remaining']} demand(s) to merge")
+                   f"{_when(r['p85'], f['now'])} · {r['remaining']} demand(s) to merge"
+                   + ("  — low confidence: little history, or past most of it"
+                      if r.get("low_confidence") else ""))
     return out
