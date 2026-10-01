@@ -163,9 +163,8 @@ kernel checkout present. Copy from the kernel into the project:
 5. `templates/cycle/` → `.fde/templates/cycle/` (a new cycle starts
    from it) and
    `templates/findings.template.toml` → `.fde/templates/findings.template.toml`
-   (a review starts from it) and `templates/discovery/` →
-   `.fde/templates/discovery/` (an inspection starts from it), so the
-   roles reach them without the kernel checkout
+   (a review starts from it), so the roles reach them without the
+   kernel checkout
 6. The kernel's `docs/adr/` → `.fde/adr/` (copy the directory), so a
    project text that cites "kernel ADR-00NN" resolves. It is a read-only
    reference: nobody edits it, and every sync overwrites it. The

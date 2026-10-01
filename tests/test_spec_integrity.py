@@ -562,11 +562,6 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("runs in the background WHILE the live checks", promo)
         self.assertIn("remaining steps' `Takes:`", promo)
         self.assertIn("- Takes:", (ROOT / "templates/cycle/deploy.md").read_text())
-        pipe = " ".join((ROOT / "spec/product-pipeline.md").read_text().split())
-        self.assertIn("## Running beside other sessions", (ROOT / "spec/product-pipeline.md").read_text())
-        self.assertIn("never `git add -A`", pipe)
-        self.assertIn("It opens no cycle and builds nothing", pipe)
-        self.assertIn("uses the connected browser without asking", pipe)
         self.assertIn("def _counts_for_debt", (ROOT / "runtime/erosion.py").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 52, 6))
@@ -580,23 +575,22 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 53, 0))
 
-    def test_kernel_version_ships_the_whole_spec_and_the_inspect_template(self):
-        # a client's fde-inspect pointed to product-pipeline.md, which the
-        # install's listed copy had never shipped (owner, 2026-10-01)
+    def test_kernel_version_ships_the_pipeline_as_specified(self):
+        # the owner, 2026-10-01: an inspection report template and an
+        # "inspection delivers" section had narrowed the approved pipeline —
+        # the inspection stopped at a report and skipped augmentation,
+        # hypotheses and criticism. Both removed; the spec reaches clients
+        # whole (the install had listed spec files and left it out).
         spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
         setup = " ".join((ROOT / "SETUP.md").read_text().split())
         self.assertIn("EVERY file under `spec/` → `.fde/spec/`", setup)
-        self.assertIn("`templates/discovery/` → `.fde/templates/discovery/`", setup)
-        tpl = (ROOT / "templates/discovery/inspect.md").read_text()
-        for section in ("## UI — the five measures", "## UX — journeys",
-                        "## Design-system adherence (a separate verdict)", "## Product map"):
-            self.assertIn(section, tpl)
-        pipe = " ".join((ROOT / "spec/product-pipeline.md").read_text().split())
-        self.assertIn("Every inspection collects fresh evidence", pipe)
-        self.assertIn("It writes only its own backlog lines", pipe)
-        self.assertIn("A UI finding is something to see, not only to read", pipe)
-        self.assertIn("`See: <address>", (ROOT / "templates/discovery/inspect.md").read_text())
-        self.assertIn("`discovery/<objective>-ui-ux.html`", pipe)
-        self.assertIn("## The owner's page", (ROOT / "templates/discovery/inspect.md").read_text())
+        self.assertNotIn("templates/discovery", setup)
+        self.assertFalse((ROOT / "templates/discovery").exists())
+        pipe = (ROOT / "spec/product-pipeline.md").read_text()
+        for gone in ("## Running beside other sessions", "## What an inspection delivers"):
+            self.assertNotIn(gone, pipe)
+        for stage in ("| Discovery augmentation |", "| Hypotheses |", "## Agent autonomy and internal criticism",
+                      "**Inspect an existing export:**"):
+            self.assertIn(stage, pipe)
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
-                                (0, 53, 4))
+                                (0, 54, 0))

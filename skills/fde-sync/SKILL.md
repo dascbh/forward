@@ -128,7 +128,10 @@ reported as done.
        code (`quarantine B-<n>`) or its fix, and the quarantined count is
        recorded (`fde-verify`).
      Nothing with a security or production evidence label is dropped.
-      - `[erosion] max_add_delete_ratio` is removed, with a debt on it
+         - `.fde/templates/discovery/` is removed: kernel 0.53.1–0.53.4 shipped
+     an inspection template that narrowed the pipeline; the inspection
+     follows `.fde/spec/product-pipeline.md` itself.
+   - `[erosion] max_add_delete_ratio` is removed, with a debt on it
      (`debt_add_delete_ratio` and its bookkeeping when no other metric
      is owed): the ratio is a report since 0.53 — it gated a project's
      phase, not its decay.

@@ -164,56 +164,6 @@ signed plans stay frozen. New scope enters backlog; invalidated criteria or
 ADRs stop and replan. Refresh only affected contracts and evidence, retain
 history, and distinguish observed, expert-inferred, human and synthetic.
 
-## Running beside other sessions
-
-An entry runs while other sessions build, review or deploy in the same
-project. Without being told, it:
-
-- works in a worktree of its own and commits only the paths it writes
-  (`discovery/`, its report, its backlog lines) — never `git add -A`,
-  never another session's board or deploy files;
-- uses the connected browser without asking — the install allows the
-  extension's tools (`mcp__claude-in-chrome`) — and opens tabs of its own
-  (the extension's `tabs_create`), never drives a tab it did not open, and leaves out of its measures the data
-  a deploy left for its checks (a folder or record named as test data);
-- touches no production state: reading, clicking through and measuring
-  only; a write it would need goes into the report as a proposal.
-
-## What an inspection delivers
-
-`fde-inspect` starts from `.fde/templates/discovery/inspect.md` and ends
-with one report, `discovery/<objective>-inspect.md`
-— baseline, the five UI metrics, the UX journey measures and the
-separate DS adherence verdict, each with its evidence and coverage
-limits — and its findings as backlog lines (worth work of their own,
-`fde-backlog-format`). Every inspection collects fresh evidence: a previous report is cited as
-prior, never reused or patched into the new one. When the feature has no
-product map, it generates one first (`fde-map`,
-`docs/map/<slug>.md`). It reads the suite's recorded run for the code it
-inspects (`verify.py --status`) and runs a test only to prove a finding —
-a fresh full run in a bare copy measures the copy, not the product. Beside that record, the owner gets a page of their own:
-`discovery/<objective>-ui-ux.html`, self-contained, opened in any
-browser — on top, the findings counted by severity, the three that
-weigh most and what works and must stay; then the UI and UX findings
-grouped by screen, each with what the user lives there in product words,
-its severity, the measure it breaks, where to see it, its GIF and the
-recommendation. When the agent can publish a page (an Artifact in
-Claude Code), it publishes that one, private, and gives the link. The
-markdown report stays the full record; the page is the owner's reading.
-A UI finding is something to see, not only to read: each records where
-it shows — the address, the steps to the state, the viewport and theme
-— so anyone reopens exactly it, and a failing journey is recorded as a
-GIF with the browser extension (`gif_creator`) beside the report. When
-the owner asks to see the findings, the agent opens one tab per finding
-in that state, the element highlighted, and says in one line what is
-wrong there. Accessibility is measured with axe loaded in its own tab where the
-page allows it (`fde-design`), a hand calculation only as a declared
-fallback. It writes only its own backlog lines: an item it finds
-misplaced, duplicated or resolved goes in the report, for `fde-sync`'s
-sanitization — another session may be writing that file. It opens no
-cycle and builds nothing: a draft
-cycle is grouped only when the owner asks, and signed like any other.
-
 ## Agent autonomy and internal criticism
 
 Investigate code/history/telemetry and curated references before questions.
