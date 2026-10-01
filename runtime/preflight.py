@@ -132,7 +132,14 @@ def preflight(project: Path, cycle: str, offline: bool = False) -> dict:
     prose = re.split(r"^## Commands\s*$", text_no_comments, maxsplit=1, flags=re.M)[0]
     bad, skipped = url_defects(deployallow.PLACEHOLDER.sub("PLACEHOLDER", prose), offline)
     defects += bad
-    return {"cycle": cycle, "defects": defects, "not_fetched": skipped, "commands": len(cmds)}
+    steps = re.findall(r"^\s*(?:\d+\.\s+\*\*|##+\s+(?:Step|Passo)\b)", prose, re.M | re.I)
+    takes = len(re.findall(r"^\s*-\s*(?:Takes|Leva|Duração|Duracao)\s*:", prose, re.M | re.I))
+    notes = []
+    if steps and takes < len(steps):
+        notes.append(f"{len(steps) - takes} of {len(steps)} step(s) declare no `Takes:` — "
+                     "the deploy report cannot say when it will end")
+    return {"cycle": cycle, "defects": defects, "not_fetched": skipped, "commands": len(cmds),
+            "notes": notes}
 
 
 def main(argv=None) -> int:
@@ -149,6 +156,8 @@ def main(argv=None) -> int:
             print(f"  ✗ {d}")
     else:
         print(f"preflight {args.cycle}: {r.get('commands', 0)} command(s), nothing found")
+    for n in r.get("notes", []):
+        print(f"  ! {n}")
     if r["not_fetched"]:
         print(f"  ({len(r['not_fetched'])} address(es) not fetched: placeholders or --offline)")
     return 1 if r["defects"] else 0

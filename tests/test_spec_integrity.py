@@ -560,5 +560,7 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn('"Live: yes/no · Closed: yes/no', promo)
         self.assertIn("never handed to the owner", promo)
         self.assertIn("runs in the background WHILE the live checks", promo)
+        self.assertIn("remaining steps' `Takes:`", promo)
+        self.assertIn("- Takes:", (ROOT / "templates/cycle/deploy.md").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
-                                (0, 52, 2))
+                                (0, 52, 3))

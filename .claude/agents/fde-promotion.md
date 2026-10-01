@@ -89,9 +89,11 @@ only for a cycle opened before kernel ADR-0019 (rule 15).
   blocker narrows the cycle without asking (`fde-review`) — the owner is
   asked only to take a larger path.
 - Every deploy and closing report opens with two answers, nothing
-  before them: "Live: yes/no · Closed: yes/no — left: <what>, expected
-  <hh:mm>". An owner had to ask "did it finish or not?" after a long
-  report that never said.
+  before them: "Live: yes/no · Closed: yes/no — left: <what>, expected <hh:mm>". An owner had to ask "did it finish or not?"
+  after a long report that never said. Expected is now plus the
+  remaining steps' `Takes:` and the observation window (which runs
+  alongside the live checks); a step with no `Takes:` is named — "no
+  estimate for step X" — never left out silently.
 - A check the agent can run itself is run by it: a screen behind a login
   is checked through the browser extension when one is connected, never
   handed to the owner. The owner is asked only when no means exists, and

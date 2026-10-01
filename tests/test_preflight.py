@@ -69,6 +69,14 @@ class Preflight(unittest.TestCase):
     def test_placeholders_and_environment_prefixes_are_not_defects(self):
         self.assertEqual(self.deploy("x", "AWS_PROFILE=p TZ=UTC git log <ref>\n<venv>/bin/python -V"), [])
 
+    def test_steps_without_takes_are_noted_never_a_defect(self):
+        (self.p / "cycles" / "C-1" / "deploy.md").write_text(
+            "1. **back** — x\n   - Rollback: y\n   - Takes: ~10\n"
+            "2. **front** — z\n   - Rollback: w\n\n## Commands\n\n```sh\ngit status\n```\n")
+        r = preflight.preflight(self.p, "C-1", offline=True)
+        self.assertEqual(r["defects"], [])
+        self.assertIn("1 of 2 step(s) declare no `Takes:`", r["notes"][0])
+
     def test_no_commands_block_is_a_defect(self):
         (self.p / "cycles" / "C-1" / "deploy.md").write_text("cycle: C-1\n\n## Step 1\n\nprose\n")
         self.assertIn("no `## Commands` block",

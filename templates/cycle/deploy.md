@@ -11,18 +11,22 @@ commit, never a range: a range would revert the cycle's own records. -->
    - Verification: <plan diff, live check>
    - Rollback: <how>
    - Irreversible: no
+   - Takes: ~<minutes, from the rehearsal when there is one>
 2. **back** — <API, domain, data access>
    - Verification: <contract + integration tests>
    - Rollback: <how>
    - Irreversible: no
+   - Takes: ~<minutes, from the rehearsal when there is one>
 3. **front** — <screens, flows, text>
    - Verification: <design QA, walkthrough>
    - Rollback: <how>
    - Irreversible: no
+   - Takes: ~<minutes, from the rehearsal when there is one>
 4. **infra-contract** — <removal of what step 1 kept compatible, if any>
    - Verification: <live check>
    - Rollback: <how>
    - Irreversible: <yes: why | no>
+   - Takes: ~<minutes, from the rehearsal when there is one>
 
 <!-- kernel ADR-0026. A step that changes the database declares, in place of
 the plain Rollback line:
