@@ -412,3 +412,13 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("Main unmoved: the recorded run stands", text)
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 40, 0))
+
+    def test_kernel_version_ships_promotions_decided_again_at_sync(self):
+        # a client's sync restated a promotion with owner conditions in the
+        # new vocabulary and kept asking (owner, 2026-10-01)
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        text = " ".join((ROOT / "skills/fde-sync/SKILL.md").read_text().split())
+        self.assertIn("never restated in new words", text)
+        self.assertIn("withdrawn, not relayed", text)
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 40, 1))

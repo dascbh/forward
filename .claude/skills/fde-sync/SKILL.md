@@ -144,6 +144,12 @@ reported as done.
      — <why>` and reported as a limit, not asked. A new gate red on a
      demand in progress is fixed inside the demand (a triaged `patch`)
      or recorded on the board.
+   - A running cycle's `promotion.md` written under the old rules
+     (`PROMOTION` ⚠, e.g. conditions for the owner to accept) is decided
+     again by `fde-promotion` under the new ones, never restated in new
+     words: each residual risk becomes its backlog line, each production
+     check a `deploy.md` step, and a question the old kernel left pending
+     for the owner is withdrawn, not relayed.
    - Then `python3 bin/fde/deployallow.py --write`: signed, running
      cycles get their deploy's allow rules, ended ones lose theirs.
 4. **Record** — one commit per kind (the kernel re-emit; the backlog;
