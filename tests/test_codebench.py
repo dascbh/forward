@@ -87,6 +87,38 @@ class TestBench(unittest.TestCase):
 
 
 
+class ChangeView(unittest.TestCase):
+    def test_hotspots_weigh_change_by_size_and_coupling_needs_five_together(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d)
+            for args in (["init", "-q"], ["config", "user.email", "f@t"], ["config", "user.name", "f"]):
+                subprocess.run(["git", *args], cwd=p, check=True, capture_output=True)
+            (p / "src").mkdir()
+            big = "".join(f"x{i} = {i}\n" for i in range(50))
+            (p / "src" / "big.py").write_text(big)
+            (p / "src" / "small.py").write_text("y = 0\n")
+            (p / "src" / "lone.py").write_text("z = 0\n")
+
+            def commit(msg):
+                subprocess.run(["git", "add", "-A"], cwd=p, check=True, capture_output=True)
+                subprocess.run(["git", "commit", "-qm", msg], cwd=p, check=True, capture_output=True)
+            commit("start")
+            for i in range(5):  # big and small always together
+                (p / "src" / "big.py").write_text(big + f"w = {i}\n")
+                (p / "src" / "small.py").write_text(f"y = {i + 1}\n")
+                commit(f"pair {i}")
+            for i in range(9):  # lone changes the most, alone and tiny
+                (p / "src" / "lone.py").write_text(f"z = {i + 1}\n")
+                commit(f"lone {i}")
+            c = codebench.change_view(p)
+            self.assertEqual(c["hotspots"][0]["path"], "src/big.py")
+            self.assertEqual([(x["a"], x["b"]) for x in c["coupled"]],
+                             [("src/big.py", "src/small.py")])
+            self.assertNotIn("lone", " ".join(x["a"] + x["b"] for x in c["coupled"]))
+            text = "\n".join(codebench.render_change(c))
+            self.assertIn("kernel ADR-0024", text)
+
+
 class ProcessView(unittest.TestCase):
     """Flow, suite size and the last suite run beside the code (owner, 2026-09-30)."""
 

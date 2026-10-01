@@ -115,6 +115,55 @@ class Flow(unittest.TestCase):
         [o] = flow.measure(self.p)["objectives"]
         self.assertEqual(o["lead_time_h"], 20.0)  # first request → last cycle closed
 
+    def test_delivery_counts_deploys_change_lead_and_shipped_reverts(self):
+        self.closed_cycle()                      # signed at 5h, closed at 9h
+        self.write("src/a.py", "x = 1\n")
+        commit(self.p, 6, "code while running")  # reaches production at 9h
+        sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.p, capture_output=True,
+                             text=True).stdout.strip()
+        self.write("src/a.py", "x = 2\n")
+        commit(self.p, 10, "after the close")    # not deployed yet
+        (self.p / "src" / "a.py").write_text("x = 1\n")
+        env = {**os.environ, "GIT_COMMITTER_DATE": f"@{T0 + 12 * 3600} +0000",
+               "GIT_AUTHOR_DATE": f"@{T0 + 12 * 3600} +0000"}
+        subprocess.run(["git", "commit", "-qam", f"Revert x\n\nThis reverts commit {sha}."],
+                       cwd=self.p, check=True, capture_output=True, env=env)
+        dv = flow.delivery(self.p)
+        self.assertEqual(dv["deploys"], 1)
+        self.assertEqual(dv["change_lead_time_h"], 3.0)  # the 6h commit, closed at 9h
+        self.assertEqual(dv["commits_pending"], 2)       # 10h and the 12h revert
+        self.assertEqual(dv["failed_changes"], [sha[:8]])
+        self.assertEqual(dv["recovery_h"], 3.0)          # close 9h → revert 12h
+
+    def test_a_revert_before_the_close_is_not_a_failed_change(self):
+        self.write("backlog.md", "# Backlog\n\n- B-1 x\n")
+        commit(self.p, 0, "request")
+        self.write("cycles/C-1/plan.md", plan("running"))
+        commit(self.p, 1, "signed")
+        self.write("src/a.py", "x = 1\n")
+        commit(self.p, 2, "code")
+        sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.p, capture_output=True,
+                             text=True).stdout.strip()
+        (self.p / "src" / "a.py").unlink()
+        commit(self.p, 3, f"Revert code\n\nThis reverts commit {sha}.")
+        self.write("cycles/C-1/plan.md", plan("closed"))
+        commit(self.p, 4, "close")
+        self.assertEqual(flow.delivery(self.p)["failed_changes"], [])
+
+    def test_reviews_read_rounds_in_every_shape(self):
+        self.write("reviews/D-1/findings.toml",
+                   '[meta]\nkind = "code"\nround = 1\n\n[[finding]]\nseverity = "low"\n')
+        self.write("reviews/D-2/findings.toml",
+                   '[meta]\nkind = "adversarial"\nround = 2\n\n[rodada_1]\nround = 1\n\n'
+                   '[[finding]]\nseverity = "high"\nblocking = true\n\n[[finding]]\nseverity = "low"\n')
+        self.write("reviews/D-3/findings.toml", '[meta]\nkind = "code"\nrounds_completed = 3\n')
+        r = flow.reviews(self.p)
+        self.assertEqual(r["demands"], 3)
+        self.assertEqual(r["rounds_median"], 2)
+        self.assertEqual(r["blocking_pct"], 33)         # 1 of 3 findings
+        self.assertEqual(r["first_pass_pct"], 33)       # D-1 only
+        self.assertEqual(r["by_kind"], {"adversarial": 1, "code": 2})
+
     def test_state_reads_like_the_status_view(self):
         self.assertEqual(flow.state_of("state: planned (signed off later)\n"), "planned")
         self.assertEqual(flow.state_of("state: running\nclosed: 2026-09-30\n"), "closed")

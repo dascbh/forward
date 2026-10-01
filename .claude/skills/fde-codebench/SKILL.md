@@ -49,12 +49,24 @@ other; offer it as a backlog item.
 and HEAD: LOC, functions, CC, over CC 10, erosion, clones, SQL, and
 controllers touching data.
 
+**Change (since the FORWARD install):** change hotspots — commits
+touching a file × its lines (Tornhill): complex code that keeps changing
+is where a refactor pays. Change coupling — two files changed together
+in at least 5 commits and 70% of the less-changed one's: plan them in
+one cycle or the foundation (kernel ADR-0024), never in parallel slices.
+
 **Process:** beside the code, read from git and files only: test lines
 against production lines, the last suite run recorded by
 `verify.py --all --record-suite` (seconds, exit), cycle time, lead time
 and wait for sign-off as medians over closed cycles, each running
 cycle's age, and each objective (cycles joined by `depends:`) with its
-lead time or how long it has been open (`status.py --flow`). The suite's
+lead time or how long it has been open (`status.py --flow`). Delivery,
+DORA's measures with a closed cycle as the deployment: deployment
+frequency, lead time for changes (commit → first close after it),
+change failure rate (reverts of commits already deployed) and failed
+recovery time (close → revert). A backlog origin `(C-<n>)` is no defect
+signal — it marks follow-ups and debt too. Reviews: findings per demand,
+the blocking share, the share that passed in one round with no blocker. The suite's
 effectiveness runs tests, so it is not here: `--tests`.
 
 **Hotspots:** the functions with the most complexity mass at HEAD, their

@@ -392,13 +392,81 @@ def render(data: dict) -> list[str]:
     return out
 
 
+def change_view(root: Path, top: int = 10) -> dict:
+    """Where change lands since the FORWARD install (whole history when
+    none), the project's own source only:
+    - change hotspots (Tornhill, "Your Code as a Crime Scene"): commits
+      touching a file × its lines — complex code that keeps changing is
+      where a refactor pays; complex code nobody touches is not;
+    - change coupling: two files changed together in at least 5 commits
+      and in 70% of the commits of the less-changed one. Coupled files
+      belong in the same cycle or in a foundation cycle (kernel
+      ADR-0024); a commit of over 8 files says nothing about pairs."""
+    added = (fde_lib._git(root, "log", "--diff-filter=A", "--format=%ct", "--",
+                          "fde.config.toml") or "").split()
+    since = [f"--since=@{added[-1]}"] if added else []
+    scope = erosion.churn_scope(root)
+    gen = erosion.generated_paths(root)
+    keep = lambda n: (Path(n).suffix.lower() in SOURCE_SUFFIXES  # noqa: E731
+                      and erosion.in_churn_scope(n, scope, gen) and not erosion._is_test_path(n))
+    commits = []
+    for block in (fde_lib._git(root, "log", "--no-merges", "--format=format:@@", "--name-only",
+                               *since) or "").split("@@"):
+        files = sorted({n.strip() for n in block.splitlines() if n.strip() and keep(n.strip())})
+        if files:
+            commits.append(files)
+    churn: dict[str, int] = {}
+    for files in commits:
+        for f in files:
+            churn[f] = churn.get(f, 0) + 1
+    head = snapshot_files(root, "HEAD")
+    hot = []
+    for f, k in churn.items():
+        text = head.get(f)
+        if text is None:
+            continue
+        loc = sum(1 for l in text.splitlines() if l.strip())
+        cc = max((x["cc"] for x in functions(f, text) or []), default=None) if f.endswith(".py") else None
+        hot.append({"path": f, "commits": k, "loc": loc, "cc_max": cc, "score": k * loc})
+    hot.sort(key=lambda h: -h["score"])
+    pairs: dict[tuple[str, str], int] = {}
+    for files in commits:
+        if 2 <= len(files) <= 8:
+            for i, a_ in enumerate(files):
+                for b_ in files[i + 1:]:
+                    pairs[(a_, b_)] = pairs.get((a_, b_), 0) + 1
+    coupled = [{"a": a_, "b": b_, "together": k,
+                "share": round(100 * k / min(churn[a_], churn[b_]))}
+               for (a_, b_), k in pairs.items()
+               if k >= 5 and k / min(churn[a_], churn[b_]) >= 0.7]
+    coupled.sort(key=lambda c: (-c["together"], c["a"]))
+    return {"commits": len(commits), "since_install": bool(added),
+            "hotspots": hot[:top], "coupled": coupled[:top]}
+
+
+def render_change(c: dict) -> list[str]:
+    out = ["", f"  change since {'the FORWARD install' if c['since_install'] else 'the first commit'}"
+           f" — {c['commits']} commits touching source", ""]
+    if c["hotspots"]:
+        out.append("  change hotspots (commits × lines; Tornhill)")
+        for h in c["hotspots"]:
+            cc = f"  max CC {h['cc_max']}" if h["cc_max"] is not None else ""
+            out.append(f"    {h['commits']:>4} commits × {h['loc']:>5} lines  {h['path']}{cc}")
+    if c["coupled"]:
+        out += ["", "  change coupling — keep together in one cycle or the foundation (kernel ADR-0024)"]
+        for x in c["coupled"]:
+            out.append(f"    {x['together']:>3}× ({x['share']}%)  {x['a']}  ⇄  {x['b']}")
+    return out
+
+
 def process_view(root: Path) -> dict:
     """The process beside the code: cycle and lead time (flow.py), the
     suite's size against production and its last recorded run. Cheap —
     git and files only; the suite's effectiveness runs tests: --tests."""
     import flow
     import mutation
-    out: dict = {"suite": mutation.suite_size(root), "last_suite_run": None, "flow": None}
+    out: dict = {"suite": mutation.suite_size(root), "last_suite_run": None, "flow": None,
+                 "delivery": None}
     runs = []
     for f in (root / ".fde" / "runs").glob("*.json"):
         try:
@@ -411,8 +479,10 @@ def process_view(root: Path) -> dict:
         _, suite = max(runs, key=lambda r: r[0])
         out["last_suite_run"] = {"seconds": suite["seconds"], "exit_code": suite.get("exit_code"),
                                  "recorded_at": suite.get("recorded_at")}
+    out["reviews"] = flow.reviews(root)
     if (root / "cycles").is_dir():
         d = flow.measure(root)
+        out["delivery"] = flow.delivery(root, d)
         out["flow"] = {"median": d["median"],
                        "closed": sum(r["state"] == "closed" for r in d["cycles"]),
                        "running": [{"cycle": r["cycle"], "running_for_h": r["running_for_h"]}
@@ -445,6 +515,25 @@ def render_process(p: dict) -> list[str]:
                 else f"open for {f(o['open_for_h'])}"
             done = f"{o['closed']}/{len(o['cycles'])} closed"
             out.append(f"  {'  objective':24} {done:28} {', '.join(o['cycles'])}: {span}")
+    dv = p.get("delivery")
+    if dv:
+        out += ["", "  delivery (DORA, a closed cycle is the deployment)", ""]
+        out.append(f"  {'deployment frequency':24} {str(dv['deploys_per_week']) + ' / week':28} "
+                   f"{dv['deploys_last_30d']} in the last 30 days, {dv['deploys']} in all")
+        out.append(f"  {'lead time for changes':24} {f(dv['change_lead_time_h']):28} "
+                   f"commit → first close after it; {dv['commits_pending']} commits not yet deployed")
+        out.append(f"  {'change failure rate':24} "
+                   f"{(str(dv['change_failure_pct']) + '%') if dv['change_failure_pct'] is not None else '—':28} "
+                   f"reverts of deployed commits: {len(dv['failed_changes'])}")
+        out.append(f"  {'failed recovery time':24} {f(dv['recovery_h']):28} close → revert")
+    rv = p.get("reviews") or {}
+    if rv.get("demands"):
+        out += ["", "  reviews (reviews/*/findings.toml)", ""]
+        out.append(f"  {'findings per demand':24} {str(rv['findings_per_demand']) + ' (median)':28} "
+                   f"{rv['demands']} demands reviewed")
+        out.append(f"  {'blocking findings':24} {str(rv['blocking_pct']) + '%':28} of all findings")
+        out.append(f"  {'passed in one round':24} {str(rv['first_pass_pct']) + '%':28} "
+                   f"no blocker, one round; rounds median {rv['rounds_median']}")
     return out
 
 
@@ -476,11 +565,13 @@ def main(argv=None) -> int:
               else "\n".join(mutation.render(data)))
         return 0
     data = bench(root, max(2, args.points), args.top)
+    data["change"] = change_view(root, args.top)
     data["process"] = process_view(root)
     if args.format == "json":
         print(json.dumps(data, indent=2))
     else:
-        print("\n".join(render(data) + render_process(data["process"])))
+        print("\n".join(render(data) + render_change(data["change"])
+                        + render_process(data["process"])))
     return 0
 
 

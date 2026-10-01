@@ -367,3 +367,13 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("def process_view", (ROOT / "runtime/codebench.py").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 36, 0))
+
+    def test_kernel_version_ships_delivery_measures_and_the_signed_permission(self):
+        # DORA, review and change measures in codebench, and kernel
+        # ADR-0025 (deploy commands allowed by the sign-off) reach clients
+        # only through a moved version (owner, 2026-09-30)
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertIn("def delivery", (ROOT / "runtime/flow.py").read_text())
+        self.assertTrue((ROOT / "runtime/deployallow.py").exists())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 37, 0))

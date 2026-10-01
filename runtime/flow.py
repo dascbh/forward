@@ -17,6 +17,20 @@ lead time is request → closed. Cycles linked by `depends:` are one
 objective (kernel ADR-0024: a large objective is several small cycles,
 the fde-build/fde-inspect pipeline); its lead time runs from its first
 request to its last cycle closed. Wall-clock hours, nights included.
+
+Beside them, DORA's delivery measures (2024 report), with a closed cycle
+as the deployment — closing requires it deployed or published:
+- deployment frequency: cycles closed per week, and in the last 30 days;
+- lead time for changes: from each commit to the gate's roots
+  (`[gate]` paths), since the first sign-off, to the first cycle closed
+  after it (when it reached production); later commits are pending;
+- change failure: a `git revert` of a commit that had already reached
+  production; failed deployment recovery time runs from that close to
+  the revert. A backlog origin `(C-<n>)` was measured and rejected as a
+  proxy: it marks debt and follow-ups found from a cycle as well as
+  defects (half the closed cycles of one client would have "failed").
+And the review's own measures (`reviews/*/findings.toml`): findings per
+demand, how many blocked, rounds until it passed, the first-pass share.
 It reports; it never gates. stdlib only (I6).
 """
 from __future__ import annotations
@@ -24,6 +38,7 @@ from __future__ import annotations
 import re
 import statistics
 import time
+import tomllib
 from pathlib import Path
 
 import fde_lib
@@ -146,6 +161,90 @@ def objectives(rows: list[dict], now: int) -> list[dict]:
                     "lead_time_h": _h(start, end) if done else None,
                     "open_for_h": None if done else _h(start, now)})
     return out
+
+
+WEEK, MONTH = 7 * 86400, 30 * 86400
+
+
+def delivery(root: Path, d: dict | None = None) -> dict:
+    """DORA's measures with a closed cycle as the deployment."""
+    d = d or measure(root)
+    now = int(time.time())
+    closes = sorted(r["ended"] for r in d["cycles"] if r["state"] == "closed" and r["ended"])
+    first = (fde_lib._git(root, "log", "--reverse", "--format=%ct", "--", "fde.config.toml") or "").split()
+    since = int(first[0]) if first else (closes[0] if closes else now)
+    weeks = max((now - since) / WEEK, 1)
+    out: dict = {"deploys": len(closes), "deploys_per_week": round(len(closes) / weeks, 1),
+                 "deploys_last_30d": sum(1 for t in closes if t >= now - MONTH)}
+    # lead time for changes: each code commit to the first close at or after it
+    signed = [r["signed"] for r in d["cycles"] if r["signed"]]
+    start = min(signed) if signed else since
+    import erosion
+    scope = erosion.churn_scope(root) or ()
+    stamps = [int(t) for t in (fde_lib._git(root, "log", "--no-merges", "--format=%ct",
+                                            f"--since=@{start}", "--", *scope) or "").split()]
+    leads, pending = [], 0
+    for t in stamps:
+        nxt = next((c for c in closes if c >= t), None)
+        if nxt is None:
+            pending += 1
+        else:
+            leads.append((nxt - t) / 3600)
+    out["change_lead_time_h"] = round(statistics.median(leads), 1) if leads else None
+    out["commits_pending"] = pending
+    # change failure: a revert of a commit that had already reached production
+    reverts, recover = [], []
+    log = fde_lib._git(root, "log", "--no-merges", "--format=%H %ct%n%b%x00",
+                       f"--since=@{start}") or ""
+    for block in log.split("\0"):
+        head, _, body = block.strip().partition("\n")
+        m = re.search(r"This reverts commit ([0-9a-f]{7,40})", body)
+        if not head or not m:
+            continue
+        rts = int(head.split()[1])
+        orig = (fde_lib._git(root, "show", "-s", "--format=%ct", m.group(1)) or "").strip()
+        if not orig.isdigit():
+            continue
+        shipped = next((c for c in closes if c >= int(orig)), None)
+        if shipped is not None and shipped <= rts:
+            reverts.append(m.group(1)[:8])
+            recover.append((rts - shipped) / 3600)
+    out["failed_changes"] = reverts
+    out["change_failure_pct"] = round(100 * len(reverts) / len(stamps), 1) if stamps else None
+    out["recovery_h"] = round(statistics.median(recover), 1) if recover else None
+    return out
+
+
+ROUND_TABLE = re.compile(r"^(round|rodada)_?\d+$", re.I)
+
+
+def reviews(root: Path) -> dict:
+    """Findings per demand, blockers, rounds until it passed."""
+    rows = []
+    for f in sorted((root / "reviews").glob("*/findings.toml")):
+        try:
+            data = tomllib.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError, tomllib.TOMLDecodeError):
+            continue
+        meta = data.get("meta") or {}
+        findings = [x for x in data.get("finding", []) if isinstance(x, dict)]
+        tables = sum(1 for k, v in data.items() if ROUND_TABLE.match(k) and isinstance(v, dict))
+        rounds = max([v for v in (meta.get("round"), meta.get("rounds_completed"))
+                      if isinstance(v, int) and not isinstance(v, bool)] + [tables + 1 if tables else 1])
+        rows.append({"demand": f.parent.name, "kind": str(meta.get("kind") or "?"),
+                     "findings": len(findings),
+                     "blocking": sum(1 for x in findings if x.get("blocking") is True),
+                     "rounds": rounds})
+    if not rows:
+        return {"demands": 0}
+    total = sum(r["findings"] for r in rows)
+    return {"demands": len(rows),
+            "findings_per_demand": round(statistics.median(r["findings"] for r in rows), 1),
+            "blocking_pct": round(100 * sum(r["blocking"] for r in rows) / total) if total else 0,
+            "rounds_median": statistics.median(r["rounds"] for r in rows),
+            "first_pass_pct": round(100 * sum(1 for r in rows if r["rounds"] == 1 and not r["blocking"])
+                                    / len(rows)),
+            "by_kind": {k: sum(1 for r in rows if r["kind"] == k) for k in sorted({r["kind"] for r in rows})}}
 
 
 def render(d: dict) -> list[str]:
