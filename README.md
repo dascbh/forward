@@ -294,7 +294,9 @@ sources, and drift shows up as a diff in generated files.
 Each step is a skill in `skills/` (Agent Skills format, portable across
 tools; installed into the project for Claude Code):
 
-- `fde-triage` — sizes the cycle: planner depth and cycle review rounds
+- `fde-triage` — sizes the cycle (planner depth, review rounds) and
+  recognizes the direct lane: one goal, ~300 lines, reversible, no new
+  criterion — no cycle, its test first
 - `fde-design` — the design discipline for UI demands: foundation, flow,
   IA, wireframe, design QA, user validation — proportional to size
 - `fde-review` — isolated review sized by risk, in four modes: code (a
@@ -313,28 +315,56 @@ tools; installed into the project for Claude Code):
   the hotspots that grew (`python3 bin/fde/codebench.py`); a report, never a gate
 - `fde-map` — the product map of a feature from its code (`docs/map/<slug>.md`):
   screens, API calls, handlers, business rules with their messages, events,
-  columns written and tables read (`python3 bin/fde/productmap.py`)
+  columns written and tables read (`python3 bin/fde/productmap.py`); export
+  to Mermaid, JGF, GraphML or DOT (`python3 bin/fde/mapexport.py`)
 - `fde-survey` — architectural reconnaissance of a system nobody
   documented: the map a team needs when it takes over, evidence-labeled
 - `fde-status` — where the project stands: the open cycle with its done
-  progress, closed cycles, and the backlog (`python3 bin/fde/status.py`)
+  progress, closed cycles, and the backlog (`python3 bin/fde/status.py`);
+  `--waves` shows which demands, or cycles, run in parallel
 - `fde-backlog` — the panel printed in the terminal
   (`python3 bin/fde/status.py --panel`): overview, backlog with `B-<n>`
   ids, cycles with their demands, loose demands, discarded; group items
   into a draft cycle, open a cycle or a demand (`--demand <id>`), specify
-  a draft
+  a draft. In a terminal of your own, `python3 bin/fde/backlog.py` is the
+  same backlog as a keyboard panel: select, expand, group, merge, discard,
+  reorder, edit, undo
+- `fde-walkthrough` — two blind runs explore the running interface cold;
+  where they disagree, the interface does not explain itself
 - `fde-verify` — the gate: `python3 bin/fde/verify.py --all` (same as CI)
 - `fde-doctor` — what is actually enforced vs. merely suggested
-- `fde-sync` — regenerate after config, stack, or tool changes
+- `fde-sync` — update the kernel and re-emit the project, then reconcile it:
+  backlog and cycles reviewed against the new rules (mechanical changes
+  applied, anything that changes a criterion proposed to you), an erosion
+  budget written from today's values when none is declared, stale maps
+  listed. It runs with cycles open
+
+### How work flows
+
+- An idea is a backlog line; only main assigns its `B-<n>` id.
+- A small, reversible, one-goal change takes the direct lane: its test,
+  one isolated code review, merge.
+- Anything larger is a cycle. A large objective is several small cycles,
+  one per slice that deploys on its own; they run at once when their
+  files are disjoint, after a foundation cycle takes the shared seams
+  (kernel ADR-0024). You sign the set once.
+- Inside a cycle, a demand is one goal, at most ~300 lines, across layers
+  if needed (kernel ADR-0022); demands run in parallel by `files`.
+- Tests run once per commit; reviewers read the recorded run. Reviewers
+  find, the builder triages each finding (real or refuted, then fixed,
+  deferred or dropped); a clean round ends the review.
 
 ### The agent is the runtime
 
 There is no CLI to install and no dependency to add. Interaction lives in
 instructions (`SETUP.md` + `skills/`), executed by whatever agent is in use.
-What remains code is the one thing that must run where no agent exists: the
-gate — `runtime/verify.py` and `runtime/guard.py`, copied into the client
-repo at `bin/fde/` and called by pre-commit and CI with plain Python 3.11+
-stdlib (`tomllib`), zero external dependencies.
+What remains code is what must run where no agent exists — the gate,
+`runtime/verify.py` and `runtime/guard.py` with the measures they read —
+and the tools you or the agent call on demand: `status.py`, the backlog
+panel `backlog.py`, `codebench.py`, `productmap.py`, `mapexport.py`. All are
+copied into the client repo at `bin/fde/` and run with plain Python 3.11+
+stdlib (`tomllib`), zero external dependencies; only the gate is on the
+pre-commit and CI path.
 
 The determinism argument did not go away — it moved. The agent executes
 procedures; the gate audits outcomes with exit codes. A wrong weight sum, a
