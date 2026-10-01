@@ -460,3 +460,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("merged into main and that has no uncommitted change is removed", sync)
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 44, 0))
+
+    def test_kernel_version_ships_the_progress_tab_and_chained_step_check(self):
+        # backlog.py progress tab and deployallow --check on chained prose
+        # steps (forward-1f, owner request, 2026-10-01)
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertIn("progress", (ROOT / "runtime/backlog.py").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 45, 0))
