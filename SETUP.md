@@ -220,7 +220,10 @@ the user names.
    scopes are design, not obstacles. If it exists, **merge**: prepend the
    `@AGENTS.md` line if missing and append the note — never overwrite user
    content.
-4. `.claude/settings.json`: **merge** (never overwrite) a `PreToolUse` hook
+4. `.claude/settings.json`: run `python3 bin/fde/settings_merge.py`, which
+   merges (never overwrites) what follows and writes nothing when it is
+   already there — never edit the file by hand: auto mode reads an
+   agent's edit of its own permissions as a bypass. It merges a `PreToolUse` hook
    with matcher `Write|Edit` running
    `python3 "$CLAUDE_PROJECT_DIR/bin/fde/guard.py"`. Always the
    `$CLAUDE_PROJECT_DIR` form, never a cwd-relative path — hooks run from

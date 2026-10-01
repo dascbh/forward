@@ -16,12 +16,12 @@ A sync never waits for a cycle to close: a project left on old rules
 drifts further every day (owner direction, 2026-09-30). It runs, then
 step 4 brings the project's own records up to the new kernel.
 
-**Say this to the user before starting:** the sync writes tool
-permissions into `.claude/settings.json` (SETUP §8.4), besides the
-generated files. Claude Code's auto mode may block that write. If it
-does, do not stop half way silently: tell the user the sync is
-incomplete, that they should leave auto mode and re-run fde-sync. The
-re-run is idempotent and finishes the job.
+The kernel's part of `.claude/settings.json` (SETUP §8.4) is merged by
+`python3 bin/fde/settings_merge.py`, never by editing the file: auto mode
+reads an agent's own edit of its permissions as a bypass and blocks it
+(two clients' syncs stopped and asked the owner to leave auto mode). The
+script writes nothing when the kernel's part is already there. Never ask
+the owner to leave auto mode for a step this skill prescribes.
 
 ## 1. Update the kernel
 
@@ -52,9 +52,10 @@ in the kernel. Idempotent: same sources, same output.
 
 - Files WITH the `FDE-KERNEL:GENERATED` marker: overwrite entirely.
 - Files WITHOUT it (user-owned `CLAUDE.md`, merged
-  `.claude/settings.json`): merge, never clobber. When the merge adds tool
-  permissions that were not there (SETUP §8.4), tell the user which ones,
-  and that `[tooling] open_permissions = false` keeps the prompts.
+  `.claude/settings.json`): merge, never clobber — `settings.json`
+  through `settings_merge.py` only. When it adds tool permissions that
+  were not there, tell the user which ones, and that `[tooling]
+  open_permissions = false` keeps the prompts.
 - Copy directories, never a remembered list of filenames — an enumerated
   set silently omits whatever the update added.
 - Remove each installed skill the kernel no longer has: a
@@ -183,10 +184,10 @@ reported as done.
      for the owner is withdrawn, not relayed.
    - Then `python3 bin/fde/deployallow.py --write`: signed, running
      cycles get their deploy's allow rules, ended ones lose theirs.
-   - Worktrees: each one whose branch is merged into main and that has
-     no uncommitted change is removed (`git worktree remove`, then
-     `git worktree prune`), its branch deleted. One with work in it
-     stays and is listed.
+   - Worktrees: `python3 bin/fde/worktrees.py --prune-merged` removes each
+     one whose work is on main and that holds no change; the rest stay,
+     listed. Never `rm -rf` or a forced removal: auto mode reads it as
+     irreversible destruction.
 4. **Record** — one commit per kind (the kernel re-emit; the backlog;
    each cycle; each direct-lane change), and one line on each running
    cycle's board: `<date> C-<n> decided kernel sync <from>→<to>: <what

@@ -448,10 +448,11 @@ class TestSyncWarnsAboutPermissionsUpFront(unittest.TestCase):
 
     def test_the_notice_precedes_the_first_step(self):
         head = _skill().split("## 1. Update the kernel", 1)[0]
+        # owner, 2026-10-01: the settings merge is a kernel script, so the
+        # sync never has to ask the owner to leave auto mode
         self.assertIn("`.claude/settings.json`", head)
-        self.assertIn("auto mode", head)
-        self.assertIn("re-run", head)
-        self.assertIn("half way", head)
+        self.assertIn("python3 bin/fde/settings_merge.py", head)
+        self.assertIn("Never ask the owner to leave auto mode", " ".join(head.split()))
 
 
 class TestSyncRemovesRetiredKernelSkills(unittest.TestCase):

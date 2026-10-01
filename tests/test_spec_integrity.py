@@ -457,7 +457,7 @@ class TestTemplatesAndVersions(unittest.TestCase):
         review = " ".join((ROOT / "skills/fde-review/SKILL.md").read_text().split())
         self.assertIn("After the merge its worktree is removed", review)
         sync = " ".join((ROOT / "skills/fde-sync/SKILL.md").read_text().split())
-        self.assertIn("merged into main and that has no uncommitted change is removed", sync)
+        self.assertIn("worktrees.py --prune-merged", sync)
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 44, 0))
 
@@ -593,4 +593,4 @@ class TestTemplatesAndVersions(unittest.TestCase):
                       "**Inspect an existing export:**"):
             self.assertIn(stage, pipe)
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
-                                (0, 54, 0))
+                                (0, 54, 1))
