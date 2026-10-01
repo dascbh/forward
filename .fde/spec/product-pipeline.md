@@ -191,7 +191,16 @@ prior, never reused or patched into the new one. When the feature has no
 product map, it generates one first (`fde-map`,
 `docs/map/<slug>.md`). It reads the suite's recorded run for the code it
 inspects (`verify.py --status`) and runs a test only to prove a finding —
-a fresh full run in a bare copy measures the copy, not the product. A UI finding is something to see, not only to read: each records where
+a fresh full run in a bare copy measures the copy, not the product. Beside that record, the owner gets a page of their own:
+`discovery/<objective>-ui-ux.html`, self-contained, opened in any
+browser — on top, the findings counted by severity, the three that
+weigh most and what works and must stay; then the UI and UX findings
+grouped by screen, each with what the user lives there in product words,
+its severity, the measure it breaks, where to see it, its GIF and the
+recommendation. When the agent can publish a page (an Artifact in
+Claude Code), it publishes that one, private, and gives the link. The
+markdown report stays the full record; the page is the owner's reading.
+A UI finding is something to see, not only to read: each records where
 it shows — the address, the steps to the state, the viewport and theme
 — so anyone reopens exactly it, and a failing journey is recorded as a
 GIF with the browser extension (`gif_creator`) beside the report. When

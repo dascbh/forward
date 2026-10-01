@@ -596,5 +596,7 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("It writes only its own backlog lines", pipe)
         self.assertIn("A UI finding is something to see, not only to read", pipe)
         self.assertIn("`See: <address>", (ROOT / "templates/discovery/inspect.md").read_text())
+        self.assertIn("`discovery/<objective>-ui-ux.html`", pipe)
+        self.assertIn("## The owner's page", (ROOT / "templates/discovery/inspect.md").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
-                                (0, 53, 3))
+                                (0, 53, 4))

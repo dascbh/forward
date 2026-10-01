@@ -64,6 +64,13 @@ opens one tab per finding in that state. -->
 <!-- lines worth work of their own, each pointing here; `[kernel]` for an
 item about FORWARD itself -->
 
+## The owner's page
+
+<!-- discovery/<objective>-ui-ux.html: findings by severity, the three
+that weigh most, what must stay, then UI and UX findings by screen —
+product words, severity, measure, where to see, GIF, recommendation.
+Link it here (and the published page, when there is one). -->
+
 ## Questions for the owner
 
 <!-- none blocks the inspection; each with a recommended answer -->
