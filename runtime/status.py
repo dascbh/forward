@@ -1317,6 +1317,10 @@ def board_events(root: Path, c: "Cycle") -> list[dict]:
         if not board.is_file():
             continue
         lines = _read(board).splitlines()
+        # most worktrees hold the same or an older board: blame (the slow
+        # part, one git call each) only a board that has a line not seen yet
+        if not any(BOARD_LINE.match(l) and l.strip() not in seen for l in lines):
+            continue
         times = _blame_times(wt, rel)
         for i, line in enumerate(lines):
             m = BOARD_LINE.match(line)

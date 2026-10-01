@@ -87,6 +87,22 @@ class TestProgress(unittest.TestCase):
         git(wt, "commit", "-qam", "dem-4 work")
         self.assertIn("▸ in review", self.line(self.progress(), "DEM-4"))
 
+    def test_a_worktree_with_no_new_board_line_is_not_blamed(self):
+        import status
+        for i in range(3):
+            git(self.root, "worktree", "add", "-q", "-b", f"idle{i}",
+                str(Path(self.tmp.name) / f"idle{i}"))
+        calls = []
+        real = status._blame_times
+        status._blame_times = lambda wt, rel: calls.append(wt) or real(wt, rel)
+        try:
+            cycle = [c for c in status.load_cycles(self.root, []) if c.id == "C-1"][0]
+            events = status.board_events(self.root, cycle)
+        finally:
+            status._blame_times = real
+        self.assertEqual(len(calls), 1, "only the board with lines not seen yet is blamed")
+        self.assertTrue(any(e["who"] == "DEM-2" for e in events))
+
     def test_the_panel_carries_the_tree_under_the_running_cycle(self):
         out = subprocess.run([sys.executable, str(ROOT / "runtime" / "status.py"),
                               "--root", str(self.root), "--panel"],
