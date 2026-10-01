@@ -783,15 +783,32 @@ def close_cycle(project: Path, cycle: str) -> dict:
         if not unpaid:
             remove = tuple(k for k in budget if k.startswith("debt_"))
             debt = "paid"
-        else:
+        elif _counts_for_debt(project, cycle, budget):
             closes = int(budget.get("debt_closes", 0)) + 1
             updates["debt_closes"] = closes
             debt = "overdue" if closes >= DEBT_DUE_CLOSES else f"open ({closes}/{DEBT_DUE_CLOSES} closes)"
             if closes >= DEBT_DUE_CLOSES:
                 updates["debt_overdue"] = True
+        else:
+            debt = (f"open ({int(budget.get('debt_closes', 0))}/{DEBT_DUE_CLOSES} closes; "
+                    f"{cycle} was running before the debt, its close does not count)")
     if updates or remove:
         set_erosion_keys(project, updates, remove)
     return {"declared": True, "cycle": cycle, "changes": changes, "debt": debt}
+
+
+def _counts_for_debt(project: Path, cycle: str, budget: dict) -> bool:
+    """A close counts toward the debt when it is the cycle that took it,
+    or a cycle planned after it. Parallel cycles closing in the same hour
+    (kernel ADR-0024) once made a debt overdue an hour after it was taken."""
+    if str(budget.get("debt_cycle", "")).lstrip("C-") == cycle.lstrip("C-"):
+        return True
+    since = budget.get("debt_since")
+    if not isinstance(since, (int, float)):
+        return True  # a debt from before debt_since: the old count stands
+    first = (_git(project, "log", "--reverse", "--format=%ct", "--",
+                  f"cycles/{cycle}/plan.md").split() or ["0"])[0]
+    return int(first) > since
 
 
 def register_debt(project: Path, cycle: str, item: str) -> tuple[bool, str]:
@@ -819,7 +836,9 @@ def register_debt(project: Path, cycle: str, item: str) -> tuple[bool, str]:
             "max_add_delete_ratio")
     if not updates:
         return False, "no budget is breached, now or by the staged change: nothing to owe"
-    updates.update({"debt_cycle": cycle, "debt_item": item, "debt_closes": 0})
+    import time
+    updates.update({"debt_cycle": cycle, "debt_item": item, "debt_closes": 0,
+                    "debt_since": int(time.time())})
     set_erosion_keys(project, updates)
     return True, "debt registered: " + ", ".join(f"{k[5:]} {v}" for k, v in updates.items()
                                                   if k.startswith("debt_") and k[5:] in METRIC_OF.values())

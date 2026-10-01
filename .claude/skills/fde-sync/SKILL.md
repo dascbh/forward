@@ -128,6 +128,12 @@ reported as done.
        code (`quarantine B-<n>`) or its fix, and the quarantined count is
        recorded (`fde-verify`).
      Nothing with a security or production evidence label is dropped.
+   - An erosion debt counted by the closes of cycles planned before it
+     (kernel 0.52.5 and older: parallel cycles closing in the same hour
+     made a debt overdue at once) is recounted once: `debt_since` set to
+     the commit that registered it, `debt_closes` to the closes that
+     count (that cycle's own, or a cycle planned after it),
+     `debt_overdue` removed when they are fewer than two.
    - `SCOPE` ⚠ names source outside the gate's roots: each directory it
      names that the project wrote (not a vendored library) joins
      `[gate] behavior_paths` — a config key, applied, never asked.

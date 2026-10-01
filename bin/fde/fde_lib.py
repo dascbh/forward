@@ -305,6 +305,8 @@ def validate(cfg: Config, spec: Spec) -> list[Violation]:
                     )
                 )
             continue
+        if key in ("debt_cycle", "debt_item", "debt_overdue"):
+            continue  # the debt's bookkeeping (erosion.py --debt / --close), not a threshold
         if not isinstance(val, (int, float)) or isinstance(val, bool):
             v.append(
                 Violation(

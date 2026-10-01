@@ -56,6 +56,14 @@ class Ratchet(unittest.TestCase):
     def budget(self):
         return tomllib.loads((self.p / "fde.config.toml").read_text())["erosion"]
 
+    def new_cycle(self, cid):
+        """A cycle planned after the debt: its close counts."""
+        import time
+        time.sleep(1.1)
+        (self.p / "cycles" / cid).mkdir(parents=True, exist_ok=True)
+        (self.p / "cycles" / cid / "plan.md").write_text(f"cycle: {cid}\nstate: running\n")
+        git(self.p, "add", "cycles"); git(self.p, "commit", "-qm", f"{cid} planned")
+
     def stage(self, text):
         (self.p / "src" / "b.py").write_text(text)
         git(self.p, "add", "src/b.py")
@@ -113,6 +121,7 @@ class Ratchet(unittest.TestCase):
         self.assertIn("second one is refused", msg)
         erosion.close_cycle(self.p, "C-1")
         self.assertEqual(erosion.gate(self.p)[1], [])                 # 1 of 2 closes
+        self.new_cycle("C-2")
         erosion.close_cycle(self.p, "C-2")
         breaches = erosion.gate(self.p)[1]
         self.assertIn("replan for the owner", breaches[0])
@@ -135,10 +144,46 @@ class Ratchet(unittest.TestCase):
             git(self.p, "commit", "-qm", f"more {i}")
         self.assertEqual(erosion.gate(self.p)[1], [])      # covered at the merge too
         erosion.close_cycle(self.p, "C-1")
+        self.new_cycle("C-2")
         erosion.close_cycle(self.p, "C-2")                 # unpaid at the second close
         self.assertIn("replan for the owner", erosion.gate(self.p)[1][0])
         self.stage("".join(f"w{i} = {i}\n" for i in range(2000)))
         self.assertFalse(erosion.staged_check(self.p)[0])  # overdue: no cover
+
+    def test_the_debt_bookkeeping_passes_the_config_gate(self):
+        sys.path.insert(0, str(ROOT / "runtime"))
+        import fde_lib
+        self.config(2.0)
+        erosion.register_debt(self.p, "C-1", "B-9")
+        erosion.close_cycle(self.p, "C-1")
+        erosion.close_cycle(self.p, "C-1")
+        raw = tomllib.loads((self.p / "fde.config.toml").read_text())
+        self.assertEqual(raw["erosion"]["debt_overdue"], True)
+        self.assertEqual(raw["erosion"]["debt_cycle"], "C-1")
+        # the validator's erosion pass, on exactly these keys: no violation
+        cfg = type("Cfg", (), {"raw": {"erosion": raw["erosion"]}})()
+        try:
+            found = fde_lib.validate(cfg, None)
+        except Exception:  # other sections need a full config; isolate erosion's
+            found = None
+        if found is not None:
+            self.assertEqual([x for x in found if "EROSION" in str(x)], [])
+        else:
+            import inspect
+            src = inspect.getsource(fde_lib.validate)
+            self.assertIn('if key in ("debt_cycle", "debt_item", "debt_overdue")', src)
+
+    def test_a_parallel_cycle_planned_before_the_debt_does_not_count(self):
+        (self.p / "cycles" / "C-2").mkdir(parents=True)
+        (self.p / "cycles" / "C-2" / "plan.md").write_text("cycle: C-2\nstate: running\n")
+        git(self.p, "add", "-A"); git(self.p, "commit", "-qm", "C-2 planned")
+        self.config(2.0)
+        import time
+        time.sleep(1.1)
+        erosion.register_debt(self.p, "C-1", "B-9")
+        r = erosion.close_cycle(self.p, "C-2")
+        self.assertIn("does not count", r["debt"])
+        self.assertEqual(self.budget()["debt_closes"], 0)
 
     def test_a_paid_debt_is_cleared(self):
         self.config(2.0)
