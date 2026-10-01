@@ -30,7 +30,8 @@ from fde_lib import project_root  # noqa: E402
 
 GUARD = 'python3 "$CLAUDE_PROJECT_DIR/bin/fde/guard.py"'
 TOOLS = ("Bash", "Edit", "Write", "Read", "Glob", "Grep", "NotebookEdit",
-         "WebFetch", "WebSearch", "mcp__claude-in-chrome")
+         "WebFetch", "WebSearch", "mcp__claude-in-chrome",
+         "mcp__inspo", "mcp__ui-skills")  # the design references (fde-design), when connected
 
 
 def open_permissions(project: Path) -> bool:
