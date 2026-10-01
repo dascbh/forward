@@ -60,6 +60,19 @@ def deploy_commands(deploy_text: str) -> tuple[list[str], list[str]]:
     return cmds, refused
 
 
+def chained_in_prose(deploy_text: str, commands: list[str]) -> list[str]:
+    """Backticked spans outside `## Commands` that chain a declared command
+    (`cd infra && npx cdk deploy X`): the agent runs the chained form, it
+    matches no rule, and the deploy stops for a permission."""
+    prose = re.split(r"^## Commands\s*$", deploy_text, maxsplit=1, flags=re.M)[0]
+    heads = [" ".join(PLACEHOLDER.sub("", c).split()[:3]) for c in commands]
+    out = []
+    for span in re.findall(r"`([^`\n]+)`", prose):
+        if CHAINED.search(span) and any(h and h in span for h in heads):
+            out.append(span.strip())
+    return sorted(dict.fromkeys(out))
+
+
 def rule(command: str) -> str:
     """`Bash(<command>)`, each `<placeholder>` a `*` wildcard."""
     return f"Bash({' '.join(PLACEHOLDER.sub('*', command).split())})"
@@ -70,10 +83,10 @@ def signed_running(plan_text: str) -> bool:
             and bool(plan_header(plan_text, "signed-off")))
 
 
-def desired(project: Path) -> tuple[dict[str, list[str]], dict[str, list[str]], list[str]]:
+def desired(project: Path) -> tuple[dict, dict, list, dict]:
     """({cycle: rules}, {cycle: refused lines}, [running cycles with no
     `## Commands`]) for the signed, running cycles."""
-    want, refused, bare = {}, {}, []
+    want, refused, bare, chained = {}, {}, [], {}
     for cid, cdir in sorted(cycle_dirs(project).items()):
         plan, deploy = cdir / "plan.md", cdir / "deploy.md"
         if not plan.is_file() or not signed_running(plan.read_text(encoding="utf-8", errors="ignore")):
@@ -86,7 +99,10 @@ def desired(project: Path) -> tuple[dict[str, list[str]], dict[str, list[str]], 
             want[cid] = sorted(dict.fromkeys(rule(c) for c in cmds))
         if bad:
             refused[cid] = bad
-    return want, refused, bare
+        loose = chained_in_prose(text, cmds)
+        if loose:
+            chained[cid] = loose
+    return want, refused, bare, chained
 
 
 def permissions_open(project: Path) -> bool:
@@ -106,7 +122,7 @@ def _load(path: Path, default):
 
 def plan(project: Path) -> dict:
     """What `--write` would do: the rules to add and to remove."""
-    want, refused, bare = desired(project)
+    want, refused, bare, chained = desired(project)
     settings = _load(project / SETTINGS, {})
     allow = list((settings.get("permissions") or {}).get("allow") or [])
     owned = _load(project / LEDGER, {})
@@ -114,7 +130,7 @@ def plan(project: Path) -> dict:
     owned_all = {r for rules in owned.values() for r in rules}
     return {
         "open": permissions_open(project),
-        "want": want, "refused": refused, "no_commands": bare,
+        "want": want, "refused": refused, "no_commands": bare, "chained_prose": chained,
         "add": sorted(want_all - set(allow)),
         "remove": sorted(owned_all - want_all),
         "missing": sorted(want_all - set(allow)),
@@ -161,6 +177,15 @@ def main(argv=None) -> int:
             print(f"{cid}: {len(rules)} deploy command(s) allowed by its sign-off")
         for cid, bad in p["refused"].items():
             print(f"{cid}: refused (chains commands — split it): " + "; ".join(bad))
+        for cid, spans in p["chained_prose"].items():
+            shown = [s if len(s) <= 80 else s[:79] + "…" for s in spans[:3]]
+            more = f" (+{len(spans) - 3} more)" if len(spans) > 3 else ""
+            print(f"{cid}: {len(spans)} step(s) chain a declared command, so they match no "
+                  f"rule — one command per call, `cd` on its own line:")
+            for sp in shown:
+                print(f"    {sp}")
+            if more:
+                print(f"   {more}")
         for cid in p["no_commands"]:
             print(f"{cid}: deploy.md has no `## Commands` — its deploy steps are not allowed")
         for r in p["add"]:
@@ -170,7 +195,8 @@ def main(argv=None) -> int:
         if not (p["add"] or p["remove"]):
             print("deployallow: settings already match the signed cycles")
     if args.check:
-        return 1 if (p["open"] and (p["missing"] or p["refused"] or p["no_commands"])) else 0
+        return 1 if (p["open"] and (p["missing"] or p["refused"] or p["no_commands"]
+                                    or p["chained_prose"])) else 0
     if args.write and p["open"] and (p["add"] or p["remove"]):
         write(project, p)
         print(f"deployallow: wrote {SETTINGS} (+{len(p['add'])} -{len(p['remove'])}) and {LEDGER}")

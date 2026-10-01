@@ -52,6 +52,15 @@ class TestCommands(unittest.TestCase):
                          "--require-approval never)")
         self.assertIn("pre091-*", deployallow.rule(cmds[2]))
 
+    def test_a_step_that_chains_a_declared_command_is_named(self):
+        text = ("Step 2: `cd infra && npx cdk deploy ApiStack --require-approval never`\n"
+                "and `make test` alone.\n\n## Commands\n\n```sh\ncd infra\n"
+                "npx cdk deploy ApiStack --require-approval never\n```\n")
+        cmds, _ = deployallow.deploy_commands(text)
+        self.assertEqual(deployallow.chained_in_prose(text, cmds),
+                         ["cd infra && npx cdk deploy ApiStack --require-approval never"])
+        self.assertEqual(deployallow.chained_in_prose(text.replace("&&", ""), cmds), [])
+
     def test_no_section_no_commands(self):
         self.assertEqual(deployallow.deploy_commands("cycle: C-1\n`python3 x.py`\n"), ([], []))
 

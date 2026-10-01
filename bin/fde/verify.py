@@ -1372,6 +1372,8 @@ class Gate:
             return
         notes = ([f"{cid} deploy.md has no `## Commands`" for cid in p["no_commands"]]
                  + [f"{cid} has a chained command line (split it)" for cid in p["refused"]]
+                 + [f"{cid}: {len(spans)} step(s) chain a declared command"
+                    for cid, spans in p["chained_prose"].items()]
                  + ([f"{len(p['missing'])} allow rule(s) missing from .claude/settings.json"]
                     if p["missing"] else []))
         if notes:
