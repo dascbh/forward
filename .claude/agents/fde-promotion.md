@@ -88,8 +88,16 @@ only for a cycle opened before kernel ADR-0019 (rule 15).
   What turns up after it is a backlog line, never a new decision; a
   blocker narrows the cycle without asking (`fde-review`) — the owner is
   asked only to take a larger path.
-- The deploy reports in its steps, each one marked as touching
-  production or not, and every message says "production unchanged"
+- Every deploy and closing report opens with two answers, nothing
+  before them: "Live: yes/no · Closed: yes/no — left: <what>, expected
+  <hh:mm>". An owner had to ask "did it finish or not?" after a long
+  report that never said.
+- A check the agent can run itself is run by it: a screen behind a login
+  is checked through the browser extension when one is connected, never
+  handed to the owner. The owner is asked only when no means exists, and
+  the closing does not wait on it: the cycle closes with that check
+  declared as a limit.
+- The deploy reports in its steps, each one marked as touching production or not, and every message says "production unchanged"
   until the first step that changes it: an owner asked "what do you mean
   it has not started?" after hours of preparation reported as deploy.
 - A rehearsal creates nothing it cannot delete: the teardown permission

@@ -552,3 +552,12 @@ class TestTemplatesAndVersions(unittest.TestCase):
                       " ".join((ROOT / "AGENTS.md").read_text().split()))
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 52, 0))
+
+    def test_kernel_version_ships_the_two_answers_first(self):
+        # "did it finish or not?" (owner, 2026-10-01)
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        promo = " ".join((ROOT / "agents/fde-promotion.md").read_text().split())
+        self.assertIn('"Live: yes/no · Closed: yes/no', promo)
+        self.assertIn("never handed to the owner", promo)
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 52, 1))
