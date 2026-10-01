@@ -48,6 +48,14 @@ Invariants upheld: I4, I5, I6
   mutation testing unless `plan.md` declares it.
 - A new defect is not a condition of promotion: one line in
   `backlog.md` with `(C-<n>)` and its evidence.
+- `decision:` is `promote`, `promote-with-limits` or `hold` — never a
+  promotion with conditions for the owner. A risk known at planning is
+  in the signed threat model; a risk found in the cycle that did not
+  block (`fde-review`), or one older than the cycle, is a backlog line;
+  what only production proves is a step of `deploy.md`; a new artifact
+  is never a condition. Promotion hands the owner no list to accept:
+  a blocker still open is a replan, asked once with a recommendation
+  (`PROMOTION` ⚠ names any other decision).
 - An item narrowed or declared when a review budget ran out (recorded
   on `board.md`) is marked here.
 - The signals the criteria declare exist (I5).

@@ -393,3 +393,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("Reconcile **does**", (ROOT / "skills/fde-sync/SKILL.md").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 38, 1))
+
+    def test_kernel_version_ships_promotion_without_owner_conditions(self):
+        # the PROMOTION warning and the no-conditions rule (owner,
+        # 2026-10-01) reach clients only through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertIn("def gate_promotion_decision", (ROOT / "runtime/verify.py").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 39, 0))

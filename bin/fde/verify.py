@@ -59,7 +59,7 @@ KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "portability", "artifact-handoff", "backlog", "scrum", "traceability",
                "erosion", "divergence", "survey", "walkthrough", "rule-lane",
                "untracked", "backlog-length", "process-dup", "doc-refs", "docs",
-               "cycles", "map", "deploy-allow", "migration")
+               "cycles", "map", "deploy-allow", "migration", "promotion")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -1398,6 +1398,35 @@ class Gate:
         elif explicit:
             self.add("MIGRATION", True, "every live migration declares its protection")
 
+    # -- promotion decides; it does not hand the owner conditions ----------
+    # The template's decision is promote | hold (limits per criterion).
+    # One client wrote `promote_with_conditions` on every promotion, each
+    # with an owner acceptance of residual risks at the end of the cycle —
+    # what the sign-off already covered (owner, 2026-10-01).
+    PROMOTION_DECISIONS = ("promote", "promote-with-limits", "hold")
+
+    def gate_promotion_decision(self, explicit: bool = False) -> None:
+        from fde_lib import plan_header
+        notes = []
+        for cid, cdir in sorted(cycle_dirs(self.project).items()):
+            plan, promo = cdir / "plan.md", cdir / "promotion.md"
+            if not plan.is_file() or not promo.is_file():
+                continue
+            state = plan_header(plan.read_text(encoding="utf-8", errors="ignore"), "state").lower()
+            if not state.startswith("running"):
+                continue
+            decision = plan_header(promo.read_text(encoding="utf-8", errors="ignore"), "decision")
+            word = re.split(r"[\s(—–:;,]", decision.strip().strip("*").lower(), maxsplit=1)[0]
+            if word and word not in self.PROMOTION_DECISIONS:
+                notes.append(f"{cid} ({word})")
+        if notes:
+            self.warn("PROMOTION", f"decision {', '.join(notes[:4])} is none of promote, "
+                      "promote-with-limits, hold — a risk goes to the backlog or the signed "
+                      "threat model, a production check to deploy.md, never a condition "
+                      "for the owner (fde-promotion)")
+        elif explicit:
+            self.add("PROMOTION", True, "every running cycle's decision is promote or hold")
+
     def report(self, fmt: str) -> int:
         failed = [r for r in self.results if not r[1]]
         if fmt == "json":
@@ -1800,6 +1829,8 @@ def main() -> int:
             g.gate_deploy_allow(explicit=(only == "deploy-allow"))
         if want("migration"):
             g.gate_migration(explicit=(only == "migration"))
+        if want("promotion"):
+            g.gate_promotion_decision(explicit=(only == "promotion"))
         if want("divergence"):
             g.gate_divergence()
         if want("survey"):
