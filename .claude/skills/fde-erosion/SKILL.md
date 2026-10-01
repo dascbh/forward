@@ -19,7 +19,8 @@ python3 bin/fde/verify.py --gate erosion       # enforce the [erosion] budget
   hashing. Byte-identical files kept in several places (a shared module
   copied into each deploy package) count once; the report says how many
   groups it found, to declare in `generated_paths`.
-- **structural erosion** (Python) — each function's mass is cyclomatic
+- **structural erosion** (Python and TypeScript/JavaScript; `jscc.py`
+  for the front, calibrated on ESLint) — each function's mass is cyclomatic
   complexity × √SLOC; erosion is the share of the mass in functions with
   CC > 10 — new logic patched into functions already complex. Tests
   excluded, identical bodies once, docstrings out of SLOC; other
@@ -85,7 +86,7 @@ max_add_delete_ratio = 6.0
 max_duplication_pct = 8.0
 max_dependencies = 40
 max_change_lines = 600       # largest NON-ROOT commit; root/scaffold excluded
-max_structural_erosion = 0.6 # Python only; n/a elsewhere is reported unmeasured
+max_structural_erosion = 0.6 # Python and TS/JS; other languages unmeasured
 generated_paths = ["bin/generated/"]   # copies, not organic growth
 ```
 

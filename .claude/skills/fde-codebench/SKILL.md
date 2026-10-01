@@ -24,9 +24,12 @@ other; offer it as a backlog item.
 
 **Now (HEAD), each with the reference it is read against:**
 - lines of code per language; files over 1000 lines (Pylint);
-- Python functions: CC average, p90 and max, Radon ranks (A 1-5 … F
-  41+), functions over CC 10 (McCabe; NIST SP 500-235), and Pylint's
-  limits for statements (50), arguments (5), branches (12), nesting (5);
+- functions, Python and TypeScript/JavaScript: CC average, p90 and max,
+  Radon ranks (A 1-5 … F 41+), functions over CC 10 (McCabe; NIST SP
+  500-235); TS/JS by tokens (`jscc.py`, calibrated on ESLint's
+  `complexity`: 98% of 4,836 client functions exact). Pylint's limits
+  for statements (50), arguments (5), branches (12), nesting (5) are
+  Python only;
 - structural erosion: the share of complexity mass (CC × √SLOC) in the
   functions over CC 10 — human repositories average about 0.34. Read it
   with the count over CC 10: the share falls when a lot of simple code
@@ -76,8 +79,8 @@ their file is a controller touching data.
 The population is the project's own source: `[gate]` roots minus
 `[erosion] generated_paths`, tests out, byte-identical copies once.
 
-Limits: complexity and function measures are Python only; other languages count in size, SQL, layers and
-clones. Snapshots are committed trees, not the working copy.
+Limits: complexity covers Python and TypeScript/JavaScript; other
+languages count in size, SQL, layers and clones. Snapshots are committed trees, not the working copy.
 
 ## The suite's effectiveness (`--tests`)
 

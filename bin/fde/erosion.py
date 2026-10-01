@@ -173,9 +173,12 @@ _OWN_SCOPE = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)
 
 
 def _is_test_path(name: str) -> bool:
+    """Python's conventions and the front's: `x.test.ts`, `x.spec.tsx`,
+    `__tests__/`."""
     base = name.rsplit("/", 1)[-1]
-    return ("/tests/" in f"/{name}" or "/test/" in f"/{name}"
-            or base.startswith("test_") or base.endswith("_test.py"))
+    return ("/tests/" in f"/{name}" or "/test/" in f"/{name}" or "/__tests__/" in f"/{name}"
+            or base.startswith("test_") or base.endswith("_test.py")
+            or ".test." in base or ".spec." in base)
 
 
 def cyclomatic(fn) -> int:
@@ -211,7 +214,8 @@ def _sloc(fn, lines: list) -> int:
 
 
 def structural_erosion(contents: dict) -> dict:
-    """SlopCodeBench v2 §2.3 over production Python: each function's mass
+    """SlopCodeBench v2 §2.3 over production Python, TypeScript and
+    JavaScript (jscc.py, calibrated on ESLint's complexity): each function's mass
     is CC × √SLOC; erosion is the share of the total mass held by
     functions with CC > 10 — complexity concentrated in functions already
     complex. Test files are left out; identical function bodies count
@@ -219,8 +223,22 @@ def structural_erosion(contents: dict) -> dict:
     "functions": distinct functions measured, "complex": those with
     CC > 10, "unparsed": Python files that did not parse}."""
     seen, total, high, complex_, unparsed = set(), 0.0, 0.0, 0, 0
+    import jscc
     for name, text in contents.items():
-        if not name.endswith(".py") or _is_test_path(name):
+        if _is_test_path(name) or name.endswith(".d.ts"):
+            continue
+        if name.endswith(jscc.SUFFIXES):  # TypeScript and JavaScript, by tokens
+            for f in jscc.functions(text):
+                if f["key"] in seen:
+                    continue
+                seen.add(f["key"])
+                mass = f["cc"] * math.sqrt(max(f["sloc"], 1))
+                total += mass
+                if f["cc"] > HIGH_CC:
+                    high += mass
+                    complex_ += 1
+            continue
+        if not name.endswith(".py"):
             continue
         try:
             tree = ast.parse(text)

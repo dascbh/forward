@@ -28,8 +28,9 @@ Population: the project's own source — the `[gate]` roots minus
    their complexity then and now, and whether their file is a controller
    that touches data.
 
-Complexity is measured for Python only; other languages count in size,
-clones, SQL and layers. stdlib only (I6).
+Complexity is measured for Python (its AST) and TypeScript/JavaScript
+(jscc.py, by tokens, calibrated on ESLint's complexity rule); other
+languages count in size, clones, SQL and layers. stdlib only (I6).
 """
 from __future__ import annotations
 
@@ -49,6 +50,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import erosion  # noqa: E402
 import fde_lib  # noqa: E402
+import jscc  # noqa: E402
 from fde_lib import project_root  # noqa: E402
 
 SOURCE_SUFFIXES = (erosion.CODE_SUFFIXES - {".md", ".toml"}) | {".sql"}
@@ -163,8 +165,16 @@ def _args(fn) -> int:
 
 
 def functions(name: str, text: str):
-    """One dict per Python function: qualified name, line, CC, SLOC,
-    statements, branches, nesting, arguments, body hash."""
+    """One dict per function: qualified name, line, CC, SLOC, statements,
+    branches, nesting, arguments, body hash. Python by its AST;
+    TypeScript and JavaScript by tokens (jscc.py) — CC and SLOC only, the
+    Pylint shape measures stay Python's (`lang`)."""
+    if name.endswith(jscc.SUFFIXES):
+        if name.endswith(".d.ts"):
+            return
+        for f in jscc.functions(text):
+            yield {**f, "statements": 0, "branches": 0, "nesting": 0, "args": 0, "lang": "js"}
+        return
     try:
         tree = ast.parse(text)
     except (SyntaxError, ValueError):
@@ -228,9 +238,9 @@ def measure_snapshot(files: dict[str, str], is_controller) -> dict:
     seen, fns, total, high = set(), [], 0.0, 0.0
     per_fn: dict[str, dict] = {}
     for name, text in kept.items():
-        if not name.endswith(".py"):
+        if not name.endswith((".py", *jscc.SUFFIXES)):
             continue
-        for f in functions(name, text):
+        for f in functions(name, text) or []:
             per_fn[f"{name}::{f['q']}"] = f
             if f["key"] in seen:
                 continue
@@ -253,6 +263,8 @@ def measure_snapshot(files: dict[str, str], is_controller) -> dict:
         "cc_max": ccs[-1] if ccs else None,
         "complex": sum(1 for c in ccs if c > MCCABE),
         "radon_ranks": ranks,
+        "functions_by_language": {"Python": sum(1 for f in fns if f.get("lang") != "js"),
+                                  "TypeScript/JavaScript": sum(1 for f in fns if f.get("lang") == "js")},
         "over_statements": sum(1 for f in fns if f["statements"] > PYLINT["statements"]),
         "over_args": sum(1 for f in fns if f["args"] > PYLINT["args"]),
         "over_nesting": sum(1 for f in fns if f["nesting"] > PYLINT["nesting"]),
@@ -335,7 +347,9 @@ def render(data: dict) -> list[str]:
     rows = [
         ("lines of code", f"{h['loc']} in {h['files']} files", langs),
         ("files over 1000 lines", h["long_files"], "Pylint too-many-lines"),
-        ("Python functions", fn, "identical bodies once"),
+        ("functions", fn, "Python " + str(h.get("functions_by_language", {}).get("Python", "?"))
+         + ", TS/JS " + str(h.get("functions_by_language", {}).get("TypeScript/JavaScript", "?"))
+         + "; identical bodies once"),
         ("CC avg / p90 / max", f"{_f(h['cc_mean'])} / {_f(h['cc_p90'])} / {_f(h['cc_max'])}", ""),
         ("Radon ranks", ranks, "A 1-5 · B 6-10 · C 11-20 · D-F above"),
         ("functions over CC 10", f"{h['complex']} ({pct(h['complex'], fn)})",
@@ -385,8 +399,8 @@ def render(data: dict) -> list[str]:
             mark = "◆" if x["controller_with_data"] else " "
             out.append(f"  {mark} CC {x['cc']:>3} ({radon_rank(x['cc'])})  {x['sloc']:>4} lines  "
                        f"{x['path']}:{x['line']} {x['function']}{grew}")
-    out += ["", "  Complexity and function measures are Python only; other languages count "
-            "in size, clones, SQL and layers.",
+    out += ["", "  Complexity covers Python and TypeScript/JavaScript (jscc, calibrated on "
+            "ESLint); the Pylint shape limits are Python only.",
             "  Tests are out; byte-identical copies count once; erosion falls when simple "
             "code lands — read it with CC>10."]
     return out
@@ -426,7 +440,8 @@ def change_view(root: Path, top: int = 10) -> dict:
         if text is None:
             continue
         loc = sum(1 for l in text.splitlines() if l.strip())
-        cc = max((x["cc"] for x in functions(f, text) or []), default=None) if f.endswith(".py") else None
+        cc = max((x["cc"] for x in functions(f, text) or []), default=None) \
+            if f.endswith((".py", *jscc.SUFFIXES)) else None
         hot.append({"path": f, "commits": k, "loc": loc, "cc_max": cc, "score": k * loc})
     hot.sort(key=lambda h: -h["score"])
     pairs: dict[tuple[str, str], int] = {}

@@ -422,3 +422,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("withdrawn, not relayed", text)
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 40, 1))
+
+    def test_kernel_version_ships_typescript_complexity(self):
+        # jscc.py: the front counts in complexity and structural erosion
+        # (owner, 2026-10-01)
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "runtime/jscc.py").exists())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 41, 0))
