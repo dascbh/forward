@@ -94,43 +94,65 @@ the version.
 
 ## 4. Reconcile the project to the new kernel
 
+Reconcile **does**; it does not list. The owner hears only decisions:
+a replan (a running cycle's criterion or ADR would change) and the
+signature of a planned cycle. Everything else is applied, committed and
+reported as done.
+
 1. Read what the new rules flag: `python3 bin/fde/status.py --panel`,
    `python3 bin/fde/verify.py --all`, `python3 bin/fde/status.py --waves
    C-<n>` for each live cycle, and `python3 bin/fde/verify.py --gate
    backlog-length` (every open item, not only new ones).
-   With `docs/map/conventions.toml`, also `python3 bin/fde/productmap.py
-   --check`: list the product maps out of date for the owner, and never
-   regenerate them on your own (`--write` runs when the owner asks).
+   With `docs/map/conventions.toml`, run `python3 bin/fde/productmap.py
+   --check` and regenerate the stale maps with `--write`: a map is
+   derived from the code and its DECLARED block is preserved.
 2. **Backlog** — reread each open item against the new kernel:
    - an item the new kernel resolves moves to discarded with
      `resolved by kernel <version>`;
    - an item over `[backlog] max_item_words` becomes one line with a
-     pointer, only when its detail already lives in a doc (vision, spec,
-     ADR); otherwise it stays as it is and goes on the owner's list;
+     pointer: its detail moves to the doc that already holds it (vision,
+     spec, ADR), or to `docs/backlog/B-<n>.md` when none does;
    - ids: only main assigns them.
 3. **Cycles** — by state:
    - `closed` and `abandoned` are history: never touched;
    - `draft`: its items are checked to be still open;
    - `planned` (not signed): the planner revises it against the new
      rules (the split of kernel ADR-0024, `files`, `depends:`, ids by
-     slug) and asks for the signature it did not have yet;
-   - `running`: apply only what changes no criterion and no ADR — the
-     `depends:` header, the `files` column, config keys, an id rename, the
-     `docs:` line, the deploy's `## Commands` block (kernel ADR-0025),
-     the fields of a migration step (kernel ADR-0026: what is missing is
-     listed for the owner, never invented).
-     A change to a criterion or an ADR is a replan proposal
-     for the owner, never applied. A new gate red on a demand in progress
-     is fixed inside the demand (a triaged `patch`) or recorded on the
-     board.
+     slug, expand/contract of kernel ADR-0026) and asks for the
+     signature it did not have yet;
+   - `running`: apply everything that changes no criterion and no ADR —
+     the `depends:` header, the `files` column, config keys, an id
+     rename, the `docs:` line, the deploy's `## Commands` block (kernel
+     ADR-0025), and each migration step's protection (kernel ADR-0026):
+     - `Migration:` from reading the migration's SQL (adds only →
+       expand; drops, renames, retypes or swaps a key → contract;
+       rewrites rows → data);
+     - `Checkpoint:` the restore-point command for the project's
+       database, from its infrastructure code or an earlier deploy;
+     - `Rehearsal:` the project's command that applies the migration
+       on a clone of production, checks, rolls back and runs the
+       previous code. When the project has no such tool, or its
+       migration runner is not atomic, build them now in the project
+       as a direct-lane change (test first, one isolated code review,
+       merge), then fill the field;
+     - `Rollback:` `code` for an expand, `down <file>` once rehearsed,
+       otherwise `forward-fix`.
+     A change to a criterion or an ADR is a replan proposal for the
+     owner, never applied: a contract already planned inside a running
+     cycle stays (splitting it is such a replan). Only what truly cannot be
+     built — no access to a clone, say — is written as `Rehearsal: none
+     — <why>` and reported as a limit, not asked. A new gate red on a
+     demand in progress is fixed inside the demand (a triaged `patch`)
+     or recorded on the board.
    - Then `python3 bin/fde/deployallow.py --write`: signed, running
      cycles get their deploy's allow rules, ended ones lose theirs.
 4. **Record** — one commit per kind (the kernel re-emit; the backlog;
-   each cycle), and one line on each running cycle's board: `<date>
-   C-<n> decided kernel sync <from>→<to>: <what changed>`.
-5. **Report** to the owner in one message: what was applied on its own,
-   and what needs a decision (replans, long items with no doc to point
-   to).
+   each cycle; each direct-lane change), and one line on each running
+   cycle's board: `<date> C-<n> decided kernel sync <from>→<to>: <what
+   changed>`.
+5. **Report** to the owner in one message: what was done, then the only
+   two things that need them — replan proposals and planned cycles
+   awaiting a signature.
 
 ## Drift
 

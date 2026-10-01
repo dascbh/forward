@@ -87,8 +87,10 @@ class TestInstructions(ProseTestCase):
                       self.read("agents/fde-spec.md"))
         self.assertIn("Missing evidence is written as a limit, never a hold",
                       self.read("agents/fde-promotion.md"))
-        self.assertIn("the fields of a migration step (kernel ADR-0026",
-                      self.read("skills/fde-sync/SKILL.md"))
+        sync = self.read("skills/fde-sync/SKILL.md")
+        self.assertIn("each migration step's protection (kernel ADR-0026)", sync)
+        self.assertIn("build them now in the project as a direct-lane change", sync)
+        self.assertIn("The sync builds it, the owner does not coordinate it.", adr)
 
 
 if __name__ == "__main__":

@@ -52,6 +52,13 @@ was rehearsed is a fact; one that was not is a hope.
    failure. The owner's sign-off still decides; the plan makes the
    rollback real.
 
+5. **The sync builds it, the owner does not coordinate it.** On every
+   sync, reconcile fills each live migration step's fields itself and,
+   where the project lacks a rehearsal tool or an atomic runner, builds
+   them in the project as a direct-lane change. What cannot be built is
+   a reported limit; only a replan reaches the owner (owner direction,
+   2026-09-30: "não quero ficar tendo que coordenar").
+
 ## Alternatives rejected
 
 - **A gate that fails a deploy without a down migration.** It would block

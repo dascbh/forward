@@ -111,7 +111,8 @@ class TestSyncAlwaysRunsAndReconciles(ProseTestCase):
         for rule in ("`closed` and `abandoned` are history: never touched",
                      "apply only what changes no criterion and no ADR",
                      "is a replan proposal for the owner, never applied",
-                     "only when its detail already lives in a doc",
+                     "its detail moves to the doc that already holds it",
+                     "Reconcile **does**; it does not list.",
                      "moves to discarded with `resolved by kernel <version>`",
                      "decided kernel sync <from>→<to>: <what changed>",
                      "and asks for the signature it did not have yet"):
