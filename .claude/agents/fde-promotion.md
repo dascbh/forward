@@ -80,6 +80,10 @@ only for a cycle opened before kernel ADR-0019 (rule 15).
   script or directory, a chained step, a missing allow rule, an address
   that does not answer. `fde-spec` fixes them all in one pass, then the
   preflight runs again; a deploy is never the place a plan defect shows.
+- A finished cycle deploys main when it finishes, carrying the other
+  cycles' dark code (kernel ADR-0027), and turns on what was dark for
+  it. It never waits for another cycle; a joint deploy exists only when
+  the plan declared it at sign-off.
 - One decision per cycle: written once, after the preflight is clean.
   What turns up after it is a backlog line, never a new decision; only a
   blocker reopens it, as a replan asked once with a recommendation.

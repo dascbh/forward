@@ -34,6 +34,10 @@ Out of scope: <what the review may not block on>.
 
 ## Demands
 
+<!-- kernel ADR-0027: each row's `what` ends with its `dark` note — how
+it stays invisible on main until this cycle deploys: flag <name>,
+unlinked route, expand only, no new behavior. -->
+
 | id | layer | depends on | files | what | meets | follows |
 |---|---|---|---|---|---|---|
 | DEM-<n> | back, front | — | <paths or globs it will touch> | <one goal, at most ~300 production lines> | A1 | ADR-<n> |

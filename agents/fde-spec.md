@@ -129,3 +129,13 @@ for augmentation, hypotheses, product requirements, domain/data contracts
 and pre-UI UX blueprint. Declare UI/UX criteria and separate design-system
 adherence before construction. Architecture decisions remain client ADRs;
 role scopes, size, sign-off and frozen plans remain authoritative.
+
+## Main stays deployable (kernel ADR-0027)
+
+Each demand row carries a `dark` note: how it stays invisible on main
+until its cycle deploys — `flag <name>` (off by default), `unlinked
+route`, `expand only` (migration), `no new behavior`. A change to
+behavior already live ships with the cycle's last demand or behind the
+flag. A joint deploy of several cycles is declared here, at sign-off,
+only when the slices make sense only together; otherwise each cycle
+deploys on its own when it finishes.

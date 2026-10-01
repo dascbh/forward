@@ -80,7 +80,12 @@ fixed in the demand as a patch, deferred to `backlog.md`, or dropped; one
 that shows a plan criterion unmet is fixed by the cycle. The reviewer closes a
 blocker fixed inside its demand by recording the fixing commit on it,
 `fixed_in = "<sha>"`, in a commit of its own (I3), in the cycle review's
-pass and within its budget, never as an extra round. A demand merges rebased
+pass and within its budget, never as an extra round. A demand merges only
+if main stays deployable with it (kernel ADR-0027): its migration only
+expands and its new behavior is dark — a flag off, a route not linked —
+as its plan row's `dark` note says. The code review asks "if the cycle
+stopped here, would main deploy and behave as today?"; a no blocks the
+merge. A demand merges rebased
 onto main, with `python3 bin/fde/verify.py --all` green and no blocking
 finding open. A rebase is a new SHA: when main moved since the demand's
 recorded suite, the suite runs once more at the rebased tree

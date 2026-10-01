@@ -479,3 +479,17 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("which are not this cycle's debt", backlog)
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 46, 0))
+
+    def test_kernel_version_ships_main_always_deployable(self):
+        # kernel ADR-0027: finished cycles waited for the slowest in a joint
+        # deploy the shared main forced (owner, 2026-10-01)
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        adr = ROOT / "docs/adr/0027-main-is-always-deployable.md"
+        self.assertEqual(adr.read_text(), (ROOT / ".fde/adr" / adr.name).read_text())
+        review = " ".join((ROOT / "skills/fde-review/SKILL.md").read_text().split())
+        self.assertIn("if the cycle stopped here, would main deploy and behave as today?", review)
+        promo = " ".join((ROOT / "agents/fde-promotion.md").read_text().split())
+        self.assertIn("a joint deploy exists only when the plan declared it at sign-off", promo)
+        self.assertIn("`dark` note", (ROOT / "templates/cycle/plan.md").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 47, 0))
