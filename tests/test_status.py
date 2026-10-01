@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+import quietgit  # noqa: E402,F401  (git maintenance off in test repos)
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "runtime" / "status.py"

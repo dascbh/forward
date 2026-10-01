@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "runtime"))
 
 import erosion  # noqa: E402
 from support import commit_all, make_project, run_git, verify  # noqa: E402
+import quietgit  # noqa: E402,F401  (git maintenance off in test repos)
 
 
 class TestPureCores(unittest.TestCase):

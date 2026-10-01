@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "runtime"))
 
+import quietgit  # noqa: E402,F401  (git maintenance off in test repos)
 from fde_lib import (  # noqa: E402
     DEFAULT_BEHAVIOR_PATHS,
     DEFAULT_EVAL_PATHS,

@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT / "runtime"))
 sys.path.insert(0, str(ROOT / "tests"))
 
 from prose import ProseTestCase  # noqa: E402
+import quietgit  # noqa: E402,F401  (git maintenance off in test repos)
 
 PLAN = """cycle: C-1
 state: running

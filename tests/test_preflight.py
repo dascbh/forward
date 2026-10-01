@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "runtime"))
 
 import preflight  # noqa: E402
+import quietgit  # noqa: E402,F401  (git maintenance off in test repos)
 
 PLAN = "cycle: C-1\nstate: running\ndate: 2026-10-01\nsigned-off: 2026-10-01\n"
 

@@ -25,6 +25,7 @@ sys.path.insert(0, str(ROOT / "runtime"))
 
 import triage  # noqa: E402
 from support import commit_all, git_out, make_project, run_git, verify  # noqa: E402
+import quietgit  # noqa: E402,F401  (git maintenance off in test repos)
 
 EVAL_PATHS = ("evals/", "tests/")
 

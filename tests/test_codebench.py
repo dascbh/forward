@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "runtime"))
 
 import codebench  # noqa: E402
+import quietgit  # noqa: E402,F401  (git maintenance off in test repos)
 
 SIMPLE = "def ok(x):\n    return x + 1\n"
 def handle(n: int) -> str:

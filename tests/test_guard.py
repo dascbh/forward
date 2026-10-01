@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 
 from support import guard, make_project
+import quietgit  # noqa: E402,F401  (git maintenance off in test repos)
 
 
 class TestGuard(unittest.TestCase):

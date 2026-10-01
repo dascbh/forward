@@ -38,6 +38,7 @@ import unittest
 from pathlib import Path
 
 import mirror
+import quietgit  # noqa: E402,F401  (git maintenance off in test repos)
 
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST_PATH = ROOT / "tests" / "mirror.toml"
