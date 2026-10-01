@@ -401,3 +401,14 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("def gate_promotion_decision", (ROOT / "runtime/verify.py").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 39, 0))
+
+    def test_kernel_version_ships_the_suite_at_the_rebased_tree(self):
+        # two parallel demands with disjoint files broke a client's main
+        # after both merged, each green alone (owner, 2026-10-01): the
+        # suite runs at the rebased tree when main moved
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        text = " ".join((ROOT / "skills/fde-review/SKILL.md").read_text().split())
+        self.assertIn("the suite runs once more at the rebased tree", text)
+        self.assertIn("Main unmoved: the recorded run stands", text)
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 40, 0))

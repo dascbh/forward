@@ -82,7 +82,12 @@ blocker fixed inside its demand by recording the fixing commit on it,
 `fixed_in = "<sha>"`, in a commit of its own (I3), in the cycle review's
 pass and within its budget, never as an extra round. A demand merges rebased
 onto main, with `python3 bin/fde/verify.py --all` green and no blocking
-finding open. A demand merges only with its review record
+finding open. A rebase is a new SHA: when main moved since the demand's
+recorded suite, the suite runs once more at the rebased tree
+(`verify.py --all --record-suite`) before the merge — two demands with
+disjoint files can still collide (a key declared twice, a shared
+registry), and main must not be where that shows. Main unmoved: the
+recorded run stands. A demand merges only with its review record
 (`reviews/<id>/findings.toml`), and its merge line on `board.md` names it.
 On the demand's branch, process records (`reviews/`, `cycles/`,
 `promotions/`, `backlog.md`) stay in commits of their own, so no commit
@@ -115,7 +120,8 @@ A suite green at a SHA is a fact on disk; no role runs it again at that
 SHA.
 
 - **Builder**: while building, only the tests of the files touched; the
-  full suite once, at the commit handed to review. Its command, result
+  full suite once, at the commit handed to review, and once more at the
+  rebased tree when main moved before the merge. Its command, result
   and SHA go on the demand's board line. `verify.py --all --record-suite`
   runs the gate and the configured `test_command` once and records both
   in `.fde/runs/<tree>.json` (the tree is `git write-tree`; the
