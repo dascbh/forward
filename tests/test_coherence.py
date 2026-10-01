@@ -184,16 +184,20 @@ class TestRolesMatchTheSpec(ProseTestCase):
 
 
 class TestReviewBudgetIsAReplan(ProseTestCase):
-    """#6: budget spent with a blocker open is a replan, the owner's call,
-    recorded in promotion.md; plan.md stays frozen."""
+    """#6: budget spent with a blocker open narrows the cycle on the
+    agent's own; only a larger path asks the owner; plan.md stays frozen."""
 
     def test_budget_routes_to_the_owner(self):
         # reviews/FWD-032 F4: not a replan (plan.md stays frozen); the
         # owner's choice goes on the board, and promotion marks it at close
         budget = " ".join(section(read("skills/fde-review/SKILL.md"), "Budget").split())
-        self.assertIn("the owner picks one (AGENTS.md `## Cycle`)", budget)
-        self.assertIn("recorded on the cycle's `board.md`", budget)
+        # owner, 2026-10-01: narrowing is the agent's, the larger path asks
+        self.assertIn("the agent narrows on its own", budget)
+        self.assertIn("It never grows the cycle", budget)
+        self.assertIn("never accepts a risk outside the signed threat model", budget)
+        self.assertIn("Recorded on `board.md`", budget)
         self.assertIn("`plan.md` is not edited", budget)
+        self.assertIn("Only the larger path asks the owner", budget)
         for gone in ("nothing is declined without the user",
                      "records it in the promotion or the closing commit",
                      "the replan records it in `plan.md`",
@@ -201,9 +205,9 @@ class TestReviewBudgetIsAReplan(ProseTestCase):
             self.assertNotIn(gone, budget, gone)
         for rel in AGENTS_SURFACES:
             cycle = " ".join(section(read(rel), "Cycle").split())
-            for needle in ("narrow, declare the limit, or pause",
-                           "recorded on `board.md`",
-                           "marked in `promotion.md` at close"):
+            for needle in ("narrows the cycle on its own (`fde-review`)",
+                           "marked on `board.md` and in `promotion.md`",
+                           "a larger path asks the owner"):
                 self.assertIn(needle, cycle, f"{rel}: {needle}")
         # reviews/C-5 F1: the frozen plan is stated once, at sign-off;
         # FWD-037 moved it with the state writers to fde-backlog

@@ -493,3 +493,12 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("`dark` note", (ROOT / "templates/cycle/plan.md").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 47, 0))
+
+    def test_kernel_version_ships_the_safer_path_without_asking(self):
+        # owner, 2026-10-01: "if you can recommend it, why can't FORWARD?"
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        agents = " ".join((ROOT / "AGENTS.md").read_text().split())
+        self.assertIn("narrows the cycle on its own", agents)
+        self.assertNotIn("the owner's call: narrow", agents)
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 48, 0))

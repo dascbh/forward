@@ -114,17 +114,23 @@ into one commit, or fast-forwards when the branch has a single commit.
   only the changed lines. A new defect in untouched code goes to the
   backlog (`blocking = false`, `backlog = true`) — it never reopens the
   demand.
-- **No extension.** When a cycle review's budget is spent with a
-  blocking finding open, the owner picks one (AGENTS.md `## Cycle`). The
-  choice is recorded on the cycle's `board.md`; a narrowed or declared
-  item is marked in `promotion.md` at close; `plan.md` is not edited:
-  that pick is the replan (kernel ADR-0019).
-  1. *narrow* — cut the part the finding lives in, ship the rest, the cut
-     goes to the backlog;
-  2. *declare* — the owner accepts it as a dated, named limit (a limit,
-     not a pass);
-  3. *pause* — revert, nothing ships, the backlog keeps the record.
-  "One more round" is not an option (kernel ADR-0018).
+- **No extension; the safer path is taken without asking.** When a
+  cycle review's budget is spent with a blocking finding open — or a
+  blocker or a new risk turns up while closing — the agent narrows on
+  its own: it cuts the part the finding lives in, ships the rest, and
+  the cut becomes the next cycle's first demand. It never grows the
+  cycle (no new demand after the last merge) and never accepts a risk
+  outside the signed threat model; a risk that adds to an open backlog
+  finding on the same component weighs as one. Recorded on `board.md`,
+  marked in `promotion.md` at close; `plan.md` is not edited (kernel
+  ADR-0019). The owner hears it in the closing message, after.
+  Only the larger path asks the owner, once, with the narrowed cycle
+  already moving: to declare the finding an accepted limit (a dated,
+  named risk), or to grow the cycle. When what the blocker hits is the
+  objective's core — narrowing would ship nothing it was for — the
+  agent pauses the deploy (nothing ships, the backlog keeps the record)
+  and that is the one question. "One more round" is not an option
+  (kernel ADR-0018).
 
 ## Test runs — once per SHA
 

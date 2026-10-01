@@ -85,8 +85,9 @@ only for a cycle opened before kernel ADR-0019 (rule 15).
   it. It never waits for another cycle; a joint deploy exists only when
   the plan declared it at sign-off.
 - One decision per cycle: written once, after the preflight is clean.
-  What turns up after it is a backlog line, never a new decision; only a
-  blocker reopens it, as a replan asked once with a recommendation.
+  What turns up after it is a backlog line, never a new decision; a
+  blocker narrows the cycle without asking (`fde-review`) — the owner is
+  asked only to take a larger path.
 - Before step 1: `python3 bin/fde/deployallow.py --check`. A missing rule
   is written with `--write` (the sign-off covers it, kernel ADR-0025)
   before any step runs. A deploy never starts in order to stop half way.

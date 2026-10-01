@@ -106,9 +106,9 @@ first token of a bullet. Do it in one commit, before grouping.
 - **Closing runs on a rail**, once each, in this order, after the last
   demand merges: the cycle review (within its budget), the preflight
   (`preflight.py C-<n>`) with every defect fixed in one pass, one
-  promotion decision, the deploy, the close. A finding of this phase is
-  a backlog line and never reopens an earlier step; only a blocker does,
-  as a replan. A deploy repeats only for an external failure (network,
+  promotion decision, the deploy, the close. A finding of this phase is a backlog line and never reopens an earlier
+  step; a blocker narrows the cycle on its own (`fde-review`) and never
+  grows it. A deploy repeats only for an external failure (network,
   provider), never for a defect of its own plan.
 - **The closing message is one**, in two parts: "Delivered" — the
   criteria met and what is live — and "New backlog" — N items, named,

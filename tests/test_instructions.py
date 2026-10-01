@@ -180,7 +180,8 @@ class TestBoundedReview(ProseTestCase):
         for needle in ("| XS, S | `[review] cycle_rounds_small` (default 1) | full |",
                        "| M, L | `[review] cycle_rounds_large` (default 2) | full, delta |",
                        "A demand review is always 1 round.", "No extension",
-                       "*narrow*", "*declare*", "*pause*",
+                       "the agent narrows on its own", "Only the larger path asks the owner",
+                       "the agent pauses the deploy",
                        "never reopens the"):
             self.assertIn(needle, budget, needle)
         # reviews/FWD-028 F3: ADR-0019 rule 12, no third round at L
@@ -290,10 +291,11 @@ class TestDeclaredCycle(ProseTestCase):
     # reviews/FWD-032 F4, narrowed to the cycle review by reviews/C-5 F1:
     # ## Cycle defines the spent budget, once
     # reviews/FWD-043 F1: it is a replan, and plan.md is not where it lands
-    BUDGET_RULE = ("A cycle review budget spent with a blocker open is a "
-                   "replan, the owner's call: narrow, declare the limit, or "
-                   "pause, recorded on `board.md` and marked in "
-                   "`promotion.md` at close, never in `plan.md`.")
+    # owner, 2026-10-01: the safer path is the agent's; a larger one asks
+    BUDGET_RULE = ("A blocker open when the review budget is spent, or found "
+                   "while closing, narrows the cycle on its own (`fde-review`), "
+                   "marked on `board.md` and in `promotion.md`; a larger path "
+                   "asks the owner.")
 
     # the demand and the states live in ## Cycle; FWD-037 moved the cycle
     # directory's layout to fde-spec (cycles/C-14/inventory.md #47)
@@ -364,13 +366,13 @@ class TestDeclaredCycle(ProseTestCase):
         # reviews/FWD-028 F4: the budget's way out is ADR-0019's replan
         for rel in ("skills/fde-review/SKILL.md", ".claude/skills/fde-review/SKILL.md"):
             flat = " ".join(read(rel).split())
+            # owner, 2026-10-01: narrowing is the agent's; a larger path asks
             self.assertIn("When a cycle review's budget is spent with a "
-                          "blocking finding open, the owner picks one "
-                          "(AGENTS.md `## Cycle`). The choice is recorded on "
-                          "the cycle's `board.md`; a narrowed or declared "
-                          "item is marked in `promotion.md` at close; "
-                          "`plan.md` is not edited: that pick is the replan "
-                          "(kernel ADR-0019).", flat, rel)
+                          "blocking finding open — or a blocker or a new risk "
+                          "turns up while closing — the agent narrows on its own",
+                          flat, rel)
+            self.assertIn("Recorded on `board.md`, marked in `promotion.md` at "
+                          "close; `plan.md` is not edited (kernel ADR-0019).", flat, rel)
             for gone in ("the builder picks one", "nothing is declined "
                          "without the user", "the builder records it",
                          "a dated, named limit in `plan.md`",
@@ -819,8 +821,8 @@ class TestReconcileC5(ProseTestCase):
             text = self.flat(rel)
             self.assertIn(self.DEMAND_BLOCKER, text, rel)
             self.assertIn("When a cycle review's budget is spent with a "
-                          "blocking finding open, the owner picks one", text,
-                          rel)
+                          "blocking finding open", text, rel)
+            self.assertIn("the agent narrows on its own", text, rel)
             self.assertNotIn("When the budget is spent with a blocking "
                              "finding open", text, rel)
 
@@ -1175,8 +1177,8 @@ class TestOpenWording(ProseTestCase):
 
     def test_b29_budget_spent_is_a_replan(self):
         # reviews/FWD-043 F1: one statement, the replan edits no plan.md
-        self.pinned(self.REVIEW, "`plan.md` is not edited: that pick is the "
-                    "replan (kernel ADR-0019).")
+        # owner, 2026-10-01: the agent narrows; the plan still stays frozen
+        self.pinned(self.REVIEW, "`plan.md` is not edited (kernel ADR-0019).")
         for rel in self.REVIEW:
             for gone in ("It is a replan (kernel ADR-0019)",
                          "`plan.md` stays frozen"):
