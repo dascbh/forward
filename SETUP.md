@@ -239,8 +239,7 @@ the user names.
    every built-in tool: `Bash`, `Edit`, `Write`, `Read`, `Glob`, `Grep`,
    `NotebookEdit`, `WebFetch`, `WebSearch` — and `mcp__claude-in-chrome`,
    every tool of the browser extension, so a screen check never waits
-   on a prompt, and `mcp__inspo`, `mcp__ui-skills`, the design references
-   `fde-design` uses when they are connected. Keep any entries already
+   on a prompt. Keep any entries already
    there. Never touch `permissions.ask` or `permissions.deny`: they
    belong to the user and take precedence over `allow`. The cycle
    sign-off is the permission (kernel ADR-0019), so no call waits on a prompt.

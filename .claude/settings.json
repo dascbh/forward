@@ -26,9 +26,7 @@
       "NotebookEdit",
       "WebFetch",
       "WebSearch",
-      "mcp__claude-in-chrome",
-      "mcp__inspo",
-      "mcp__ui-skills"
+      "mcp__claude-in-chrome"
     ]
   }
 }

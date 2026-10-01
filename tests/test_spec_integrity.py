@@ -575,19 +575,6 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 53, 0))
 
-    def test_kernel_version_ships_the_design_references(self):
-        # owner, 2026-10-01: real-screen references and UI skills, by MCP,
-        # optional, keys never versioned
-        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
-        design = " ".join((ROOT / "skills/fde-design/SKILL.md").read_text().split())
-        self.assertIn("## Real references and UI skills (optional MCP servers)",
-                      (ROOT / "skills/fde-design/SKILL.md").read_text())
-        self.assertIn("never in a versioned `.mcp.json`", design)
-        self.assertIn("the foundation wins", design)
-        self.assertNotIn("/k/", design)  # no key in the kernel
-        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
-                                (0, 55, 0))
-
     def test_kernel_version_ships_the_pipeline_as_specified(self):
         # the owner, 2026-10-01: an inspection report template and an
         # "inspection delivers" section had narrowed the approved pipeline —

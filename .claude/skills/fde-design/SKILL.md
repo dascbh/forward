@@ -317,25 +317,3 @@ validation, five UI dimensions, equivalent UX dimensions and separate DS
 adherence verdict. Use fde-design-system for foundation discovery/evolution.
 These extend this chain through existing evals and I8 findings, not new
 verifier flags; phase depth still scales by the table above.
-
-## Real references and UI skills (optional MCP servers)
-
-When the session has them, two MCP servers feed this chain; without
-them it runs as written, nothing waits. Their URLs carry the key: they
-are configured at user scope (`claude mcp add --transport http --scope
-user <name> <url>`), never in a versioned `.mcp.json`.
-
-- **`inspo`** — an archive of real product screens. At discovery,
-  `recommend(brief)` returns a macrostructure, five real exemplars and
-  reference components; `search_screens`, `find_examples_for_
-  macrostructure`, `find_components`, `compare` and `get_design_system`
-  answer narrower questions. What they return is research: record the
-  slug and date with the alternatives, compare it with the register and
-  `design/foundation.md`, and let it inform a choice — never copy it as
-  a requirement. `get_reference_jsx` is a starting shape, rebuilt with
-  the project's tokens and kit before it reaches a screen: raw values
-  from another site fail DS adherence.
-- **`ui-skills`** — `get_skill("baseline-ui")` before markup, beside the
-  build rules above; `get_skill("improve-ui")` as a checklist in design
-  QA. Where a skill and `design/foundation.md` disagree, the foundation
-  wins. A finding still cites a principle of the installed catalog (I8).
