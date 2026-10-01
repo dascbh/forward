@@ -117,6 +117,29 @@ class Ratchet(unittest.TestCase):
         breaches = erosion.gate(self.p)[1]
         self.assertIn("replan for the owner", breaches[0])
 
+    def test_the_refused_commit_opens_the_debt_and_the_debt_covers_it(self):
+        # a client's --debt answered "nothing to owe" while its commit stood
+        # blocked: main sat under the budget, the staged change went over it
+        self.config(6.0)                                   # main at 4.0: under
+        self.stage("".join(f"y{i} = {i}\n" for i in range(60)))
+        self.assertFalse(erosion.staged_check(self.p)[0])  # refused
+        ok, msg = erosion.register_debt(self.p, "C-1", "B-9")
+        self.assertTrue(ok, msg)
+        self.assertGreater(self.budget()["debt_add_delete_ratio"], 6.0)
+        self.assertTrue(erosion.staged_check(self.p)[0])   # covered now
+        git(self.p, "commit", "-qm", "the big demand")
+        for i in range(3):                                 # more accretion, drift
+            (self.p / "src" / f"c{i}.py").write_text("".join(f"z{j} = {j}\n" for j in range(40)))
+            git(self.p, "add", "-A")
+            self.assertTrue(erosion.staged_check(self.p)[0])
+            git(self.p, "commit", "-qm", f"more {i}")
+        self.assertEqual(erosion.gate(self.p)[1], [])      # covered at the merge too
+        erosion.close_cycle(self.p, "C-1")
+        erosion.close_cycle(self.p, "C-2")                 # unpaid at the second close
+        self.assertIn("replan for the owner", erosion.gate(self.p)[1][0])
+        self.stage("".join(f"w{i} = {i}\n" for i in range(2000)))
+        self.assertFalse(erosion.staged_check(self.p)[0])  # overdue: no cover
+
     def test_a_paid_debt_is_cleared(self):
         self.config(2.0)
         erosion.register_debt(self.p, "C-1", "B-9")

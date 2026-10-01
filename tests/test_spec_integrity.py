@@ -502,3 +502,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertNotIn("the owner's call: narrow", agents)
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 48, 0))
+
+    def test_kernel_version_ships_the_debt_that_covers(self):
+        # a client's --debt refused the blocked commit and its debt drifted
+        # 13.31 → 18.24 with the window (owner, 2026-10-01)
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertIn("def covered", (ROOT / "runtime/erosion.py").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 48, 1))

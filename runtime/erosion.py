@@ -595,7 +595,9 @@ def gate(project: Path) -> tuple[bool, list, list]:
     budget = effective_budget(declared)
     window = int(budget.get("window", DEFAULT_WINDOW))
     m = measure(project, window)
-    breaches, unmeasured = check_budget(m, budget)
+    open_debt = covered(declared)
+    breaches, unmeasured = check_budget(m, {k: v for k, v in budget.items()
+                                            if METRIC_OF.get(k) not in open_debt})
     if declared.get("debt_overdue"):
         breaches.insert(0, f"erosion debt of {declared.get('debt_cycle')} "
                         f"({declared.get('debt_item')}) unpaid after {DEBT_DUE_CLOSES} "
@@ -665,6 +667,8 @@ def effective_budget(budget: dict) -> dict:
     """The declared budget, each metric under an open debt raised to the
     debt's value — the room the debt bought, until it is paid."""
     out = dict(budget)
+    if budget.get("debt_overdue"):
+        return out  # a debt past due buys no room
     for bkey, mkey in METRIC_OF.items():
         debt = budget.get(f"debt_{mkey}")
         if isinstance(debt, (int, float)) and bkey in out:
@@ -674,6 +678,17 @@ def effective_budget(budget: dict) -> dict:
 
 def has_debt(budget: dict) -> bool:
     return any(k.startswith("debt_") for k in budget)
+
+
+def covered(budget: dict) -> set:
+    """Metrics an open debt covers until it falls due: their breach blocks
+    neither a commit nor a merge. Coverage is by the debt's existence,
+    not its value — a count window drifts as old commits leave it, and a
+    value would turn into a moving target (a client's debt was "adjusted"
+    13.31 → 18.24 with no new code)."""
+    if budget.get("debt_overdue"):
+        return set()
+    return {mkey for mkey in METRIC_OF.values() if f"debt_{mkey}" in budget}
 
 
 def set_erosion_keys(project: Path, updates: dict, remove: tuple = ()) -> None:
@@ -769,8 +784,16 @@ def register_debt(project: Path, cycle: str, item: str) -> tuple[bool, str]:
     for bkey, mkey in METRIC_OF.items():
         if bkey in budget and m.get(mkey) is not None and float(m[mkey]) > float(budget[bkey]):
             updates[f"debt_{mkey}"] = m[mkey]
+    # the breach the pre-commit refused counts: the debt exists to let that
+    # commit through (a client's --debt answered "nothing to owe" while its
+    # commit stood blocked, and the agent went to the owner)
+    ok, msg = staged_check(project)
+    if not ok and "debt_add_delete_ratio" not in updates:
+        after = re.search(r"→ ([\d.]+)", msg)
+        updates["debt_add_delete_ratio"] = float(after.group(1)) if after else budget.get(
+            "max_add_delete_ratio")
     if not updates:
-        return False, "no budget is breached: nothing to owe"
+        return False, "no budget is breached, now or by the staged change: nothing to owe"
     updates.update({"debt_cycle": cycle, "debt_item": item, "debt_closes": 0})
     set_erosion_keys(project, updates)
     return True, "debt registered: " + ", ".join(f"{k[5:]} {v}" for k, v in updates.items()
@@ -781,9 +804,13 @@ def staged_check(project: Path) -> tuple[bool, str]:
     """Pre-commit, under a second: with the add/delete ratio over its
     (effective) budget, a commit passes only when it does not make the
     ratio worse, or when it is small. A consolidation always passes."""
-    budget = effective_budget(load_budget(project))
+    declared = load_budget(project)
+    budget = effective_budget(declared)
     if "max_add_delete_ratio" not in budget:
         return True, "no add/delete budget declared"
+    if "add_delete_ratio" in covered(declared):
+        return True, (f"add/delete covered by the open erosion debt "
+                      f"({declared.get('debt_item')}) until it falls due")
     window = int(budget.get("window", DEFAULT_WINDOW))
     scope, gen = churn_scope(project), generated_paths(project)
     a0, d0, rows0 = parse_numstat(_git(project, "log", f"-{window}", "--numstat", "--format="),

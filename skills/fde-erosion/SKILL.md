@@ -131,9 +131,11 @@ nothing loops. Never raise a budget by hand.
   ends the attempts.
 - **Then one debt**: still over after two attempts, write the
   consolidation as a backlog line and as the next cycle's first demand,
-  and register the debt — `erosion.py --debt C-<n> B-<n>`. It holds the
-  breach measured now as the budget's room, so work goes on. A second
-  debt is refused while one is open.
+  and register the debt — `erosion.py --debt C-<n> B-<n>`, which counts
+  the commit the pre-commit refused. While it is open the metric is
+  covered: commits and merges go on. It is never edited — the count
+  window drifts as old commits leave it, and that is no new debt. A
+  second debt is refused while one is open.
 - **Due in two closes**: each cycle close runs `erosion.py --close
   C-<n>`. A paid debt is cleared; one unpaid at its second close is
   overdue, `EROSION` fails, and it is a replan for the owner — the only
