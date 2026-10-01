@@ -440,3 +440,10 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("erosion.py --close", (ROOT / "skills/fde-backlog/SKILL.md").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 42, 0))
+
+    def test_kernel_version_ships_the_progress_tree(self):
+        # status.py --progress (forward-1f, owner request, 2026-10-01)
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertIn("--progress", (ROOT / "runtime/status.py").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 43, 0))
