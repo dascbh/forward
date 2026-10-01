@@ -49,7 +49,7 @@ platform fit and tradeoffs. A dependency is evidence of a kit, not a DS.
 
 | State | Observable condition | Minimum action and exit |
 |---|---|---|
-| Absent | No coherent documented or observed foundation | Bootstrap with fde-design: product/register/glossary, semantic tokens, 5–8 primitives and one reference page; verify before new UI uses it |
+| Absent | No coherent documented or observed foundation | Bootstrap under fde-design's uncovered-root rule (its minimum kit and reference page); verify before new UI uses it |
 | Implicit | Coherent recurring conventions exist in code but are not authoritative artifacts | Extract their meaning and consumers; document foundation and reference evidence; resolve uncertainty before officializing |
 | Fragmented | Competing conventions disagree about the same meaning, state or component job | Compare consumers and legitimate differences; choose canonical semantics and an incremental compatibility/migration path |
 | Explicit | Versioned foundation and kit declare usage contracts | Diff implementation against the pinned foundation; reuse it, correct drift or revise a demonstrated gap |

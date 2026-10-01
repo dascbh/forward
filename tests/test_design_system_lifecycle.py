@@ -34,3 +34,12 @@ class DesignSystemLifecycle(unittest.TestCase):
         section = text.split('## Design system lifecycle', 1)[1].split('## Artifacts', 1)[0]
         self.assertIn('.fde/spec/design-system-lifecycle.md', section)
         self.assertNotIn('| Absent |', section)
+
+
+class CitesFdeDesignNotCopies(unittest.TestCase):
+    def test_bootstrap_minimum_lives_only_in_fde_design(self):
+        # the kit size is fde-design's rule; a copy here would drift (MNT-1)
+        text = (ROOT / 'spec/design-system-lifecycle.md').read_text()
+        self.assertNotIn('5–8', text)
+        self.assertIn("fde-design's uncovered-root rule", text)
+        self.assertIn('5–8 primitive kit', (ROOT / 'skills/fde-design/SKILL.md').read_text())
