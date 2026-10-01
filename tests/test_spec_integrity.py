@@ -377,3 +377,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertTrue((ROOT / "runtime/deployallow.py").exists())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 37, 0))
+
+    def test_kernel_version_ships_reversible_migrations(self):
+        # kernel ADR-0026 (expand/contract, checkpoint, rehearsal, the
+        # MIGRATION warning) reaches clients only through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue(list((ROOT / "docs/adr").glob("0026-*.md")))
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 38, 0))
