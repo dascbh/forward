@@ -13,6 +13,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "runtime"))
+sys.path.insert(0, str(ROOT / "tests"))
+
+import quietgit  # noqa: E402,F401  (git maintenance off in test repos)
 
 import erosion  # noqa: E402
 
