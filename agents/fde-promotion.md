@@ -64,6 +64,10 @@ only for a cycle opened before kernel ADR-0019 (rule 15).
 
 ## Production rollout — what the decision demands
 
+- Before step 1: `python3 bin/fde/deployallow.py --check`. A missing rule
+  is written with `--write` (the sign-off covers it, kernel ADR-0025)
+  before any step runs. A deploy never starts in order to stop half way.
+
 - `deploy.md` complete: each step with its verification and rollback,
   rollback written BEFORE the deploy, with time targets (flag flip in
   minutes, redeploy, data restore) — a deploy without one is not

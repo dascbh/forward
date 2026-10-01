@@ -116,10 +116,13 @@ the version.
      slug) and asks for the signature it did not have yet;
    - `running`: apply only what changes no criterion and no ADR — the
      `depends:` header, the `files` column, config keys, an id rename, the
-     `docs:` line. A change to a criterion or an ADR is a replan proposal
+     `docs:` line, the deploy's `## Commands` block (kernel ADR-0025).
+     A change to a criterion or an ADR is a replan proposal
      for the owner, never applied. A new gate red on a demand in progress
      is fixed inside the demand (a triaged `patch`) or recorded on the
      board.
+   - Then `python3 bin/fde/deployallow.py --write`: signed, running
+     cycles get their deploy's allow rules, ended ones lose theirs.
 4. **Record** — one commit per kind (the kernel re-emit; the backlog;
    each cycle), and one line on each running cycle's board: `<date>
    C-<n> decided kernel sync <from>→<to>: <what changed>`.

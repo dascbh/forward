@@ -88,7 +88,11 @@ it by id; a demand never amends it.
   goals, never into layers, and never at review.
 - `deploy.md`: steps ordered infra (expand) → back → front → infra
   (contract), each with its verification and rollback; an irreversible
-  step is marked and never bundled with a reversible one. A failed step
+  step is marked and never bundled with a reversible one. Its
+  `## Commands` block lists every command the steps run, one per line,
+  exactly as the deploy agent will run it (`<placeholder>` for what
+  varies): the sign-off turns them into allow rules (kernel ADR-0025).
+  A failed step
   rolls back and the cycle stops; the user is told the outcome, not
   asked beforehand.
 
@@ -97,7 +101,8 @@ write `state: planned` in `plan.md` (specified, awaiting sign-off). At
 M/L, the adversarial plan review (kernel ADR-0021) runs before the
 sign-off: the owner signs the plan that answered its findings. Stop
 at the sign-off: the user signs `plan.md` once, and the orchestrating
-agent writes `state: running` with the `signed-off:` line.
+agent writes `state: running` with the `signed-off:` line and runs
+`python3 bin/fde/deployallow.py --write` (kernel ADR-0025).
 
 ## Demand spec — `specs/<demand-id>/spec.md`
 

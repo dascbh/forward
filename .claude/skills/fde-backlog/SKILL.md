@@ -69,7 +69,9 @@ in the conversation. The actions:
   made the proposal obsolete. The plan keeps the draft's `## Items`. `fde-spec` writes
   `state: planned` when the plan is specified; at the sign-off the
   orchestrating agent writes `state: running` and the `signed-off:`
-  line.
+  line, then runs `python3 bin/fde/deployallow.py --write`: the
+  signature becomes the deploy's allow rules (kernel ADR-0025). At a
+  close or an abandon it runs again and the rules leave.
 - **exit**.
 
 After an action that edits a file, run `--panel` again and list the

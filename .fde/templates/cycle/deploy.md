@@ -23,3 +23,15 @@ commit, never a range: a range would revert the cycle's own records. -->
    - Verification: <live check>
    - Rollback: <how>
    - Irreversible: <yes: why | no>
+
+## Commands
+
+<!-- kernel ADR-0025. Every command a step runs, one per line, exactly as
+the deploy agent will run it; <placeholder> for the part that varies. At
+sign-off these become the cycle's allow rules (bin/fde/deployallow.py), so
+a signed deploy never stops half way for a permission. One command per
+line: a chained line (&&, ;, |) is refused. -->
+
+```sh
+<command step 1 runs>
+```

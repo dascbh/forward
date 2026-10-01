@@ -59,7 +59,7 @@ KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "portability", "artifact-handoff", "backlog", "scrum", "traceability",
                "erosion", "divergence", "survey", "walkthrough", "rule-lane",
                "untracked", "backlog-length", "process-dup", "doc-refs", "docs",
-               "cycles", "map")
+               "cycles", "map", "deploy-allow")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -1349,6 +1349,26 @@ class Gate:
         elif explicit:
             self.add("MAP", True, "every product map matches the code")
 
+    # -- a signed deploy carries its own permission (kernel ADR-0025) ------
+    def gate_deploy_allow(self, explicit: bool = False) -> None:
+        import deployallow
+        p = deployallow.plan(self.project)
+        if not p["open"]:
+            if explicit:
+                self.add("DEPLOY-ALLOW", True, "[tooling] open_permissions = false — "
+                         "the owner keeps the prompts")
+            return
+        notes = ([f"{cid} deploy.md has no `## Commands`" for cid in p["no_commands"]]
+                 + [f"{cid} has a chained command line (split it)" for cid in p["refused"]]
+                 + ([f"{len(p['missing'])} allow rule(s) missing from .claude/settings.json"]
+                    if p["missing"] else []))
+        if notes:
+            self.warn("DEPLOY-ALLOW", "; ".join(notes[:4]) + " — the signed deploy would stop "
+                      "for a permission: declare the commands under `## Commands` "
+                      "(fde-spec), then `python3 bin/fde/deployallow.py --write`")
+        elif explicit:
+            self.add("DEPLOY-ALLOW", True, "every signed deploy carries its allow rules")
+
     def report(self, fmt: str) -> int:
         failed = [r for r in self.results if not r[1]]
         if fmt == "json":
@@ -1747,6 +1767,8 @@ def main() -> int:
             g.gate_cycles(explicit=(only == "cycles"))
         if want("map"):
             g.gate_map(explicit=(only == "map"))
+        if want("deploy-allow"):
+            g.gate_deploy_allow(explicit=(only == "deploy-allow"))
         if want("divergence"):
             g.gate_divergence()
         if want("survey"):

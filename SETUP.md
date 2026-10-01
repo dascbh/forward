@@ -237,6 +237,9 @@ the user names.
    there. Never touch `permissions.ask` or `permissions.deny`: they
    belong to the user and take precedence over `allow`. The cycle
    sign-off is the permission (kernel ADR-0019), so no call waits on a prompt.
+   Auto mode suspends a broad rule such as `Bash`, so the sign-off also
+   writes one narrow rule per command a signed deploy declares, and the
+   close removes it (`bin/fde/deployallow.py`, kernel ADR-0025).
    The guard hook still runs on every `Write`/`Edit`. Writes made through
    `Bash` or `NotebookEdit` are contained by the gate, at commit and in
    CI.
