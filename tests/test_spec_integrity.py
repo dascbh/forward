@@ -559,5 +559,6 @@ class TestTemplatesAndVersions(unittest.TestCase):
         promo = " ".join((ROOT / "agents/fde-promotion.md").read_text().split())
         self.assertIn('"Live: yes/no · Closed: yes/no', promo)
         self.assertIn("never handed to the owner", promo)
+        self.assertIn("runs in the background WHILE the live checks", promo)
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
-                                (0, 52, 1))
+                                (0, 52, 2))

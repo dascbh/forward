@@ -121,4 +121,9 @@ only for a cycle opened before kernel ADR-0019 (rule 15).
   the numeric rollback triggers (error rate vs baseline, p95 jump, new
   client error type, business guardrail).
 - First hour verified and recorded: health, no new error types, latency
-  flat, one manual pass of the critical flow.
+  flat, one manual pass of the critical flow. The observation window
+  starts when the last step that changes production ends, and runs in
+  the background WHILE the live checks of the criteria run — never
+  after them: a window is waiting, not work, and waiting in sequence
+  added half an hour to a client's closing. Its rollback triggers stay
+  armed throughout; the cycle closes when both are done.
