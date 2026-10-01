@@ -562,5 +562,9 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("runs in the background WHILE the live checks", promo)
         self.assertIn("remaining steps' `Takes:`", promo)
         self.assertIn("- Takes:", (ROOT / "templates/cycle/deploy.md").read_text())
+        pipe = " ".join((ROOT / "spec/product-pipeline.md").read_text().split())
+        self.assertIn("## Running beside other sessions", (ROOT / "spec/product-pipeline.md").read_text())
+        self.assertIn("never `git add -A`", pipe)
+        self.assertIn("It opens no cycle and builds nothing", pipe)
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
-                                (0, 52, 3))
+                                (0, 52, 4))

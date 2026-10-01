@@ -164,6 +164,29 @@ signed plans stay frozen. New scope enters backlog; invalidated criteria or
 ADRs stop and replan. Refresh only affected contracts and evidence, retain
 history, and distinguish observed, expert-inferred, human and synthetic.
 
+## Running beside other sessions
+
+An entry runs while other sessions build, review or deploy in the same
+project. Without being told, it:
+
+- works in a worktree of its own and commits only the paths it writes
+  (`discovery/`, its report, its backlog lines) — never `git add -A`,
+  never another session's board or deploy files;
+- opens browser tabs of its own (the extension's `tabs_create`), never
+  drives a tab it did not open, and leaves out of its measures the data
+  a deploy left for its checks (a folder or record named as test data);
+- touches no production state: reading, clicking through and measuring
+  only; a write it would need goes into the report as a proposal.
+
+## What an inspection delivers
+
+`fde-inspect` ends with one report, `discovery/<objective>-inspect.md`
+— baseline, the five UI metrics, the UX journey measures and the
+separate DS adherence verdict, each with its evidence and coverage
+limits — and its findings as backlog lines (worth work of their own,
+`fde-backlog-format`). It opens no cycle and builds nothing: a draft
+cycle is grouped only when the owner asks, and signed like any other.
+
 ## Agent autonomy and internal criticism
 
 Investigate code/history/telemetry and curated references before questions.

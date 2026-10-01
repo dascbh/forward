@@ -7,7 +7,7 @@ description: Inspect an existing product or feature and improve it through the u
 
 An agent command, not a shell executable or a new engine.
 
-Bound the feature/job. Use fde-survey and fde-map; sample operations by hand, inspect critical UI states and real-volume journeys. Record baseline UI/UX and separate DS adherence, source revisions and map coverage limits. Distinguish behavior from inferred intent. Preserve working contracts.
+Bound the feature/job. Use fde-survey and fde-map; sample operations by hand, inspect critical UI states and real-volume journeys. Record baseline UI/UX and separate DS adherence, source revisions and map coverage limits. Distinguish behavior from inferred intent. Preserve working contracts. It ends with one report in `discovery/` and backlog lines; it opens no cycle and builds nothing, and beside other sessions it keeps to its own worktree, its own browser tabs and read-only checks (`## Running beside other sessions`).
 
 Then follow `.fde/spec/product-pipeline.md`, shared with `fde-build`
 and `fde-design-system`: stages, owners, criteria, provenance.
