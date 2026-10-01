@@ -172,6 +172,66 @@ class TestMergeFromGit(unittest.TestCase):
         self.assertNotIn("waits for C-1", self.progress())
 
 
+class TestDeploySteps(unittest.TestCase):
+    """"DEPLOY ▸" spelled out: deploy.md's steps, which ran by the board,
+    which touch production and which have no return."""
+
+    HEADINGS = """## Pré-requisitos
+## Passo 1 — Checagem diária (antes da 088)
+`backend/scripts/implantar_dd.py backend`
+## Passo 2 — Migrations aditivas: 087, 088
+`python3 backend/db/run_migrations.py 087_x.sql`
+## Passo 3 — Janela sem volta: 091 + `cdk deploy DocsStack`
+**Irreversível.** A 091 troca a chave.
+## Passo 4 — Depois do deploy
+- registro
+## Commands
+```sh
+python3 backend/db/run_migrations.py 087_x.sql
+```
+"""
+    ITEMS = """## Passos
+
+1. **back — migrations sem efeito** `093.sql`
+2. **front — site:** `implantar.py frontend`
+   - Irreversible: no
+"""
+
+    def test_both_layouts_are_read_and_production_is_marked(self):
+        import status
+        steps = status.deploy_steps(self.HEADINGS)
+        self.assertEqual([x["n"] for x in steps], [1, 2, 3, 4])
+        self.assertTrue(steps[1]["prod"])
+        self.assertTrue(steps[2]["no_return"])
+        self.assertFalse(steps[3]["prod"], "the record step touches nothing")
+        items = status.deploy_steps(self.ITEMS)
+        self.assertEqual([x["n"] for x in items], [1, 2])
+        self.assertTrue(items[0]["title"].startswith("back — migrations sem efeito"))
+        self.assertFalse(items[1]["no_return"], "Irreversible: no is not a no-return step")
+
+    def test_the_board_says_which_steps_ran(self):
+        import status
+        steps = status.deploy_steps(self.HEADINGS)
+        ev = lambda t: {"who": "C-4", "verb": "decided", "text": t.lower(), "at": 1}
+        self.assertEqual(status.deploy_done([ev("deploy passo 1 feito (dd)")], "C-4", steps), {1})
+        self.assertEqual(status.deploy_done([ev("deploy concluído (passos 1–3)")], "C-4", steps),
+                         {1, 2, 3, 4})
+        self.assertEqual(status.deploy_done([ev("deploy step 2 done")], "C-9", steps), set())
+
+    def test_a_cycle_in_deploy_shows_not_started_and_the_next_step(self):
+        import status
+        p = {"current": "deploy", "phases_done": ["plan", "sign-off", "build", "cycle review"],
+             "demands": [], "waits": [],
+             "deploy": {"steps": status.deploy_steps(self.HEADINGS), "done": []}}
+        lines = status.deploy_lines(p)
+        self.assertEqual(lines[0], "  deploy: not started — step 1 is next")
+        self.assertIn("[no return]", lines[3])
+        self.assertEqual(status.cycle_next(p), "deploy step 1")
+        p["deploy"]["done"] = [1, 2]
+        self.assertEqual(status.deploy_lines(p)[0], "  deploy: 2 of 4 steps ran")
+        self.assertEqual(status.cycle_next(p), "deploy step 3")
+
+
 class TestProgressTab(unittest.TestCase):
     """The panel's progress tab: fold, unfold, open a demand, quit."""
 

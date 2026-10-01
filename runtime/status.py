@@ -1397,6 +1397,67 @@ def demand_progress(did: str, events: list[dict], reviewed: bool) -> dict:
                        for e in mine]}
 
 
+# -- deploy steps: what "DEPLOY ▸" is made of (owner question 2026-10-01) ---
+# deploy.md numbers its steps as `## Passo N — …` / `## Step N — …` headings
+# or as `N. **…**` items; the board says which ran ("deploy passo 1 feito",
+# "deploy step 2 done", "deploy concluído (passos 1–3)").
+
+STEP_HEAD = re.compile(r"^##\s+(?:passo|step)\s+(\d+)\s*[—–:-]?\s*(.*)$", re.I)
+STEP_ITEM = re.compile(r"^(\d+)\.\s+\*\*(.+?)\*\*(.*)$")
+PROD_WORDS = re.compile(r"migrat|\.sql\b|cdk deploy|deploy|implant|apply|aplica|snapshot|"
+                        r"produ[cç]", re.I)
+RECORD_WORDS = re.compile(r"\b(depois do deploy|after the deploy|registro|record)\b", re.I)
+NO_RETURN = re.compile(r"irreversible:\s*yes|irrevers[ií]ve|sem volta|no return|"
+                       r"\*\*irrevers", re.I)
+
+
+def deploy_steps(deploy_text: str) -> list[dict]:
+    """[{n, title, prod, no_return}] from deploy.md, Commands left out."""
+    body = re.split(r"^## Commands\s*$", deploy_text, maxsplit=1, flags=re.M)[0]
+    body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
+    lines = body.splitlines()
+    marks = []
+    for i, line in enumerate(lines):
+        m = STEP_HEAD.match(line.strip()) or (STEP_ITEM.match(line) if not line.startswith(" ")
+                                              else None)
+        if m:
+            marks.append((i, int(m.group(1)), (m.group(2) + (m.group(3) if m.re is STEP_ITEM
+                                                             else "")).strip()))
+    steps = []
+    for k, (i, n, title) in enumerate(marks):
+        end = marks[k + 1][0] if k + 1 < len(marks) else len(lines)
+        text = "\n".join(lines[i:end])
+        if not any(s["n"] == n for s in steps):
+            steps.append({"n": n, "title": _plain_cell(title).strip(" —-*"),
+                          "prod": bool(PROD_WORDS.search(text)) and not RECORD_WORDS.search(title),
+                          "no_return": bool(NO_RETURN.search(text))})
+    return steps
+
+
+def deploy_done(events: list[dict], cid: str, steps: list[dict]) -> set[int]:
+    """Step numbers the board says ran."""
+    done: set[int] = set()
+    for e in events:
+        if e["who"] != cid or "deploy" not in e["text"]:
+            continue
+        t = e["text"]
+        if re.search(r"deploy (conclu[ií]d|done|complete|finished)", t):
+            done |= {s["n"] for s in steps}
+        for a, b in re.findall(r"(?:passos?|steps?)\s+(\d+)(?:\s*[–-]\s*(\d+))?", t):
+            if re.search(r"feit|conclu|done|ok\b|complete|ran\b", t):
+                hi = int(b or a)
+                done |= set(range(1 if b else int(a), hi + 1)) if b else {int(a)}
+    return done
+
+
+def _deploy_of(c: "Cycle", events: list[dict]) -> dict:
+    deploy = (c.path / "deploy.md") if c.layout == "directory" else None
+    if deploy is None or not deploy.is_file():
+        return {"steps": [], "done": []}
+    steps = deploy_steps(_read(deploy))
+    return {"steps": steps, "done": sorted(deploy_done(events, c.id, steps))}
+
+
 def cycle_progress(root: Path, c: "Cycle") -> dict:
     events = board_events(root, c)
     rows = fde_lib.plan_demand_rows(c.text)
@@ -1454,7 +1515,7 @@ def cycle_progress(root: Path, c: "Cycle") -> dict:
     return {"id": c.id, "title": c.objective, "state": c.state,
             "phases_done": [p for p in CYCLE_PHASES if p in phase_done], "current": current,
             "began": min(starts) if starts else None, "demands": demands,
-            "waits": cycle_waits}
+            "waits": cycle_waits, "deploy": _deploy_of(c, events)}
 
 
 def _dur(seconds: int | None) -> str:
@@ -1520,6 +1581,10 @@ def cycle_next(p: dict) -> str:
     """What happens next, in one line."""
     open_ = [d for d in p["demands"] if not d["merged"]]
     later = [ph for ph in CYCLE_PHASES if ph not in p["phases_done"] and ph != "build"]
+    dep = p.get("deploy") or {}
+    pending = [x["n"] for x in dep.get("steps") or [] if x["n"] not in set(dep.get("done") or [])]
+    if pending and "deploy" in later:
+        later[later.index("deploy")] = f"deploy step {pending[0]}"
     if not open_:
         return " → ".join(later) or "closing"
     moving = [d["id"] for d in open_ if d["begun"] and not d["waits"]]
@@ -1551,7 +1616,28 @@ def progress_lines(p: dict | None, now: int | None = None, width: int = 44) -> l
         out.append(f"  {mark} {d['id']:<9} {_cut(d['what'] or '—', width):<{width}}  {phrase}")
         if mark == "▸":
             out.append(f"  {'':11}{demand_steps(d)}")
+    out += deploy_lines(p)
     out.append(f"  next: {cycle_next(p)}")
+    return out
+
+
+def deploy_lines(p: dict) -> list[str]:
+    """The deploy's steps once the cycle reached it: ✓ ran, ▸ next, · to come;
+    [prod] runs against production, [no return] has no rollback."""
+    dep = p.get("deploy") or {}
+    steps, done = dep.get("steps") or [], set(dep.get("done") or [])
+    if not steps or (p["current"] != "deploy" and not done):
+        return []
+    nxt = next((s["n"] for s in steps if s["n"] not in done), None)
+    head = ("  deploy: not started — step 1 is next" if not done
+            else "  deploy: done" if nxt is None
+            else f"  deploy: {len(done)} of {len(steps)} steps ran")
+    out = [head]
+    for s in steps:
+        mark = "✓" if s["n"] in done else "▸" if s["n"] == nxt else "·"
+        tags = " ".join(t for t, on in (("[prod]", s["prod"]), ("[no return]", s["no_return"]))
+                        if on)
+        out.append(f"    {mark} {s['n']}. {_cut(s['title'], 58)}" + (f"  {tags}" if tags else ""))
     return out
 
 

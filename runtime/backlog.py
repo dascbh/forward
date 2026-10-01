@@ -620,6 +620,8 @@ class Progress:
                 out.append(ProgressRow("demand", d["id"],
                                        f"{mark} {d['id']:<9} {status._cut(d['what'] or '—', 44):<44}  {phrase}",
                                        1, d))
+            for line in status.deploy_lines(p):
+                out.append(ProgressRow("info", p["id"], line.strip(), 2 if line.startswith("    ") else 1))
             out.append(ProgressRow("info", p["id"], f"next: {status.cycle_next(p)}", 1))
         return out or [ProgressRow("info", "", "no running cycle")]
 
