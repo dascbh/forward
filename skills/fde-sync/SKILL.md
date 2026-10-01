@@ -152,6 +152,10 @@ reported as done.
      for the owner is withdrawn, not relayed.
    - Then `python3 bin/fde/deployallow.py --write`: signed, running
      cycles get their deploy's allow rules, ended ones lose theirs.
+   - Worktrees: each one whose branch is merged into main and that has
+     no uncommitted change is removed (`git worktree remove`, then
+     `git worktree prune`), its branch deleted. One with work in it
+     stays and is listed.
 4. **Record** — one commit per kind (the kernel re-emit; the backlog;
    each cycle; each direct-lane change), and one line on each running
    cycle's board: `<date> C-<n> decided kernel sync <from>→<to>: <what

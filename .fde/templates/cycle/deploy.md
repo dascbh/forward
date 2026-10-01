@@ -41,7 +41,9 @@ under ## Commands. -->
 the deploy agent will run it; <placeholder> for the part that varies. At
 sign-off these become the cycle's allow rules (bin/fde/deployallow.py), so
 a signed deploy never stops half way for a permission. One command per
-line: a chained line (&&, ;, |) is refused. -->
+line: a chained line (&&, ;, |) is refused. A command that runs from a
+subdirectory has its `cd <dir>` on the line before it, never
+`cd <dir> && <command>`. -->
 
 ```sh
 <command step 1 runs>

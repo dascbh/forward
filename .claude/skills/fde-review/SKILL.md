@@ -91,6 +91,11 @@ recorded run stands. `EROSION` red at the merge is corrected by the
 bounded loop of `fde-erosion` (two attempts, then one debt), never by a
 budget raised. A demand merges only with its review record
 (`reviews/<id>/findings.toml`), and its merge line on `board.md` names it.
+After the merge its worktree is removed (`git worktree remove`, then
+`git worktree prune`) and its branch deleted: a worktree left inside the
+repository is a full copy that every tool walking the root sweeps up —
+one client's CDK asset copied 95 of them into an 11 GB `cdk.out` and
+filled the disk.
 On the demand's branch, process records (`reviews/`, `cycles/`,
 `promotions/`, `backlog.md`) stay in commits of their own, so no commit
 mixes findings with behavior (I3); the merge to main squashes the branch

@@ -447,3 +447,16 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("--progress", (ROOT / "runtime/status.py").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 43, 1))
+
+    def test_kernel_version_ships_verbatim_commands_and_worktree_cleanup(self):
+        # a deploy stopped at `cd infra && cdk deploy`, and 95 worktrees left
+        # after merges filled a disk through a CDK asset (owner, 2026-10-01)
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        promo = " ".join((ROOT / "agents/fde-promotion.md").read_text().split())
+        self.assertIn("runs exactly as written, one tool call per line", promo)
+        review = " ".join((ROOT / "skills/fde-review/SKILL.md").read_text().split())
+        self.assertIn("After the merge its worktree is removed", review)
+        sync = " ".join((ROOT / "skills/fde-sync/SKILL.md").read_text().split())
+        self.assertIn("merged into main and that has no uncommitted change is removed", sync)
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 44, 0))

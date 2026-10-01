@@ -78,6 +78,11 @@ only for a cycle opened before kernel ADR-0019 (rule 15).
 - Before step 1: `python3 bin/fde/deployallow.py --check`. A missing rule
   is written with `--write` (the sign-off covers it, kernel ADR-0025)
   before any step runs. A deploy never starts in order to stop half way.
+- Each `## Commands` line runs exactly as written, one tool call per
+  line: `cd infra` in one call, then `npx cdk deploy <Stack>` in the
+  next. A call that chains or prefixes it (`cd infra && …`) matches no
+  rule and stops for a permission — a deploy once stopped at its stack
+  apply this way.
 
 - `deploy.md` complete: each step with its verification and rollback,
   rollback written BEFORE the deploy, with time targets (flag flip in
