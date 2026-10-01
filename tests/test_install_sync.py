@@ -629,7 +629,9 @@ class TestRetiredAndMigrations(unittest.TestCase):
 
     def test_install_copies_both_and_the_sync_reads_both(self):
         setup = " ".join(read(ROOT / "SETUP.md").split())
-        self.assertIn("`spec/retired.toml`, `spec/migrations/*.toml` → `.fde/spec/`", setup)
+        # retired.toml and migrations/ arrive with every file under spec/:
+        # the install copies the directory, never a list (owner, 2026-10-01)
+        self.assertIn("EVERY file under `spec/` → `.fde/spec/` (copy the directory", setup)
         skill = " ".join(_skill().split())
         self.assertIn("## 3. Retired names and migrations", skill)
         self.assertIn("A retired name is never reused.", skill)

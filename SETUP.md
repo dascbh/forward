@@ -153,17 +153,19 @@ kernel checkout present. Copy from the kernel into the project:
 
 1. EVERY `runtime/*.py` → `bin/fde/` (copy the directory; do not
    enumerate — a listed set silently omits the next module)
-2. `spec/invariants.toml`, `spec/roles.toml`, `spec/dimensions/*.toml`,
-   `spec/references/*.toml`, `spec/retired.toml`, `spec/migrations/*.toml`
-   → `.fde/spec/` (same layout)
+2. EVERY file under `spec/` → `.fde/spec/` (copy the directory, same
+   layout — the contracts in `spec/*.md` included: a listed set once left
+   `product-pipeline.md` out of every client, and `fde-inspect` ran
+   without the contract it points to)
 3. `templates/pre-commit` → `.githooks/pre-commit`, then `chmod +x` it
 4. `templates/fde-gate.yml` → `.github/workflows/fde-gate.yml`, filling
    `{{TEST_COMMAND}}` from `[stack]` — CI runs the tests AND the gate
 5. `templates/cycle/` → `.fde/templates/cycle/` (a new cycle starts
    from it) and
    `templates/findings.template.toml` → `.fde/templates/findings.template.toml`
-   (a review starts from it), so the roles reach them without the
-   kernel checkout
+   (a review starts from it) and `templates/discovery/` →
+   `.fde/templates/discovery/` (an inspection starts from it), so the
+   roles reach them without the kernel checkout
 6. The kernel's `docs/adr/` → `.fde/adr/` (copy the directory), so a
    project text that cites "kernel ADR-00NN" resolves. It is a read-only
    reference: nobody edits it, and every sync overwrites it. The

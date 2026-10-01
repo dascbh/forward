@@ -181,11 +181,16 @@ project. Without being told, it:
 
 ## What an inspection delivers
 
-`fde-inspect` ends with one report, `discovery/<objective>-inspect.md`
+`fde-inspect` starts from `.fde/templates/discovery/inspect.md` and ends
+with one report, `discovery/<objective>-inspect.md`
 — baseline, the five UI metrics, the UX journey measures and the
 separate DS adherence verdict, each with its evidence and coverage
 limits — and its findings as backlog lines (worth work of their own,
-`fde-backlog-format`). It opens no cycle and builds nothing: a draft
+`fde-backlog-format`). When the feature has no product map, it generates one first (`fde-map`,
+`docs/map/<slug>.md`). It reads the suite's recorded run for the code it
+inspects (`verify.py --status`) and runs a test only to prove a finding —
+a fresh full run in a bare copy measures the copy, not the product. It
+opens no cycle and builds nothing: a draft
 cycle is grouped only when the owner asks, and signed like any other.
 
 ## Agent autonomy and internal criticism

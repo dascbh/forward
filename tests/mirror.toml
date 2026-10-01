@@ -110,6 +110,12 @@ copy = ".fde/templates/cycle/"
 relation = "identical"
 
 [[pair]]
+id = "inspect-template"
+source = "templates/discovery/inspect.md"
+copy = ".fde/templates/discovery/inspect.md"
+relation = "identical"
+
+[[pair]]
 id = "findings-template"
 source = "templates/findings.template.toml"
 copy = ".fde/templates/findings.template.toml"

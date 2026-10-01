@@ -579,3 +579,17 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertNotIn("gate_erosion_staged", (ROOT / "runtime/verify.py").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 53, 0))
+
+    def test_kernel_version_ships_the_whole_spec_and_the_inspect_template(self):
+        # a client's fde-inspect pointed to product-pipeline.md, which the
+        # install's listed copy had never shipped (owner, 2026-10-01)
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        setup = " ".join((ROOT / "SETUP.md").read_text().split())
+        self.assertIn("EVERY file under `spec/` → `.fde/spec/`", setup)
+        self.assertIn("`templates/discovery/` → `.fde/templates/discovery/`", setup)
+        tpl = (ROOT / "templates/discovery/inspect.md").read_text()
+        for section in ("## UI — the five measures", "## UX — journeys",
+                        "## Design-system adherence (a separate verdict)", "## Product map"):
+            self.assertIn(section, tpl)
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 53, 1))
