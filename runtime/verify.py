@@ -988,18 +988,6 @@ class Gate:
         self.add("EROSION", not breaches,
                  erosion.verdict(breaches[:3], unmeasured))
 
-    def gate_erosion_staged(self) -> None:
-        """Pre-commit: the add/delete ratio, the one erosion signal cheap
-        enough for every commit (owner, 2026-10-01)."""
-        try:
-            import erosion
-            ok, msg = erosion.staged_check(self.project)
-        except Exception as e:  # noqa: BLE001 — measured, never a crash
-            self.warn("EROSION", f"add/delete could not be measured at commit: {e}")
-            return
-        if not ok:
-            self.add("EROSION", False, msg)
-
     # -- walkthrough: first-contact divergence stays within the declared
     #    budget (opt-in, ADR-0014/FWD-018) --------------------------------
     def gate_walkthrough(self, explicit: bool = False) -> None:
@@ -1932,8 +1920,6 @@ def main() -> int:
     if want("backlog-length"):
         run_gate(g.gate_backlog_length, cfg, args.staged, since=args.since,
                  explicit=(only == "backlog-length"), gid="BL-LEN")
-    if args.staged and want("erosion"):
-        g.gate_erosion_staged()
     if not args.staged:  # pre-commit stays fast; the rest is CI
         if want("adversarial-isolation"):
             g.gate_adversarial()

@@ -324,15 +324,14 @@ class TestErosionRatchet(unittest.TestCase):
         b = erosion_ratchet({"window": 50, "duplication_pct": 0.7,
                              "add_delete_ratio": 7.51, "structural_erosion": 0.619})
         self.assertEqual(b, {"window": 50, "max_duplication_pct": 1.0,
-                             "max_add_delete_ratio": 8.0,
-                             "max_structural_erosion": 0.62})
+                             "max_structural_erosion": 0.62})  # add/delete: a report
 
     def test_a_value_on_a_step_still_gets_headroom(self):
         from fde_lib import erosion_ratchet
         b = erosion_ratchet({"duplication_pct": 2.0, "add_delete_ratio": 3.0,
                              "structural_erosion": 0.4})
-        self.assertEqual((b["max_duplication_pct"], b["max_add_delete_ratio"],
-                          b["max_structural_erosion"]), (2.5, 3.5, 0.41))
+        self.assertEqual((b["max_duplication_pct"], b["max_structural_erosion"]), (2.5, 0.41))
+        self.assertNotIn("max_add_delete_ratio", b)
 
     def test_an_unmeasured_metric_is_left_out_never_guessed(self):
         from fde_lib import erosion_ratchet

@@ -905,7 +905,9 @@ def next_backlog_id(root: Path) -> str:
 RATCHET_KEYS = (
     # (budget key, metric key in `erosion.py --format json`, step)
     ("max_duplication_pct", "duplication_pct", 0.5),
-    ("max_add_delete_ratio", "add_delete_ratio", 0.5),
+    # no add/delete ceiling: it measures a project's phase, not decay — a
+    # new module grows by addition (one client read 98 while its
+    # duplication and structural erosion were healthy); it stays a report
     ("max_structural_erosion", "structural_erosion", 0.01),
 )
 

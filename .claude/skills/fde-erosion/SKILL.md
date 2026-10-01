@@ -119,11 +119,11 @@ bump.
 The budget identifies a deviation and blocks it; the agent corrects it;
 nothing loops. Never raise a budget by hand.
 
-- **Blocked at commit**: with the add/delete ratio over its budget, the
-  pre-commit refuses a commit that makes it worse (`erosion.py
-  --staged`, under a second). A commit that consolidates, or carries 10
-  lines or fewer, always passes. Duplication and structural erosion
-  block at the merge, where `verify.py --all` must be green.
+- **Blocked at the merge**: duplication and structural erosion over
+  their budgets fail `EROSION`, and `verify.py --all` must be green to
+  merge. The add/delete ratio is a report, never a ceiling: it measures
+  the project's phase, not decay — a new module grows by addition, and
+  one client read 98 while its duplication and structure were healthy.
 - **Correct, at most twice**: run `codebench.py`, take the change
   hotspots and clones among the files the work touched, and consolidate
   (MNT-11, MNT-12) in one change of about 300 lines or fewer. Measure
@@ -131,8 +131,7 @@ nothing loops. Never raise a budget by hand.
   ends the attempts.
 - **Then one debt**: still over after two attempts, write the
   consolidation as a backlog line and as the next cycle's first demand,
-  and register the debt — `erosion.py --debt C-<n> B-<n>`, which counts
-  the commit the pre-commit refused. While it is open the metric is
+  and register the debt — `erosion.py --debt C-<n> B-<n>`. While it is open the metric is
   covered: commits and merges go on. It is never edited — the count
   window drifts as old commits leave it, and that is no new debt. A
   second debt is refused while one is open.
@@ -143,5 +142,4 @@ nothing loops. Never raise a budget by hand.
 - **At every close**: `--close` drops each budget to the measured value
   plus 5% when it improved, never raises one, and glides duplication
   toward 3% and structural erosion toward 0.5 (each close, a tenth of
-  the gap). The add/delete ratio has no target — a young product grows
-  by addition — only the ratchet.
+  the gap). The add/delete ratio has neither: it is reported (`erosion.py`, `codebench.py`), never gated.

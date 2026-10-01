@@ -570,3 +570,12 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("def _counts_for_debt", (ROOT / "runtime/erosion.py").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 52, 6))
+
+    def test_kernel_version_ships_add_delete_as_a_report(self):
+        # owner, 2026-10-01: it gated a project's phase, not its decay
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        keys = (ROOT / "runtime/fde_lib.py").read_text().split("RATCHET_KEYS = (", 1)[1].split(")\n", 1)[0]
+        self.assertNotIn('("max_add_delete_ratio"', keys)
+        self.assertNotIn("gate_erosion_staged", (ROOT / "runtime/verify.py").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 53, 0))

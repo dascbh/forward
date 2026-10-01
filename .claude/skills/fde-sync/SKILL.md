@@ -128,6 +128,10 @@ reported as done.
        code (`quarantine B-<n>`) or its fix, and the quarantined count is
        recorded (`fde-verify`).
      Nothing with a security or production evidence label is dropped.
+      - `[erosion] max_add_delete_ratio` is removed, with a debt on it
+     (`debt_add_delete_ratio` and its bookkeeping when no other metric
+     is owed): the ratio is a report since 0.53 — it gated a project's
+     phase, not its decay.
    - An erosion debt counted by the closes of cycles planned before it
      (kernel 0.52.5 and older: parallel cycles closing in the same hour
      made a debt overdue at once) is recounted once: `debt_since` set to
