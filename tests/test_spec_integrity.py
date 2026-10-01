@@ -566,5 +566,6 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("## Running beside other sessions", (ROOT / "spec/product-pipeline.md").read_text())
         self.assertIn("never `git add -A`", pipe)
         self.assertIn("It opens no cycle and builds nothing", pipe)
+        self.assertIn("uses the connected browser without asking", pipe)
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
-                                (0, 52, 4))
+                                (0, 52, 5))

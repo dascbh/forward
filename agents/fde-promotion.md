@@ -95,8 +95,8 @@ only for a cycle opened before kernel ADR-0019 (rule 15).
   alongside the live checks); a step with no `Takes:` is named — "no
   estimate for step X" — never left out silently.
 - A check the agent can run itself is run by it: a screen behind a login
-  is checked through the browser extension when one is connected, never
-  handed to the owner. The owner is asked only when no means exists, and
+  is checked through the browser extension when one is connected — no
+  question first: the install allows its tools — never handed to the owner. The owner is asked only when no means exists, and
   the closing does not wait on it: the cycle closes with that check
   declared as a limit.
 - The deploy reports in its steps, each one marked as touching production or not, and every message says "production unchanged"

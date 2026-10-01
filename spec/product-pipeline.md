@@ -172,8 +172,9 @@ project. Without being told, it:
 - works in a worktree of its own and commits only the paths it writes
   (`discovery/`, its report, its backlog lines) — never `git add -A`,
   never another session's board or deploy files;
-- opens browser tabs of its own (the extension's `tabs_create`), never
-  drives a tab it did not open, and leaves out of its measures the data
+- uses the connected browser without asking — the install allows the
+  extension's tools (`mcp__claude-in-chrome`) — and opens tabs of its own
+  (the extension's `tabs_create`), never drives a tab it did not open, and leaves out of its measures the data
   a deploy left for its checks (a folder or record named as test data);
 - touches no production state: reading, clicking through and measuring
   only; a write it would need goes into the report as a proposal.

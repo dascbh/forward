@@ -25,7 +25,8 @@
       "Grep",
       "NotebookEdit",
       "WebFetch",
-      "WebSearch"
+      "WebSearch",
+      "mcp__claude-in-chrome"
     ]
   }
 }

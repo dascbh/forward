@@ -122,7 +122,7 @@ class TestNativeLayerShape(unittest.TestCase):
         self.assertEqual(settings["worktree"]["baseRef"], "head")
 
     TOOLS = ("Bash", "Edit", "Write", "Read", "Glob", "Grep", "NotebookEdit",
-             "WebFetch", "WebSearch")
+             "WebFetch", "WebSearch", "mcp__claude-in-chrome")
 
     def test_settings_open_every_tool(self):
         # FWD-025 / ADR-0019 rule 8: the cycle sign-off is the permission;
