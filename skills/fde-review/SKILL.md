@@ -87,7 +87,9 @@ recorded suite, the suite runs once more at the rebased tree
 (`verify.py --all --record-suite`) before the merge — two demands with
 disjoint files can still collide (a key declared twice, a shared
 registry), and main must not be where that shows. Main unmoved: the
-recorded run stands. A demand merges only with its review record
+recorded run stands. `EROSION` red at the merge is corrected by the
+bounded loop of `fde-erosion` (two attempts, then one debt), never by a
+budget raised. A demand merges only with its review record
 (`reviews/<id>/findings.toml`), and its merge line on `board.md` names it.
 On the demand's branch, process records (`reviews/`, `cycles/`,
 `promotions/`, `backlog.md`) stay in commits of their own, so no commit

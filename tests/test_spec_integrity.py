@@ -430,3 +430,13 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertTrue((ROOT / "runtime/jscc.py").exists())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 41, 0))
+
+    def test_kernel_version_ships_the_erosion_ratchet(self):
+        # the ratchet, the bounded loop and the one debt (owner, 2026-10-01)
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        text = " ".join((ROOT / "skills/fde-erosion/SKILL.md").read_text().split())
+        self.assertIn("an attempt that does not ends the attempts", text)
+        self.assertIn("A second debt is refused while one is open", text)
+        self.assertIn("erosion.py --close", (ROOT / "skills/fde-backlog/SKILL.md").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 42, 0))

@@ -113,3 +113,33 @@ When reporting: read the change in the domain's terms. If the erosion
 gate fired, name the metric and the declared budget it breached — and if
 duplication is rising, the fix is MNT-11 (consolidate), not a threshold
 bump.
+
+## The ratchet and the bounded loop
+
+The budget identifies a deviation and blocks it; the agent corrects it;
+nothing loops. Never raise a budget by hand.
+
+- **Blocked at commit**: with the add/delete ratio over its budget, the
+  pre-commit refuses a commit that makes it worse (`erosion.py
+  --staged`, under a second). A commit that consolidates, or carries 10
+  lines or fewer, always passes. Duplication and structural erosion
+  block at the merge, where `verify.py --all` must be green.
+- **Correct, at most twice**: run `codebench.py`, take the change
+  hotspots and clones among the files the work touched, and consolidate
+  (MNT-11, MNT-12) in one change of about 300 lines or fewer. Measure
+  again. Each attempt must lower the measure; an attempt that does not
+  ends the attempts.
+- **Then one debt**: still over after two attempts, write the
+  consolidation as a backlog line and as the next cycle's first demand,
+  and register the debt — `erosion.py --debt C-<n> B-<n>`. It holds the
+  breach measured now as the budget's room, so work goes on. A second
+  debt is refused while one is open.
+- **Due in two closes**: each cycle close runs `erosion.py --close
+  C-<n>`. A paid debt is cleared; one unpaid at its second close is
+  overdue, `EROSION` fails, and it is a replan for the owner — the only
+  time the owner hears of erosion.
+- **At every close**: `--close` drops each budget to the measured value
+  plus 5% when it improved, never raises one, and glides duplication
+  toward 3% and structural erosion toward 0.5 (each close, a tenth of
+  the gap). The add/delete ratio has no target — a young product grows
+  by addition — only the ratchet.

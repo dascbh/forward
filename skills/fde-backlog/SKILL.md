@@ -106,7 +106,8 @@ first token of a bullet. Do it in one commit, before grouping.
 - A cycle closes when its criteria are met with integration evidence
   and it is deployed or published; show the user its backlog lines
   (`fde-status`) and one line with its cycle time and lead time
-  (`status.py --flow`), unasked. A cycle opened before kernel ADR-0019 finishes under
+  (`status.py --flow`), unasked. The close also runs `erosion.py --close
+  C-<n>` and reports the budgets it moved (`fde-erosion`). A cycle opened before kernel ADR-0019 finishes under
   its own rules.
 - Grouping never writes a spec and never commits to anything.
 - Several cycles may be running when their files are disjoint or one

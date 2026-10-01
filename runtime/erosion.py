@@ -589,12 +589,17 @@ def gate(project: Path) -> tuple[bool, list, list]:
     declared=True with two empty lists means measured and within budget.
     unmeasured is what the budget declared and the window could not
     measure — it passes, but it never passes silently."""
-    budget = load_budget(project)
-    if not budget:
+    declared = load_budget(project)
+    if not declared:
         return False, [], []
+    budget = effective_budget(declared)
     window = int(budget.get("window", DEFAULT_WINDOW))
     m = measure(project, window)
     breaches, unmeasured = check_budget(m, budget)
+    if declared.get("debt_overdue"):
+        breaches.insert(0, f"erosion debt of {declared.get('debt_cycle')} "
+                        f"({declared.get('debt_item')}) unpaid after {DEBT_DUE_CLOSES} "
+                        "cycle closes — a replan for the owner")
     if unmeasured and m["stale_roots"]:
         unmeasured = [u + f" (declared root(s) {', '.join(m['stale_roots'])} "
                       f"match no tracked file)" for u in unmeasured]
@@ -640,6 +645,162 @@ def verdict(breaches: list, unmeasured: list) -> str:
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# the ratchet, the bounded loop and the one debt (owner, 2026-10-01): the
+# budget identifies and blocks a deviation, the agent corrects it, and
+# nothing loops — at most two consolidation attempts, then one debt that
+# must be paid within two cycle closes, else a replan for the owner.
+# ---------------------------------------------------------------------------
+TARGETS = {"max_duplication_pct": 3.0, "max_structural_erosion": 0.5}  # absolute direction
+GLIDE = 0.10      # each close moves a budget this share of the way to its target
+MARGIN = 0.05     # a ratcheted budget sits this far above the measured value
+SMALL_COMMIT = 10  # added + deleted lines a commit may always carry
+METRIC_OF = {"max_add_delete_ratio": "add_delete_ratio",
+             "max_duplication_pct": "duplication_pct",
+             "max_structural_erosion": "structural_erosion"}
+DEBT_DUE_CLOSES = 2
+
+
+def effective_budget(budget: dict) -> dict:
+    """The declared budget, each metric under an open debt raised to the
+    debt's value — the room the debt bought, until it is paid."""
+    out = dict(budget)
+    for bkey, mkey in METRIC_OF.items():
+        debt = budget.get(f"debt_{mkey}")
+        if isinstance(debt, (int, float)) and bkey in out:
+            out[bkey] = max(float(out[bkey]), float(debt))
+    return out
+
+
+def has_debt(budget: dict) -> bool:
+    return any(k.startswith("debt_") for k in budget)
+
+
+def set_erosion_keys(project: Path, updates: dict, remove: tuple = ()) -> None:
+    """Rewrite keys of the `[erosion]` table in fde.config.toml in place,
+    other lines untouched; a missing key is appended to the table."""
+    cfg = project / "fde.config.toml"
+    lines = cfg.read_text(encoding="utf-8").splitlines()
+    start = next((i for i, l in enumerate(lines) if l.strip() == "[erosion]"), None)
+    if start is None:
+        lines += ["", "[erosion]"]
+        start = len(lines) - 1
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].lstrip().startswith("[")),
+               len(lines))
+    while end > start + 1 and not lines[end - 1].strip():
+        end -= 1
+    todo = dict(updates)
+    kept = []
+    for l in lines[start + 1:end]:
+        key = l.split("=", 1)[0].strip() if "=" in l and not l.lstrip().startswith("#") else None
+        if key in remove:
+            continue
+        if key in todo:
+            kept.append(f"{key} = {_toml(todo.pop(key))}")
+        else:
+            kept.append(l)
+    kept += [f"{k} = {_toml(v)}" for k, v in todo.items()]
+    cfg.write_text("\n".join(lines[:start + 1] + kept + lines[end:]) + "\n", encoding="utf-8")
+
+
+def _toml(v) -> str:
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return str(v)
+    return '"' + str(v).replace('"', "'") + '"'
+
+
+def close_cycle(project: Path, cycle: str) -> dict:
+    """At a cycle's close: each declared budget drops to the measured value
+    (plus a margin) when it improved, duplication and structural erosion
+    also glide toward their absolute targets, nothing ever rises; an open
+    debt is settled when paid and falls due at its second close."""
+    budget = load_budget(project)
+    if not budget:
+        return {"declared": False}
+    m = measure(project, int(budget.get("window", DEFAULT_WINDOW)))
+    updates, changes = {}, []
+    for bkey, mkey in METRIC_OF.items():
+        if bkey not in budget or m.get(mkey) is None:
+            continue
+        old, now = float(budget[bkey]), float(m[mkey])
+        digits = 3 if bkey == "max_structural_erosion" else (1 if bkey == "max_duplication_pct" else 2)
+        new = min(old, round(now * (1 + MARGIN), digits)) if now < old else old
+        target = TARGETS.get(bkey)
+        if target is not None and old > target:
+            new = min(new, round(old - GLIDE * (old - target), digits))
+        new = max(new, target or 0.0) if target is not None and old >= target else new
+        if new < old:
+            updates[bkey] = new
+            changes.append(f"{bkey} {old} → {new} (measured {now})")
+    remove: tuple = ()
+    debt = None
+    if has_debt(budget):
+        unpaid = [mkey for bkey, mkey in METRIC_OF.items()
+                  if f"debt_{mkey}" in budget and m.get(mkey) is not None
+                  and float(m[mkey]) > float(updates.get(bkey, budget.get(bkey, 0)))]
+        if not unpaid:
+            remove = tuple(k for k in budget if k.startswith("debt_"))
+            debt = "paid"
+        else:
+            closes = int(budget.get("debt_closes", 0)) + 1
+            updates["debt_closes"] = closes
+            debt = "overdue" if closes >= DEBT_DUE_CLOSES else f"open ({closes}/{DEBT_DUE_CLOSES} closes)"
+            if closes >= DEBT_DUE_CLOSES:
+                updates["debt_overdue"] = True
+    if updates or remove:
+        set_erosion_keys(project, updates, remove)
+    return {"declared": True, "cycle": cycle, "changes": changes, "debt": debt}
+
+
+def register_debt(project: Path, cycle: str, item: str) -> tuple[bool, str]:
+    """After two consolidation attempts left a budget breached: one debt,
+    worth the breach measured now, tied to the backlog item that pays it.
+    A second debt is refused — the loop has one way out, not a wall of
+    them."""
+    budget = load_budget(project)
+    if has_debt(budget):
+        return False, ("an erosion debt is already open "
+                       f"({budget.get('debt_cycle')}, {budget.get('debt_item')}): pay it — "
+                       "a second one is refused")
+    m = measure(project, int(budget.get("window", DEFAULT_WINDOW)))
+    updates = {}
+    for bkey, mkey in METRIC_OF.items():
+        if bkey in budget and m.get(mkey) is not None and float(m[mkey]) > float(budget[bkey]):
+            updates[f"debt_{mkey}"] = m[mkey]
+    if not updates:
+        return False, "no budget is breached: nothing to owe"
+    updates.update({"debt_cycle": cycle, "debt_item": item, "debt_closes": 0})
+    set_erosion_keys(project, updates)
+    return True, "debt registered: " + ", ".join(f"{k[5:]} {v}" for k, v in updates.items()
+                                                  if k.startswith("debt_") and k[5:] in METRIC_OF.values())
+
+
+def staged_check(project: Path) -> tuple[bool, str]:
+    """Pre-commit, under a second: with the add/delete ratio over its
+    (effective) budget, a commit passes only when it does not make the
+    ratio worse, or when it is small. A consolidation always passes."""
+    budget = effective_budget(load_budget(project))
+    if "max_add_delete_ratio" not in budget:
+        return True, "no add/delete budget declared"
+    window = int(budget.get("window", DEFAULT_WINDOW))
+    scope, gen = churn_scope(project), generated_paths(project)
+    a0, d0, rows0 = parse_numstat(_git(project, "log", f"-{window}", "--numstat", "--format="),
+                                  scope, gen)
+    a1, d1, _ = parse_numstat(_git(project, "log", f"-{max(window - 1, 1)}", "--numstat",
+                                   "--format="), scope, gen)
+    sa, sd, _ = parse_numstat(_git(project, "diff", "--cached", "--numstat"), scope, gen)
+    limit = float(budget["max_add_delete_ratio"])
+    before = add_delete_ratio(a0, d0) if rows0 else 0.0
+    after = add_delete_ratio(a1 + sa, d1 + sd)
+    if after <= limit or sa + sd <= SMALL_COMMIT or after <= before:
+        return True, f"add/delete {after} (budget {limit})"
+    return False, (f"add/delete ratio would go {before} → {after}, over its budget {limit}: "
+                   "consolidate (fde-erosion — at most two attempts, then one debt), "
+                   "never raise the budget")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--report", action="store_true")
@@ -649,9 +810,30 @@ def main() -> int:
     ap.add_argument("--ratchet", action="store_true",
                     help="print an [erosion] budget at today's measured values "
                          "(install and sync write it when none is declared)")
+    ap.add_argument("--close", metavar="C-N",
+                    help="at a cycle's close: ratchet the budgets, glide to the targets, settle the debt")
+    ap.add_argument("--debt", nargs=2, metavar=("C-N", "B-N"),
+                    help="after two consolidation attempts: register the one debt")
+    ap.add_argument("--staged", action="store_true", help="pre-commit add/delete check")
     args = ap.parse_args()
 
     project = project_root()
+    if args.close:
+        r = close_cycle(project, args.close)
+        if not r["declared"]:
+            print("no [erosion] budget declared — nothing to ratchet")
+            return 0
+        print(f"erosion at {args.close} close: " + ("; ".join(r["changes"]) or "budgets unchanged")
+              + (f"; debt {r['debt']}" if r["debt"] else ""))
+        return 0
+    if args.debt:
+        ok, msg = register_debt(project, *args.debt)
+        print(msg)
+        return 0 if ok else 1
+    if args.staged:
+        ok, msg = staged_check(project)
+        print(msg)
+        return 0 if ok else 1
     budget = load_budget(project)
     window = args.window or int(budget.get("window", DEFAULT_WINDOW))
 
