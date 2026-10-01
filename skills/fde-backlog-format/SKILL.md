@@ -40,7 +40,12 @@ The owner orders it. The label makes a bet visible; it never blocks one.
 An idea, pain or "it would be nice to have X" becomes a backlog item,
 not a demand: one-line acknowledgment, nothing more. Discoveries during
 a cycle enter `backlog.md` as they are found, with origin `(C-<n>)` and
-evidence `usage-data`. Re-label when new evidence lands.
+evidence `usage-data` — at most 5 a cycle; a review finding stays in its
+`findings.toml` unless it is worth work of its own (`fde-review`
+Triage). Re-label when new evidence lands. An item about FORWARD itself
+— a rule, a gate, a skill that misled — is tagged `[kernel]`: `fde-sync`
+lists those for the kernel's maintainer instead of leaving them in the
+client.
 
 "fix it NOW" skips the backlog order, never the open cycle: it becomes
 the next cycle's first demand (AGENTS.md `## Cycle`).

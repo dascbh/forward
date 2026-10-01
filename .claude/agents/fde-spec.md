@@ -139,3 +139,12 @@ behavior already live ships with the cycle's last demand or behind the
 flag. A joint deploy of several cycles is declared here, at sign-off,
 only when the slices make sense only together; otherwise each cycle
 deploys on its own when it finishes.
+
+## A deploy that runs from a clean checkout
+
+The deploy runs from the release SHA in a clean checkout: an artifact a
+step needs (a built frontend, a bundle) is built by a declared command,
+never copied from a working directory. A criterion that depends on a
+resource the release does not change (a role, a table, a secret) gets a
+read-only check in the first deploy step — a client found such a gap
+only in production, and rolled back.

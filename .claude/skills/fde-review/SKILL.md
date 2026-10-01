@@ -174,6 +174,12 @@ then the preflight, one promotion decision, the deploy and the close —
 each once (`fde-backlog`). What the cycle review finds that does not
 block is a backlog line, not a new round.
 
+The cycle review also reads `deploy.md` as an artifact: each step has
+its rollback, a time target for it, and numeric triggers (error rate,
+latency, a new error, a business guard) that decide it. A plan that
+passed three cycle-review rounds without them reached production
+without them.
+
 ## Before the cycle review
 
 The demand reviews are committed before the cycle review starts, so the
@@ -242,9 +248,13 @@ Recall belongs to the reviewer, precision to the triage.
      new guard: fixed inside the demand now, with a regression test when
      behavior changes. This is the one in-band fix MNT-9 allows besides a
      blocker.
-   - `defer` — pre-existing, or `unsure` with medium/high stakes: one
-     backlog line with its evidence. A low finding whose fix adds
-     complexity is dropped, not deferred.
+   - `defer` — the finding stays where it is, in `findings.toml`: that
+     file is its record (I7), and `fde-graph` surfaces the ones that
+     recur. It becomes a backlog line only when it is worth a piece of
+     work of its own — medium or higher, with the value it would bring —
+     and a cycle adds at most 5 such lines (`BL-CYCLE` ⚠). A low
+     finding is never a backlog line. Copying every finding into the
+     backlog buried one client's under 79 lines from a single cycle.
 3. **Record** one board line: `<date> <demand> decided triage F1
    real/patch <sha>; F2 false — <refutation>; F3 real/defer`. The
    reviewer's file is never edited (I3). A blocking finding is never

@@ -113,6 +113,24 @@ reported as done.
      pointer: its detail moves to the doc that already holds it (vision,
      spec, ADR), or to `docs/backlog/B-<n>.md` when none does;
    - ids: only main assigns them.
+   - **Sanitize, every sync**, in one commit of its own:
+     - an item already resolved — by the code, by a kernel version, or
+       absorbed into a planned cycle — moves to discarded with where;
+     - items that are the same work become one line pointing to the
+       rest;
+     - an item that only copies a non-blocking review finding goes back
+       to its `findings.toml` (moved to discarded with
+       `kept in reviews/<id>/findings.toml`), unless it states the value
+       of doing it;
+     - an item about FORWARD itself is tagged `[kernel]` and listed in
+       the report;
+     - an item about a test red on main becomes its quarantine in the
+       code (`quarantine B-<n>`) or its fix, and the quarantined count is
+       recorded (`fde-verify`).
+     Nothing with a security or production evidence label is dropped.
+   - `SCOPE` ⚠ names source outside the gate's roots: each directory it
+     names that the project wrote (not a vendored library) joins
+     `[gate] behavior_paths` — a config key, applied, never asked.
 3. **Cycles** — by state:
    - `closed` and `abandoned` are history: never touched;
    - `draft`: its items are checked to be still open;

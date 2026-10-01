@@ -50,6 +50,13 @@ behavior the framework exists to prevent.
 - Double preference: real > fake > stub > mock; mock only slow or
   non-deterministic boundaries.
 - A flaky test gets fixed or understood, never re-run until green.
+- **Main is green.** A test red on main is fixed, or quarantined: skipped
+  in the code with `quarantine B-<n>` in its reason, the item naming the
+  fix. Never a list of "accepted reds" — one client's ~200 old red cells
+  hid the new ones, and its suite never collected green, so every
+  recorded run said "failed". The quarantined count is ratcheted at each
+  cycle close (`erosion.py --close`): it never grows; a new red over it
+  enters the bounded loop of `fde-erosion`.
 - Fix the lint, don't disable the rule; fix the test, don't skip it.
 
 ## Known bluntness, kept on purpose (FWD-004, decided 2026-08-09)

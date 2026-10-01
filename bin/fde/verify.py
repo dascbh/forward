@@ -59,7 +59,8 @@ KNOWN_GATES = ("config", "eval", "eval-coverage", "adversarial-isolation",
                "portability", "artifact-handoff", "backlog", "scrum", "traceability",
                "erosion", "divergence", "survey", "walkthrough", "rule-lane",
                "untracked", "backlog-length", "process-dup", "doc-refs", "docs",
-               "cycles", "map", "deploy-allow", "migration", "promotion")
+               "cycles", "map", "deploy-allow", "migration", "promotion",
+               "backlog-cycle", "suite", "scope")
 
 # vendor trees never count as an observability signal (I5) — a match inside
 # node_modules or a virtualenv is someone else's instrumentation
@@ -1441,6 +1442,84 @@ class Gate:
         elif explicit:
             self.add("PROMOTION", True, "every running cycle's decision is promote or hold")
 
+    # -- the backlog, the suite and the gate's reach (owner, 2026-10-01) ----
+    BL_CYCLE_MAX = 5
+    SCOPE_SKIP = (".fde/", ".claude/", "bin/fde/", "cycles/", "specs/", "reviews/", "docs/",
+                  "discovery/", "promotions/", "node_modules/", ".venv/", "venv/", "vendor/",
+                  "dist/", "build/")
+
+    def gate_backlog_per_cycle(self, explicit: bool = False) -> None:
+        """A running cycle adding more than 5 backlog lines (`(C-<n>)`) is
+        copying review findings: they stay in findings.toml (fde-review)."""
+        from fde_lib import plan_header
+        bl = self.project / "backlog.md"
+        if not bl.is_file():
+            return
+        text = re.split(r"(?im)^##[^\n]*(discard|descart)", bl.read_text(encoding="utf-8", errors="ignore"))[0]
+        notes = []
+        for cid, cdir in sorted(cycle_dirs(self.project).items()):
+            plan = cdir / "plan.md"
+            if not plan.is_file():
+                continue
+            if not plan_header(plan.read_text(encoding="utf-8", errors="ignore"), "state").lower().startswith("running"):
+                continue
+            n = len(re.findall(rf"^\s*[-*]\s+(?:\[.\]\s+)?B-\d+\b.*\({re.escape(cid)}\b", text, re.M))
+            if n > self.BL_CYCLE_MAX:
+                notes.append(f"{cid} ({n})")
+        if notes:
+            self.warn("BL-CYCLE", f"{', '.join(notes[:4])} open backlog lines from one cycle, over "
+                      f"{self.BL_CYCLE_MAX}: a review finding stays in its findings.toml unless it is "
+                      "worth work of its own (fde-review Triage); fde-sync sanitizes")
+        elif explicit:
+            self.add("BL-CYCLE", True, "no running cycle over 5 backlog lines")
+
+    def gate_suite_record(self, explicit: bool = False) -> None:
+        """The last recorded suite run fails: a red main, or a suite that does
+        not even collect — then every record says "failed" and means nothing."""
+        runs = sorted((self.project / RUNS_DIR).glob("*.json"),
+                      key=lambda f: f.stat().st_mtime, reverse=True)
+        for f in runs:
+            try:
+                suite = json.loads(f.read_text(encoding="utf-8")).get("suite") or {}
+            except (OSError, ValueError):
+                continue
+            if "exit_code" not in suite:
+                continue
+            if suite["exit_code"] != 0:
+                self.warn("SUITE", f"the last recorded suite run exits {suite['exit_code']} "
+                          f"({str(suite.get('summary', ''))[:80]}): fix or quarantine the reds "
+                          "(fde-verify — main is green)")
+            elif explicit:
+                self.add("SUITE", True, "the last recorded suite run is green")
+            return
+
+    def gate_scope(self, explicit: bool = False) -> None:
+        """Source code outside every root the gate declares: a change there
+        reads as "no behavior change" to I1 (a client's scripts/*.py)."""
+        import erosion
+        behavior, evals = gate_paths(self.cfg_raw) if hasattr(self, "cfg_raw") else ((), ())
+        roots = tuple(behavior) + tuple(evals) + erosion.generated_paths(self.project)
+        out = subprocess.run(["git", "ls-files"], cwd=self.project, capture_output=True, text=True)
+        dirs: dict[str, int] = {}
+        for name in out.stdout.splitlines():
+            if Path(name).suffix.lower() not in (".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs",
+                                                 ".java", ".rb", ".sh"):
+                continue
+            if name.startswith(self.SCOPE_SKIP) or "/" not in name or erosion._is_test_path(name):
+                continue
+            if any(v in f"/{name}" for v in ("/layers/", "/third_party/", "/vendor/", "/site-packages/")):
+                continue  # someone else's code, carried along
+            if any(name == r.rstrip("/") or name.startswith(r.rstrip("/") + "/") for r in roots):
+                continue
+            top = name.split("/", 1)[0] + "/"
+            dirs[top] = dirs.get(top, 0) + 1
+        if dirs:
+            listed = ", ".join(f"{d} ({n})" for d, n in sorted(dirs.items(), key=lambda kv: -kv[1])[:5])
+            self.warn("SCOPE", f"source outside the gate's roots: {listed} — a change there reads as "
+                      "no behavior change; add it to [gate] behavior_paths (fde-sync)")
+        elif explicit:
+            self.add("SCOPE", True, "all source sits under the gate's roots")
+
     def report(self, fmt: str) -> int:
         failed = [r for r in self.results if not r[1]]
         if fmt == "json":
@@ -1847,6 +1926,13 @@ def main() -> int:
             g.gate_migration(explicit=(only == "migration"))
         if want("promotion"):
             g.gate_promotion_decision(explicit=(only == "promotion"))
+        if want("backlog-cycle"):
+            g.gate_backlog_per_cycle(explicit=(only == "backlog-cycle"))
+        if want("suite"):
+            g.gate_suite_record(explicit=(only == "suite"))
+        if want("scope"):
+            g.cfg_raw = cfg.raw
+            g.gate_scope(explicit=(only == "scope"))
         if want("divergence"):
             g.gate_divergence()
         if want("survey"):

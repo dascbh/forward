@@ -598,6 +598,9 @@ def gate(project: Path) -> tuple[bool, list, list]:
     open_debt = covered(declared)
     breaches, unmeasured = check_budget(m, {k: v for k, v in budget.items()
                                             if METRIC_OF.get(k) not in open_debt})
+    if "max_quarantined" in declared and quarantine_count(project) > int(declared["max_quarantined"]):
+        breaches.append(f"quarantined tests {quarantine_count(project)} > "
+                        f"{declared['max_quarantined']} at the last close — fix a red, never park it")
     if declared.get("debt_overdue"):
         breaches.insert(0, f"erosion debt of {declared.get('debt_cycle')} "
                         f"({declared.get('debt_item')}) unpaid after {DEBT_DUE_CLOSES} "
@@ -726,6 +729,22 @@ def _toml(v) -> str:
     return '"' + str(v).replace('"', "'") + '"'
 
 
+QUARANTINE = re.compile(r"quarantine[d]?\W{1,3}B-\d+", re.I)
+
+
+def quarantine_count(project: Path) -> int:
+    """Tests skipped as `quarantine B-<n>` across the tracked test files."""
+    n = 0
+    for name in _tracked(project):
+        if _is_test_path(name) and Path(name).suffix.lower() in CODE_SUFFIXES:
+            try:
+                n += len(QUARANTINE.findall((project / name).read_text(encoding="utf-8",
+                                                                          errors="replace")))
+            except OSError:
+                pass
+    return n
+
+
 def close_cycle(project: Path, cycle: str) -> dict:
     """At a cycle's close: each declared budget drops to the measured value
     (plus a margin) when it improved, duplication and structural erosion
@@ -749,6 +768,12 @@ def close_cycle(project: Path, cycle: str) -> dict:
         if new < old:
             updates[bkey] = new
             changes.append(f"{bkey} {old} → {new} (measured {now})")
+    q = quarantine_count(project)
+    old_q = budget.get("max_quarantined")
+    if old_q is None or q < int(old_q):
+        updates["max_quarantined"] = q  # recorded at the first close, then only down
+        if old_q is not None:
+            changes.append(f"max_quarantined {old_q} → {q}")
     remove: tuple = ()
     debt = None
     if has_debt(budget):

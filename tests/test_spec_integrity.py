@@ -510,3 +510,14 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("def covered", (ROOT / "runtime/erosion.py").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 48, 1))
+
+    def test_kernel_version_ships_backlog_hygiene_and_sanitizing_sync(self):
+        # findings stay in findings.toml, main is green (quarantine), kernel
+        # items tagged, and fde-sync sanitizes the backlog (owner, 2026-10-01)
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        sync = " ".join((ROOT / "skills/fde-sync/SKILL.md").read_text().split())
+        self.assertIn("Sanitize, every sync", sync)
+        self.assertIn("**Main is green.**", (ROOT / "skills/fde-verify/SKILL.md").read_text())
+        self.assertIn("`[kernel]`", (ROOT / "skills/fde-backlog-format/SKILL.md").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 49, 0))
