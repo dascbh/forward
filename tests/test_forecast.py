@@ -70,6 +70,27 @@ class Forecast(unittest.TestCase):
         r = f["cycles"][0]
         self.assertGreater(r["p85"], r["p50"])
 
+    def test_the_worst_case_is_of_the_total_never_a_sum_of_worst_pieces(self):
+        # a first version summed each piece's p85 and read a day for a
+        # half-day's work (owner, 2026-10-01: "C-8 ready tomorrow?")
+        p = {"C-1": {"title": "x", "waits": [],
+                     "demands": [demand("A"), demand("B", waits=["A"]), demand("C", waits=["B"])]}}
+        hist = [1] * 17 + [10] * 3            # p85 of one demand is 10h
+        f = run(p, hist, [1, 1, 1])
+        self.assertLess(f["cycles"][0]["p85"] - NOW, (3 * 10 + 1) * H)
+
+    def test_a_demand_in_review_draws_from_review_to_merge_times(self):
+        late = {"at": NOW - 1 * H, "verb": "decided", "text": "triage of the review round 1"}
+        d = demand("A", begun=True, started=NOW - 9 * H)
+        d["events"] = [late]
+        p = {"C-1": {"title": "x", "waits": [], "demands": [d]}}
+        hist = {"demands": [10 * H] * 5, "tails": [2 * H] * 5, "closings": [0] * 0}
+        with mock.patch.object(forecast, "history", return_value=hist), \
+             mock.patch.object(forecast.status, "load_cycles", return_value=[Cycle("C-1")]), \
+             mock.patch.object(forecast.status, "cycle_progress", side_effect=lambda r, c: p[c.id]):
+            f = forecast.forecast(Path("."), now=NOW)
+        self.assertEqual(f["cycles"][0]["p50"], NOW + 1 * H)  # 2h review→merge, 1h in
+
     def test_too_little_history_says_so(self):
         p = {"C-1": {"title": "x", "waits": [], "demands": [demand("A")]}}
         f = run(p, [2, 2], [1, 1, 1])

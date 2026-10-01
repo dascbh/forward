@@ -9,19 +9,23 @@ takes. Two distributions, both measured from git and the boards:
 - a demand: from its first board line to its merge (status.py);
 - a closing: from a cycle's last merge to its close (flow.py).
 
-For each running cycle, every demand not merged gets the rest of the
-median if it has begun (never less than a tenth of it), the whole median
-if not; demands wait for the demands they depend on, and a cycle that
-waits for another (`depends:`) starts when that one's build ends. The
-build ends at the last demand; the closing is added, less what has run
-of it. Two answers: likely (p50) and pessimistic (p85, every remaining
-piece at its 85th percentile). Fewer than 3 past demands: no forecast —
+Monte Carlo, 2,000 runs: in each, every demand not merged draws a
+duration from the past ones (a begun demand draws from those longer than
+what it has run, minus that); demands wait for the demands they depend
+on — a demand in review draws from the past review → merge times, since
+it is near its merge whatever its build took — a cycle that waits for another (`depends:`) starts when that one's
+build ends, and a closing is drawn the same way. The likely end (p50) and
+the pessimistic one (p85) are read from the 2,000 totals — never a sum of
+pessimistic pieces, which no run would ever see (a first version summed
+them and read a day for a half-day's work). Fewer than 3 past demands: no forecast —
 a number from nothing is a guess; fewer than 3 closings: the forecast
 stops at the last merge and says so. Wall-clock hours.
 stdlib only (I6).
 """
 from __future__ import annotations
 
+import random
+import re
 import statistics
 import time
 from pathlib import Path
@@ -30,6 +34,7 @@ import flow
 import status
 
 MIN_SAMPLES = 3
+RUNS = 2000  # Monte Carlo simulations of the remaining work
 WEEK = 7 * 86400
 
 
@@ -43,9 +48,19 @@ def _pct(values: list[float], q: float) -> float:
     return values[lo] + (values[hi] - values[lo]) * (k - lo)
 
 
+LATE = re.compile(r"review|revis|triag|suite exit 0|record-suite|su[ií]te exit 0")
+
+
+def _late_since(d: dict) -> int | None:
+    """When a demand reached its late phases (suite done, review), from its
+    board lines: what is left after that is review, fixes, merge."""
+    at = [e["at"] for e in d.get("events", []) if e.get("at") and LATE.search(e["text"].lower())]
+    return min(at) if at else None
+
+
 def history(root: Path) -> dict:
-    """Seconds per merged demand, and per closing, over every cycle."""
-    demands, closings = [], []
+    """Seconds per merged demand, from review to merge, and per closing."""
+    demands, tails, closings = [], [], []
     cycles = status.load_cycles(root, [])
     for c in cycles:
         if c.state not in ("running", "closed") or c.layout != "directory":
@@ -60,10 +75,13 @@ def history(root: Path) -> dict:
                 took = end - d["started"]
                 if 0 < took < WEEK:
                     demands.append(took)
+                    late = _late_since(d)
+                    if late and d["started"] <= late < end:
+                        tails.append(end - late)
     for r in flow.measure(root)["cycles"]:
         if r["state"] == "closed" and r.get("closing_h") is not None and r["closing_h"] > 0:
             closings.append(r["closing_h"] * 3600)
-    return {"demands": demands, "closings": closings}
+    return {"demands": demands, "tails": tails, "closings": closings}
 
 
 def forecast(root: Path, now: int | None = None) -> dict:
@@ -80,53 +98,83 @@ def forecast(root: Path, now: int | None = None) -> dict:
     cycles = [c for c in status.load_cycles(root, []) if c.state == "running"
               and c.layout == "directory"]
     progress = {c.id: status.cycle_progress(root, c) for c in cycles}
-    memo: dict = {}
+    rng = random.Random(7)  # the same history gives the same forecast
 
-    def build_end(cid: str, k: str, seen=()) -> float:
-        """When the cycle's last demand merges, at quantile k."""
-        if (cid, k) in memo:
-            return memo[(cid, k)]
-        p = progress.get(cid)
-        if p is None or cid in seen:
-            return now
-        start = max([now] + [build_end(w, k, seen + (cid,)) for w in p.get("waits", [])])
-        fin: dict = {}
-        ds = {d["id"]: d for d in p["demands"]}
+    tails = h.get("tails") or []
 
-        def done_at(did: str, chain=()) -> float:
-            if did in fin:
+    def draw_left(d: dict | None) -> float:
+        """A demand's remaining time, drawn from the past. In review or
+        later: from the past review → merge times longer than its time in
+        review (a demand in review is near its merge, whatever its build
+        took). Building: from the past whole durations longer than what it
+        has run. Not begun: any past duration."""
+        if d is None:
+            return rng.choice(h["demands"])
+        late = _late_since(d)
+        if late and len(tails) >= MIN_SAMPLES:
+            pool, elapsed = tails, now - late
+        else:
+            pool, elapsed = h["demands"], now - d["started"]
+        longer = [x - elapsed for x in pool if x > elapsed]
+        return rng.choice(longer) if longer else _pct(pool, 0.5) / 10
+
+    def simulate() -> dict:
+        memo: dict = {}
+
+        def build_end(cid: str, seen=()) -> float:
+            if cid in memo:
+                return memo[cid]
+            p = progress.get(cid)
+            if p is None or cid in seen:
+                return now
+            start = max([now] + [build_end(w, seen + (cid,)) for w in p.get("waits", [])])
+            ds = {d["id"]: d for d in p["demands"]}
+            fin: dict = {}
+
+            def done_at(did: str, chain=()) -> float:
+                if did in fin:
+                    return fin[did]
+                d = ds[did]
+                if d["merged"]:
+                    fin[did] = d["last"] or now
+                    return fin[did]
+                after = max([start] + [done_at(w, chain + (did,)) for w in d.get("waits", [])
+                                       if w in ds and w not in chain])
+                if d["begun"] and d["started"]:
+                    fin[did] = max(after, now) + draw_left(d)
+                else:
+                    fin[did] = after + draw_left(None)
                 return fin[did]
-            d = ds[did]
-            if d["merged"]:
-                fin[did] = d["last"] or now
-                return fin[did]
-            after = max([start] + [done_at(w, chain + (did,)) for w in d.get("waits", [])
-                                   if w in ds and w not in chain])
-            if d["begun"] and d["started"]:
-                left = max(dem[k] - (now - d["started"]), dem[k] / 10)
-                fin[did] = max(after, now) + left
-            else:
-                fin[did] = after + dem[k]
-            return fin[did]
-        ends = [done_at(i) for i in ds]
-        memo[(cid, k)] = max(ends) if ends else now
-        return memo[(cid, k)]
+            ends = [done_at(i) for i in ds]
+            memo[cid] = max(ends) if ends else now
+            return memo[cid]
 
-    out = []
+        out = {}
+        for c in cycles:
+            p = progress[c.id]
+            b = build_end(c.id)
+            closing = 0.0
+            if with_close:
+                all_merged = bool(p["demands"]) and all(d["merged"] for d in p["demands"])
+                ran = (now - b) if all_merged and b <= now else 0
+                longer = [x - ran for x in h["closings"] if x > ran]
+                closing = rng.choice(longer) if longer else clo["p50"] / 10
+            out[c.id] = max(b, now) + closing
+        return out
+
+    runs = [simulate() for _ in range(RUNS)]
+    rows = []
     for c in cycles:
         p = progress[c.id]
-        row = {"cycle": c.id, "title": p["title"], "remaining": sum(not d["merged"] for d in p["demands"])}
-        for k in q:
-            b = build_end(c.id, k)
-            all_merged = all(d["merged"] for d in p["demands"]) and p["demands"]
-            ran = (now - b) if all_merged and b <= now else 0
-            row[k] = int(max(b, now) + (max(clo[k] - ran, clo[k] / 10) if with_close else 0))
-        out.append(row)
-    return {"enough": True, "with_closing": with_close, "now": now, "demands": len(h["demands"]),
-            "closings": len(h["closings"]),
+        ends = [r[c.id] for r in runs]
+        rows.append({"cycle": c.id, "title": p["title"],
+                     "remaining": sum(not d["merged"] for d in p["demands"]),
+                     "p50": int(_pct(ends, 0.5)), "p85": int(_pct(ends, 0.85))})
+    return {"enough": True, "with_closing": with_close, "now": now, "runs": RUNS,
+            "demands": len(h["demands"]), "closings": len(h["closings"]),
             "demand_h": {k: round(v / 3600, 1) for k, v in dem.items()},
             "closing_h": {k: round(v / 3600, 1) for k, v in clo.items()},
-            "cycles": out}
+            "cycles": rows}
 
 
 def _when(ts: int, now: int) -> str:

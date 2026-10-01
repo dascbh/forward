@@ -540,5 +540,6 @@ class TestTemplatesAndVersions(unittest.TestCase):
         spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
         self.assertTrue((ROOT / "runtime/forecast.py").exists())
         self.assertIn("--forecast", (ROOT / "skills/fde-status/SKILL.md").read_text())
+        self.assertIn("RUNS = 2000", (ROOT / "runtime/forecast.py").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
-                                (0, 51, 0))
+                                (0, 51, 1))
