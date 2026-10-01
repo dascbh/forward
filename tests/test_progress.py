@@ -118,6 +118,59 @@ class TestProgress(unittest.TestCase):
         self.assertIn("DEM-2", head)
 
 
+class TestMergeFromGit(unittest.TestCase):
+    """Whether a demand is on main is read from git, not from the board's
+    wording; a board line by another author never marks it merged."""
+
+    setUp = TestProgress.setUp
+    progress = TestProgress.progress
+    line = TestProgress.line
+
+    def commit(self, rel, msg, merge_of=None):
+        f = self.root / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(msg + "\n")
+        if merge_of:
+            git(self.root, "checkout", "-q", "-b", merge_of)
+            git(self.root, "add", "-A")
+            git(self.root, "commit", "-q", "-m", f"{merge_of}: work")
+            git(self.root, "checkout", "-q", "main")
+            git(self.root, "merge", "-q", "--no-ff", merge_of, "-m", msg)
+        else:
+            git(self.root, "add", "-A")
+            git(self.root, "commit", "-q", "-m", msg)
+
+    def test_a_merge_commit_that_names_the_demand_marks_it(self):
+        self.commit("src/b.py", "Merge DEM-2 (b, reviewed)", merge_of="dem-2")
+        self.assertIn("merged", self.line(self.progress(), "DEM-2"))
+
+    def test_its_own_commit_on_main_marks_it_a_board_commit_does_not(self):
+        self.commit("cycles/C-1/notes.md", "DEM-4: board note")
+        self.assertNotIn("merged", self.line(self.progress(), "DEM-4"))
+        self.commit("src/d.py", "DEM-4: the change, rebased onto main")
+        self.assertIn("merged", self.line(self.progress(), "DEM-4"))
+
+    def test_another_authors_board_line_naming_it_never_marks_it(self):
+        with open(self.root / "cycles" / "C-1" / "board.md", "a") as f:
+            f.write("- 2026-10-01 C-1 decided merges of DEM-1; DEM-4 starts next\n")
+        git(self.root, "commit", "-qam", "board")
+        self.assertNotIn("merged", self.line(self.progress(), "DEM-4"))
+
+    def test_a_cycle_waits_until_the_one_it_depends_on_has_merged(self):
+        d = self.root / "cycles" / "C-2"
+        d.mkdir()
+        (d / "plan.md").write_text(PLAN.replace("cycle: C-1", "cycle: C-2").replace(
+            "signed-off:", "depends: C-1\nsigned-off:").replace("DEM-", "NEW-"))
+        git(self.root, "add", "-A")
+        git(self.root, "commit", "-qm", "c-2")
+        out = self.progress()
+        self.assertIn("waits for C-1", out)
+        self.assertIn("next: C-1 merges", out)
+        for i in (2, 3, 4):
+            self.commit(f"src/x{i}.py", f"DEM-{i}: done on main")
+        self.assertNotIn("waits for C-1", self.progress())
+
+
 class TestProgressTab(unittest.TestCase):
     """The panel's progress tab: fold, unfold, open a demand, quit."""
 

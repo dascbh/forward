@@ -1334,6 +1334,42 @@ def board_events(root: Path, c: "Cycle") -> list[dict]:
     return sorted(out, key=lambda e: e["at"] or 0)
 
 
+PROCESS_PATH = re.compile(r"^(cycles|specs|reviews|promotions|discovery|docs|evals)/|^backlog\.md$")
+
+
+def merged_on_main(root: Path, ids: list[str]) -> dict[str, int]:
+    """{demand id: commit time} for each demand whose work is on main: a
+    merge commit that names it, or a commit of its own (subject starting
+    with the id) that changes files outside the process records. The git
+    history is the fact; a board line in any wording only complements it."""
+    import subprocess
+    if not ids:
+        return {}
+    ref = "main"
+    try:
+        ok = subprocess.run(["git", "-C", str(root), "rev-parse", "--verify", "-q", ref],
+                            capture_output=True, text=True, timeout=10).returncode == 0
+        out = subprocess.run(["git", "-C", str(root), "log", ref if ok else "HEAD", "-n", "3000",
+                              "--format=%x01%ct%x00%P%x00%s", "--name-only"],
+                             capture_output=True, text=True, timeout=30).stdout
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    pats = {i: re.compile(rf"(?<![\w-]){re.escape(i)}(?![\w-])", re.I) for i in ids}
+    found: dict[str, int] = {}
+    for chunk in out.split("\x01")[1:]:
+        head, _, files = chunk.partition("\n")
+        ct, parents, subject = (head.split("\x00") + ["", "", ""])[:3]
+        merge = len(parents.split()) > 1
+        product = any(f and not PROCESS_PATH.search(f) for f in files.splitlines())
+        for did, pat in pats.items():
+            if did in found or not pat.search(subject):
+                continue
+            own = subject.upper().startswith(did.upper())
+            if (merge and re.search(r"\bmerge", subject, re.I)) or (own and product):
+                found[did] = int(ct)
+    return found
+
+
 def demand_progress(did: str, events: list[dict], reviewed: bool) -> dict:
     """Phases done, the current one and when it started, from board evidence."""
     mine = [e for e in events if e["who"] == did]
@@ -1374,9 +1410,33 @@ def cycle_progress(root: Path, c: "Cycle") -> dict:
         d["what"] = _plain_cell(row.get("what", ""))
         d["files"] = _plain_cell(row.get("files", ""))
         demands.append(d)
+    on_main = merged_on_main(root, [d["id"] for d in demands if not d["merged"]])
+    for d in demands:
+        if d["id"] in on_main:
+            d["merged"], d["done"], d["current"] = True, list(DEMAND_PHASES), None
+            d["last"] = max(d["last"] or 0, on_main[d["id"]])
     merged = {d["id"] for d in demands if d["merged"]}
     for d in demands:
         d["waits"] = [w for w in d["waits"] if w not in merged and not d["begun"]]
+    # a cycle that declares `depends: C-<n>` waits while that cycle runs
+    states = {cid: fde_lib.plan_header(_read(cdir / "plan.md"), "state").lower()
+              for cid, cdir in fde_lib.cycle_dirs(root).items() if (cdir / "plan.md").is_file()}
+    # ADR-0024: a cycle starts once the one it depends on has merged what
+    # it needs — that cycle ended, or every one of its demands is on main
+    cycle_waits = []
+    deps = [cid for cid in fde_lib.plan_depends(c.text)
+            if not states.get(cid, "closed").startswith(END_KEYS)]
+    for dep in (x for x in load_cycles(root, []) if x.id in deps):
+        ids = list(fde_lib.plan_demand_rows(dep.text))
+        dep_events = board_events(root, dep)
+        done = set(merged_on_main(root, ids)) | {
+            i for i in ids if demand_progress(i, dep_events, False)["merged"]}
+        if not ids or not set(ids) <= done:
+            cycle_waits.append(dep.id)
+    if cycle_waits:
+        for d in demands:
+            if not d["begun"] and not d["merged"] and not d["waits"]:
+                d["waits"] = list(cycle_waits)
     files = {a for a in getattr(c, "artifacts", [])}
     phase_done = {"plan"} if c.state in ("planned", "running") or c.state in END_KEYS else set()
     if c.state == "running" or fde_lib.plan_header(c.text, "signed-off"):
@@ -1393,7 +1453,8 @@ def cycle_progress(root: Path, c: "Cycle") -> dict:
     starts = [e["at"] for e in events if e["at"]]
     return {"id": c.id, "title": c.objective, "state": c.state,
             "phases_done": [p for p in CYCLE_PHASES if p in phase_done], "current": current,
-            "began": min(starts) if starts else None, "demands": demands}
+            "began": min(starts) if starts else None, "demands": demands,
+            "waits": cycle_waits}
 
 
 def _dur(seconds: int | None) -> str:
@@ -1428,6 +1489,8 @@ def cycle_summary(p: dict) -> str:
         if not d["merged"]:
             counts[demand_status(d, 0)[2]] = counts.get(demand_status(d, 0)[2], 0) + 1
     parts = [f"{merged} of {len(ds)} merged"] + [f"{n} {k}" for k, n in counts.items()]
+    if p.get("waits"):
+        parts.append(f"waits for {', '.join(p['waits'])}")
     return " · ".join(parts)
 
 
@@ -1463,6 +1526,8 @@ def cycle_next(p: dict) -> str:
     fresh = [d["id"] for d in open_ if not d["begun"] and not d["waits"]]
     unblocked = [d["id"] for d in open_ if d["waits"]]
     steps = []
+    if p.get("waits") and not moving:
+        steps.append(f"{', '.join(p['waits'])} merge" + ("s" if len(p["waits"]) == 1 else ""))
     if moving:
         steps.append(f"{', '.join(moving)} merge" + ("s" if len(moving) == 1 else ""))
     if fresh:
