@@ -312,7 +312,8 @@ tools; installed into the project for Claude Code):
   add/delete ratio, batch size, against an opt-in `[erosion]` budget
 - `fde-codebench` — the code-quality view over the history: size, cyclomatic
   complexity, functions over CC 10, structural erosion, clone ratio, and
-  the hotspots that grew (`python3 bin/fde/codebench.py`); with `--tests`,
+  the hotspots that grew, and beside them the process: cycle and lead time,
+  tests against production, the last suite run (`python3 bin/fde/codebench.py`); with `--tests`,
   how much of the suite catches a planted bug, module by module — run
   unasked at each cycle review; a report, never a gate
 - `fde-map` — the product map of a feature from its code (`docs/map/<slug>.md`):

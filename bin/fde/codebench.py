@@ -392,6 +392,62 @@ def render(data: dict) -> list[str]:
     return out
 
 
+def process_view(root: Path) -> dict:
+    """The process beside the code: cycle and lead time (flow.py), the
+    suite's size against production and its last recorded run. Cheap —
+    git and files only; the suite's effectiveness runs tests: --tests."""
+    import flow
+    import mutation
+    out: dict = {"suite": mutation.suite_size(root), "last_suite_run": None, "flow": None}
+    runs = []
+    for f in (root / ".fde" / "runs").glob("*.json"):
+        try:
+            suite = json.loads(f.read_text(encoding="utf-8")).get("suite") or {}
+        except (OSError, ValueError):
+            continue
+        if suite.get("seconds") is not None:
+            runs.append((str(suite.get("recorded_at", "")), suite))
+    if runs:
+        _, suite = max(runs, key=lambda r: r[0])
+        out["last_suite_run"] = {"seconds": suite["seconds"], "exit_code": suite.get("exit_code"),
+                                 "recorded_at": suite.get("recorded_at")}
+    if (root / "cycles").is_dir():
+        d = flow.measure(root)
+        out["flow"] = {"median": d["median"],
+                       "closed": sum(r["state"] == "closed" for r in d["cycles"]),
+                       "running": [{"cycle": r["cycle"], "running_for_h": r["running_for_h"]}
+                                   for r in d["cycles"] if r["state"] == "running"],
+                       "objectives": d["objectives"]}
+    return out
+
+
+def render_process(p: dict) -> list[str]:
+    f = lambda v: f"{v:.1f}h" if v is not None else "—"  # noqa: E731
+    s = p["suite"]
+    out = ["", "  process", ""]
+    out.append(f"  {'tests / production':24} {str(s['test_loc']) + ' / ' + str(s['production_loc']):28} "
+               f"lines; ratio {s['test_per_production']}")
+    r = p["last_suite_run"]
+    out.append(f"  {'last suite run':24} {(str(r['seconds']) + 's, exit ' + str(r['exit_code'])) if r else '—':28} "
+               + (r["recorded_at"] or "" if r else "verify.py --all --record-suite"))
+    out.append(f"  {'suite effectiveness':24} {'—':28} codebench.py --tests (runs tests; cycle review runs it)")
+    fl = p["flow"]
+    if fl:
+        m = fl["median"]
+        out.append(f"  {'cycle time (median)':24} {f(m['cycle_time_h']):28} sign-off → closed, "
+                   f"{fl['closed']} closed cycles (status.py --flow)")
+        out.append(f"  {'lead time (median)':24} {f(m['lead_time_h']):28} request → closed")
+        out.append(f"  {'wait for sign-off':24} {f(m['wait_signoff_h']):28} plan → running")
+        for c in fl["running"]:
+            out.append(f"  {'  running ' + c['cycle']:24} {f(c['running_for_h']):28} since sign-off")
+        for o in fl["objectives"]:
+            span = f"lead time {f(o['lead_time_h'])}" if o["lead_time_h"] is not None \
+                else f"open for {f(o['open_for_h'])}"
+            done = f"{o['closed']}/{len(o['cycles'])} closed"
+            out.append(f"  {'  objective':24} {done:28} {', '.join(o['cycles'])}: {span}")
+    return out
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="code-quality view over history")
     ap.add_argument("--root", default=None, help="project root (default: this repo)")
@@ -420,10 +476,11 @@ def main(argv=None) -> int:
               else "\n".join(mutation.render(data)))
         return 0
     data = bench(root, max(2, args.points), args.top)
+    data["process"] = process_view(root)
     if args.format == "json":
         print(json.dumps(data, indent=2))
     else:
-        print("\n".join(render(data)))
+        print("\n".join(render(data) + render_process(data["process"])))
     return 0
 
 

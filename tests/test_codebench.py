@@ -86,6 +86,44 @@ class TestBench(unittest.TestCase):
         self.assertIn("`fde-codebench`", (ROOT / "README.md").read_text())
 
 
+
+class ProcessView(unittest.TestCase):
+    """Flow, suite size and the last suite run beside the code (owner, 2026-09-30)."""
+
+    def test_the_process_section_reads_runs_cycles_and_suite(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d)
+            for args in (["init", "-q"], ["config", "user.email", "f@t"], ["config", "user.name", "f"]):
+                subprocess.run(["git", *args], cwd=p, check=True, capture_output=True)
+            (p / "src").mkdir()
+            (p / "src" / "a.py").write_text(SIMPLE)
+            (p / "src" / "test_a.py").write_text("import a\n\n\ndef test_ok():\n    assert a.ok(1) == 2\n")
+            (p / "cycles" / "C-1").mkdir(parents=True)
+            (p / "cycles" / "C-1" / "plan.md").write_text("cycle: C-1\nstate: closed\n\n## Items\n\nnone\n")
+            runs = p / ".fde" / "runs"
+            runs.mkdir(parents=True)
+            (runs / "old.json").write_text(json.dumps({"suite": {"seconds": 9.0, "exit_code": 0, "recorded_at": "2026-09-29T10:00:00Z"}}))
+            (runs / "new.json").write_text(json.dumps({"suite": {"seconds": 12.5, "exit_code": 1, "recorded_at": "2026-09-30T10:00:00Z"}}))
+            subprocess.run(["git", "add", "-A"], cwd=p, check=True, capture_output=True)
+            subprocess.run(["git", "commit", "-qm", "c"], cwd=p, check=True, capture_output=True)
+            v = codebench.process_view(p)
+            self.assertEqual(v["suite"]["production_loc"], 2)
+            self.assertEqual(v["suite"]["test_loc"], 3)
+            self.assertEqual(v["last_suite_run"]["seconds"], 12.5)
+            self.assertEqual(v["flow"]["closed"], 1)
+            text = "\n".join(codebench.render_process(v))
+            self.assertIn("12.5s, exit 1", text)
+            self.assertIn("codebench.py --tests", text)
+
+    def test_no_cycles_and_no_runs_still_render(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d)
+            subprocess.run(["git", "init", "-q"], cwd=p, check=True, capture_output=True)
+            v = codebench.process_view(p)
+            self.assertIsNone(v["flow"])
+            self.assertIsNone(v["last_suite_run"])
+            self.assertIn("verify.py --all --record-suite", "\n".join(codebench.render_process(v)))
+
 if __name__ == "__main__":
     unittest.main()
 

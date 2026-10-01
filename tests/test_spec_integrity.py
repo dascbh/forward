@@ -359,3 +359,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertTrue((ROOT / "runtime/flow.py").exists())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 35, 0))
+
+    def test_kernel_version_ships_the_process_view_in_codebench(self):
+        # codebench shows flow and suite measures beside the code (owner
+        # request, 2026-09-30) reaching clients only through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertIn("def process_view", (ROOT / "runtime/codebench.py").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 36, 0))

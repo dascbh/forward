@@ -49,6 +49,14 @@ other; offer it as a backlog item.
 and HEAD: LOC, functions, CC, over CC 10, erosion, clones, SQL, and
 controllers touching data.
 
+**Process:** beside the code, read from git and files only: test lines
+against production lines, the last suite run recorded by
+`verify.py --all --record-suite` (seconds, exit), cycle time, lead time
+and wait for sign-off as medians over closed cycles, each running
+cycle's age, and each objective (cycles joined by `depends:`) with its
+lead time or how long it has been open (`status.py --flow`). The suite's
+effectiveness runs tests, so it is not here: `--tests`.
+
 **Hotspots:** the functions with the most complexity mass at HEAD, their
 CC at the install (`a → b` grew, `new` appeared since), marked ◆ when
 their file is a controller touching data.
