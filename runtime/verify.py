@@ -1541,6 +1541,8 @@ def record_run(project: Path, tree: str, **parts) -> Path:
 
 
 def run_suite(project: Path, command: str) -> dict:
+    import time
+    t0 = time.monotonic()
     try:
         out = subprocess.run(command, shell=True, cwd=project,
                              capture_output=True, text=True, check=False)
@@ -1550,7 +1552,8 @@ def run_suite(project: Path, command: str) -> dict:
     # the last lines that say something (a runner's `----` rule says nothing)
     lines = [l.strip() for l in text.splitlines() if re.search(r"\w", l)]
     return {"command": command, "exit_code": code,
-            "summary": " · ".join(lines[-3:]), "recorded_at": _now()}
+            "summary": " · ".join(lines[-3:]), "recorded_at": _now(),
+            "seconds": round(time.monotonic() - t0, 1)}
 
 
 def print_status(project: Path, fmt: str) -> int:
@@ -1580,7 +1583,8 @@ def print_status(project: Path, fmt: str) -> int:
     # a suite block counts only beside the gate block of its own run
     if (isinstance(suite, dict) and isinstance(gate, dict)
             and suite.get("run_id") and suite.get("run_id") == gate.get("run_id")):
-        print(f"  suite: exit {suite.get('exit_code')} · {suite.get('summary')} · "
+        took = f" · {suite['seconds']}s" if suite.get("seconds") is not None else ""
+        print(f"  suite: exit {suite.get('exit_code')}{took} · {suite.get('summary')} · "
               f"{suite.get('recorded_at')} · {suite.get('command')}")
     else:
         print("  suite: not recorded (verify.py --all --record-suite)")

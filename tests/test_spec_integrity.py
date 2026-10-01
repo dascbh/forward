@@ -335,3 +335,11 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertTrue((ROOT / "runtime/mapexport.py").exists())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 30, 0))
+
+    def test_kernel_version_ships_the_suite_effectiveness(self):
+        # codebench --mutants and the suite's recorded seconds (owner
+        # request, 2026-09-30) reach clients only through a moved version
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "runtime/mutation.py").exists())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 33, 0))

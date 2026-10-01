@@ -399,8 +399,21 @@ def main(argv=None) -> int:
                     help="snapshots spread over the history (default 6)")
     ap.add_argument("--top", type=int, default=10, help="hotspots listed (default 10)")
     ap.add_argument("--format", choices=["text", "json"], default="text")
+    ap.add_argument("--mutants", type=int, default=0, metavar="N",
+                    help="instead: the suite's effectiveness, N sampled mutants per module")
+    ap.add_argument("--modules", type=int, default=8, help="with --mutants: modules sampled (default 8)")
+    ap.add_argument("--module", action="append", default=[], help="with --mutants: this module only")
+    ap.add_argument("--test-cmd", default=None, help="with --mutants: runs one test file, '{test}' replaced")
+    ap.add_argument("--seed", type=int, default=0, help="with --mutants: sampling seed (default 0)")
     args = ap.parse_args(argv)
     root = Path(args.root).resolve() if args.root else project_root()
+    if args.mutants > 0:
+        import mutation
+        data = mutation.sample(root, args.mutants, args.modules, args.module,
+                               args.test_cmd, args.seed)
+        print(json.dumps(data, indent=2) if args.format == "json"
+              else "\n".join(mutation.render(data)))
+        return 0
     data = bench(root, max(2, args.points), args.top)
     if args.format == "json":
         print(json.dumps(data, indent=2))
