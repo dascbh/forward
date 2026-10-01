@@ -543,3 +543,12 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertIn("RUNS = 2000", (ROOT / "runtime/forecast.py").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 51, 2))
+
+    def test_kernel_version_ships_the_review_tail_fix(self):
+        # one demand-review round, only high findings patched, an owner
+        # question never blocks the session (forward-00, owner, 2026-10-01)
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertIn("Owner questions pause one demand, never the session",
+                      " ".join((ROOT / "AGENTS.md").read_text().split()))
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 52, 0))
