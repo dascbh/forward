@@ -1329,6 +1329,7 @@ def board_events(root: Path, c: "Cycle") -> list[dict]:
             seen.add(line.strip())
             out.append({"who": fde_lib.demand_id(m.group(2)) or m.group(2),
                         "verb": m.group(3).lower(), "text": (m.group(3) + m.group(4)).lower(),
+                        "raw": (m.group(3) + m.group(4)).strip(),
                         "at": times[i] if i < len(times) else None})
     return sorted(out, key=lambda e: e["at"] or 0)
 
@@ -1355,7 +1356,9 @@ def demand_progress(did: str, events: list[dict], reviewed: bool) -> dict:
     blocked = bool(mine) and mine[-1]["verb"] == "blocked-on"
     return {"id": did, "done": [p for p in DEMAND_PHASES if p in done], "current": current,
             "started": min(at) if at else None, "last": max(at) if at else None,
-            "merged": merged, "blocked": blocked, "begun": started}
+            "merged": merged, "blocked": blocked, "begun": started,
+            "events": [{"at": e["at"], "verb": e["verb"], "text": e["raw"][:160]}
+                       for e in mine]}
 
 
 def cycle_progress(root: Path, c: "Cycle") -> dict:
@@ -1368,6 +1371,8 @@ def cycle_progress(root: Path, c: "Cycle") -> dict:
         waits = [x for x in (fde_lib.demand_id(t) for t in
                              re.split(r"[\s,;]+", row.get("depends on", ""))) if x and x in rows]
         d["waits"] = waits
+        d["what"] = _plain_cell(row.get("what", ""))
+        d["files"] = _plain_cell(row.get("files", ""))
         demands.append(d)
     merged = {d["id"] for d in demands if d["merged"]}
     for d in demands:
@@ -1398,53 +1403,126 @@ def _dur(seconds: int | None) -> str:
     return f"{m // 60}h{m % 60:02d}m" if m >= 60 else f"{m}m"
 
 
+def _plain_cell(cell: str) -> str:
+    return " ".join(cell.replace("`", "").replace("**", "").split())
+
+
+def _cut(text: str, n: int) -> str:
+    return text if len(text) <= n else text[: n - 1].rstrip() + "…"
+
+
+LEGEND = "✓ done   ▸ now   · to come"
+
+
+def phase_arrow(phases, done, current) -> str:
+    """`plan ✓ → sign-off ✓ → BUILD ▸ → cycle review → deploy`."""
+    return " → ".join(f"{ph} ✓" if ph in done else f"{ph.upper()} ▸" if ph == current else ph
+                      for ph in phases)
+
+
+def cycle_summary(p: dict) -> str:
+    ds = p["demands"]
+    merged = sum(d["merged"] for d in ds)
+    counts: dict = {}
+    for d in ds:
+        if not d["merged"]:
+            counts[demand_status(d, 0)[2]] = counts.get(demand_status(d, 0)[2], 0) + 1
+    parts = [f"{merged} of {len(ds)} merged"] + [f"{n} {k}" for k, n in counts.items()]
+    return " · ".join(parts)
+
+
+def demand_status(d: dict, now: int) -> tuple[str, str, str]:
+    """(mark, phrase, kind): `✓ merged, took 53m`, `▸ in review for 51m`,
+    `· waits for CTR-20`, `· not started`."""
+    if d["merged"]:
+        took = _dur(d["last"] - d["started"]) if d["started"] and d["last"] else ""
+        return "✓", "merged" + (f", took {took}" if took else ""), "merged"
+    if d["waits"]:
+        return "·", f"waits for {', '.join(d['waits'])}", "waiting"
+    if not d["begun"]:
+        return "·", "not started", "not started"
+    if d["blocked"]:
+        return "▸", "blocked" + (f" for {_dur(now - d['last'])}" if d["last"] else ""), "blocked"
+    kind = {"build": "building", "suite": "suite to record", "review": "in review",
+            "merge": "ready to merge", None: "ready to merge"}[d["current"]]
+    return "▸", kind + (f" for {_dur(now - d['last'])}" if d["last"] else ""), kind
+
+
+def demand_steps(d: dict) -> str:
+    cur = None if d["merged"] else (d["current"] or "merge")
+    return phase_arrow(DEMAND_PHASES, d["done"], cur)
+
+
+def cycle_next(p: dict) -> str:
+    """What happens next, in one line."""
+    open_ = [d for d in p["demands"] if not d["merged"]]
+    later = [ph for ph in CYCLE_PHASES if ph not in p["phases_done"] and ph != "build"]
+    if not open_:
+        return " → ".join(later) or "closing"
+    moving = [d["id"] for d in open_ if d["begun"] and not d["waits"]]
+    fresh = [d["id"] for d in open_ if not d["begun"] and not d["waits"]]
+    unblocked = [d["id"] for d in open_ if d["waits"]]
+    steps = []
+    if moving:
+        steps.append(f"{', '.join(moving)} merge" + ("s" if len(moving) == 1 else ""))
+    if fresh:
+        steps.append(f"{', '.join(fresh)} start" + ("s" if len(fresh) == 1 else ""))
+    if unblocked:
+        steps.append(f"{', '.join(unblocked)} start" + ("s" if len(unblocked) == 1 else ""))
+    return " → ".join(steps + later)
+
+
+def progress_lines(p: dict | None, now: int | None = None, width: int = 44) -> list[str]:
+    """A running cycle's body: its phases, a summary, one line per demand
+    (name, state, time) and what comes next."""
+    import time
+    if not p:
+        return []
+    now = int(time.time()) if now is None else now
+    out = [f"  cycle: {phase_arrow(CYCLE_PHASES, p['phases_done'], p['current'])}",
+           f"  {cycle_summary(p)}"]
+    for d in p["demands"]:
+        mark, phrase, kind = demand_status(d, now)
+        out.append(f"  {mark} {d['id']:<9} {_cut(d['what'] or '—', width):<{width}}  {phrase}")
+        if mark == "▸":
+            out.append(f"  {'':11}{demand_steps(d)}")
+    out.append(f"  next: {cycle_next(p)}")
+    return out
+
+
+def demand_detail(d: dict, now: int | None = None) -> list[str]:
+    """Everything the board says about one demand, with times."""
+    import time
+    from datetime import datetime
+    now = int(time.time()) if now is None else now
+    mark, phrase, _ = demand_status(d, now)
+    out = [f"{d['id']} · {d['what'] or '—'}", "", f"{mark} {phrase}", demand_steps(d)]
+    if d.get("files"):
+        out.append(f"files: {d['files']}")
+    out += ["", "board:"]
+    for e in d.get("events", []):
+        at = datetime.fromtimestamp(e["at"]).strftime("%d/%m %H:%M") if e["at"] else "  —  "
+        out.append(f"  {at}  {e['text']}")
+    if not d.get("events"):
+        out.append("  (nothing yet)")
+    return out
+
+
 def show_progress(root: Path, cycles: list["Cycle"]) -> list[str]:
     import time
     live = [c for c in cycles if c.state == "running"]
     if not live:
         return ["no running cycle"]
-    out = []
+    now = int(time.time())
+    out = [LEGEND, ""]
     for c in live:
         p = cycle_progress(root, c)
-        title = p["title"] if len(p["title"]) <= 46 else p["title"][:45].rstrip() + "…"
-        out.append(f"{p['id']} {title}".ljust(52) + f" {p['state']}"
-                   + (f" · {_dur(int(time.time()) - p['began'])}" if p["began"] else ""))
-        out += progress_lines(p)
+        out.append(f"{p['id']} · {_cut(p['title'], 70)}")
+        if p["began"]:
+            out.append(f"  running for {_dur(now - p['began'])}")
+        out += progress_lines(p, now)
         out.append("")
     return out
-
-
-def progress_lines(p: dict | None) -> list[str]:
-    """The phase line and one line per demand: what each does, how long its
-    current phase has run, which phases are done and which come next."""
-    import time
-    if not p:
-        return []
-    now = int(time.time())
-    marks = [f"{ph} " + ("✓" if ph in p["phases_done"] else "▸" if ph == p["current"] else "·")
-             for ph in CYCLE_PHASES]
-    out = ["  " + "  ".join(marks)]
-    ds = p["demands"]
-    for i, d in enumerate(ds):
-        branch = "└─" if i == len(ds) - 1 else "├─"
-        if d["merged"]:
-            state, took = "✓ merged", _dur(d["last"] - d["started"]) if d["started"] and d["last"] else ""
-        elif d["waits"]:
-            state, took = f"· waits {', '.join(d['waits'])}", ""
-        elif not d["begun"]:
-            state, took = "· not started", ""
-        else:
-            cur = d["current"] or "merge"
-            label = {"build": "building", "suite": "suite pending", "review": "in review",
-                     "merge": "to merge"}[cur]
-            state = ("▸ blocked-on " if d["blocked"] else "▸ ") + (label if not d["blocked"] else "")
-            took = _dur(now - d["last"]) if d["last"] else ""
-            steps = " · ".join(f"{ph} " + ("✓" if ph in d["done"] else "▸" if ph == cur else "·")
-                               for ph in DEMAND_PHASES)
-            took = f"{took}  ({steps})" if took else f"({steps})"
-        out.append(f"  {branch} {d['id']:<12} {state:<22} {took}".rstrip())
-    return out
-
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="cycle and backlog view")

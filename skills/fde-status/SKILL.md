@@ -82,8 +82,15 @@ The format comes from AGENTS.md `## Cycle`.
 ## Progress — what each agent is doing, and for how long
 
 ```bash
-python3 bin/fde/status.py --progress        # running cycles as a tree
+python3 bin/fde/status.py --progress        # running cycles, printed
+python3 bin/fde/backlog.py --progress       # the same, navigable, in the owner's own terminal
 ```
+
+To navigate rather than read a print, the owner runs the panel in a
+terminal of their own: j/k move, enter/→ open a cycle, ← close it, d
+opens a demand (its name, phase, files and board timeline with times),
+r reloads (it also reloads every 30 s), Tab switches to the backlog, q
+quits. Offer the command when the owner asks to follow the work.
 
 Each running cycle shows its phases (plan · sign-off · build · cycle
 review · deploy: ✓ done, ▸ now, · to come) and one line per demand: its

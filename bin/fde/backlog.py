@@ -410,12 +410,12 @@ def clipboard(text: str) -> bool:
     return False
 
 
-def run(root: Path) -> int:  # pragma: no cover — needs a terminal
+def run(root: Path, start_tab: str = "backlog") -> int:  # pragma: no cover — needs a terminal
     import curses
     import locale
     locale.setlocale(locale.LC_ALL, "")
     board = Board(root)
-    return curses.wrapper(lambda scr: _loop(scr, board))
+    return curses.wrapper(lambda scr: _loop(scr, board, start_tab))
 
 
 class Panel:
@@ -558,7 +558,107 @@ class Panel:
                         else f"paste to the agent: {cmd}")
 
 
-def _loop(scr, board: Board) -> int:  # pragma: no cover — needs a terminal
+# -- progress tab: running cycles you can navigate (owner request 2026-10-01)
+# Read-only. The same model and wording as `status.py --progress`
+# (status.cycle_progress, progress_lines, demand_detail), so the two never
+# disagree. Tab switches between the backlog and this tab.
+
+class ProgressRow:
+    def __init__(self, kind: str, key: str, text: str, depth: int = 0, demand=None):
+        self.kind, self.key, self.text, self.depth, self.demand = kind, key, text, depth, demand
+
+
+class Progress:
+    """Cycles fold and unfold; a demand opens its detail. Keys are handled
+    here, without curses, so they are tested with a scripted sequence."""
+
+    REFRESH = 30  # seconds between automatic reloads
+
+    def __init__(self, root: Path, clock=None):
+        import time
+        self.root, self.clock = Path(root), clock or time.time
+        self.open: set[str] = set()
+        self.cur, self.top = 0, 0
+        self.view: list[str] | None = None
+        self.vtop = 0
+        self.loaded_at = 0.0
+        self.cycles: list[dict] = []
+        self.reload()
+        if self.cycles:
+            self.open.add(self.cycles[0]["id"])
+
+    def reload(self) -> None:
+        import status
+        cycles = status.load_cycles(self.root, [])
+        self.cycles = [status.cycle_progress(self.root, c) for c in cycles if c.state == "running"]
+        self.loaded_at = self.clock()
+
+    def maybe_refresh(self) -> bool:
+        if self.clock() - self.loaded_at >= self.REFRESH:
+            self.reload()
+            return True
+        return False
+
+    def rows(self) -> list[ProgressRow]:
+        import status
+        now = int(self.clock())
+        out = []
+        for p in self.cycles:
+            opened = p["id"] in self.open
+            head = (f"{'▼' if opened else '▶'} {p['id']}  {status._cut(p['title'], 60)}"
+                    + (f"   {status._dur(now - p['began'])}" if p["began"] else ""))
+            if not opened:
+                head += f"   {status.cycle_summary(p)}"
+            out.append(ProgressRow("cycle", p["id"], head))
+            if not opened:
+                continue
+            out.append(ProgressRow("info", p["id"], "cycle: " + status.phase_arrow(
+                status.CYCLE_PHASES, p["phases_done"], p["current"]), 1))
+            out.append(ProgressRow("info", p["id"], status.cycle_summary(p), 1))
+            for d in p["demands"]:
+                mark, phrase, _ = status.demand_status(d, now)
+                out.append(ProgressRow("demand", d["id"],
+                                       f"{mark} {d['id']:<9} {status._cut(d['what'] or '—', 44):<44}  {phrase}",
+                                       1, d))
+            out.append(ProgressRow("info", p["id"], f"next: {status.cycle_next(p)}", 1))
+        return out or [ProgressRow("info", "", "no running cycle")]
+
+    def handle(self, ch) -> bool:
+        """Apply one key; False to quit the panel."""
+        import status
+        if self.view is not None:
+            if ch in ("q", "\x1b", "\n", "\r", "h", "left", "d"):
+                self.view = None
+            elif ch in ("j", "down"):
+                self.vtop = min(self.vtop + 1, max(0, len(self.view) - 1))
+            elif ch in ("k", "up"):
+                self.vtop = max(0, self.vtop - 1)
+            return True
+        if ch == "q":
+            return False
+        rows = self.rows()
+        self.cur = max(0, min(self.cur, len(rows) - 1))
+        row = rows[self.cur]
+        if ch in ("j", "down"):
+            self.cur = min(self.cur + 1, len(rows) - 1)
+        elif ch in ("k", "up"):
+            self.cur = max(0, self.cur - 1)
+        elif ch in ("\n", "\r", "l", "right", "d"):
+            if row.kind == "cycle":
+                self.open ^= {row.key}
+            elif row.kind == "demand":
+                self.view, self.vtop = status.demand_detail(row.demand, int(self.clock())), 0
+        elif ch in ("h", "left"):
+            if row.key in self.open:
+                self.open.discard(row.key)
+                self.cur = next(i for i, r in enumerate(self.rows())
+                                if r.kind == "cycle" and r.key == row.key)
+        elif ch == "r":
+            self.reload()
+        return True
+
+
+def _loop(scr, board: Board, start_tab: str = "backlog") -> int:  # pragma: no cover — needs a terminal
     import curses
     curses.curs_set(0)
     curses.use_default_colors()
@@ -591,9 +691,28 @@ def _loop(scr, board: Board) -> int:  # pragma: no cover — needs a terminal
                                   "npage": curses.KEY_NPAGE, "ppage": curses.KEY_PPAGE,
                                   "home": curses.KEY_HOME, "end": curses.KEY_END,
                                   "enter": curses.KEY_ENTER})
+    progress = Progress(board.root)
+    tab = "progress" if start_tab == "progress" else "backlog"
+    names = {curses.KEY_DOWN: "down", curses.KEY_UP: "up", curses.KEY_LEFT: "left",
+             curses.KEY_RIGHT: "right", curses.KEY_ENTER: "\n"}
+    scr.timeout(1000)
     while True:
-        _draw(scr, panel, curses)
-        if not panel.handle(scr.get_wch()):
+        if tab == "progress":
+            progress.maybe_refresh()
+            _draw_progress(scr, progress, curses)
+        else:
+            _draw(scr, panel, curses)
+        try:
+            ch = scr.get_wch()
+        except curses.error:
+            continue  # timeout: redraw (and refresh the progress tab)
+        if ch == "\t":
+            tab = "backlog" if tab == "progress" else "progress"
+            continue
+        if tab == "progress":
+            if not progress.handle(names.get(ch, ch)):
+                return 0
+        elif not panel.handle(ch):
             return 0
 
 
@@ -630,9 +749,43 @@ def _draw(scr, p: Panel, curses) -> None:  # pragma: no cover — needs a termin
     scr.refresh()
 
 
+def _draw_progress(scr, p: Progress, curses) -> None:  # pragma: no cover — needs a terminal
+    import time
+    h, w = scr.getmaxyx()
+    scr.erase()
+    head = (f" FORWARD · progress · ✓ done  ▸ now  · to come"
+            f"   updated {time.strftime('%H:%M:%S', time.localtime(p.loaded_at))}")
+    scr.addnstr(0, 0, head.ljust(w - 1), w - 1, curses.A_REVERSE)
+    if p.view is not None:
+        import textwrap
+        wrapped = [part for line in p.view
+                   for part in (textwrap.wrap(line, w - 4, subsequent_indent="      ") or [""])]
+        p.vtop = min(p.vtop, max(0, len(wrapped) - 1))
+        for y, line in enumerate(wrapped[p.vtop:p.vtop + h - 3], 1):
+            scr.addnstr(y, 1, line, w - 2)
+        foot = " j/k scroll · h/←/q back"
+    else:
+        rows = p.rows()
+        p.cur = max(0, min(p.cur, len(rows) - 1))
+        span = h - 3
+        p.top = min(max(p.top, p.cur - span + 1), p.cur)
+        for y, r in enumerate(rows[p.top:p.top + span], 1):
+            here = p.top + y - 1 == p.cur
+            attr = (curses.A_BOLD if r.kind == "cycle" else 0) \
+                | (curses.color_pair(3) if r.kind == "info" else 0) \
+                | (curses.A_REVERSE if here else 0)
+            scr.addnstr(y, 0, ("❯ " if here else "  ") + "  " * r.depth + r.text, w - 1, attr)
+        foot = (" j/k move · enter/→ open · ← close · d demand detail · r refresh "
+                f"(auto {p.REFRESH}s) · Tab backlog · q quit")
+    scr.addnstr(h - 2, 0, foot.ljust(w - 1), w - 1, curses.color_pair(3))
+    scr.refresh()
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="interactive backlog panel")
     ap.add_argument("--root", default=".", help="project root (default: cwd)")
+    ap.add_argument("--progress", action="store_true",
+                    help="open on the progress tab (running cycles); Tab switches")
     args = ap.parse_args(argv)
     root = Path(args.root)
     if not (root / "backlog.md").is_file():
@@ -642,7 +795,7 @@ def main(argv=None) -> int:
         print("backlog: needs a terminal — run it in your own shell; "
               "`status.py --panel` prints the same data", file=sys.stderr)
         return 2
-    return run(root)
+    return run(root, "progress" if args.progress else "backlog")
 
 
 if __name__ == "__main__":

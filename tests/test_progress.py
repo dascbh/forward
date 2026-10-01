@@ -70,13 +70,18 @@ class TestProgress(unittest.TestCase):
 
     def test_each_demand_shows_its_phase_and_what_comes_next(self):
         out = self.progress()
-        self.assertIn("plan ✓  sign-off ✓  build ▸  cycle review ·  deploy ·", out)
-        self.assertIn("✓ merged", self.line(out, "DEM-1"))
-        dem2 = self.line(out, "DEM-2")
-        self.assertIn("▸ building", dem2)
-        self.assertIn("(build ▸ · suite · · review · · merge ·)", dem2)
-        self.assertIn("· waits DEM-2", self.line(out, "DEM-3"))
-        self.assertIn("· not started", self.line(out, "DEM-4"))
+        self.assertIn("✓ done   ▸ now   · to come", out)
+        self.assertIn("cycle: plan ✓ → sign-off ✓ → BUILD ▸ → cycle review → deploy", out)
+        self.assertIn("1 of 4 merged", out)
+        self.assertIn("merged", self.line(out, "DEM-1"))
+        self.assertIn(" a ", self.line(out, "DEM-1"), "the demand's name from the plan")
+        self.assertIn("▸ DEM-2", out)
+        self.assertIn("building for", self.line(out, "DEM-2"))
+        self.assertIn("BUILD ▸ → suite → review → merge", out)
+        self.assertIn("waits for DEM-2", self.line(out, "DEM-3"))
+        self.assertIn("not started", self.line(out, "DEM-4"))
+        self.assertIn("next: DEM-2 merges → DEM-4 starts → DEM-3 starts → cycle review → deploy",
+                      out)
 
     def test_a_demand_building_in_its_own_worktree_shows_before_it_merges(self):
         wt = Path(self.tmp.name) / "wt"
@@ -85,7 +90,7 @@ class TestProgress(unittest.TestCase):
             f.write("- 2026-10-01 DEM-4 claim src/d.py\n"
                     "- 2026-10-01 DEM-4 done 999 — --record-suite: suite exit 0\n")
         git(wt, "commit", "-qam", "dem-4 work")
-        self.assertIn("▸ in review", self.line(self.progress(), "DEM-4"))
+        self.assertIn("in review for", self.line(self.progress(), "DEM-4"))
 
     def test_a_worktree_with_no_new_board_line_is_not_blamed(self):
         import status
@@ -109,8 +114,51 @@ class TestProgress(unittest.TestCase):
                              capture_output=True, text=True).stdout
         head = out.split("## Backlog")[0]
         self.assertIn("- running: C-1", head)
-        self.assertIn("    plan ✓  sign-off ✓  build ▸", head)
+        self.assertIn("cycle: plan ✓ → sign-off ✓ → BUILD ▸", head)
         self.assertIn("DEM-2", head)
+
+
+class TestProgressTab(unittest.TestCase):
+    """The panel's progress tab: fold, unfold, open a demand, quit."""
+
+    setUp = TestProgress.setUp
+
+    def tab(self):
+        import backlog
+        return backlog.Progress(self.root)
+
+    def test_the_first_cycle_opens_and_the_keys_navigate(self):
+        p = self.tab()
+        texts = [r.text for r in p.rows()]
+        self.assertTrue(texts[0].startswith("▼ C-1"))
+        self.assertTrue(any("DEM-2" in t for t in texts))
+        p.handle("h")
+        self.assertTrue(p.rows()[0].text.startswith("▶ C-1"))
+        self.assertIn("1 of 4 merged", p.rows()[0].text, "a folded cycle shows its summary")
+        p.handle("\n")
+        self.assertTrue(p.rows()[0].text.startswith("▼ C-1"))
+
+    def test_a_demand_opens_its_board_timeline(self):
+        p = self.tab()
+        rows = p.rows()
+        p.cur = next(i for i, r in enumerate(rows) if r.kind == "demand" and r.key == "DEM-1")
+        p.handle("d")
+        self.assertIsNotNone(p.view)
+        joined = "\n".join(p.view)
+        self.assertIn("DEM-1 · a", joined)
+        self.assertIn("claim src/a.py", joined)
+        self.assertIn("decided merged def456", joined)
+        p.handle("q")
+        self.assertIsNone(p.view, "q closes the detail first")
+        self.assertFalse(p.handle("q"), "then q quits")
+
+    def test_it_reloads_on_its_own(self):
+        import backlog
+        clock = [1000.0]
+        p = backlog.Progress(self.root, clock=lambda: clock[0])
+        self.assertFalse(p.maybe_refresh())
+        clock[0] += backlog.Progress.REFRESH
+        self.assertTrue(p.maybe_refresh())
 
 
 class TestNaming(ProseTestCase):
