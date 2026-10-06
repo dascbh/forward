@@ -596,10 +596,15 @@ class TestTemplatesAndVersions(unittest.TestCase):
                      "The verdict is against the declared budget, never a universal score",
                      "None may be absent",
                      "at least one of them a disclosure principle",
-                     "an element outside the map, or in another layer than the map gives it, is a finding"):
+                     "an element outside the map, or in another layer than the map gives it, is a finding",
+                     "Write that datum as the person's own question",
+                     "USE-16 never cuts them",
+                     "is checked item by item, never as a group"):
             self.assertIn(rule, d)
+        self.assertIn("are not spec prose and always stay visible",
+                      (ROOT / "spec/dimensions/quality-attributes.toml").read_text())
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
-                                (0, 57, 0))
+                                (0, 57, 1))
 
     def test_kernel_version_ships_the_pipeline_as_specified(self):
         # the owner, 2026-10-01: an inspection report template and an

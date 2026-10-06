@@ -150,9 +150,14 @@ when they open it (what they did before, what they do next), the verb
 (what they must do there), the frequency, and the datum they look for
 first. Then decide: the main person of the default state (the most
 frequent, unless a reason is written); one focal point, everything else
-lowered on purpose; and how each secondary person is served — by a
-visible, compact element that shows the datum they look for first and
-opens the rest, never by a control with no hint of what it hides.
+lowered on purpose; and how each secondary person is served — by a visible, compact
+element that shows the datum they look for first and opens the rest,
+never by a control with no hint of what it hides. Write that datum as
+the person's own question, and make the element answer it: a partner
+reviewing a due diligence asks "what is missing, and what is a
+priority?" — "42 pending on priority · View full summary" answers it;
+"% OK per area" does not, and regenerated screens kept falling back to
+such a generic figure until the question was written down.
 
 **Priority map.** One row per element the spec asks for: element, R#,
 person, frequency (daily, weekly, occasional, rare), consequence of not
@@ -165,7 +170,11 @@ menu, panel, collapsed strip, help), off the screen. Rules:
   screen.
 - Occasional use takes no fixed space above the main content.
 - An agent's proposal sits with the object it is about, labelled, the
-  human decision beside it — never a block of its own.
+  human decision beside it — never a block of its own. Its provenance
+  label and the request for a decision ("System proposal — confirm?")
+  always stay visible: they are not spec prose, and USE-16 never cuts
+  them (a regenerated screen reduced a proposed link to "85 points",
+  and nothing said it awaited the lawyer's decision).
 - Explanations, rules and limits live on demand, or inside the dialog
   where they are used (USE-16).
 - Nothing repeats above the main content.
@@ -192,10 +201,14 @@ against the declared budget, never a universal score. Mark the
 wireframe for the measure: `data-fde="header"`, `data-fde="bar"`,
 `data-fde="main"`.
 
-**Completeness check.** Before the wireframe is handed over, list every
-state and action the spec asks of the screen — each empty variant,
-loading, error, read-only, conflict, the occasional actions — and mark
-each visible, reachable (with the control that opens it) or absent. None
+**Completeness check.** Before the wireframe is handed over, list every state and action the
+spec asks of the screen — each empty variant, loading, error, read-only,
+conflict, the occasional actions — and mark each visible, reachable
+(with the control that opens it) or absent. A list the spec enumerates
+(failure causes, states, variants) is checked item by item, never as a
+group — a regenerated screen kept "read failures" and lost one of its
+eight causes. Each secondary person's question is checked too: its
+answer is in the visible element. None
 may be absent: a budget is met by moving things, never by dropping them.
 
 ## Information architecture (L)
@@ -213,9 +226,10 @@ nomenclature is law downstream. Artifact: `specs/<demand-id>/design/ia.md`.
 
 Grayscale plus one blue for the single primary action. Real microcopy —
 lorem ipsum hides exactly what the wireframe must reveal. Real means the
-user's words for the next action, never the spec's (USE-16): no sentence
-that explains a rule, restates a criterion or an ADR, or says what the
-system does behind the screen. A rule the user must follow is designed as
+user's words for the next action, never the spec's (USE-16): no sentence that explains a rule, restates a criterion or an ADR, or
+says what the system does behind the screen. Not prose, and never cut:
+the provenance label of an agent's proposal and its request for a
+decision. A rule the user must follow is designed as
 behavior — a default, a disabled action with a reason of a few words,
 inline validation; help text is one short sentence, only for a decision
 the user makes. A client's screens carried 264 such sentences (median 11
