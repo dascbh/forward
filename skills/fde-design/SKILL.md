@@ -143,7 +143,14 @@ nomenclature is law downstream. Artifact: `specs/<demand-id>/design/ia.md`.
 ## Wireframe — the build contract
 
 Grayscale plus one blue for the single primary action. Real microcopy —
-lorem ipsum hides exactly what the wireframe must reveal. Realistic
+lorem ipsum hides exactly what the wireframe must reveal. Real means the
+user's words for the next action, never the spec's (USE-16): no sentence
+that explains a rule, restates a criterion or an ADR, or says what the
+system does behind the screen. A rule the user must follow is designed as
+behavior — a default, a disabled action with a reason of a few words,
+inline validation; help text is one short sentence, only for a decision
+the user makes. A client's screens carried 264 such sentences (median 11
+words) — the project's spec prose, moved into the interface. Realistic
 volume (20+ rows, long names): a layout that only works with little data
 is a structure bug. Empty/loading/error variants for every data screen.
 Cross-linked HTML; clicking through the flow is the acceptance test.
@@ -255,7 +262,10 @@ These checks live in `eval_paths` — they ARE the frontend eval suite:
 - Parity diff against the approved wireframe: missing element, extra
   unapproved element, swapped order or grouping, divergent label,
   unimplemented state. Approved microcopy is contract — a divergent
-  label is a High finding.
+  label is a High finding. `python3 bin/fde/uiprose.py --changed` lists
+  every explanatory sentence the change adds to the screens; each is
+  judged against USE-16 (keep it only when it serves the user's next
+  action).
 - Clean console is part of the gate: zero errors and warnings on the
   routes under test. A UI change never viewed in a real browser is a red
   flag — unit tests do not test rendering.

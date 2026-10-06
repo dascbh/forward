@@ -74,7 +74,11 @@ it by id; a demand never amends it.
   answer is recorded in the plan as a criterion or an assumption.
 - A `date:` line; criteria (`A1`, `A2`…) and failure modes (`FM1`…),
   each with an id. A requirement is measurable — "fast" becomes a number
-  with a baseline; an unmeasurable one is a finding, not a vibe.
+  with a baseline; an unmeasurable one is a finding, not a vibe. A
+  criterion is proven by behavior — the data saved, the action allowed or
+  refused, the state shown — never by a sentence on the screen that says
+  it holds (USE-16). Criteria and spec prose are the team's voice; screen
+  text comes from the design, in the user's.
 - `## Threat model`: who or what the cycle must contain, and what is out
   of scope. Review blocks only inside it.
 - The demand list: id, the layers it touches (`front`/`back`/`infra`,
