@@ -575,6 +575,15 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 53, 0))
 
+    def test_kernel_version_ships_use_16(self):
+        # forward-00, owner's UX inspection (2026-10-05): the screen speaks
+        # the user's next action, never the spec
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        self.assertTrue((ROOT / "runtime/uiprose.py").exists())
+        self.assertIn("USE-16", (ROOT / "spec/dimensions/quality-attributes.toml").read_text())
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 56, 0))
+
     def test_kernel_version_ships_the_pipeline_as_specified(self):
         # the owner, 2026-10-01: an inspection report template and an
         # "inspection delivers" section had narrowed the approved pipeline —
