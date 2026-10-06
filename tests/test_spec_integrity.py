@@ -584,6 +584,23 @@ class TestTemplatesAndVersions(unittest.TestCase):
         self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
                                 (0, 56, 0))
 
+    def test_kernel_version_ships_the_priority_instrument(self):
+        # owner, 2026-10-06: screens were the sum of their requirements;
+        # an experiment on two client screens moved the main content
+        # 700-800 px up with no requirement lost
+        spec_v = load("spec/invariants.toml")["meta"]["kernel_version"]
+        d = " ".join((ROOT / "skills/fde-design/SKILL.md").read_text().split())
+        for rule in ("## Priority — before the hierarchy (any UI surface)",
+                     "The order of the requirements in the text is not the order of the screen",
+                     "shows a visible cue of what it hides",
+                     "The verdict is against the declared budget, never a universal score",
+                     "None may be absent",
+                     "at least one of them a disclosure principle",
+                     "an element outside the map, or in another layer than the map gives it, is a finding"):
+            self.assertIn(rule, d)
+        self.assertGreaterEqual(tuple(int(x) for x in spec_v.split(".")),
+                                (0, 57, 0))
+
     def test_kernel_version_ships_the_pipeline_as_specified(self):
         # the owner, 2026-10-01: an inspection report template and an
         # "inspection delivers" section had narrowed the approved pipeline —

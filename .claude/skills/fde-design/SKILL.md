@@ -23,9 +23,9 @@ patch the symptom in code.
 
 | size | design phases | alternatives required |
 |---|---|---|
-| XS / S | build within the foundation, design QA | none |
-| M | + flow and wireframe before build | 2, from distinct lenses |
-| L | + PRD-grade spec, information architecture, user validation | 3, from distinct lenses |
+| XS / S | priority for the elements touched, build within the foundation, design QA | none |
+| M | + priority, flow and wireframe before build | 2, from distinct lenses |
+| L | + PRD-grade spec, priority, information architecture, user validation | 3, from distinct lenses |
 
 ## The two diamonds
 
@@ -95,7 +95,10 @@ Project-level artifacts, versioned at `design/`:
 - `design/product.md` — what the product is (and is NOT); the quality-bar
   sentence every screen is judged against; personas (role + what they do
   + what each demands of the UI); register (operational / editorial /
-  consumer, one per product); 3–6 ORDERED tie-breaking principles;
+  consumer, one per product); 3–6 ORDERED tie-breaking principles,
+  at least one of them a disclosure principle — what stays on screen and
+  what is one click away (the product owner words it; principles that
+  only say what to show make every screen show everything);
   glossary (term, meaning, grammatical gender) with per-term deny-list.
 - `design/foundation.md` — token source path, primitive kit table,
   reference pages, density rules, state semantics, drift/debt log.
@@ -130,6 +133,71 @@ it needs notification, deadline, and what the recipient sees. Every
 decision and error branch becomes an EARS criterion citing its R#.
 Artifact: `specs/<demand-id>/design/flow.md` (Mermaid).
 
+## Priority — before the hierarchy (any UI surface)
+
+Without it, a screen is the sum of its requirements: each R# becomes a
+block and the order of the spec's text becomes the order of the screen.
+A client's screens came out exactly so — following the whole design
+chain did not prevent it — and, generated again with this instrument,
+put their main content 700–800 px higher and cut 60–70% of the fixed
+text with no requirement lost. Nothing here removes a requirement: it
+decides where and when each one shows. Artifact:
+`specs/<demand-id>/design/priority.md`, cited by `ia.md` and the
+wireframes; at XS/S, a short one for the elements the change touches.
+
+**People and moments.** For each person of the spec who uses the screen:
+when they open it (what they did before, what they do next), the verb
+(what they must do there), the frequency, and the datum they look for
+first. Then decide: the main person of the default state (the most
+frequent, unless a reason is written); one focal point, everything else
+lowered on purpose; and how each secondary person is served — by a
+visible, compact element that shows the datum they look for first and
+opens the rest, never by a control with no hint of what it hides.
+
+**Priority map.** One row per element the spec asks for: element, R#,
+person, frequency (daily, weekly, occasional, rare), consequence of not
+seeing it (high, medium, low), and layer — from most to least visible:
+header (title and at most one primary action), content bar (search,
+filters, views), main content, on the object's row, on demand (dialog,
+menu, panel, collapsed strip, help), off the screen. Rules:
+
+- The order of the requirements in the text is not the order of the
+  screen.
+- Occasional use takes no fixed space above the main content.
+- An agent's proposal sits with the object it is about, labelled, the
+  human decision beside it — never a block of its own.
+- Explanations, rules and limits live on demand, or inside the dialog
+  where they are used (USE-16).
+- Nothing repeats above the main content.
+- At most four visible options per decision point.
+
+**Disclosure with a cue.** What lives on demand — legal basis, origin,
+criteria, explanations, a secondary person's detail — is one click away,
+never permanent, and shows a visible cue of what it hides: a number, a
+count, a label. Hidden content with no cue may as well not exist. Being
+reachable is what auditability asks; being always on screen is not.
+Never hide what the user needs to decide.
+
+**Budget, declared and measured on the wireframe.** `priority.md`
+declares each screen's budget, and design QA measures the rendered
+wireframe against it before any code — in the browser, at 1440 × 900: blocks between the tabs (or header) and the
+main content, words of fixed text outside the main content (titles,
+tabs, control labels, column headers and numbers not counted), primary
+actions per region, distance in px from the tabs to the main content,
+and the text of a row in the main content. For list and table screens,
+start from at most 2 blocks, 30 words, 1 primary action per region and
+200 px — the values that held on the client's two list screens; an
+editor, a document viewer or a form declares its own. The verdict is
+against the declared budget, never a universal score. Mark the
+wireframe for the measure: `data-fde="header"`, `data-fde="bar"`,
+`data-fde="main"`.
+
+**Completeness check.** Before the wireframe is handed over, list every
+state and action the spec asks of the screen — each empty variant,
+loading, error, read-only, conflict, the occasional actions — and mark
+each visible, reachable (with the control that opens it) or absent. None
+may be absent: a budget is met by moving things, never by dropping them.
+
 ## Information architecture (L)
 
 Fit the existing map before creating structure. New route only for a
@@ -137,7 +205,8 @@ place worth linking; tab = facet of the same object; section = same-task
 content; in doubt, fewer surfaces. Object map with attributes at the
 cardinality-correct level (DOM-1), states → screen states with a visible
 trigger per actor, invariants declaring where they are enforced (UI, API,
-DB). One primary action per screen; empty states teach. The decided
+DB). The screen's hierarchy derives from `priority.md`, never from the order
+of the R#s. One primary action per screen; empty states teach. The decided
 nomenclature is law downstream. Artifact: `specs/<demand-id>/design/ia.md`.
 
 ## Wireframe — the build contract
@@ -261,7 +330,8 @@ These checks live in `eval_paths` — they ARE the frontend eval suite:
   a11y covers ~half; a manual keyboard pass stays part of review.
 - Parity diff against the approved wireframe: missing element, extra
   unapproved element, swapped order or grouping, divergent label,
-  unimplemented state. Approved microcopy is contract — a divergent
+  unimplemented state — and against `priority.md`: an element outside
+  the map, or in another layer than the map gives it, is a finding. Approved microcopy is contract — a divergent
   label is a High finding. `python3 bin/fde/uiprose.py --changed` lists
   every explanatory sentence the change adds to the screens; each is
   judged against USE-16 (keep it only when it serves the user's next
