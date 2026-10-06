@@ -7,6 +7,7 @@ targets (CLAUDE.md, .claude/settings.json) SETUP §8.3/§8.4 describe."""
 from __future__ import annotations
 
 import json
+import re
 import os
 import subprocess
 import tomllib
@@ -58,7 +59,15 @@ class TestPluginDistribution(unittest.TestCase):
         r = subprocess.run(["claude", "plugin", "validate", "."],
                            cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertNotIn("warning", (r.stdout + r.stderr).lower())
+        # the one warning tolerated: the root CLAUDE.md is this repository's
+        # own context (the kernel installed on itself), not the plugin's —
+        # the validator learned to say so (2026-10-05). Any other warning
+        # still fails.
+        lines = [l for l in (r.stdout + r.stderr).splitlines()
+                 if "warning" in l.lower() or l.strip().startswith("❯")]
+        others = [l for l in lines if "CLAUDE.md at the plugin root is not loaded" not in l
+                  and not re.search(r"(?i)found 1 warning|validation passed with warnings", l)]
+        self.assertEqual(others, [], r.stdout + r.stderr)
 
     def test_owner_and_author_are_objects_not_strings(self):
         # the exact shape the validator rejects, pinned so the CLI-less
